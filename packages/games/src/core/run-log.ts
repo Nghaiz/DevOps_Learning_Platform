@@ -135,6 +135,25 @@ export type GitGameAction =
   /** Mở gợi ý thứ `index` (đếm từ 0). Cùng quy ước không-mang-`levelId` như K8s. */
   | { readonly gameId: 'git'; readonly tick: number; readonly kind: 'hint'; readonly index: number };
 
+/**
+ * Game CI/CD cũng chỉ có HAI loại action, vì lý do khác hẳn game Git.
+ *
+ * Người chơi không điều khiển từng tick. Họ **soạn một `WorkflowSpec`** rồi bấm
+ * chạy, và engine chạy trọn `EvaluationSpec.passes` lượt có seed. Nên một hành
+ * động là "nộp bản workflow này để chấm", không phải một thao tác trong cảnh.
+ *
+ * `source` là văn bản YAML thô người chơi gõ, KHÔNG phải `WorkflowSpec` đã phân
+ * tích. Hai lý do: bản thô là thứ duy nhất tái lập được nguyên vẹn (một
+ * `WorkflowSpec` đã chuẩn hoá làm mất chú thích và thứ tự khoá, nên phát lại sẽ
+ * không ra đúng thứ người chơi thấy), và nó giữ `core/` khỏi phải biết hình
+ * dạng `WorkflowSpec` — thứ chỉ `cicd/contract.ts` mới được biết.
+ */
+export type CicdGameAction =
+  /** Nộp một bản YAML để chấm. Engine tự chạy đủ số lượt theo `EvaluationSpec`. */
+  | { readonly gameId: 'cicd'; readonly tick: number; readonly kind: 'evaluate'; readonly source: string }
+  /** Mở gợi ý thứ `index` (đếm từ 0). Cùng quy ước không-mang-`levelId` như hai game kia. */
+  | { readonly gameId: 'cicd'; readonly tick: number; readonly kind: 'hint'; readonly index: number };
+
 // ── Union mở ────────────────────────────────────────────────────────────────
 
 /**
@@ -143,8 +162,15 @@ export type GitGameAction =
  * Thêm game là thêm một nhánh, và mọi `switch (action.gameId)` chưa xử nhánh mới
  * sẽ ĐỎ ở phép kiểm vét cạn — đó là cổng gác mà bản cũ (`kind` đóng của K8s)
  * không có.
+ *
+ * ⚠ Nhánh `cicd` khai NGAY TẠI ĐÂY chứ không `import` từ `cicd/contract.ts`,
+ * đúng lối hai game trước. `core/` không được biết `WorkflowSpec` hay
+ * `ClusterSpec`; nó chỉ cần biết hình dạng của một dòng nhật ký. Một `import`
+ * ngược từ `core/` xuống thư mục game sẽ phá đúng ranh giới mà
+ * `problem-plugins.ts` đang gác bằng cách sống ở gốc `src/` thay vì trong
+ * `core/`.
  */
-export type GameAction = K8sActionShape | GitGameAction;
+export type GameAction = K8sActionShape | GitGameAction | CicdGameAction;
 
 /** Rút gọn cho chỗ chỉ cần phân loại. */
 export type GameActionKind = GameAction['kind'];

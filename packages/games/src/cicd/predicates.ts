@@ -1,0 +1,671 @@
+/**
+ * Hiện thực 19 vị từ mà `CicdObjective.check` gọi tên.
+ *
+ * ## Vì sao file này tồn tại
+ *
+ * `contract.ts` khai `CICD_PREDICATE_NAMES` và mọi level trỏ tới chúng bằng
+ * TÊN, nhưng cho tới đợt này chưa ai hiện thực bảng tra. Hệ quả đo được: hai
+ * lane viết level (`levels/ci-som.test.ts` và `levels/ci-muon.test.ts`) mỗi lane
+ * tự vá một bộ kiểm cục bộ trong file test của mình. Hai bản đọc hiểu độc lập
+ * cùng một hợp đồng là hai bản sẽ trôi khỏi nhau — và cả hai vẫn biên dịch,
+ * vẫn xanh ở test của chính nó. Đây là bản CHÍNH TẮC; hai bộ kiểm kia phải
+ * chuyển sang gọi file này rồi xoá đi.
+ *
+ * ## Bốn luật chi phối cả file
+ *
+ * 1. **THUẦN và CHỈ ĐỌC.** Không vị từ nào sinh state, không vị từ nào chạy lại
+ *    engine. Chúng đọc một `EvaluationRecord` đã có và một `WorkflowSpec`. Một
+ *    vị từ tự gọi `evaluate()` là một vị từ cho ra kết quả khác giữa lúc chấm và
+ *    lúc phát lại nếu ai đó đổi hạt giống.
+ *
+ * 2. **Vị từ CHƯA hiện thực thì NÉM.** Trả `true` biến một mục tiêu chưa viết
+ *    thành mục tiêu luôn đạt; trả `false` biến nó thành một level không giải
+ *    được. Cả hai sai trong im lặng, và cả hai chỉ lộ ra khi có người chơi tới
+ *    đúng level đó. Hai vị từ chương CD (`promotedArtifactUnchanged`,
+ *    `rollbackUnder`) nằm ở nhánh này — xem `UNIMPLEMENTED_CICD_PREDICATES`.
+ *
+ * 3. **Tham số thiếu hoặc sai kiểu thì trả `false`, KHÔNG ném.** Khác luật 2, và
+ *    khác có chủ ý: một vị từ chưa viết là lỗi của KHO MÃ, một tham số sai là
+ *    lỗi của MỘT LEVEL. Lỗi của một level chỉ được phép làm hỏng một mục tiêu,
+ *    không được làm sập phiên chơi của người dùng (cùng luật với
+ *    `k8s/predicates.ts`).
+ *
+ *    ⚠ Chiều `false` này giấu lỗi của tác giả level, nên nó đi kèm
+ *    `validateObjectiveArgs()`: tầng test của level gọi hàm đó và đỏ TO ở chỗ
+ *    rẻ, thay vì để một mục tiêu vĩnh viễn không đạt nằm im trong danh mục.
+ *
+ * 4. **Không mục tiêu nào được thoả bằng cách XOÁ bằng chứng.** Luật đắt nhất,
+ *    và nó quyết định nhiều lựa chọn dưới đây: `stageNotDependsOn`,
+ *    `stageOffCriticalPath`, `retriesAtMost`, `cacheNeverHits` đều ĐÒI đối
+ *    tượng chúng nói về phải tồn tại. Một vị từ đúng theo nghĩa đen mà thoả được
+ *    bằng cách xoá stage đi là một bài học bị xoá — `stageOffCriticalPath` là ví
+ *    dụ rõ nhất: xoá hẳn `lint` thì nó đương nhiên không nằm trên đường găng.
+ *
+ * ## Vì sao mọi phép tính đi qua module có sẵn
+ *
+ * Ba trục lấy từ `score.ts` (`scoreAxes`), đường găng lấy từ `critical-path.ts`
+ * (`criticalPath`), chu trình lấy từ `graph.ts` (`findCycle`). Tính lại ở đây là
+ * cách hai chỗ trong cùng một engine trả lời khác nhau cho cùng một câu hỏi —
+ * và chỗ lệch sẽ không đỏ ở đâu cả, vì mỗi bên tự nhất quán.
+ */
+
+import type {
+  CacheId,
+  CicdObjective,
+  CicdPredicateName,
+  EvaluationRecord,
+  FailureCause,
+  StageId,
+  StageSpec,
+  StepId,
+  WorkflowSpec,
+} from './contract.ts';
+import { criticalPath } from './critical-path.ts';
+import { findCycle } from './graph.ts';
+import { scoreAxes } from './score.ts';
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 1. RANH GIỚI
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Thứ một vị từ được nhìn thấy.
+ *
+ * Hai trường, không hơn: một số vị từ chỉ đọc hình dạng đồ thị
+ * (`stageCountAtMost`), một số chỉ đọc bản ghi (`cacheHitsAtLeast`), và ba trục
+ * cần cả hai vì `summarizeEvaluation` phải biết stage nào chặn mới tính được
+ * `greenRate`.
+ *
+ * ⛔ KHÔNG mang `CicdLevel` vào đây. Vị từ chấm một workflow người chơi gõ trên
+ * một bản ghi engine trả; ngưỡng của level là chuyện của tầng trên, và trộn vào
+ * sẽ làm vị từ không chấm nổi một workflow ở sandbox (19.H) — nơi không có level
+ * nào.
+ */
+export interface CicdScoringContext {
+  readonly workflow: WorkflowSpec;
+  readonly record: EvaluationRecord;
+}
+
+export type CicdPredicateArgs = Readonly<Record<string, unknown>>;
+
+export type CicdPredicate = (ctx: CicdScoringContext, args: CicdPredicateArgs) => boolean;
+
+export type CicdPredicateTable = Readonly<Record<CicdPredicateName, CicdPredicate>>;
+
+/**
+ * Vị từ chưa có engine đỡ. Gọi chúng thì NÉM (luật 2).
+ *
+ * ⚠ Đây là một danh sách TẠM, không phải một quyết định kiến trúc: chương CD
+ * (19.B) hiện chưa có khái niệm danh tính artifact lẫn phép đo thời gian lùi,
+ * nên không có bản ghi nào để đọc. Khi 19.B lên, xoá tên khỏi đây và viết hiện
+ * thực; `predicates.test.ts` ghim cả HAI chiều nên quên một bên là đỏ ngay.
+ */
+export const UNIMPLEMENTED_CICD_PREDICATES: readonly CicdPredicateName[] = [
+  'promotedArtifactUnchanged',
+  'rollbackUnder',
+];
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 2. ĐỌC THAM SỐ
+// ═══════════════════════════════════════════════════════════════════════════
+
+function argString(args: CicdPredicateArgs, key: string): string | null {
+  const value = args[key];
+  return typeof value === 'string' && value.length > 0 ? value : null;
+}
+
+function argNumber(args: CicdPredicateArgs, key: string): number | null {
+  const value = args[key];
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+/**
+ * Các `kind` hợp lệ của `FailureCause`, ở dạng tra được lúc chạy.
+ *
+ * Viết thành `Record<FailureCause['kind'], true>` chứ không thành mảng, vì kiểu
+ * này ép HAI CHIỀU: thiếu một nhánh của union ⇒ lỗi biên dịch ngay tại đây, thừa
+ * một khoá cũng vậy. Một mảng `as const satisfies …` chỉ ép được chiều thứ nhất,
+ * nên thêm một `kind` mới vào hợp đồng sẽ lọt qua trong im lặng và
+ * `noFailureCause` sẽ không bao giờ thấy nguyên nhân mới đó.
+ */
+const FAILURE_CAUSE_KINDS: Readonly<Record<FailureCause['kind'], true>> = {
+  flake: true,
+  'missing-output': true,
+  'stale-cache': true,
+  'upstream-failed': true,
+  'approval-rejected': true,
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 3. PHÉP ĐỌC DÙNG CHUNG
+// ═══════════════════════════════════════════════════════════════════════════
+
+function stageById(workflow: WorkflowSpec, id: StageId): StageSpec | undefined {
+  return workflow.stages.find((stage) => stage.id === id);
+}
+
+/**
+ * `from` có phụ thuộc **BẮC CẦU** vào `target` không.
+ *
+ * ⛔ Bắc cầu, không phải trực tiếp — hợp đồng ghi rõ kèm lý do: mục tiêu của
+ * level phát biểu một RÀNG BUỘC THỨ TỰ, không phát biểu một hình dạng đồ thị.
+ * Đọc thành trực tiếp sẽ loại đúng những lời giải hợp lệ mà AC-F đòi phải có ≥2.
+ *
+ * Chỉ đi qua stage CÓ THẬT: một cạnh trỏ vào hư không không dẫn đi đâu được, và
+ * `validateGraph` mới là chỗ báo cạnh treo.
+ */
+function dependsOnTransitively(workflow: WorkflowSpec, from: StageId, target: StageId): boolean {
+  const seen: Record<StageId, true> = {};
+  const stack: StageId[] = [from];
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (current === undefined || Object.hasOwn(seen, current)) continue;
+    seen[current] = true;
+    const stage = stageById(workflow, current);
+    if (stage === undefined) continue;
+    for (const dep of stage.dependsOn) {
+      if (dep === target) return true;
+      stack.push(dep);
+    }
+  }
+  return false;
+}
+
+/** Mọi `AttemptRecord` của mọi thực thể, mọi commit, mọi lượt mô phỏng. */
+function everyAttempt(record: EvaluationRecord) {
+  return record.passes.flatMap((pass) =>
+    pass.runs.flatMap((run) => run.instances.flatMap((instance) => instance.attempts)),
+  );
+}
+
+/** Mọi `StepRecord`, KÈM `stageId` của thực thể chứa nó. */
+function everyStepWithStage(
+  record: EvaluationRecord,
+): readonly { readonly stageId: StageId; readonly stepId: StepId; readonly cacheHit: boolean | null }[] {
+  const out: { stageId: StageId; stepId: StepId; cacheHit: boolean | null }[] = [];
+  for (const pass of record.passes) {
+    for (const run of pass.runs) {
+      for (const instance of run.instances) {
+        for (const attempt of instance.attempts) {
+          for (const step of attempt.steps) {
+            out.push({ stageId: instance.stageId, stepId: step.id, cacheHit: step.cacheHit });
+          }
+        }
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * Cặp `(stageId, stepId)` của mọi bước khai cache `cache`.
+ *
+ * Khoá theo CẶP chứ không theo `stepId` một mình: `StepId` chỉ duy nhất trong
+ * phạm vi một stage, nên hai stage đều có bước tên `khoi-phuc` với hai cache
+ * khác nhau là chuyện bình thường — và tra theo `stepId` trần sẽ cho cache này
+ * ăn lần trúng của cache kia, im lặng.
+ */
+function stepsDeclaringCache(
+  workflow: WorkflowSpec,
+  cache: CacheId,
+): Readonly<Record<StageId, Readonly<Record<StepId, true>>>> {
+  const out: Record<StageId, Record<StepId, true>> = {};
+  for (const stage of workflow.stages) {
+    for (const step of stage.steps) {
+      if (step.cache?.id === cache) {
+        out[stage.id] ??= {};
+        (out[stage.id] as Record<StepId, true>)[step.id] = true;
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * Bao nhiêu lượt chạy CHẮC CHẮN có `stage` trên đường găng, bao nhiêu lượt chắc
+ * chắn không, bao nhiêu lượt không biết.
+ *
+ * ## Vì sao có ô thứ ba, và vì sao nó không phải sự cầu toàn
+ *
+ * `criticalPath()` trả `truncated: true` khi chuỗi `blockedBy` đứt giữa chừng —
+ * và một trong hai nguyên nhân là **lỗ đã biết của hợp đồng**: `InstanceKey`
+ * không mang `commitId`, nên một thực thể chờ máy do commit KHÁC giữ sẽ trỏ ra
+ * ngoài `RunRecord.instances` của chính nó. Level dạy thông lượng (≥3 commit,
+ * máy chạy chật) là chỗ nó xảy ra thường nhất.
+ *
+ * Đường trả về khi đứt là một **đoạn ĐUÔI** của đường thật. Từ đó suy ra đúng
+ * ba tình huống, và chỉ ba:
+ *
+ * | Thấy stage trong đoạn đuôi? | `truncated` | Kết luận |
+ * |---|---|---|
+ * | Có | bất kỳ | CHẮC CHẮN nằm trên đường găng — đoạn đuôi là một phần đường thật |
+ * | Không | `false` | CHẮC CHẮN không nằm — đường đã đầy đủ |
+ * | Không | `true` | KHÔNG BIẾT — nó có thể nằm ở phần đã mất |
+ *
+ * Hai bộ kiểm cục bộ đang gộp ô thứ ba vào một trong hai ô kia, theo hai hướng
+ * ngược nhau, nên cùng một bản ghi cho hai câu trả lời (xem báo cáo lane).
+ *
+ * Lượt "không biết" bị **loại khỏi mẫu số**, không tính là trượt. Tính là trượt
+ * thì một ô nghiệm thu `rate: 1` trở thành bất khả thi vì một lỗ của hợp đồng
+ * mà người chơi không chạm tới được — và họ không có cách nào đọc ra ý định đó.
+ * Loại khỏi mẫu số thì câu trả lời đọc là *"trong những lượt phân định được,
+ * tỷ lệ là X"*, và đó đúng là thứ ta biết.
+ */
+interface CriticalPathTally {
+  readonly on: number;
+  readonly off: number;
+  readonly unknown: number;
+}
+
+function tallyCriticalPath(record: EvaluationRecord, stage: StageId): CriticalPathTally {
+  let on = 0;
+  let off = 0;
+  let unknown = 0;
+  for (const pass of record.passes) {
+    for (const run of pass.runs) {
+      const path = criticalPath(run.instances);
+      if (path === null) {
+        unknown += 1;
+        continue;
+      }
+      if (path.nodes.some((node) => node.stageId === stage)) {
+        on += 1;
+      } else if (path.truncated) {
+        unknown += 1;
+      } else {
+        off += 1;
+      }
+    }
+  }
+  return { on, off, unknown };
+}
+
+/**
+ * Khiếm khuyết LỌT XUỐNG: một lần đỏ `latent-defect` mà một lần thử lại sau đó
+ * đã che đi.
+ *
+ * Bám đúng chữ của hợp đồng — *"đỏ `latent-defect` bị retry che"* — nên điều
+ * kiện là: thực thể có ≥1 lần thử đỏ vì `latent-defect`, VÀ lần thử cuối của nó
+ * xanh. Một thực thể đỏ tới cùng thì lỗi đã hiện ra, không lọt xuống đâu cả.
+ *
+ * ⚠ Cách đọc này KHÔNG bắt lối tránh bằng `blocking: false`: một stage không
+ * chặn vẫn ghi `outcome: 'failed'` nên không tính là bị che, dù khiếm khuyết vẫn
+ * đi thẳng xuống bản phát hành. C11 đóng lối đó bằng CẤU TRÚC — `'blocking'`
+ * không nằm trong `editable` của nó — chứ không bằng một vị từ rộng hơn. Nới
+ * định nghĩa ở đây sẽ làm bộ chấm lệch khỏi ngưỡng mà C11 đã cân bằng.
+ */
+function escapedDefects(record: EvaluationRecord): number {
+  let total = 0;
+  for (const pass of record.passes) {
+    for (const run of pass.runs) {
+      for (const instance of run.instances) {
+        const last = instance.attempts.at(-1);
+        if (last === undefined || last.outcome !== 'passed') continue;
+        total += instance.attempts.filter(
+          (attempt) => attempt.cause?.kind === 'flake' && attempt.cause.nature === 'latent-defect',
+        ).length;
+      }
+    }
+  }
+  return total;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 4. BẢNG THAM SỐ
+// ═══════════════════════════════════════════════════════════════════════════
+
+export interface CicdPredicateArgSpec {
+  readonly key: string;
+  readonly kind: 'string' | 'number';
+  /** Tập giá trị hợp lệ, cho tham số là enum. Vắng ⇒ nhận mọi giá trị đúng kiểu. */
+  readonly oneOf?: readonly string[];
+}
+
+/**
+ * Tham số mỗi vị từ ĐÒI. Dữ liệu, không phải văn xuôi: `validateObjectiveArgs()`
+ * đọc thẳng bảng này, nên một mục tiêu gõ thiếu `stage` đỏ ở tầng test của level
+ * thay vì lặng lẽ trả `false` suốt đời.
+ *
+ * ⚠ Bảng này và thân các vị từ đọc tham số ở HAI chỗ. Ràng chúng lại bằng một ô
+ * nghiệm thu hành vi, không bằng lời hứa: `predicates.test.ts` bỏ từng tham số
+ * khai ở đây rồi khẳng định vị từ trả `false`. Đổi tên một tham số ở một bên là
+ * đỏ ngay.
+ */
+export const CICD_PREDICATE_ARGS: Readonly<
+  Record<CicdPredicateName, readonly CicdPredicateArgSpec[]>
+> = {
+  graphAcyclic: [],
+  stageExists: [{ key: 'stage', kind: 'string' }],
+  stageDependsOn: [
+    { key: 'stage', kind: 'string' },
+    { key: 'on', kind: 'string' },
+  ],
+  stageNotDependsOn: [
+    { key: 'stage', kind: 'string' },
+    { key: 'on', kind: 'string' },
+  ],
+  stageCountAtMost: [{ key: 'max', kind: 'number' }],
+  leadTimeUnder: [{ key: 'seconds', kind: 'number' }],
+  throughputAtLeast: [{ key: 'perHour', kind: 'number' }],
+  runnerMinutesUnder: [{ key: 'minutes', kind: 'number' }],
+  greenRateAtLeast: [{ key: 'rate', kind: 'number' }],
+  cacheHitsAtLeast: [{ key: 'count', kind: 'number' }],
+  cacheNeverHits: [{ key: 'cache', kind: 'string' }],
+  noFailureCause: [
+    { key: 'cause', kind: 'string', oneOf: Object.keys(FAILURE_CAUSE_KINDS) },
+  ],
+  retriesAtMost: [
+    { key: 'stage', kind: 'string' },
+    { key: 'max', kind: 'number' },
+  ],
+  stageOnCriticalPath: [
+    { key: 'stage', kind: 'string' },
+    { key: 'rate', kind: 'number' },
+  ],
+  stageOffCriticalPath: [
+    { key: 'stage', kind: 'string' },
+    { key: 'rate', kind: 'number' },
+  ],
+  escapedDefectsAtMost: [{ key: 'max', kind: 'number' }],
+  stageNonBlocking: [{ key: 'stage', kind: 'string' }],
+  promotedArtifactUnchanged: [],
+  rollbackUnder: [{ key: 'seconds', kind: 'number' }],
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 5. VỊ TỪ
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * ⛔ Đọc chu trình từ ĐỒ THỊ, không từ `EvaluationRecord.error`.
+ *
+ * `validateGraph` báo cạnh treo TRƯỚC chu trình, nên một workflow vừa có cạnh
+ * treo vừa có vòng sẽ mang `error.kind === 'unknown-dependency'` — và một hiện
+ * thực đọc `error?.kind !== 'cycle'` sẽ trả lời "đồ thị không có chu trình"
+ * trong khi nó có. `findCycle` trả lời đúng câu đang hỏi.
+ */
+const graphAcyclic: CicdPredicate = (ctx) => findCycle(ctx.workflow) === null;
+
+const stageExists: CicdPredicate = (ctx, args) => {
+  const id = argString(args, 'stage');
+  return id !== null && stageById(ctx.workflow, id) !== undefined;
+};
+
+const stageDependsOn: CicdPredicate = (ctx, args) => {
+  const from = argString(args, 'stage');
+  const target = argString(args, 'on');
+  if (from === null || target === null) return false;
+  /* Cả hai đầu phải có thật: "phụ thuộc vào một stage không tồn tại" là một cạnh
+   * treo, và một cạnh treo làm cả lượt chấm hỏng chứ không thoả mục tiêu nào. */
+  if (stageById(ctx.workflow, from) === undefined) return false;
+  if (stageById(ctx.workflow, target) === undefined) return false;
+  return dependsOnTransitively(ctx.workflow, from, target);
+};
+
+/**
+ * Phủ định CHÍNH XÁC của `stageDependsOn`, nên cũng BẮC CẦU — hợp đồng nói rõ.
+ * Hai vế đọc theo hai nghĩa là một cặp vị từ vừa đúng vừa sai trên cùng đồ thị.
+ *
+ * ⛔ ĐÒI cả hai stage tồn tại (luật 4). Không có ràng buộc đó thì xoá `dong-goi`
+ * đi là thoả ngay *"`dong-goi` không phụ thuộc `kiem-tra`"* — mục tiêu dạy tách
+ * song song biến thành mục tiêu dạy xoá việc.
+ */
+const stageNotDependsOn: CicdPredicate = (ctx, args) => {
+  const from = argString(args, 'stage');
+  const target = argString(args, 'on');
+  if (from === null || target === null) return false;
+  if (stageById(ctx.workflow, from) === undefined) return false;
+  if (stageById(ctx.workflow, target) === undefined) return false;
+  return !dependsOnTransitively(ctx.workflow, from, target);
+};
+
+const stageCountAtMost: CicdPredicate = (ctx, args) => {
+  const max = argNumber(args, 'max');
+  return max !== null && ctx.workflow.stages.length <= max;
+};
+
+const leadTimeUnder: CicdPredicate = (ctx, args) => {
+  const seconds = argNumber(args, 'seconds');
+  const axes = scoreAxes(ctx.record, ctx.workflow);
+  return seconds !== null && axes !== null && axes.leadTimeSeconds < seconds;
+};
+
+const throughputAtLeast: CicdPredicate = (ctx, args) => {
+  const perHour = argNumber(args, 'perHour');
+  const axes = scoreAxes(ctx.record, ctx.workflow);
+  return perHour !== null && axes !== null && axes.throughputPerHour >= perHour;
+};
+
+const runnerMinutesUnder: CicdPredicate = (ctx, args) => {
+  const minutes = argNumber(args, 'minutes');
+  const axes = scoreAxes(ctx.record, ctx.workflow);
+  return minutes !== null && axes !== null && axes.runnerMinutes < minutes;
+};
+
+const greenRateAtLeast: CicdPredicate = (ctx, args) => {
+  const rate = argNumber(args, 'rate');
+  const axes = scoreAxes(ctx.record, ctx.workflow);
+  return rate !== null && axes !== null && axes.greenRate >= rate;
+};
+
+/**
+ * Số lần trúng cache trong cả lượt chấm, dạng SỐ THÔ.
+ *
+ * ⚠ Đây là một PHÉP ĐO, không phải một vị từ: nó không trả lời đạt/không đạt.
+ * Nó tồn tại vì có những câu chỉ nói được bằng cách SO HAI BẢN GHI với nhau, mà
+ * một ngưỡng thì không nói nổi. Câu đắt nhất trong số đó là bài học của C08:
+ *
+ *   bản HỎNG trúng cache NHIỀU HƠN bản đã sửa
+ *
+ * Khoá hẹp thì lặp lại nhiều hơn, nên nó trúng thường xuyên hơn — chỉ là trúng
+ * một bản đã ôi. `cacheHitsAtLeast { count }` không phát biểu được điều đó dù
+ * đặt ngưỡng nào, vì cả hai bản đều vượt mọi ngưỡng hợp lý. Đó cũng chính là lý
+ * do `cacheHitsAtLeast` ở C08 là mục THƯỞNG chứ không bắt buộc: một ô bắt buộc
+ * dựng trên số lần trúng sẽ được thoả mãn bởi chính workflow level đang bảo
+ * người chơi sửa.
+ *
+ * Export ra thay vì để mỗi file test tự đếm: `levels/ci-muon.test.ts` từng giữ
+ * một bản đếm riêng, và một phép đếm viết hai nơi là một phép đếm sẽ lệch ở lần
+ * đầu ai đó đổi nghĩa `cacheHit`. `cacheHitsAtLeast` dưới đây gọi chính hàm
+ * này, nên ngưỡng và số thô không bao giờ đọc ra hai con số khác nhau.
+ */
+export function countCacheHits(record: EvaluationRecord): number {
+  return everyStepWithStage(record).filter((step) => step.cacheHit === true).length;
+}
+
+const cacheHitsAtLeast: CicdPredicate = (ctx, args) => {
+  const count = argNumber(args, 'count');
+  if (count === null) return false;
+  return countCacheHits(ctx.record) >= count;
+};
+
+/**
+ * Cache này KHÔNG bao giờ trúng — đối chứng cho C07 ("khoá quá rộng").
+ *
+ * ⛔ ĐÒI cache phải được ít nhất một bước khai (luật 4). Bỏ hẳn cache đi thì nó
+ * cũng "không bao giờ trúng", và mục tiêu dạy *đọc ra một khoá vô dụng* biến
+ * thành mục tiêu dạy *xoá cache*. Hai chuyện khác nhau, và chỉ một cái đúng.
+ */
+const cacheNeverHits: CicdPredicate = (ctx, args) => {
+  const cache = argString(args, 'cache');
+  if (cache === null) return false;
+  const declared = stepsDeclaringCache(ctx.workflow, cache);
+  if (Object.keys(declared).length === 0) return false;
+  return !everyStepWithStage(ctx.record).some(
+    (step) => step.cacheHit === true && declared[step.stageId]?.[step.stepId] === true,
+  );
+};
+
+/**
+ * Không lần đỏ nào mang nguyên nhân này.
+ *
+ * ⚠ Một `cause` không thuộc union trả `false`, không trả `true`. Gõ nhầm
+ * `'stale_cache'` mà trả `true` là một ô nghiệm thu luôn xanh vì nó tìm một thứ
+ * không tồn tại được — đúng hình dạng "a green that proves nothing".
+ */
+const noFailureCause: CicdPredicate = (ctx, args) => {
+  const cause = argString(args, 'cause');
+  if (cause === null || !Object.hasOwn(FAILURE_CAUSE_KINDS, cause)) return false;
+  return !everyAttempt(ctx.record).some((attempt) => attempt.cause?.kind === cause);
+};
+
+/**
+ * Stage có nhiều nhất `max` lần thử lại.
+ *
+ * ⛔ ĐÒI stage tồn tại (luật 4): xoá `dong-goi` đi thì nó cũng "không có lần thử
+ * lại nào", và C10 — bài dạy *retry không cứu được đỏ thật* — mất sạch nghĩa.
+ */
+const retriesAtMost: CicdPredicate = (ctx, args) => {
+  const id = argString(args, 'stage');
+  const max = argNumber(args, 'max');
+  if (id === null || max === null) return false;
+  const stage = stageById(ctx.workflow, id);
+  return stage !== undefined && stage.retries <= max;
+};
+
+const stageOnCriticalPath: CicdPredicate = (ctx, args) => {
+  const id = argString(args, 'stage');
+  const rate = argNumber(args, 'rate');
+  if (id === null || rate === null) return false;
+  if (stageById(ctx.workflow, id) === undefined) return false;
+  const tally = tallyCriticalPath(ctx.record, id);
+  const decided = tally.on + tally.off;
+  return decided > 0 && tally.on / decided >= rate;
+};
+
+/**
+ * ⛔ ĐÒI stage tồn tại (luật 4), và đây là chỗ luật đó đắt nhất: xoá hẳn `lint`
+ * thì nó đương nhiên không nằm trên đường găng, nên mục tiêu *"đặt lint ở chỗ nó
+ * không cản ai"* thoả được bằng cách bỏ lint đi — tức bằng cách không làm việc.
+ */
+const stageOffCriticalPath: CicdPredicate = (ctx, args) => {
+  const id = argString(args, 'stage');
+  const rate = argNumber(args, 'rate');
+  if (id === null || rate === null) return false;
+  if (stageById(ctx.workflow, id) === undefined) return false;
+  const tally = tallyCriticalPath(ctx.record, id);
+  const decided = tally.on + tally.off;
+  return decided > 0 && tally.off / decided >= rate;
+};
+
+const escapedDefectsAtMost: CicdPredicate = (ctx, args) => {
+  const max = argNumber(args, 'max');
+  return max !== null && escapedDefects(ctx.record) <= max;
+};
+
+const stageNonBlocking: CicdPredicate = (ctx, args) => {
+  const id = argString(args, 'stage');
+  if (id === null) return false;
+  const stage = stageById(ctx.workflow, id);
+  return stage !== undefined && !stage.blocking;
+};
+
+/**
+ * Nhánh CHƯA HIỆN THỰC (luật 2).
+ *
+ * Nói ra được rằng nó chưa có, chứ không lẫn vào nhóm đã xong bằng một `false`
+ * im lặng. Thông điệp nêu đúng thứ còn thiếu để người đọc không đi sửa level.
+ */
+function unimplemented(name: CicdPredicateName, missing: string): CicdPredicate {
+  return () => {
+    throw new Error(
+      `vị từ "${name}" chưa hiện thực: ${missing}. Chương CD (19.B) chưa có engine đỡ, ` +
+        'nên không có bản ghi nào để đọc. Trả true/false ở đây là biến một mục tiêu ' +
+        'chưa viết thành một mục tiêu luôn đạt hoặc một level không giải được.',
+    );
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 6. BẢNG TRA
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * ⛔ Khoá của bảng này PHẢI phủ đúng `CICD_PREDICATE_NAMES` — kiểu
+ * `CicdPredicateTable` là `Record<CicdPredicateName, CicdPredicate>`, nên thiếu
+ * một tên là lỗi biên dịch. Chiều ngược lại (một hiện thực không có tên trong
+ * hợp đồng) kiểu KHÔNG bắt được, và đó là việc của `predicates.test.ts`.
+ */
+export const CICD_PREDICATES: CicdPredicateTable = {
+  graphAcyclic,
+  stageExists,
+  stageDependsOn,
+  stageNotDependsOn,
+  stageCountAtMost,
+  leadTimeUnder,
+  throughputAtLeast,
+  runnerMinutesUnder,
+  greenRateAtLeast,
+  cacheHitsAtLeast,
+  cacheNeverHits,
+  noFailureCause,
+  retriesAtMost,
+  stageOnCriticalPath,
+  stageOffCriticalPath,
+  escapedDefectsAtMost,
+  stageNonBlocking,
+  promotedArtifactUnchanged: unimplemented(
+    'promotedArtifactUnchanged',
+    'chưa có danh tính artifact (`ArtifactId` băm từ nội dung build) trong bản ghi',
+  ),
+  rollbackUnder: unimplemented(
+    'rollbackUnder',
+    'chưa có phép đo thời gian lùi của một chiến lược phát hành trong bản ghi',
+  ),
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 7. TẦNG GỌI
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Chấm MỘT mục tiêu. Ném khi mục tiêu trỏ tới một vị từ chưa hiện thực.
+ */
+export function checkObjective(objective: CicdObjective, ctx: CicdScoringContext): boolean {
+  return CICD_PREDICATES[objective.check](ctx, objective.args ?? {});
+}
+
+/**
+ * Id các mục tiêu TRƯỢT, lọc theo `required`.
+ *
+ * Có mặt vì hai lane viết level đã viết đúng hàm này hai lần, mỗi lane một bản —
+ * đúng ngưỡng mà `code-conventions.md` bảo trích ra thay vì chép lần thứ ba.
+ */
+export function failingObjectiveIds(
+  objectives: readonly CicdObjective[],
+  ctx: CicdScoringContext,
+  required: boolean,
+): readonly string[] {
+  return objectives
+    .filter((objective) => objective.required === required && !checkObjective(objective, ctx))
+    .map((objective) => objective.id);
+}
+
+/**
+ * Tham số của mục tiêu có đủ và đúng kiểu không. `null` = hợp lệ.
+ *
+ * ⚠ Đây là **đối trọng của luật 3**. Vị từ trả `false` khi thiếu tham số để một
+ * level viết sai không làm sập phiên chơi; hàm này là chỗ lỗi đó được nói to,
+ * ở tầng test, nơi nó rẻ. Không gọi hàm này thì một mục tiêu gõ nhầm `stages`
+ * thay vì `stage` sẽ vĩnh viễn không đạt và không có gì đỏ ở đâu cả.
+ */
+export function validateObjectiveArgs(objective: CicdObjective): string | null {
+  const specs = CICD_PREDICATE_ARGS[objective.check];
+  const args = objective.args ?? {};
+  for (const spec of specs) {
+    const value = args[spec.key];
+    if (spec.kind === 'number') {
+      if (typeof value !== 'number' || !Number.isFinite(value)) {
+        return `mục tiêu "${objective.id}" (${objective.check}): thiếu tham số số học "${spec.key}"`;
+      }
+      continue;
+    }
+    if (typeof value !== 'string' || value.length === 0) {
+      return `mục tiêu "${objective.id}" (${objective.check}): thiếu tham số chuỗi "${spec.key}"`;
+    }
+    if (spec.oneOf !== undefined && !spec.oneOf.includes(value)) {
+      return `mục tiêu "${objective.id}" (${objective.check}): "${spec.key}" nhận giá trị lạ "${value}"`;
+    }
+  }
+  return null;
+}
