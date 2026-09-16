@@ -57,6 +57,33 @@ bài OJ cho `gameId: 'cicd'` soạn được qua `/author/problems`.
 | 7 | Chú thích trong 4 file của màn chơi mất dấu tiếng Việt | Do một lượt vá bằng script. Chỉ ảnh hưởng khả năng đọc |
 | 8 | Đường ống RỖNG vẫn hiện ba con số 0 thay vì một câu | Phát hiện lúc viết ô e2e: mở c01 (khởi đầu không stage nào) rồi bấm "Chạy thử" ngay cho `0 giây / 0 runner-phút`, đọc ra thành "cực nhanh, chẳng tốn gì". Cùng hình dạng mà chính `cicd-result-panel.tsx` đã cấm cho nhánh `engine-error`. Chưa sửa vì nó là câu hỏi thiết kế, không phải lỗi mã |
 
+### Đợt 3 — phạm vi và phát hiện lúc scout (2026-09-16)
+
+**Phạm vi chốt (chủ dự án):** dọn nợ đợt 2 (#3–#8) rồi dựng 19.B. #8 chốt: đường ống rỗng hiện
+một câu thay cho ba con số.
+
+Scout đo ra việc để lại **lớn hơn bảng trên nói**, ở bốn chỗ:
+
+| # | Phát hiện | Đo bằng |
+|---|---|---|
+| S1 | `teaching.cheatsheet` **không được màn nào render**. Sửa nội dung một mình không đổi gì người chơi thấy | grep `apps/web`: chỉ một chú thích nhắc tới nó |
+| S2 | Ô "lời giải đi qua ô soạn và vẫn thắng" (`cicd-run.test.ts`) nạp `CacheSpec` ĐẦY ĐỦ của lời giải — thứ bảng điều khiển không bao giờ phát ra được. Xanh mà không đo đường người chơi đi | probe: C06 (cả hai lời giải), C09 alt, C14 alt KHÔNG dựng được bằng bảng điều khiển |
+| S3 | Bảng điều khiển đặt `invalidatedBy = keyParts` — đúng thứ hợp đồng cấm tên ("C08 không bao giờ kích hoạt được"); `hydrate` còn nhận nguyên `invalidatedBy`/`savesTicks` từ client | đọc `cicd-overrides-panel.tsx:156,196`, `hydrate.ts:160` |
+| S4 | **Bộ chấm OJ chấm workflow CHƯA GHÉP**: nộp YAML lời giải c01 ⇒ `leadTimeUnder 1 giây` ra **AC**; cùng workflow không qua YAML ⇒ WA | probe `gradeCicdProblem`, có đối chứng âm. Tiềm ẩn vì chế độ làm bài CI/CD chưa mở |
+
+Thêm: C06 khai hai sự thật khác nhau cho CÙNG một bước (`tai-goi` tiết kiệm 8 ở lời giải A, 5 ở
+lời giải B); một stage người chơi tự thêm mà trùng id stage của lời giải thì tự nhận cache của
+lời giải; #7 là 3 file chứ không phải 4.
+
+**Mô hình cache chốt cho đợt này** (theo đúng hợp đồng, không đổi hợp đồng): mỗi bước có
+**một** khuôn cache là sự thật của level (`id`, `invalidatedBy`, `savesTicks`), lấy từ bất kỳ
+workflow nào của level và ba bản phải khớp nhau; **bật hay tắt mặc định** chỉ theo bước ở bản
+chuẩn; người chơi chỉ sửa bật/tắt và `keyParts`.
+
+⛔ Còn MỞ, không làm đợt này: `CicdGameAction.evaluate` chỉ chở YAML, nên retries/cache của bảng
+điều khiển không vào được nhật ký phát lại. Ngày mở chế độ làm bài CI/CD phải quyết điểm này
+trước, nếu không bài OJ về cache/retries không giải được.
+
 ### Cách chạy lượt e2e của màn này
 
 Cần Postgres (auth), nên dựng nó trước:

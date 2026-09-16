@@ -25,11 +25,18 @@ import type { CicdLevel } from '../contract.ts';
  *
  * - **A — một cache thô cho cả bước cài gói**: khoá `[khoa-phu-thuoc]`, tiết kiệm
  *   8 tick. Một mục cache, một lần trúng mỗi commit.
- * - **B — hai cache nhỏ, mỗi bước một cái**: `tai-goi` tiết kiệm 5 tick với khoá
- *   `[khoa-phu-thuoc]`, `dung-cay` tiết kiệm 3 tick với khoá
- *   `[khoa-phu-thuoc, cau-hinh]`. Hai mục cache, hai lần trúng mỗi commit.
+ * - **B — hai cache nhỏ, mỗi bước một cái**: `tai-goi` như A, cộng `dung-cay`
+ *   tiết kiệm 3 tick với khoá `[khoa-phu-thuoc, cau-hinh]`. Hai mục cache, hai
+ *   lần trúng mỗi commit.
  *
- * Cả hai xuống đúng 12 tick. Khoá của B **rộng hơn** khoá của A mà vẫn trúng y
+ * B nhanh hơn A đúng 3 tick và trúng gấp đôi; A vẫn qua mọi mục tiêu bắt buộc.
+ *
+ * ⚠ Mỗi bước có MỘT khuôn cache (`id`/`invalidatedBy`/`savesTicks`), giống nhau ở
+ * cả ba workflow. Bản đầu cho `tai-goi` tiết kiệm 8 ở A và 5 ở B để hai lời giải
+ * "bằng nhau"; người chơi chỉ chọn được bật/tắt và khoá, nên lời giải B khi đó
+ * KHÔNG đi tới được bằng giao diện. Đo 2026-09-16, `hydrate.test.ts` gác.
+ *
+ * Khoá của B **rộng hơn** khoá của A mà vẫn trúng y
  * hệt, vì `cau-hinh` có `changesEvery: 100` — nó không đổi lần nào trong bốn
  * commit. Đó là mồi cho C07: khoá rộng không giết cache, khoá rộng vào thứ ĐỔI
  * MỖI COMMIT mới giết. Mục thưởng `cacheHitsAtLeast` mức cao trao cho B.
@@ -167,7 +174,7 @@ lần nào trong bốn commit này.`,
   hints: [
     'Cache đang trúng — vấn đề không nằm ở khoá. Hãy xem nó gắn vào bước nào, và bước đó dài bao nhiêu tick.',
     'Bước `tai-goi` dài 8 tick và nó tải đúng thứ mà tệp khoá phụ thuộc mô tả. Đó là chỗ một cache trả lại được nhiều nhất.',
-    'Có thể gắn một cache duy nhất cho `tai-goi`, hoặc gắn hai cache nhỏ cho cả `tai-goi` lẫn `dung-cay`. Cách thứ hai trúng nhiều lần hơn — và khoá của nó được phép rộng hơn, miễn phần rộng thêm không đổi.',
+    'Có thể gắn một cache duy nhất cho `tai-goi`, hoặc gắn thêm một cache cho `dung-cay`. Cách thứ hai nhanh hơn và trúng nhiều lần hơn — và khoá của cache thứ hai được phép rộng hơn, miễn phần rộng thêm không đổi.',
   ],
   teaching: {
     primer: `Cache trong CI hoạt động theo hai danh sách, và chúng khác nhau:
@@ -213,7 +220,7 @@ Và cache không bao giờ trúng 100%. Ngày tệp khoá đổi, đường ốn
       'Khoá rộng hơn không tự động tệ hơn — chỉ tệ khi phần rộng thêm là thứ đổi thường xuyên.',
     ],
     pitfalls: [
-      'Nâng `savesTicks` cho bước hiện tại thay vì chuyển cache đi. Nó hấp dẫn vì sửa một con số dễ hơn đọc lại đường ống, nhưng engine kẹp về thời lượng bước nên con số đó không đi tới đâu.',
+      'Tìm cách "tăng mức tiết kiệm" của cache hiện tại thay vì chuyển nó đi. Nó hấp dẫn vì con số tiết kiệm đang hiện to, nhưng cache chỉ trả lại được thời lượng của chính bước nó đứng — bước `tai-ma` dài 2 tick thì mãi mãi chỉ 2 tick.',
       'Kết luận "cache không hiệu quả" khi thấy đường ống vẫn chậm. Cache đang trúng đúng như thiết kế — vấn đề là nó đứng ở một bước rẻ tiền.',
       'Cache mọi bước cho chắc. Mỗi mục cache là một khoá phải khớp và một lần khôi phục phải chạy; cache một bước 1 tick không mua được gì.',
     ],
@@ -234,7 +241,7 @@ Và cache không bao giờ trúng 100%. Ngày tệp khoá đổi, đường ốn
           {
             id: 'tai-goi', name: 'Tải gói phụ thuộc', durationTicks: 8, blocking: true, requires: ['ma-nguon'],
             cache: {
-              id: 'cache-goi',
+              id: 'cache-tai-goi',
               keyParts: ['khoa-phu-thuoc'],
               invalidatedBy: ['khoa-phu-thuoc'],
               savesTicks: 8,
@@ -273,7 +280,7 @@ Và cache không bao giờ trúng 100%. Ngày tệp khoá đổi, đường ốn
               id: 'cache-tai-goi',
               keyParts: ['khoa-phu-thuoc'],
               invalidatedBy: ['khoa-phu-thuoc'],
-              savesTicks: 5,
+              savesTicks: 8,
             },
           },
           {

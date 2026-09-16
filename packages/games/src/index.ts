@@ -636,7 +636,9 @@ export { writeWorkflowYaml } from './cicd/yaml-write.ts';
  * không chở được chín trường của hợp đồng, và bộ đọc áp mặc định trung tính cho
  * tất cả. Lý lẽ đầy đủ + phép đo ở đầu `cicd/hydrate.ts`.
  */
-export type { CicdHydrateSources, CicdPlayerOverrides } from './cicd/hydrate.ts';
+export type { CicdCacheChoice, CicdHydrateSources, CicdPlayerOverrides } from './cicd/hydrate.ts';
+export type { CicdCacheControl, CicdRetryControl } from './cicd/controls.ts';
+export { cacheControls, overridesToReach, retryControls } from './cicd/controls.ts';
 export { cacheOverrideKey, hydrateWorkflow, mergeStageCatalogue } from './cicd/hydrate.ts';
 
 /*

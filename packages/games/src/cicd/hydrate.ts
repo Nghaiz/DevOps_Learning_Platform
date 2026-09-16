@@ -75,10 +75,25 @@ import {
   EDITABLE_PARTS,
   type CacheSpec,
   type EditablePart,
+  type InputId,
   type StageSpec,
   type StepSpec,
   type WorkflowSpec,
 } from './contract.ts';
+
+/**
+ * Phần của một cache mà NGƯỜI CHƠI chọn: khoá băm vào đâu. Chỉ vậy.
+ *
+ * ⛔ Không mang `invalidatedBy`, `savesTicks`, `id`. Ba thứ đó là sự thật của
+ * level (`CacheSpec.invalidatedBy`: *"người chơi KHÔNG sửa được"*), và bản đầu
+ * của kiểu này nhận nguyên một `CacheSpec` từ client. Hệ quả đã đo 2026-09-16:
+ * bảng điều khiển đặt `invalidatedBy = keyParts`, tức đúng thứ hợp đồng gọi tên
+ * là làm C08 "không bao giờ kích hoạt được" — và không ô nào đỏ, vì ô test nạp
+ * `CacheSpec` của lời giải chứ không nạp thứ bảng điều khiển phát ra.
+ */
+export interface CicdCacheChoice {
+  readonly keyParts: readonly InputId[];
+}
 
 /**
  * Hai thứ người chơi sửa được mà YAML không chở.
@@ -87,13 +102,13 @@ import {
  * gắn vào BƯỚC chứ không vào stage (`StepSpec.cache`), nên một khoá chỉ có
  * `StageId` sẽ không phân biệt được hai bước cùng stage.
  *
- * Vắng một khoá ⇒ dùng giá trị bản gốc. Đó là điều làm `{}` (người chơi chưa
+ * Vắng một khoá ⇒ dùng giá trị bản CHUẨN. Đó là điều làm `{}` (người chơi chưa
  * đụng ô điều khiển nào) cư xử đúng như "chưa sửa gì", chứ không phải "xoá hết
- * cache".
+ * cache". Với cache: `null` = tắt; một `CicdCacheChoice` = bật với khoá đó.
  */
 export interface CicdPlayerOverrides {
   readonly retries?: Readonly<Record<string, number>>;
-  readonly cache?: Readonly<Record<string, CacheSpec | null>>;
+  readonly cache?: Readonly<Record<string, CicdCacheChoice | null>>;
 }
 
 /**
@@ -141,6 +156,7 @@ function has(editable: readonly EditablePart[], part: EditablePart): boolean {
 function hydrateStep(
   edited: StepSpec,
   goc: StepSpec | undefined,
+  chuanStep: StepSpec | undefined,
   stageId: string,
   editable: readonly EditablePart[],
   overrides: CicdPlayerOverrides,
@@ -155,14 +171,16 @@ function hydrateStep(
     return edited;
   }
 
-  const khoa = cacheOverrideKey(stageId, edited.id);
-  const cacheOverride = overrides.cache?.[khoa];
   const cache = has(editable, 'cache')
-    ? /* `null` = người chơi đã BỎ cache ở bước này; khác hẳn "chưa đụng tới". */
-      cacheOverride === null
-      ? undefined
-      : (cacheOverride ?? goc.cache)
-    : goc.cache;
+    ? resolveCache(goc.cache, chuanStep?.cache, overrides.cache?.[cacheOverrideKey(stageId, edited.id)])
+    : /*
+       * Không cho sửa ⇒ bước của bản chuẩn là thẩm quyền. Catalogue chỉ lên
+       * tiếng cho bước level chưa từng mô tả — và nó phải KHÔNG được lên tiếng
+       * trước bản chuẩn, vì `mergeStageCatalogue` bổ sung khuôn cache từ lời giải.
+       */
+      chuanStep === undefined
+      ? goc.cache
+      : chuanStep.cache;
 
   return {
     ...edited,
@@ -174,6 +192,35 @@ function hydrateStep(
     ...(cache === undefined ? {} : { cache }),
     blocking: has(editable, 'blocking') ? edited.blocking : goc.blocking,
   };
+}
+
+/**
+ * Cache của một bước ở level CHO sửa cache.
+ *
+ * Ba nguồn, ba vai, và không nguồn nào được lấn vai nguồn kia:
+ *
+ * - `khuon` (catalogue) — SỰ THẬT của bước: `id`, `invalidatedBy`, `savesTicks`.
+ *   Vắng ⇒ bước này không cache được, và không lựa chọn nào của người chơi bịa ra
+ *   được một cái: bịa `savesTicks` là bịa kết quả đo.
+ * - `chuan` (bản chuẩn) — chỉ trả lời "mặc định BẬT hay TẮT", và khoá mặc định.
+ * - `chon` (người chơi) — `null` tắt, một lựa chọn bật với `keyParts` của nó.
+ *
+ * ⚠ Mặc định KHÔNG lấy từ catalogue. Catalogue gộp cả hai lời giải, nên một
+ * stage người chơi tự thêm mà trùng id stage của lời giải sẽ tự nhận luôn cache
+ * của lời giải — đã đo được ở bản trước, tức đáp án được bật hộ.
+ */
+function resolveCache(
+  khuon: CacheSpec | undefined,
+  chuan: CacheSpec | undefined,
+  chon: CicdCacheChoice | null | undefined,
+): CacheSpec | undefined {
+  if (khuon === undefined || chon === null) {
+    return undefined;
+  }
+  if (chon === undefined) {
+    return chuan === undefined ? undefined : { ...khuon, keyParts: chuan.keyParts };
+  }
+  return { ...khuon, keyParts: chon.keyParts };
 }
 
 /**
@@ -196,8 +243,9 @@ function hydrateStage(
   overrides: CicdPlayerOverrides,
 ): StageSpec {
   const khoSteps = new Map((kho?.steps ?? []).map((step) => [step.id, step]));
+  const chuanSteps = new Map((chuan?.steps ?? []).map((step) => [step.id, step]));
   const steps = edited.steps.map((step) =>
-    hydrateStep(step, khoSteps.get(step.id), edited.id, editable, overrides),
+    hydrateStep(step, khoSteps.get(step.id), chuanSteps.get(step.id), edited.id, editable, overrides),
   );
 
   /*
@@ -331,12 +379,24 @@ export function mergeStageCatalogue(...nguon: readonly WorkflowSpec[]): Workflow
         theoId.set(stage.id, stage);
         continue;
       }
-      /* Stage đã có ⇒ giữ nguyên nó, chỉ BỔ SUNG bước mà nó chưa biết. */
+      /*
+       * Stage đã có ⇒ giữ nguyên nó, chỉ BỔ SUNG thứ nó chưa biết: bước mới, và
+       * khuôn cache cho bước đã có mà chưa mang cache.
+       *
+       * Vế thứ hai có mặt vì C06 đo ra: bản đầu chỉ bổ sung bước, nên một bước
+       * mà `initialWorkflow` không cache còn lời giải thì có ⇒ catalogue không
+       * có khuôn ⇒ bảng điều khiển không hiện núm nào cho bước đó ⇒ level chỉ cho
+       * sửa `cache` trở thành KHÔNG GIẢI ĐƯỢC bằng giao diện. Khuôn là sự thật
+       * của bước chứ không phải lời giải; bật hay tắt vẫn là của người chơi.
+       */
+      const khuonTheoBuoc = new Map(stage.steps.map((s) => [s.id, s.cache]));
+      const buocCu = da.steps.map((s) => {
+        const khuon = khuonTheoBuoc.get(s.id);
+        return s.cache === undefined && khuon !== undefined ? { ...s, cache: khuon } : s;
+      });
       const coBuoc = new Set(da.steps.map((s) => s.id));
       const themBuoc = stage.steps.filter((s) => !coBuoc.has(s.id));
-      if (themBuoc.length > 0) {
-        theoId.set(stage.id, { ...da, steps: [...da.steps, ...themBuoc] });
-      }
+      theoId.set(stage.id, { ...da, steps: [...buocCu, ...themBuoc] });
     }
   }
   return { name: nguon[0]?.name ?? '', stages: [...theoId.values()] };

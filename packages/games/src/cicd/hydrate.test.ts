@@ -14,7 +14,14 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { EDITABLE_PARTS, type EditablePart, type WorkflowSpec } from './contract.ts';
+import {
+  EDITABLE_PARTS,
+  type CacheSpec,
+  type CicdLevel,
+  type EditablePart,
+  type WorkflowSpec,
+} from './contract.ts';
+import { cacheControls, overridesToReach, retryControls } from './controls.ts';
 import { evaluate } from './engine.ts';
 import { CI_LEVELS } from './levels/index.ts';
 import { scoreAxes } from './score.ts';
@@ -25,6 +32,7 @@ import {
   hydrateWorkflow,
   mergeStageCatalogue,
   HYDRATED_PARTS,
+  type CicdHydrateSources,
   type CicdPlayerOverrides,
 } from './hydrate.ts';
 
@@ -41,23 +49,22 @@ function vongYaml(spec: WorkflowSpec): WorkflowSpec {
 }
 
 /**
- * `retries` và `cache` người chơi đặt qua ô điều khiển riêng — ở đây rút từ
- * chính lời giải, vì ô test đang đóng vai một người chơi đã đặt chúng đúng.
+ * `retries` và `cache` người chơi đặt qua ô điều khiển riêng — dựng bằng
+ * `overridesToReach`, tức CHỈ bằng những núm mà bảng điều khiển thật sự hiện.
+ *
+ * ⚠ Bản trước chép nguyên `CacheSpec` của lời giải vào đây. Ô AC cuối file vẫn
+ * xanh với bản đó trong khi bốn lời giải không đi tới được bằng giao diện —
+ * xem đầu `controls.ts`.
  */
-function overridesTu(spec: WorkflowSpec): CicdPlayerOverrides {
-  const retries: Record<string, number> = {};
-  const cache: Record<string, ReturnType<typeof capCache>> = {};
-  for (const stage of spec.stages) {
-    retries[stage.id] = stage.retries;
-    for (const step of stage.steps) {
-      cache[cacheOverrideKey(stage.id, step.id)] = capCache(step.cache);
-    }
-  }
-  return { retries, cache };
+function overridesTu(level: CicdLevel, spec: WorkflowSpec): CicdPlayerOverrides {
+  return overridesToReach(spec, vongYaml(spec), nguonCua(level), level.editable);
 }
 
-function capCache(c: WorkflowSpec['stages'][number]['steps'][number]['cache']): NonNullable<typeof c> | null {
-  return c ?? null;
+function nguonCua(level: CicdLevel): CicdHydrateSources {
+  return {
+    baseline: level.initialWorkflow,
+    catalogue: mergeStageCatalogue(level.initialWorkflow, level.solutionWorkflow, level.altSolutionWorkflow),
+  };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -166,6 +173,68 @@ describe('hydrate — `editable` quyết định ai thắng', () => {
     ).toBeUndefined();
   });
 
+  const KHUON: CacheSpec = { id: 'c', keyParts: ['lockfile'], invalidatedBy: ['lockfile'], savesTicks: 3 };
+  const CO_CACHE: WorkflowSpec = {
+    ...GOC,
+    stages: [{ ...GOC.stages[0]!, steps: [{ id: 'b1', name: 'B1', durationTicks: 7, blocking: true, cache: KHUON }] }],
+  };
+
+  it('cache: người chơi chỉ chọn KHOÁ — `invalidatedBy`/`savesTicks`/`id` là của level', () => {
+    const ra = hydrateWorkflow(NGUOI_CHOI, { baseline: CO_CACHE, catalogue: CO_CACHE }, ['cache'], {
+      cache: { 'a/b1': { keyParts: ['lockfile', 'src'] } },
+    }).stages[0]?.steps[0]?.cache;
+    expect(ra).toEqual({ id: 'c', keyParts: ['lockfile', 'src'], invalidatedBy: ['lockfile'], savesTicks: 3 });
+  });
+
+  it('cache: đối chứng C08 — khoá hẹp hơn nội dung thì hai danh sách PHẢI lệch nhau sau khi ghép', () => {
+    // Bản trước của bảng điều khiển gửi `invalidatedBy = keyParts`, làm hai
+    // danh sách luôn bằng nhau ⇒ "trúng mà ôi" không bao giờ xảy ra được.
+    const rong: CacheSpec = { ...KHUON, invalidatedBy: ['lockfile', 'toolchain'] };
+    const goc: WorkflowSpec = {
+      ...GOC,
+      stages: [{ ...GOC.stages[0]!, steps: [{ id: 'b1', name: 'B1', durationTicks: 7, blocking: true, cache: rong }] }],
+    };
+    const ra = hydrateWorkflow(NGUOI_CHOI, { baseline: goc, catalogue: goc }, ['cache'], {
+      cache: { 'a/b1': { keyParts: ['lockfile'] } },
+    }).stages[0]?.steps[0]?.cache;
+    expect(ra?.keyParts).toEqual(['lockfile']);
+    expect(ra?.invalidatedBy).toEqual(['lockfile', 'toolchain']);
+  });
+
+  it('cache: bản chuẩn KHÔNG cache ⇒ mặc định tắt, dù catalogue có khuôn', () => {
+    // Catalogue gộp lời giải; nếu mặc định đọc từ catalogue thì đáp án tự bật.
+    const ra = hydrateWorkflow(NGUOI_CHOI, { baseline: GOC, catalogue: CO_CACHE }, ['cache']);
+    expect(ra.stages[0]?.steps[0]?.cache).toBeUndefined();
+    const bat = hydrateWorkflow(NGUOI_CHOI, { baseline: GOC, catalogue: CO_CACHE }, ['cache'], {
+      cache: { 'a/b1': { keyParts: ['lockfile'] } },
+    });
+    expect(bat.stages[0]?.steps[0]?.cache?.savesTicks).toBe(3);
+  });
+
+  it('cache: bước không có khuôn ⇒ chọn bật cũng KHÔNG bịa ra cache', () => {
+    const ra = hydrateWorkflow(NGUOI_CHOI, { baseline: GOC, catalogue: GOC }, ['cache'], {
+      cache: { 'a/b1': { keyParts: ['lockfile'] } },
+    });
+    expect(ra.stages[0]?.steps[0]?.cache).toBeUndefined();
+  });
+
+  it('stage TỰ THÊM trùng id stage của lời giải KHÔNG tự nhận cache của lời giải', () => {
+    const tuThem: WorkflowSpec = {
+      name: 'x',
+      stages: [{ ...NGUOI_CHOI.stages[0]!, id: 'moi', steps: [{ id: 'b1', name: 'B1', durationTicks: 0, blocking: true }] }],
+    };
+    const loiGiai: WorkflowSpec = { name: 'l', stages: [{ ...CO_CACHE.stages[0]!, id: 'moi' }] };
+    const ra = hydrateWorkflow(tuThem, { baseline: GOC, catalogue: mergeStageCatalogue(GOC, loiGiai) }, ['cache', 'stages']);
+    expect(ra.stages[0]?.steps[0]?.durationTicks).toBe(7);
+    expect(ra.stages[0]?.steps[0]?.cache).toBeUndefined();
+  });
+
+  it('không cho sửa cache ⇒ khuôn bổ sung từ lời giải KHÔNG lọt vào bước của bản chuẩn', () => {
+    const catalogue = mergeStageCatalogue(GOC, CO_CACHE);
+    expect(catalogue.stages[0]?.steps[0]?.cache).toEqual(KHUON);
+    expect(hydrateWorkflow(NGUOI_CHOI, { baseline: GOC, catalogue }, []).stages[0]?.steps[0]?.cache).toBeUndefined();
+  });
+
   it('stages không mở ⇒ stage lạ bị bỏ, stage thiếu được trả lại', () => {
     const them: WorkflowSpec = {
       name: 'x',
@@ -233,7 +302,7 @@ describe('AC — vòng đọc-ghi YAML giữ nguyên ba trục, 14 level × 2 l�
       vongYaml(wf),
       { baseline: level.initialWorkflow, catalogue },
       level.editable,
-      overridesTu(wf),
+      overridesTu(level, wf),
     );
 
     const mong = scoreAxes(evaluate(wf, level.workload, level.evaluation), wf);
@@ -281,7 +350,7 @@ describe('AC — vòng đọc-ghi YAML giữ nguyên ba trục, 14 level × 2 l�
       vongYaml(pha),
       { baseline: level.initialWorkflow, catalogue },
       level.editable,
-      overridesTu(goc),
+      overridesTu(level, goc),
     );
     expect(ghep.stages.every((s) => s.dependsOn.length === 0)).toBe(true);
 
@@ -290,3 +359,76 @@ describe('AC — vòng đọc-ghi YAML giữ nguyên ba trục, 14 level × 2 l�
     expect(thuc).not.toEqual(mong);
   });
 });
+
+describe('dữ liệu level — cache là SỰ THẬT của bước, nên mọi workflow của level phải khai giống nhau', () => {
+  /*
+   * Người chơi chỉ chọn khoá; `id`/`invalidatedBy`/`savesTicks` lấy từ khuôn của
+   * catalogue. Hai workflow của cùng một level khai hai khuôn khác nhau cho cùng
+   * một bước ⇒ lời giải đến sau bị chấm bằng khuôn của lời giải đến trước, và
+   * không có núm nào sửa được chuyện đó. Đã đo ở C06 (`tai-goi` tiết kiệm 8 ở A,
+   * 5 ở B) ngày 2026-09-16.
+   */
+  it.each(CI_LEVELS.map((level) => ({ level })))('$level.id', ({ level }) => {
+    const khuon = new Map<string, string>();
+    const lech: string[] = [];
+    for (const wf of [level.initialWorkflow, level.solutionWorkflow, level.altSolutionWorkflow]) {
+      for (const stage of wf.stages) {
+        for (const step of stage.steps) {
+          if (step.cache === undefined) continue;
+          const key = cacheOverrideKey(stage.id, step.id);
+          const suThat = JSON.stringify([step.cache.id, step.cache.invalidatedBy, step.cache.savesTicks]);
+          const da = khuon.get(key);
+          if (da === undefined) khuon.set(key, suThat);
+          else if (da !== suThat) lech.push(`${wf.name} · ${key}: ${suThat} ≠ ${da}`);
+        }
+      }
+    }
+    expect(lech).toEqual([]);
+  });
+});
+
+describe('controls — núm hiện đúng thứ tầng ghép sẽ đọc', () => {
+  const MOI: WorkflowSpec = {
+    name: 'x',
+    stages: [...GOC.stages, { id: 'moi', kind: 'build', name: 'Mới', dependsOn: [], blocking: true, retries: 0, runnerClass: 'linux', steps: [] }],
+  };
+
+  it('retries: stage TỰ THÊM có núm khi level cho thêm stage', () => {
+    expect(retryControls(MOI, { baseline: GOC, catalogue: GOC }, ['retries', 'stages']).map((c) => c.stageId)).toEqual(['a', 'moi']);
+  });
+
+  it('retries: không cho thêm stage ⇒ stage lạ không có núm, vì tầng ghép sẽ bỏ nó', () => {
+    expect(retryControls(MOI, { baseline: GOC, catalogue: GOC }, ['retries']).map((c) => c.stageId)).toEqual(['a']);
+  });
+
+  it('retries: núm của stage tự thêm thật sự đổi được kết quả ghép', () => {
+    const ra = hydrateWorkflow(MOI, { baseline: GOC, catalogue: GOC }, ['retries', 'stages'], { retries: { moi: 3 } });
+    expect(ra.stages.find((s) => s.id === 'moi')?.retries).toBe(3);
+  });
+
+  it('cache: không có khuôn ⇒ không có núm; có khuôn ⇒ mặc định theo bản chuẩn', () => {
+    expect(cacheControls(NGUOI_CHOI, { baseline: GOC, catalogue: GOC }, ['cache'])).toEqual([]);
+    const [nut] = cacheControls(NGUOI_CHOI, { baseline: GOC, catalogue: CO_CACHE_NGOAI }, ['cache']);
+    expect(nut?.key).toBe('a/b1');
+    expect(nut?.defaultOn).toBe(false);
+    expect(nut?.template.savesTicks).toBe(3);
+  });
+});
+
+const CO_CACHE_NGOAI: WorkflowSpec = {
+  ...GOC,
+  stages: [
+    {
+      ...GOC.stages[0]!,
+      steps: [
+        {
+          id: 'b1',
+          name: 'B1',
+          durationTicks: 7,
+          blocking: true,
+          cache: { id: 'c', keyParts: ['lockfile'], invalidatedBy: ['lockfile'], savesTicks: 3 },
+        },
+      ],
+    },
+  ],
+};
