@@ -304,9 +304,20 @@ test.describe('Game CI/CD — §19.E/§19.H', { tag: '@games-cicd' }, () => {
     await moManChoi(page);
     await scanAxe(page, testInfo, 'cicd-man-choi');
 
-    // Quét lại SAU khi có kết quả: bảng ba trục, danh sách mục tiêu và khối
-    // `role="alert"` chỉ tồn tại ở trạng thái này, nên lượt quét trước không
-    // nhìn thấy chúng.
+    /*
+     * Quét lại ở HAI trạng thái kết quả, vì mỗi trạng thái dựng phần tử riêng.
+     *
+     * ⚠ Bản trước bấm "Chạy thử" ngay trên c01 (khởi đầu không job nào) rồi chờ
+     * thẻ trục — tức ô a11y này xanh NHỜ đúng lỗi #8 (ba con số 0 cho đường ống
+     * rỗng). Sửa #8 làm nó đỏ, và đó là tín hiệu đúng: ô này chưa bao giờ quét
+     * một kết quả thật.
+     */
+    await page.getByRole('button', { name: 'Chạy thử' }).click();
+    await expect(vungKetQua(page).getByTestId('cicd-empty')).toBeVisible();
+    await scanAxe(page, testInfo, 'cicd-duong-ong-rong');
+
+    // Bảng ba trục, danh sách mục tiêu và bảng tra nhanh chỉ có khi đã chấm thật.
+    await oSoan(page).fill(YAML_LOI_GIAI);
     await page.getByRole('button', { name: 'Chạy thử' }).click();
     await expect(page.getByTestId('cicd-axis-lead')).toBeVisible();
     await scanAxe(page, testInfo, 'cicd-co-ket-qua');
