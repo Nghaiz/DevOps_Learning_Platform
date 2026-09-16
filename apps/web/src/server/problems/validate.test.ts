@@ -44,6 +44,33 @@ const GIT_BODY = {
   objectives: [{ id: 'o1', label: 'Xong', check: 'branch-exists', visible: true }],
 };
 
+/**
+ * Bài CI/CD tối thiểu — ĐỐI CHỨNG DƯƠNG cho game thứ ba (§19.H).
+ *
+ * ⛔ KHÔNG dựng bằng `{ ...GIT_BODY, gameId: 'cicd' }`, dù đó là cách ngắn nhất
+ * và là cách ô "từ chối game chưa có engine" ngay dưới đang làm. `GIT_BODY.topics`
+ * là chủ đề của GIT, nên một bài mang `gameId: 'cicd'` cộng chủ đề Git sẽ bị
+ * `refineByGame` từ chối — vì một lý do HOÀN TOÀN KHÁC với lý do ta muốn đo.
+ * Ô đó sẽ xanh, và nó sẽ xanh y hệt cả vào ngày plugin CI/CD bị gỡ ra.
+ *
+ * Ba trường dưới đây đều tra thẳng từ plugin thay vì chép giá trị: chủ đề đầu
+ * tiên của game, bộ ba `initialState` do chính plugin dựng, và một vị từ CÓ THẬT
+ * trong bảng của nó. Chép tay thì ô này còn xanh sau khi tập chủ đề đổi tên.
+ *
+ * ⚠ `initialState` cố ý KHÔNG có `?? {}` đỡ phía sau. Biên ghi chỉ đòi một
+ * object với game khác K8s, nên `{}` sẽ QUA — tức một lượt gỡ plugin ra khỏi
+ * bảng vẫn để ô này xanh. Không có vế đỡ thì giá trị là `undefined` và schema
+ * từ chối, đúng chiều ồn ào.
+ */
+const CICD_BODY = {
+  ...BODY,
+  gameId: 'cicd' as const,
+  slug: 'go-vong-phu-thuoc',
+  topics: [PROBLEM_PLUGINS['cicd']?.topics[0]?.id ?? ''],
+  initialState: PROBLEM_PLUGINS['cicd']?.initialSpec(),
+  objectives: [{ id: 'o1', label: 'Xong', check: 'graphAcyclic', visible: true }],
+};
+
 describe('biên ghi của bài tập', () => {
   it('nhận một bài hợp lệ', () => {
     expect(problemBodySchema.safeParse(BODY).success).toBe(true);
@@ -77,6 +104,18 @@ describe('biên ghi của bài tập', () => {
     expect(problemBodySchema.safeParse({ ...GIT_BODY, topics: ['workload'] }).success).toBe(false);
     // Đối chứng dương ở chiều ngược lại: chủ đề THẬT của Git qua được.
     expect(problemBodySchema.safeParse(GIT_BODY).success).toBe(true);
+    /*
+     * Cùng phép đo, trên trục thứ ba. Ba game là chỗ đầu tiên "tập đóng theo
+     * game" khác được với "hai danh sách nối lại": một hiện thực gộp mọi chủ đề
+     * của mọi plugin thành một tập chung vẫn qua được hai dòng trên (chủ đề K8s
+     * trên bài Git nằm trong tập gộp… và sẽ ĐƯỢC NHẬN), nên cặp chéo dưới đây
+     * là thứ nói ra rằng phép tra thật sự đi theo `gameId` của bài.
+     */
+    expect(problemBodySchema.safeParse({ ...CICD_BODY, topics: ['workload'] }).success).toBe(false);
+    expect(problemBodySchema.safeParse({ ...GIT_BODY, topics: ['critical-path'] }).success).toBe(
+      false,
+    );
+    expect(problemBodySchema.safeParse(CICD_BODY).success).toBe(true);
   });
 
   it('nhận một bài Git — biên ghi không còn khoá vào K8s', () => {
@@ -92,6 +131,25 @@ describe('biên ghi của bài tập', () => {
     expect(problemBodySchema.safeParse({ ...GIT_BODY, initialState: null }).success).toBe(false);
   });
 
+  /*
+   * Chiều ĐẠT của game thứ ba — nửa còn lại của lượt đảo ở ô "từ chối game chưa
+   * có engine" phía dưới. Bắt được: một lượt gỡ `cicd` khỏi `PROBLEM_PLUGINS`,
+   * thứ mà ô kia (nay hỏi về `pipeline`) không còn thấy được nữa.
+   *
+   * ⚠ `initialState` của CI/CD là một BỘ BA (`workflow` + `workload` +
+   * `evaluation`), không phải một object phẳng như hai game trước — và biên này
+   * KHÔNG kiểm hình dạng đó, đúng khoảng trống có chủ ý mà `refineByGame` đã
+   * ghi: với game khác K8s nó chỉ đòi một object. Hai dòng cuối đo đúng bề rộng
+   * ấy thay vì để nó chỉ nằm trong một khối chú thích.
+   */
+  it('nhận một bài CI/CD — game thứ ba vào được bảng đăng ký', () => {
+    expect(problemBodySchema.safeParse(CICD_BODY).success).toBe(true);
+    expect(problemBodySchema.safeParse({ ...CICD_BODY, initialState: { gi: 'do' } }).success).toBe(
+      true,
+    );
+    expect(problemBodySchema.safeParse({ ...CICD_BODY, initialState: 'chuoi' }).success).toBe(false);
+  });
+
   it('K8s giữ NGUYÊN độ chặt cũ sau khi chuyển sang refine', () => {
     // Phép nới ở `topics`/`initialState` chỉ được áp cho game KHÁC. Nếu
     // `clusterSpecSchema` thôi chạy cho K8s thì ba ô dưới đây xanh hết, và một
@@ -105,8 +163,26 @@ describe('biên ghi của bài tập', () => {
     ).toBe(false);
   });
 
+  /*
+   * Ô này GIỮ NGUYÊN ý định, nhưng ĐỔI CHỦ THỂ từ `cicd` sang `pipeline` ở
+   * §19.H — và đó là một lượt đảo, không phải một lượt nới cho xanh.
+   *
+   * `cicd` nay CÓ plugin (`CICD_PROBLEM_PLUGIN`), nên dùng nó ở đây sẽ đo ngược
+   * đúng thứ ô này sinh ra để đo: nó vẫn đỏ, chỉ vì `GIT_BODY.topics` là chủ đề
+   * Git chứ không phải vì game thiếu engine. Một ô xanh vì một lý do khác lý do
+   * nó tuyên là hình dạng `green-that-proves-nothing` — và ở đây nó còn tệ hơn,
+   * vì nó sẽ xanh y hệt vào ngày plugin CI/CD bị gỡ ra.
+   *
+   * `pipeline` vẫn chưa có engine, nên nhánh này vẫn có một chủ thể thật. Ngày
+   * game cuối cùng có plugin, ô này phải được ĐẢO lần nữa (khẳng định mọi game
+   * đều lưu được), không phải xoá đi —
+   * `rules/pinned-baseline-test-companion.md`.
+   *
+   * Chiều ĐẠT của `cicd` được khoá riêng ở ô "nhận một bài CI/CD" ngay dưới;
+   * không có nó thì lượt đổi chủ thể này chỉ là bỏ bớt một phép đo.
+   */
   it('từ chối game chưa có engine chấm — lưu bài cho nó là lưu bài không ai chấm được', () => {
-    expect(problemBodySchema.safeParse({ ...GIT_BODY, gameId: 'cicd' }).success).toBe(false);
+    expect(problemBodySchema.safeParse({ ...GIT_BODY, gameId: 'pipeline' }).success).toBe(false);
     // Và từ chối cả `gameId` không thuộc `GAME_IDS`, ở tầng `z.enum`.
     expect(problemBodySchema.safeParse({ ...GIT_BODY, gameId: 'khong-co' }).success).toBe(false);
   });
@@ -118,7 +194,7 @@ describe('biên ghi của bài tập', () => {
      * ngày một plugin khai `seedSpec` — và lúc đó nó phải được INVERT (bỏ game
      * ấy ra, khẳng định nó bật được), không phải nới cho xanh.
      */
-    for (const body of [BODY, GIT_BODY]) {
+    for (const body of [BODY, GIT_BODY, CICD_BODY]) {
       const plugin = PROBLEM_PLUGINS[body.gameId];
       const expected = plugin?.seedSpec !== undefined;
       expect(
