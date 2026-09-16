@@ -571,11 +571,17 @@ export { KUBECTL_VERBS, parseKubectl } from './k8s/kubectl.ts';
  * không thứ nào dựng lại được ở phía web: danh sách level, một lượt chạy engine
  * tất định, và cầu nối YAML ↔ `WorkflowSpec` kèm dòng-cột của mọi lỗi.
  *
- * ⛔ **KHÔNG mở `cicd/engine.ts` phần nội bộ, cũng không mở `predicates.ts`.**
- * Bộ chấm vị từ là hợp đồng giữa level và engine; một tầng giao diện gọi thẳng
- * `checkObjective` là một bộ chấm thứ hai, và hai bộ chấm sẽ bất đồng ý trong
- * im lặng — đúng thứ commit `824ee8b` vừa gộp lại làm một. Giao diện đọc kết
- * quả `evaluate()` trả về, không tự chấm.
+ * ⚠ **SỬA LỜI KHAI 2026-09-16.** Đoạn này ban đầu viết "giao diện đọc kết quả
+ * `evaluate()` trả về, không tự chấm". Câu đó KHÔNG THỰC HIỆN ĐƯỢC, và đo ra
+ * mới biết: `EvaluationRecord` chỉ có `{ baseSeed, error, passes }` — không có
+ * kết quả mục tiêu nào trong đó. Theo đúng câu cũ thì màn chơi không có điều
+ * kiện THẮNG.
+ *
+ * Nên mở `failingObjectiveIds` — và chỉ nó. Nó vẫn là MỘT bộ chấm: giao diện
+ * gọi đúng hàm mà level gọi, không dựng bản thứ hai. `CICD_PREDICATES`,
+ * `checkObjective` và `validateObjectiveArgs` vẫn đóng, vì mở bảng vị từ ra là
+ * mời tầng giao diện tự ghép luật — đúng thứ commit `824ee8b` vừa gộp lại làm
+ * một.
  *
  * ⛔ `ScoreAxes` là kiểu TRẢ VỀ, không phải struct để lưu (xem `score.ts` §"No
  * Derived Fields"). Mở kiểu ra đây không biến nó thành thứ được phép cất vào
@@ -623,3 +629,19 @@ export type { KhoaBoQua, WorkflowReadResult, YamlDiagnostic } from './cicd/yaml-
 export { readWorkflowYaml } from './cicd/yaml-read.ts';
 export type { TruongBiBo, WorkflowWriteResult } from './cicd/yaml-write.ts';
 export { writeWorkflowYaml } from './cicd/yaml-write.ts';
+
+/*
+ * Tầng ghép YAML ↔ dữ liệu level (19.E). Không có nó, vòng "soạn YAML ⇒ chấm ba
+ * trục" cho `leadTimeSeconds: 0` và `runnerMinutes: 0` trên MỌI level — YAML
+ * không chở được chín trường của hợp đồng, và bộ đọc áp mặc định trung tính cho
+ * tất cả. Lý lẽ đầy đủ + phép đo ở đầu `cicd/hydrate.ts`.
+ */
+export type { CicdHydrateSources, CicdPlayerOverrides } from './cicd/hydrate.ts';
+export { cacheOverrideKey, hydrateWorkflow, mergeStageCatalogue } from './cicd/hydrate.ts';
+
+/*
+ * Điều kiện THẮNG của một màn chơi. Xem lời khai đã sửa ở khối CI/CD phía trên:
+ * `evaluate()` không trả kết quả mục tiêu, nên không có hàm này thì màn chơi
+ * không kết luận được đạt hay trượt.
+ */
+export { failingObjectiveIds } from './cicd/predicates.ts';
