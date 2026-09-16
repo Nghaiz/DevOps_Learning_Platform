@@ -31,14 +31,22 @@
  *    nhưng một `NaN` im lặng là thứ người sau không đọc ra được. Đó là ca cực đoan
  *    của bài C21 — không có mẫu thì không có tín hiệu, bản tệ đến mấy cũng lọt.
  *
- * **3. Biến thể Box–Muller: `z = sqrt(−2·ln(1 − u₁))·cos(2π·u₂)`.** `nextFloat`
- *    trả `[0, 1)`, còn `ln 0 = −∞`; dùng `1 − u₁` đưa miền về `(0, 1]` nên `z` luôn
- *    hữu hạn. Hợp đồng chỉ chốt "Box–Muller trên hai lần rút"; biến thể này là một
- *    phần của hành vi y như định dạng khoá, và `release.test.ts` ghim nó.
- *    ⚠ `Math.log`/`Math.cos` không bắt buộc làm tròn đúng ở mọi engine JS. Sai
- *    khác một ulp chỉ đổi kết quả khi nó rơi đúng mốc `.5` của `round`, nên rủi ro
- *    bị `round` nhốt lại — nhưng không bằng không, và ghi ra đây để không ai tưởng
- *    là bằng không.
+ * **3. `z` là tổng Irwin–Hall của 12 lần rút, trừ 6 — KHÔNG phải Box–Muller.**
+ *    Bản đầu dùng Box–Muller (`sqrt(−2·ln(1 − u₁))·cos(2π·u₂)`), đúng chữ hợp đồng
+ *    lúc đó. Lead đổi 2026-09-17 vì `Math.log`/`Math.cos` nằm trong danh sách hàm
+ *    ECMAScript cho phép "xấp xỉ theo hiện thực": V8 (Node, nơi máy chủ chấm lại
+ *    bài OJ) và JavaScriptCore (Safari, nơi người chơi chơi) được phép lệch nhau
+ *    một ulp. Lệch đó rơi đúng mốc `.5` của `round` là đủ để hai nơi ra hai số lỗi
+ *    khác nhau, tức hai verdict khác nhau cho cùng một bài — đúng thứ ràng buộc 2
+ *    của `contract.ts` cấm.
+ *
+ *    Irwin–Hall chỉ CỘNG: mỗi `u` là `uint32 / 2³²` (số nhị phân hữu hạn), tổng 12
+ *    số như vậy nhỏ hơn 12 nên biểu diễn CHÍNH XÁC trong số thực 64-bit, ở mọi
+ *    engine. Phương sai của một `u` là 1/12, nên tổng 12 cái có phương sai đúng 1
+ *    — một xấp xỉ chuẩn đủ tốt cho mục đích dạy (miền kẹp `[−6, 6]`, không có đuôi
+ *    dài, và R4 đằng nào cũng kẹp số lỗi về `[0, n]`). `Math.sqrt` ở công thức R4
+ *    thì KHÔNG nằm trong danh sách xấp xỉ: nó là phép cơ bản của IEEE 754, làm
+ *    tròn đúng ở mọi nơi.
  *
  * **4. Rút bản ứng viên ⇒ `finishedAtSecond = recoveredAtSecond`.** Trường đó khai
  *    "thay xong, hoặc phục hồi xong", và "phục hồi xong" chính là mốc
@@ -265,11 +273,19 @@ function releaseDrawKey(
   return `${baseSeed}|release|${pass}|${index}|${group}`;
 }
 
-/** Biến thể Box–Muller ở đầu file (điểm 3). Hai lần rút từ dòng của đúng một khoá. */
+/** Số lần rút của tổng Irwin–Hall. 12 ⇒ phương sai đúng 1. Đổi số này là đổi mọi kết quả. */
+const IRWIN_HALL_DRAWS = 12;
+
+/** Tổng Irwin–Hall ở đầu file (điểm 3). Mười hai lần rút liên tiếp từ dòng của đúng một khoá. */
 function standardNormalForKey(key: string): number {
-  const first = nextFloat(seedRng(hashDrawKey(key)));
-  const second = nextFloat(first.state);
-  return Math.sqrt(-2 * Math.log(1 - first.value)) * Math.cos(2 * Math.PI * second.value);
+  let state = seedRng(hashDrawKey(key));
+  let sum = 0;
+  for (let i = 0; i < IRWIN_HALL_DRAWS; i += 1) {
+    const draw = nextFloat(state);
+    sum += draw.value;
+    state = draw.state;
+  }
+  return sum - IRWIN_HALL_DRAWS / 2;
 }
 
 /**

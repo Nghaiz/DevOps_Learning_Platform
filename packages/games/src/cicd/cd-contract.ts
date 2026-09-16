@@ -251,9 +251,15 @@ export interface ReleaseRecord {
  * R4. Nhiễu. Mỗi khoảng đo: `canaryRequests = round(rps × intervalSeconds ×
  *     weight)`, `baselineRequests = round(rps × intervalSeconds) -
  *     canaryRequests`. Số lỗi = xấp xỉ chuẩn của nhị thức `(n, p)`: `round(n·p +
- *     z·sqrt(n·p·(1-p)))`, kẹp về `[0, n]`, với `z` từ Box–Muller trên hai lần
- *     rút. Khoá rút: `${baseSeed}|release|${pass}|${index}|${'canary'|'baseline'}`
- *     băm bằng `hashDrawKey` (`rng-keys.ts`) — DÙNG LẠI, không viết hàm băm thứ hai.
+ *     z·sqrt(n·p·(1-p)))`, kẹp về `[0, n]`, với `z` = tổng 12 lần rút liên tiếp
+ *     trừ 6 (Irwin–Hall, phương sai 1). Khoá rút:
+ *     `${baseSeed}|release|${pass}|${index}|${'canary'|'baseline'}` băm bằng
+ *     `hashDrawKey` (`rng-keys.ts`) — DÙNG LẠI, không viết hàm băm thứ hai.
+ *     ⛔ SỬA 2026-09-17 (lead): bản đầu ghi Box–Muller. `Math.log`/`Math.cos`/
+ *     `Math.exp`/`Math.pow` được ECMAScript cho phép lệch giữa các engine, nên
+ *     Node (chấm lại OJ) và Safari (người chơi) có thể ra hai số lỗi khác nhau.
+ *     Không phép tính nào trên đường nhiễu được dùng các hàm đó; `Math.sqrt` thì
+ *     được (phép cơ bản IEEE 754, làm tròn đúng).
  * R5. Lùi hay tiến, chỉ áp khi đã quyết rút:
  *     - `'roll-forward'` ⇒ `outcome = 'rolled-forward'`,
  *       `recoveredAtSecond = backoutAtSecond + fixForwardSeconds`.
@@ -374,6 +380,22 @@ export interface GitOpsRecord {
  * AC-B (phase-19): `selfHeal: true`, một thay đổi `'human'` ở giây t không trùng
  * nhịp đối soát ⇒ đoạn lệch dài ĐÚNG `ceil(t / P) × P - t` giây, P = chu kỳ. Test
  * ghim thêm ca t trùng nhịp (dài 0, theo G1) và ca `selfHeal: false` (không đóng).
+ *
+ * LÀM RÕ SAU KHI HIỆN THỰC (lead, 2026-09-17 — đọc cùng `gitops.ts`):
+ * - Công thức AC-B chỉ đúng với t > 0. Nhịp là k × P với k ≥ 1, nên giây 0 KHÔNG
+ *   phải nhịp, và thay đổi ở giây 0 lệch đúng P giây chứ không phải 0.
+ * - Một thay đổi giữ trường vẫn lệch (3 → 5 rồi 5 → 7) không tách đoạn lệch;
+ *   `cause` là của kẻ mở đoạn. Hai cách kết thúc đều đòi sống khớp khai trở lại.
+ * - Đồng bộ commit ở G2 đóng đoạn lệch ĐANG MỞ bất kể ai gây ra: đồng bộ đè giá
+ *   trị sống bằng giá trị khai mới, nên một chỉnh tay cũng bị đè theo.
+ * - "Khai đổi từ lần đồng bộ trước" so theo GIÁ TRỊ: commit rồi hoàn tác trước
+ *   nhịp kế tiếp thì không có gì để đồng bộ.
+ * - Mỗi trường có TỐI ĐA MỘT thay đổi `'controller'` — hai bộ điều khiển, hay một
+ *   bộ đổi giá trị của nó, chưa có luật và bị từ chối (ném). Đủ cho bài C25.
+ * - Bản ghi không có trường lỗi (khác `ReleaseRecord.error`), nên dữ liệu kịch
+ *   bản sai thì NÉM: chu kỳ/horizon không nguyên hoặc < 1, `atSecond` ngoài
+ *   `[0, horizonSeconds]`, trường không có trong `initial` hoặc khai trùng,
+ *   `reassertEverySeconds` thiếu ở controller hay có mặt ở actor khác.
  */
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -446,6 +468,19 @@ export interface MaskingRecord {
  *     với dòng i+1 (không ký tự nối) còn chứa chuỗi mà KHÔNG dòng nào chứa riêng
  *     ⇒ `acrossLines: true` ở dòng i. Sắp theo (line, secret, form).
  * M4. Không có dạng nào "gần đúng": khớp là khớp chuỗi chính xác.
+ *
+ * LÀM RÕ SAU KHI HIỆN THỰC (lead, 2026-09-17 — đọc cùng `masking.ts`):
+ * - "rồi `form`" ở M2 và "(line, secret, form)" ở M3 so `form` bằng MÃ ĐƠN VỊ,
+ *   không theo vị trí trong `SECRET_FORMS` — ràng buộc 2 của `contract.ts`. Khác
+ *   biệt nhìn thấy được: bí mật `abcd`, che cả `reversed` lẫn `url`, dòng
+ *   `abcdcba` ra `abc***`. `masking.test.ts` ghim ca đó.
+ * - `leakCount` đếm MỤC `SecretLeak` (dòng × bí mật × dạng), không đếm dòng. Một
+ *   giá trị không có ký tự cần mã hoá cho `url` trùng `raw`, nên một chỗ lộ đếm
+ *   thành hai mục — đúng, vì cả hai dạng đều thật sự lọt.
+ * - Lỗi CỨNG thêm vào, cùng tinh thần M1 (bản ghi không có trường lỗi nên chỉ
+ *   có ném hoặc im): id bí mật trùng; mục che trỏ bí mật/dạng không tồn tại;
+ *   `split: true` mà không có chỗ chèn nào; `\n`/`\r` trong mẫu (che mất phép
+ *   dò rò qua dòng); hơn một `|` trong chỗ chèn.
  */
 
 // ═══════════════════════════════════════════════════════════════════════════

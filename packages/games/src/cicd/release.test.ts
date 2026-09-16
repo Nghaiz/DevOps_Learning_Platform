@@ -10,11 +10,11 @@
  * đỏ ở đó là lỗi của luật chứ không phải của nhiễu. Nhiễu được đo riêng ở khối R4
  * và khối "cỡ mẫu", nơi nó là thứ đang được kiểm.
  *
- * ## Vì sao có một bản sao Box–Muller trong file test
+ * ## Vì sao có một bản sao công thức nhiễu trong file test
  *
  * `referenceErrors` dưới đây chép lại khoá rút và công thức. Nó không phải một
  * phép kiểm "hàm bằng chính nó": khoá `${baseSeed}|release|${pass}|${index}|${nhóm}`
- * và biến thể Box–Muller là HỢP ĐỒNG HÀNH VI — đổi một dấu phân tách là đổi mọi
+ * và công thức nhiễu (tổng Irwin–Hall) là HỢP ĐỒNG HÀNH VI — đổi một dấu phân tách là đổi mọi
  * con số của mọi level đã cân bằng, trong im lặng. Bản sao ở đây làm thay đổi đó
  * đỏ, và có đối chứng cho thấy nó ĐỎ ĐƯỢC.
  */
@@ -108,11 +108,20 @@ function passAt(record: ReleaseRecord, index: number): ReleasePassRecord {
   return pass;
 }
 
-/** Số lỗi CHƯA kẹp, tính lại độc lập từ khoá — xem đầu file vì sao có bản sao này. */
+/**
+ * Số lỗi CHƯA kẹp, tính lại độc lập từ khoá — xem đầu file vì sao có bản sao này.
+ * `z` là tổng Irwin–Hall 12 lần rút trừ 6 (xem `release.ts` điểm 3: Box–Muller bị
+ * thay vì `Math.log`/`Math.cos` được phép lệch giữa các engine JS).
+ */
 function referenceErrors(key: string, n: number, p: number): number {
-  const first = nextFloat(seedRng(hashDrawKey(key)));
-  const second = nextFloat(first.state);
-  const z = Math.sqrt(-2 * Math.log(1 - first.value)) * Math.cos(2 * Math.PI * second.value);
+  let state = seedRng(hashDrawKey(key));
+  let sum = 0;
+  for (let i = 0; i < 12; i += 1) {
+    const draw = nextFloat(state);
+    sum += draw.value;
+    state = draw.state;
+  }
+  const z = sum - 6;
   return Math.round(n * p + z * Math.sqrt(n * p * (1 - p)));
 }
 
