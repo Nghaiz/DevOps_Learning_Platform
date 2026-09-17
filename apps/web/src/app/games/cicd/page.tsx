@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { redirect } from 'next/navigation';
 import { t } from '@devops-platform/copy';
 import { CICD_LEVELS } from '@devops-platform/games';
 
@@ -6,7 +7,6 @@ import { CICD_LEVELS } from '@devops-platform/games';
 // `paths` ở tsconfig nào và không đặt alias webpack, nên dạng `@/` sẽ đỏ ở cả
 // typecheck lẫn `next build`.
 import { CicdGame } from '../../../components/games/cicd/cicd-game';
-import { loadCicdTheory } from '../../../server/games/cicd-theory';
 
 export const metadata: Metadata = {
   title: t('catalog.meta-title.games-cicd'),
@@ -16,9 +16,12 @@ export const metadata: Metadata = {
 /**
  * `/games/cicd` — vỏ route của Xưởng đường ống CI/CD (19.H).
  *
- * Server Component làm hai việc ngoài `metadata`: đọc hai tham số truy vấn, và
- * nạp bài lý thuyết từ đĩa (19.I) — ở server, như `/games/git`, để lúc chơi không
- * có lời gọi backend nào.
+ * Đây là trang **DANH MỤC**. Màn chơi sống ở `/games/cicd/<levelId>` từ 19.D —
+ * xem `[levelId]/page.tsx`, và lý lẽ ở `components/shell/immersive-routes.ts`.
+ *
+ * Server Component chỉ còn đọc hai tham số truy vấn. Bài lý thuyết KHÔNG nạp ở
+ * đây nữa: chỗ đọc nó duy nhất là màn chơi, nên route con tự nạp — trang danh
+ * mục không phải đọc toàn bộ bài học từ đĩa cho một thứ nó không dùng.
  *
  * Không gác auth — game chạy hoàn toàn trong trình duyệt, nên `/games` KHÔNG có
  * trong `PROTECTED_PATHS` của `proxy.ts`.
@@ -46,6 +49,26 @@ export default async function CicdGamePage({
     requested !== null && CICD_LEVELS.some((l) => l.id === requested) ? requested : null;
 
   /*
+   * ⤷ CHUYỂN HƯỚNG: màn chơi đã dọn sang một đoạn con thật (19.D).
+   *
+   * Vỏ ứng dụng quyết định immersive bằng `pathname`, và `isImmersiveRoute()`
+   * không nhìn thấy tham số truy vấn — nên chừng nào màn chơi còn sống ở
+   * `?level=` thì nó không thể toàn màn hình, tức AC-D7 đỏ vì vỏ trang. Lý lẽ
+   * đầy đủ: `components/shell/immersive-routes.ts`.
+   *
+   * Giữ nhánh này thay vì xoá hẳn vì `?level=` đã đi ra ngoài: liên kết đã chia
+   * sẻ, ô e2e, và `problem-preview-href.ts`. Một chuyển hướng giữ chúng sống;
+   * xoá thẳng thì chúng rơi vào trang danh mục và đọc ra thành "màn tôi lưu đã
+   * biến mất".
+   *
+   * ⚠ Chỉ chuyển hướng khi id HỢP LỆ. `?level=rác` rơi xuống dưới và hiện danh
+   * sách — đúng hành vi cũ, và đúng hơn một cú 404 cho một tham số gõ nhầm.
+   */
+  if (initialLevelId !== null) {
+    redirect(`/games/cicd/${initialLevelId}`);
+  }
+
+  /*
    * `?problem=` — chế độ làm bài OJ. KHÔNG lọc qua danh sách nào, khác hẳn
    * `?level=` ngay trên: tập màn là một hằng biên dịch nên lọc được tại đây, còn
    * tập bài sống trong CSDL và đi kèm một tầm nhìn theo người xem.
@@ -66,14 +89,10 @@ export default async function CicdGamePage({
   const initialProblemCode =
     typeof rawProblem === 'string' && rawProblem.length > 0 ? rawProblem : null;
 
-  const theory = loadCicdTheory();
-
   return (
     <CicdGame
-      key={initialProblemCode ?? initialLevelId ?? 'campaign'}
-      initialLevelId={initialLevelId}
+      key={initialProblemCode ?? 'campaign'}
       initialProblemCode={initialProblemCode}
-      theory={theory}
     />
   );
 }

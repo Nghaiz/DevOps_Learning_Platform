@@ -120,6 +120,39 @@ function vungKetQua(page: Page) {
   return page.getByRole('region', { name: 'Kết quả lượt chạy' });
 }
 
+/**
+ * Bỏ qua màn chuyển tiếp trục Y (19.D.5.1).
+ *
+ * Trục Y ĐỔI NGHĨA giữa hai chương (CI = thời gian chờ hàng đợi, CD = dải môi
+ * trường), nên lần đầu vào một màn CD sẽ có một hộp thoại che KÍN sân và nhận
+ * tiêu điểm. Đó là hành vi đúng, nhưng nó làm mọi thao tác sau đó không bấm
+ * được — bốn ô của chương CD đỏ vì `locator.click` hết giờ, không vì thứ chúng
+ * định đo.
+ *
+ * Không dùng `waitFor`: ở những màn đã xem qua rồi thì hộp thoại KHÔNG hiện, và
+ * chờ một thứ cố ý vắng mặt là tự thêm 15 giây vào mỗi ô.
+ */
+async function boQuaManChuyenTiep(page: Page): Promise<void> {
+  const intro = page.getByTestId('cicd-axis-intro');
+  if (!(await intro.isVisible().catch(() => false))) return;
+  await intro.getByRole('button', { name: 'Bỏ qua' }).click();
+  await expect(intro).toHaveCount(0);
+}
+
+/**
+ * Bật một lớp phủ từ thanh trên.
+ *
+ * Từ 19.D.4 sân chơi chiếm trọn màn hình và các bảng là lớp phủ THU ĐƯỢC; chỉ ô
+ * soạn, đề bài và bản đồ mở sẵn (cộng bảng núm ở chương CD). Một ô muốn nhìn
+ * bảng khác thì phải tự mở — trước 19.D mọi thứ nằm sẵn trong lưới hai cột nên
+ * không ô nào cần bước này.
+ */
+async function moBang(page: Page, ten: string): Promise<void> {
+  const nut = page.getByRole('group', { name: 'Lớp phủ' }).getByRole('button', { name: ten });
+  if ((await nut.getAttribute('aria-pressed')) === 'true') return;
+  await nut.click();
+}
+
 test.describe('Game CI/CD — §19.E/§19.H', { tag: '@games-cicd' }, () => {
   test('màn danh sách mở được và liệt kê đủ 28 màn của hai chương', async ({ page }) => {
     await openScreen(page, CICD_PATH, 'user');
@@ -151,6 +184,7 @@ test.describe('Game CI/CD — §19.E/§19.H', { tag: '@games-cicd' }, () => {
     if (level?.cd === undefined) throw new Error('không tìm thấy C19 có khối cd');
     await openScreen(page, `${CICD_PATH}?level=${level.id}`, 'user');
     await settle(page);
+    await boQuaManChuyenTiep(page);
 
     await oSoan(page).fill(writeWorkflowYaml(level.solutionWorkflow).yaml);
     await page.getByRole('button', { name: 'Chạy thử' }).click();
@@ -322,6 +356,7 @@ test.describe('Game CI/CD — §19.E/§19.H', { tag: '@games-cicd' }, () => {
 
   test('#3 — bảng tra nhanh hiện ra, và mục YAML của nó đọc được khi dán vào ô soạn', async ({ page }) => {
     await moManChoi(page);
+    await moBang(page, 'Bài học');
     const bang = page.getByRole('region', { name: 'Tra nhanh' });
     await expect(bang).toBeVisible();
 
@@ -355,6 +390,7 @@ test.describe('Game CI/CD — §19.E/§19.H', { tag: '@games-cicd' }, () => {
     const trace = traceRequests(page);
     await openScreen(page, `${CICD_PATH}?level=${level.id}`, 'user');
     await settle(page);
+    await boQuaManChuyenTiep(page);
     await expect(page.getByTestId('cicd-cd-panel')).toBeVisible();
 
     trace.phase('đang chơi');
@@ -368,6 +404,8 @@ test.describe('Game CI/CD — §19.E/§19.H', { tag: '@games-cicd' }, () => {
 
     await bang.getByRole('radio', { name: 'blue-green' }).check();
     await page.getByRole('button', { name: 'Chạy thử' }).click();
+    // Bảng Bài học nay là lớp phủ thu được (19.D.4) — phải tự mở.
+    await moBang(page, 'Bài học');
     await page.getByRole('button', { name: /^Bài lý thuyết:/u }).click();
     await expect(page.getByTestId('cicd-theory')).toBeVisible();
     await page.waitForTimeout(500);
@@ -482,6 +520,7 @@ test.describe('Game CI/CD — §19.E/§19.H', { tag: '@games-cicd' }, () => {
       await openScreen(page, `${CICD_PATH}?level=${level.id}`, 'user');
       await settle(page);
       await khangDinhTheme(page, theme);
+      await boQuaManChuyenTiep(page);
       await expect(page.getByTestId('cicd-cd-panel')).toBeVisible();
 
       await oSoan(page).fill(writeWorkflowYaml(level.solutionWorkflow).yaml);
@@ -489,6 +528,8 @@ test.describe('Game CI/CD — §19.E/§19.H', { tag: '@games-cicd' }, () => {
       await expect(page.getByTestId('cicd-cd-drift')).toBeVisible();
       await expect(page.getByTestId('cicd-cd-leaks')).toBeVisible();
 
+      // Bảng Bài học nay là lớp phủ thu được (19.D.4) — phải tự mở.
+      await moBang(page, 'Bài học');
       await page.getByRole('button', { name: /^Bài lý thuyết:/u }).click();
       await expect(page.getByTestId('cicd-theory')).toBeVisible();
       await scanAxe(page, testInfo, `cicd-man-cd-${theme}`);

@@ -595,15 +595,26 @@ export type {
   CicdCheatSheetEntry,
   CicdLevel,
   CicdObjective,
+  BlockedBy,
   CicdThresholds,
+  CicdView,
+  DagEdgeView,
+  EnvironmentId,
   EvaluationError,
   EvaluationRecord,
   EvaluationSpec,
+  FailureCause,
   FlakeSpec,
+  InstanceKey,
+  PassRecord,
   RunnerPool,
+  RunRecord,
   ScoreAxes,
   StageId,
+  StageInstanceRecord,
   StageKind,
+  StageNodeView,
+  StageRunState,
   StageSpec,
   StepSpec,
   WorkflowSpec,
@@ -620,6 +631,31 @@ export { scoreAxes, summarizeEvaluation } from './cicd/score.ts';
 
 export type { CriticalPath, CriticalPathEdge, CriticalPathNode } from './cicd/critical-path.ts';
 export { criticalPath } from './cicd/critical-path.ts';
+
+/*
+ * ── Tầng cảnh (19.D) — view, mã hoá trạng thái, phép đặt chỗ ────────────────
+ *
+ * Ba file này là hợp đồng mà lane 2D và lane 3D CÙNG đọc. Toán thuần, không một
+ * dòng `three`: chúng phải test được ở env `node`, và `bundle:check` gác việc
+ * engine đồ hoạ rò sang route không-3D (tiền lệ `44f8e39`, P17).
+ *
+ * ⚠ `buildGraphView` trả `CicdGraphView` — phần ĐỒ THỊ của `CicdView`, không
+ * phải cả nó. `runners` và `events` chưa dựng được từ đầu ra hiện tại của engine
+ * (không có ảnh chụp máy bận theo tick, không có nhật ký sự kiện). Lý lẽ đầy đủ
+ * ở đầu `cicd/scene-view.ts`.
+ */
+export type { CicdGraphView, GraphViewInput } from './cicd/scene-view.ts';
+export { buildGraphView } from './cicd/scene-view.ts';
+export type {
+  CicdBounds,
+  CicdPlacement,
+  CicdPlacementEdge,
+  CicdPlacementNode,
+  ScenePoint,
+} from './cicd/scene-contract.ts';
+export { countNonAxialSegments, placeWorkflow } from './cicd/scene-contract.ts';
+export type { NodeGeometry, NodeMotion, StateEncoding } from './cicd/scene-encoding.ts';
+export { encodingOf, STATE_ENCODING } from './cicd/scene-encoding.ts';
 
 /*
  * Cầu nối YAML. `YamlDiagnostic` mang dòng + cột THẬT (19.C.3) và ô soạn của

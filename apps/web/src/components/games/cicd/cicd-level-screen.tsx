@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef, useState, type ReactElement } from 'react';
+import { useCallback, useMemo, useRef, useState, type ReactElement } from 'react';
 import { Button, MarkdownView } from '@devops-platform/ui';
 import {
   mergeStageCatalogue,
@@ -10,27 +10,55 @@ import {
   type CicdHydrateSources,
   type CicdLevel,
   type CicdPlayerOverrides,
+  type InstanceKey,
   type TheoryDoc,
 } from '@devops-platform/games';
 
-import { YamlEditor } from '../shared/yaml-editor';
 import { CicdCdPanel } from './cicd-cd-panel';
 import { CicdCheatsheet } from './cicd-cheatsheet';
 import { CicdOverridesPanel } from './cicd-overrides-panel';
 import { CicdResultPanel } from './cicd-result-panel';
 import { formatNumber, formatSeconds, runWorkflow, type CicdRunOutcome } from './cicd-run';
 import { CicdSnippetBar } from './cicd-snippet-bar';
+import type { CicdSceneInteraction, CicdSceneProps } from './scene-props';
+import { CicdAxesPanel } from './hud/cicd-axes-panel';
+import { CicdAxisIntro, useAxisIntro } from './hud/cicd-axis-intro';
+import { CicdEditorDrawer } from './hud/cicd-editor-drawer';
+import { CicdField } from './hud/cicd-field';
+import { CicdHudPanel } from './hud/cicd-hud-panel';
+import { CicdInspector } from './hud/cicd-inspector';
+import { CicdMinimap } from './hud/cicd-minimap';
+import { CicdMissionCard } from './hud/cicd-mission-card';
+import { buildCicdScene, firstRun, sceneWorkflow } from './hud/cicd-scene-model';
+import type { CicdHotkey } from './hud/cicd-keymap';
+import { CicdTopBar, type CicdQualityTier } from './hud/cicd-top-bar';
+import { useHudKeyboard } from './hud/use-hud-keyboard';
+import { CICD_PANEL_IDS, useHudPanels, type CicdPanelId } from './hud/use-hud-panels';
+import { useRendererMode } from './hud/use-renderer-mode';
 
 /**
- * Màn chơi một level CI/CD — 19.E.1 → 19.E.5.
+ * Màn chơi một level CI/CD — 19.D.4, dựng lại trên bố cục TOÀN MÀN HÌNH.
  *
- * Bố cục: đề bài trên, ô soạn YAML bên trái, kết quả bên phải, lịch sử dưới
- * cùng. Ô soạn và kết quả đứng CẠNH nhau chứ không nối tiếp, vì vòng lặp học ở
- * đây là "sửa một cạnh ⇒ xem ba trục nhúc nhích": bắt người chơi cuộn giữa hai
- * thứ họ đang so sánh là làm hỏng chính vòng lặp đó.
+ * ═══════════════════════════════════════════════════════════════════════════
+ * BỐ CỤC LÀ HỢP ĐỒNG, KHÔNG PHẢI THẨM MỸ (quyết định #3 của chủ dự án)
+ * ═══════════════════════════════════════════════════════════════════════════
  *
- * ⛔ Không gọi mạng. Engine, bộ quét YAML và bộ chấm đều chạy trong bộ nhớ trình
- * duyệt, giống hệt hai game kia (AC-2 của P17 đo bằng network trace).
+ * Sân chơi chiếm trọn vùng dưới thanh trên cùng, đúng như `k8s-arena`. Mọi bảng
+ * là **lớp phủ nổi trên sân**, định vị tuyệt đối. Người chơi thu được HẾT và còn
+ * lại một sân trống hoàn toàn.
+ *
+ * ⛔ Bố cục cũ `grid lg:grid-cols-2` (ô soạn nửa trái, kết quả nửa phải) đã bị
+ * BỎ HẲN, và ⛔ màn chơi của game Git — cảnh nằm trong một thẻ hẹp, chia đôi với
+ * ô soạn — bị cấm làm nguồn tham chiếu. AC-D7 đo điều này bằng số đo hình học
+ * trên `CICD_SCENE_TESTIDS.field`, với đối chứng dương là bố cục chia đôi phải
+ * làm ô đó ĐỎ.
+ *
+ * ⚠ Vỏ lớp phủ đặt `pointer-events-none`; từng bảng tự bật lại
+ * `pointer-events-auto`. Thiếu luật này thì một `div` trong suốt phủ toàn sân
+ * nuốt mọi cú bấm xuống cảnh — người chơi bấm một node và không gì xảy ra.
+ *
+ * ⛔ Không gọi mạng. Engine, bộ quét YAML và bộ chấm chạy trong bộ nhớ trình
+ * duyệt (AC-D6 đo bằng network trace, KỂ CẢ khi bật 3D).
  */
 
 export interface CicdLevelScreenProps {
@@ -46,7 +74,12 @@ interface AttemptEntry {
   readonly outcome: CicdRunOutcome;
 }
 
-export function CicdLevelScreen({ level, theory, onExit, onNext }: CicdLevelScreenProps): ReactElement {
+export function CicdLevelScreen({
+  level,
+  theory,
+  onExit,
+  onNext,
+}: CicdLevelScreenProps): ReactElement {
   /*
    * Văn bản khởi điểm là workflow ban đầu ĐƯỢC IN RA, không phải một chuỗi viết
    * tay: hai bản sẽ trôi khỏi nhau ngay lần đầu ai đó sửa dữ liệu level, và bản
@@ -64,6 +97,23 @@ export function CicdLevelScreen({ level, theory, onExit, onNext }: CicdLevelScre
   const [hintsShown, setHintsShown] = useState(0);
   const [showTheory, setShowTheory] = useState(false);
 
+  const [selectedId, setSelectedId] = useState<InstanceKey | null>(null);
+  const [hoveredId, setHoveredId] = useState<InstanceKey | null>(null);
+  const [quality, setQuality] = useState<CicdQualityTier>('high');
+
+  const panels = useHudPanels(level.chapter);
+  /*
+   * `has3d: true` — barrel `scene3d/` có thật trong bản dựng này. `fallback:
+   * '2d'` vì kế hoạch §19.D.2 gọi cảnh 2D là **chế độ mặc định, không phải bản
+   * dự phòng**: người chơi mới không bị đẩy vào đường nặng hơn mà không ai chọn.
+   */
+  const rendererMode = useRendererMode({ has3d: true, fallback: '2d' });
+  /*
+   * Màn chuyển tiếp trục Y (D.5.1). Tự hiện ĐÚNG MỘT LẦN khi vào chương CD, và
+   * mở lại được từ nút Trợ giúp ở cả hai chương — xem `cicd-axis-intro.tsx`.
+   */
+  const intro = useAxisIntro(level.chapter);
+
   /*
    * Bảng ghép gom stage từ CẢ BA workflow (ban đầu + hai lời giải). Không có nó,
    * một job mà người chơi tự thêm sẽ không tìm thấy mẫu nào để lấy `durationTicks`
@@ -73,15 +123,19 @@ export function CicdLevelScreen({ level, theory, onExit, onNext }: CicdLevelScre
   const sources: CicdHydrateSources = useMemo(
     () => ({
       baseline: level.initialWorkflow,
-      catalogue: mergeStageCatalogue(level.initialWorkflow, level.solutionWorkflow, level.altSolutionWorkflow),
+      catalogue: mergeStageCatalogue(
+        level.initialWorkflow,
+        level.solutionWorkflow,
+        level.altSolutionWorkflow,
+      ),
     }),
     [level],
   );
 
   /*
-   * Workflow đang soạn, cho bảng núm. YAML dở dang (chưa đọc được) thì rơi về bản
-   * chuẩn: danh sách núm co về tạm thời, nhưng giá trị đã đặt nằm trong
-   * `overrides` theo id nên không mất khi YAML đọc được trở lại.
+   * Workflow đang soạn, cho bảng núm VÀ cho cảnh. YAML dở dang (chưa đọc được)
+   * thì rơi về bản chuẩn: danh sách núm co về tạm thời, nhưng giá trị đã đặt nằm
+   * trong `overrides` theo id nên không mất khi YAML đọc được trở lại.
    */
   const current = useMemo(() => {
     const doc = readWorkflowYaml(yaml);
@@ -90,7 +144,7 @@ export function CicdLevelScreen({ level, theory, onExit, onNext }: CicdLevelScre
 
   const editorRef = useRef<HTMLTextAreaElement | null>(null);
 
-  const chay = (): void => {
+  const chay = useCallback((): void => {
     const ketQua = runWorkflow({
       yaml,
       sourcesFor: () => sources,
@@ -104,7 +158,13 @@ export function CicdLevelScreen({ level, theory, onExit, onNext }: CicdLevelScre
     });
     setOutcome(ketQua);
     setHistory((truoc) => [...truoc, { n: truoc.length + 1, outcome: ketQua }]);
-  };
+    /*
+     * Mở bảng kết quả khi có kết quả. Người chơi vừa bấm "Chạy thử" thì thứ họ
+     * đợi là ba trục và danh sách mục tiêu — bắt họ bấm thêm một nút nữa để thấy
+     * chính thứ vừa yêu cầu là một cú bấm thừa, mỗi lượt.
+     */
+    panels.open('result');
+  }, [yaml, sources, level, overrides, cdPolicies, panels]);
 
   /*
    * Tập RỖNG chứ không `undefined`: `exactOptionalPropertyTypes` cấm truyền
@@ -116,149 +176,331 @@ export function CicdLevelScreen({ level, theory, onExit, onNext }: CicdLevelScre
       ? new Set(outcome.errors.map((diagnostic) => diagnostic.line))
       : new Set<number>();
 
+  const run = useMemo(() => firstRun(outcome), [outcome]);
+  const model = useMemo(
+    () =>
+      buildCicdScene({
+        workflow: sceneWorkflow(outcome, current),
+        run,
+        yAxis: level.chapter,
+      }),
+    [outcome, current, run, level.chapter],
+  );
+
+  const onSelect = useCallback(
+    (id: InstanceKey | null) => {
+      setSelectedId(id);
+      if (id !== null) panels.open('inspector');
+    },
+    [panels],
+  );
+
+  const interaction: CicdSceneInteraction = useMemo(
+    () => ({ selectedId, hoveredId, onSelect, onHover: setHoveredId }),
+    [selectedId, hoveredId, onSelect],
+  );
+
+  /*
+   * Phím tắt (D.4.8). ⚠ Đây là lớp THỨ HAI: mọi thao tác dưới đây đều đã có một
+   * `<button>` thật trong luồng Tab (công tắc lớp phủ và nút 2D/3D ở thanh trên,
+   * chọn node ở bản đồ thu nhỏ). Một phím tắt không ai nhìn thấy không phải một
+   * đường đi được — nên vế "bàn phím đủ cho mọi thao tác" do những cái nút đó
+   * đóng, còn bảng phím chỉ rút ngắn đường.
+   */
+  const onHotkey = useCallback(
+    (hotkey: CicdHotkey) => {
+      const action = hotkey.action;
+      switch (action.kind) {
+        case 'run':
+          chay();
+          return;
+        case 'panel': {
+          /*
+           * `action.panel` khai kiểu `string` chứ không `CicdPanelId`: bảng phím
+           * là dữ liệu thuần và không được biết tới module lớp phủ (import vòng).
+           * Thu hẹp bằng cách TRA trong tập thật — một id gõ sai thì không làm
+           * gì, thay vì mở một bảng không tồn tại.
+           */
+          const id = CICD_PANEL_IDS.find((panel) => panel === action.panel);
+          if (id !== undefined) panels.toggle(id);
+          return;
+        }
+        case 'close-all':
+          panels.closeAll();
+          return;
+        case 'mode':
+          rendererMode.choose(action.mode);
+          return;
+        case 'deselect':
+          setSelectedId(null);
+          return;
+        case 'help':
+          intro.show();
+          return;
+      }
+    },
+    [chay, panels, rendererMode, intro],
+  );
+  useHudKeyboard(onHotkey);
+
+  const scene: CicdSceneProps | null = model.ok
+    ? {
+        view: model.view,
+        placement: model.placement,
+        interaction,
+        label: `Đồ thị đường ống của màn ${level.title}`,
+      }
+    : null;
+
+  const selectedNode =
+    scene === null || selectedId === null
+      ? null
+      : (scene.view.nodes.find((node) => node.instance === selectedId) ?? null);
+
+  /*
+   * Công tắc lớp phủ đọc thẳng tập thật, không chép một danh sách thứ hai: thêm
+   * một bảng mà quên thêm công tắc là bảng đó không có cách nào bật lên, và
+   * không gì báo.
+   */
+  const panelIds: readonly CicdPanelId[] = CICD_PANEL_IDS;
+
   return (
-    <div className="flex flex-col gap-4">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex flex-col gap-1">
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={onExit}>
-              ← Danh sách màn
-            </Button>
-            <span className="font-mono text-xs text-muted-foreground">{level.id}</span>
-          </div>
-          <h1 className="text-xl font-semibold text-foreground">{level.title}</h1>
-          <p className="text-sm text-muted-foreground">{level.mission}</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button onClick={chay}>Chạy thử</Button>
-          {onNext !== undefined && outcome?.kind === 'scored' && outcome.won ? (
-            <Button variant="secondary" onClick={onNext}>
-              Màn tiếp →
-            </Button>
-          ) : null}
-        </div>
-      </header>
+    <div className="relative h-dvh w-full overflow-hidden bg-background text-foreground">
+      <CicdField
+        scene={scene}
+        emptyNote={model.ok ? '' : model.note}
+        mode={rendererMode.resolved.mode}
+        quality={quality}
+      />
 
-      <p className="rounded-lg border border-border bg-muted px-4 py-3 text-sm text-foreground">
-        {level.brief}
-      </p>
+      <CicdTopBar
+        levelId={level.id}
+        title={level.title}
+        chapter={level.chapter}
+        resolved={rendererMode.resolved}
+        onMode={rendererMode.choose}
+        quality={quality}
+        onQuality={setQuality}
+        panels={panels.state}
+        panelIds={panelIds}
+        onTogglePanel={panels.toggle}
+        onCloseAllPanels={panels.closeAll}
+        onRun={chay}
+        onHelp={intro.show}
+        onExit={onExit}
+        {...(onNext === undefined ? {} : { onNext })}
+      />
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <div className="flex flex-col gap-3">
-          <div className="flex h-80 flex-col">
-            <YamlEditor
+      {/* Lớp phủ. Vỏ không nhận chuột; từng bảng tự bật lại. */}
+      <div className="pointer-events-none absolute inset-x-0 top-14 bottom-0 z-20">
+        <CicdAxesPanel
+          outcome={outcome}
+          className="absolute top-3 left-1/2 -translate-x-1/2"
+        />
+
+        <CicdEditorDrawer
+          open={panels.state.editor}
+          onOpen={() => {
+            panels.open('editor');
+          }}
+          onClose={() => {
+            panels.close('editor');
+          }}
+          yaml={yaml}
+          onYaml={setYaml}
+          ariaLabel={`Workflow YAML của màn ${level.title}`}
+          errorLines={errorLines}
+          textareaRef={editorRef}
+          footer={
+            <CicdSnippetBar
+              runnerClassIds={level.workload.runners.map((pool) => pool.id)}
+              editorRef={editorRef}
+              onInsert={setYaml}
               value={yaml}
-              onChange={setYaml}
-              ariaLabel={`Workflow YAML của màn ${level.title}`}
-              errorLines={errorLines}
-              showLineNumbers
-              textareaRef={editorRef}
             />
-          </div>
+          }
+        />
 
-          <CicdSnippetBar
-            runnerClassIds={level.workload.runners.map((pool) => pool.id)}
-            editorRef={editorRef}
-            onInsert={setYaml}
-            value={yaml}
-          />
+        <div className="absolute inset-y-3 right-3 flex w-[min(26rem,38vw)] flex-col gap-3 overflow-y-auto">
+          {panels.state.mission ? (
+            <CicdHudPanel
+              title="Đề bài"
+              onClose={() => {
+                panels.close('mission');
+              }}
+              className="max-h-[45vh] shrink-0"
+              testId="cicd-panel-mission"
+            >
+              <CicdMissionCard
+                mission={level.mission}
+                brief={level.brief}
+                objectives={level.objectives}
+                outcome={outcome}
+              />
+            </CicdHudPanel>
+          ) : null}
 
-          <CicdOverridesPanel
-            editable={level.editable}
-            current={current}
-            sources={sources}
-            workload={level.workload}
-            overrides={overrides}
-            onChange={setOverrides}
-          />
+          {panels.state.inspector ? (
+            <CicdHudPanel
+              title="Thông số job"
+              onClose={() => {
+                panels.close('inspector');
+              }}
+              className="max-h-[45vh] shrink-0"
+              testId="cicd-panel-inspector"
+            >
+              <CicdInspector node={selectedNode} run={run} selectedId={selectedId} />
+            </CicdHudPanel>
+          ) : null}
 
-          {level.cd === undefined ? null : (
-            <CicdCdPanel cd={level.cd} value={cdPolicies} onChange={setCdPolicies} />
-          )}
-        </div>
+          {panels.state.result ? (
+            <CicdHudPanel
+              title="Kết quả"
+              onClose={() => {
+                panels.close('result');
+              }}
+              className="max-h-[60vh] shrink-0"
+              testId="cicd-panel-result"
+            >
+              {outcome === null ? (
+                <p className="text-sm text-muted-foreground">
+                  Bấm “Chạy thử” để mô phỏng {level.evaluation.passes} lượt và xem ba trục.
+                </p>
+              ) : (
+                <CicdResultPanel
+                  outcome={outcome}
+                  objectives={level.objectives}
+                  thresholds={level.thresholds}
+                  showVerdict
+                />
+              )}
 
-        <div className="flex flex-col gap-4">
-          {outcome === null ? (
-            <p className="rounded-lg border border-border bg-muted px-4 py-3 text-sm text-muted-foreground">
-              Bấm “Chạy thử” để mô phỏng {level.evaluation.passes} lượt và xem ba trục.
-            </p>
-          ) : (
-            <CicdResultPanel
-              outcome={outcome}
-              objectives={level.objectives}
-              thresholds={level.thresholds}
-              showVerdict
-            />
-          )}
+              <AttemptHistory history={history} />
 
-          <AttemptHistory history={history} />
+              <section className="mt-3 flex flex-col gap-2" aria-label="Gợi ý">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+                    Gợi ý
+                  </h3>
+                  {hintsShown < level.hints.length ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setHintsShown((n) => n + 1);
+                      }}
+                    >
+                      Mở gợi ý {hintsShown + 1}/{level.hints.length}
+                    </Button>
+                  ) : null}
+                </div>
+                {hintsShown === 0 ? (
+                  <p className="text-xs text-muted-foreground">Chưa mở gợi ý nào.</p>
+                ) : (
+                  <ul className="flex flex-col gap-1">
+                    {level.hints.slice(0, hintsShown).map((hint, index) => (
+                      <li key={index} className="text-sm text-muted-foreground">
+                        {hint}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            </CicdHudPanel>
+          ) : null}
 
-          <section className="flex flex-col gap-2" aria-label="Gợi ý">
-            <div className="flex items-center gap-2">
-              <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-                Gợi ý
-              </h3>
-              {hintsShown < level.hints.length ? (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setHintsShown((n) => n + 1);
-                  }}
-                >
-                  Mở gợi ý {hintsShown + 1}/{level.hints.length}
-                </Button>
-              ) : null}
-            </div>
-            {hintsShown === 0 ? (
-              <p className="text-xs text-muted-foreground">Chưa mở gợi ý nào.</p>
-            ) : (
-              <ul className="flex flex-col gap-1">
-                {level.hints.slice(0, hintsShown).map((hint, index) => (
+          {panels.state.tools ? (
+            <CicdHudPanel
+              title="Bảng núm"
+              onClose={() => {
+                panels.close('tools');
+              }}
+              className="max-h-[55vh] shrink-0"
+              testId="cicd-panel-tools"
+            >
+              <CicdOverridesPanel
+                editable={level.editable}
+                current={current}
+                sources={sources}
+                workload={level.workload}
+                overrides={overrides}
+                onChange={setOverrides}
+              />
+              {level.cd === undefined ? null : (
+                <div className="mt-3">
+                  <CicdCdPanel cd={level.cd} value={cdPolicies} onChange={setCdPolicies} />
+                </div>
+              )}
+            </CicdHudPanel>
+          ) : null}
+
+          {panels.state.learn ? (
+            <CicdHudPanel
+              title="Bài học"
+              onClose={() => {
+                panels.close('learn');
+              }}
+              className="max-h-[55vh] shrink-0"
+              testId="cicd-panel-learn"
+            >
+              <p className="text-sm text-muted-foreground">{level.teaching.primer}</p>
+              <ul className="mt-2 flex list-disc flex-col gap-1 pl-5">
+                {level.teaching.takeaways.map((takeaway, index) => (
                   <li key={index} className="text-sm text-muted-foreground">
-                    {hint}
+                    {takeaway}
                   </li>
                 ))}
               </ul>
-            )}
-          </section>
-
-          <section className="flex flex-col gap-2" aria-label="Bài học">
-            <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-              Bài học
-            </h3>
-            <p className="text-sm text-muted-foreground">{level.teaching.primer}</p>
-            <ul className="flex list-disc flex-col gap-1 pl-5">
-              {level.teaching.takeaways.map((takeaway, index) => (
-                <li key={index} className="text-sm text-muted-foreground">
-                  {takeaway}
-                </li>
-              ))}
-            </ul>
-            {theory === null ? null : (
-              <div className="flex flex-col gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  aria-expanded={showTheory}
-                  onClick={() => {
-                    setShowTheory((dangMo) => !dangMo);
-                  }}
-                >
-                  Bài lý thuyết: {theory.frontmatter.title} · {theory.frontmatter.readMinutes} phút
-                </Button>
-                {showTheory ? (
-                  <div className="rounded-lg border border-border px-4 py-3" data-testid="cicd-theory">
-                    <MarkdownView markdown={theory.body} resolveAssetUrl={() => null} />
-                  </div>
-                ) : null}
+              {theory === null ? null : (
+                <div className="mt-3 flex flex-col gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    aria-expanded={showTheory}
+                    onClick={() => {
+                      setShowTheory((dangMo) => !dangMo);
+                    }}
+                  >
+                    Bài lý thuyết: {theory.frontmatter.title} · {theory.frontmatter.readMinutes}{' '}
+                    phút
+                  </Button>
+                  {showTheory ? (
+                    <div className="rounded-lg border border-border px-4 py-3" data-testid="cicd-theory">
+                      <MarkdownView markdown={theory.body} resolveAssetUrl={() => null} />
+                    </div>
+                  ) : null}
+                </div>
+              )}
+              <div className="mt-3">
+                <CicdCheatsheet entries={level.teaching.cheatsheet} />
               </div>
-            )}
-          </section>
+            </CicdHudPanel>
+          ) : null}
 
-          <CicdCheatsheet entries={level.teaching.cheatsheet} />
+          {panels.state.minimap ? (
+            <CicdHudPanel
+              title="Bản đồ"
+              onClose={() => {
+                panels.close('minimap');
+              }}
+              className="mt-auto shrink-0"
+              testId="cicd-panel-minimap"
+            >
+              {scene === null ? (
+                <p className="text-xs text-muted-foreground">Chưa có đồ thị để thu nhỏ.</p>
+              ) : (
+                <CicdMinimap scene={scene} />
+              )}
+            </CicdHudPanel>
+          ) : null}
         </div>
       </div>
+
+      {/*
+       * Màn chuyển tiếp trục Y (D.5.1). Nằm NGOÀI vỏ lớp phủ vì nó không phải
+       * một lớp phủ: nó che kín sân và nhận tiêu điểm, đúng như một hộp thoại.
+       */}
+      {intro.open ? <CicdAxisIntro chapter={level.chapter} onDismiss={intro.dismiss} /> : null}
     </div>
   );
 }
@@ -275,7 +517,7 @@ export function CicdLevelScreen({ level, theory, onExit, onNext }: CicdLevelScre
  */
 function AttemptHistory({ history }: { readonly history: readonly AttemptEntry[] }): ReactElement {
   return (
-    <section className="flex flex-col gap-2" aria-label="Lịch sử các lượt chạy">
+    <section className="mt-3 flex flex-col gap-2" aria-label="Lịch sử các lượt chạy">
       <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
         Lịch sử ({history.length})
       </h3>

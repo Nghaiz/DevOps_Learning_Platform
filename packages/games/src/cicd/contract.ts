@@ -1114,10 +1114,36 @@ export interface StageNodeView {
   readonly state: StageRunState;
   /** Đếm từ 0. `> 0` = đang/đã thử lại — tầng 3D vẽ vòng lặp quanh node. */
   readonly attempt: number;
+  /**
+   * Tick mọi phụ thuộc đã xong. `null` khi chưa có lượt chạy nào.
+   *
+   * ⚠ THÊM 2026-09-17 (19.D.1). Trục Y của **chương CI** là thời gian chờ hàng
+   * đợi (quyết định #13), và đại lượng đó là `startedTick - readyTick`. Thiếu
+   * trường này thì tầng đặt chỗ không có cách nào tính trục Y ngoài việc đi vòng
+   * lại `StageInstanceRecord` — tức dựng một đường đọc bản ghi thứ hai song song
+   * với view, đúng thứ ranh giới §7 này lập ra để tránh.
+   *
+   * ⛔ Lưu `readyTick` (dữ kiện gốc của bản ghi), KHÔNG lưu hiệu số. Hiệu số suy
+   * ra được, và `code-conventions.md` § "No Derived Fields" cấm cất nó.
+   */
+  readonly readyTick: number | null;
   readonly startedTick: number | null;
   readonly finishedTick: number | null;
   /** `null` = thực thể không khai cache nào. */
   readonly cacheHit: boolean | null;
+  /**
+   * Môi trường stage này phát hành vào, `null` khi nó không phát hành vào đâu.
+   *
+   * ⚠ THÊM 2026-09-17 (19.D.1), cùng lý do với `readyTick`: trục Y của **chương
+   * CD** là dải môi trường, nên tầng đặt chỗ phải đọc được nó TỪ VIEW.
+   *
+   * ⛔ Không có thứ tự dải nào ghi ở đây, và đó là chủ ý. `EnvironmentId` là
+   * chuỗi tự do của level, không phải một tập đóng — ghim `['dev','staging',
+   * 'prod']` ở tầng hợp đồng là biến một quy ước đặt tên thành luật, và một
+   * level đặt tên `canary` sẽ rơi ra ngoài trong im lặng. Thứ tự dải suy từ
+   * chính hình dạng đường ống, ở `scene-contract.ts`.
+   */
+  readonly environment: EnvironmentId | null;
   /**
    * Token màu NGỮ NGHĨA, không phải mã màu. Renderer tra sang màu thật bằng
    * `getComputedStyle`, và đó là thứ giữ SSOT màu ở CSS và làm 3D tự đổi theo

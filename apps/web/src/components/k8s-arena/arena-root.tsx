@@ -198,7 +198,7 @@ export function ArenaRoot({ level, mode, onExit }: ArenaRootProps): ReactElement
      * Cách sửa đúng KHÔNG phải là hardcode màu tối vào từng bảng — làm vậy thì
      * token mất tác dụng và ai đổi bảng màu sau này sẽ đổi được mọi trang trừ
      * trang này. Ép ngữ cảnh `dark` giữ nguyên hệ token: mọi bảng và cả
-     * `scene-tokens.ts` cùng đọc nhánh tối của cùng một bộ biến CSS.
+     * `games/shared/scene-tokens.ts` cùng đọc nhánh tối của cùng một bộ biến CSS.
      */
     <div className="arena-root dark relative h-dvh w-full overflow-hidden bg-background text-foreground">
       {/* Cảnh 3D nằm DƯỚI cùng và chiếm trọn khung. */}
