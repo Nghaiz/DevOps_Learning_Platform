@@ -11,5 +11,6 @@ import { LEVEL_C23 } from './c23-git-la-nguon-that.ts';
 import { LEVEL_C24 } from './c24-drift-giua-hai-nhip.ts';
 import { LEVEL_C25 } from './c25-tu-sua-va-quyen-so-huu.ts';
 import { LEVEL_C26 } from './c26-che-chuoi-da-dang-ky.ts';
+import { LEVEL_C27 } from './c27-hotfix-hai-gio-sang.ts';
 
-export const CD_LEVELS_MUON: readonly CicdLevel[] = [LEVEL_C22, LEVEL_C23, LEVEL_C24, LEVEL_C25, LEVEL_C26];
+export const CD_LEVELS_MUON: readonly CicdLevel[] = [LEVEL_C22, LEVEL_C23, LEVEL_C24, LEVEL_C25, LEVEL_C26, LEVEL_C27];
