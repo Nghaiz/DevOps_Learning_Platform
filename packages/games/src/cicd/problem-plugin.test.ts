@@ -220,29 +220,33 @@ describe('initialSpec — bộ ba, mới mỗi lần gọi', () => {
 // ── Nhật ký: bản nộp CUỐI quyết định ────────────────────────────────────────
 
 describe('workflow nào được chấm', () => {
-  const BAI = specVoi(workflow(stage('clone')));
+  /*
+   * Bài có SẴN hai job độc lập; người làm chỉ nối cạnh. Bản trước cho bài một job
+   * rồi nộp thêm job `kiem-tra` — từ khi có khuôn tập job (`job-shapes.ts`) bài OJ
+   * không cho thêm job, nên phép đo "bản nộp được đọc" chuyển sang thứ người làm
+   * ĐƯỢC sửa: một cạnh phụ thuộc.
+   */
+  const BAI = specVoi(workflow(stage('clone'), stage('kiem-tra')));
+  const CO_CANH = tc('co-canh', 'stageDependsOn', { stage: 'kiem-tra', on: 'clone' });
+  const NOI_CANH = workflow(stage('clone'), stage('kiem-tra', ['clone']));
 
   /*
    * ⛔ Cặp ô này đi CÙNG NHAU và không tách được. Ô dưới một mình vẫn xanh trên
-   * một hiện thực luôn chấm `initialState` (nó chỉ đang xác nhận stage thứ hai
-   * chưa có); ô trên một mình vẫn xanh trên một hiện thực luôn trả `AC`. Chỉ
-   * hai ô cạnh nhau mới nói được rằng NGUỒN của lượt nộp thật sự được đọc.
+   * một hiện thực luôn chấm `initialState` (nó chỉ đang xác nhận cạnh chưa có);
+   * ô trên một mình vẫn xanh trên một hiện thực luôn trả `AC`. Chỉ hai ô cạnh
+   * nhau mới nói được rằng NGUỒN của lượt nộp thật sự được đọc.
    */
   it('KHÔNG có hành động nào ⇒ chấm `initialState.workflow`', () => {
-    const ket = cham({ initialState: BAI, testcases: [CO_KIEM_TRA] });
+    const ket = cham({ initialState: BAI, testcases: [CO_CANH] });
     expect(ket.verdict).toBe('WA');
     expect(ket.passed).toEqual([]);
     expect(ket.total).toBe(1);
   });
 
   it('có hành động nộp ⇒ chấm workflow trong bản YAML đó', () => {
-    const ket = cham({
-      initialState: BAI,
-      actions: [nop(workflow(stage('clone'), stage('kiem-tra', ['clone'])))],
-      testcases: [CO_KIEM_TRA],
-    });
+    const ket = cham({ initialState: BAI, actions: [nop(NOI_CANH)], testcases: [CO_CANH] });
     expect(ket.verdict).toBe('AC');
-    expect(ket.passed).toEqual(['co-kiem-tra']);
+    expect(ket.passed).toEqual(['co-canh']);
   });
 
   /*
@@ -252,14 +256,7 @@ describe('workflow nào được chấm', () => {
    * điểm của bản tốt trước đó, và không gì đỏ.
    */
   it('nhiều lần nộp ⇒ chỉ bản CUỐI được chấm', () => {
-    const ket = cham({
-      initialState: BAI,
-      actions: [
-        nop(workflow(stage('clone'), stage('kiem-tra', ['clone']))),
-        nop(workflow(stage('clone'))),
-      ],
-      testcases: [CO_KIEM_TRA],
-    });
+    const ket = cham({ initialState: BAI, actions: [nop(NOI_CANH), nop(BAI.workflow)], testcases: [CO_CANH] });
     expect(ket.verdict).toBe('WA');
   });
 
@@ -269,12 +266,14 @@ describe('workflow nào được chấm', () => {
    */
   it('hành động mở gợi ý không đổi kết quả', () => {
     const goiY: CicdGameAction = { gameId: 'cicd', tick: 1, kind: 'hint', index: 0 };
-    const ket = cham({
-      initialState: BAI,
-      actions: [nop(workflow(stage('clone'), stage('kiem-tra', ['clone']))), goiY],
-      testcases: [CO_KIEM_TRA],
-    });
+    const ket = cham({ initialState: BAI, actions: [nop(NOI_CANH), goiY], testcases: [CO_CANH] });
     expect(ket.verdict).toBe('AC');
+  });
+
+  it('nộp thêm một job bài không có ⇒ WA (khuôn tập job), không lặng lẽ chấm job đó với thời lượng 0', () => {
+    const them = workflow(stage('clone'), stage('kiem-tra'), stage('lint'));
+    const ket = cham({ initialState: BAI, actions: [nop(them)], testcases: [tc('co-lint', 'stageExists', { stage: 'lint' })] });
+    expect(ket.verdict).toBe('WA');
   });
 });
 
@@ -295,6 +294,13 @@ describe('bản nộp YAML được ghép với dữ liệu bài trước khi ch
   it('ngưỡng rộng ⇒ AC — bản nộp chấm được, không phải bị từ chối', () => {
     const ket = cham({ initialState: BAI, actions: [nop(BAI.workflow)], testcases: [tc('nhanh', 'leadTimeUnder', { seconds: 100_000 })] });
     expect(ket.verdict).toBe('AC');
+  });
+
+  it('ĐỔI TÊN bước để thời lượng về 0 ⇒ WA, không phải AC (khuôn job, review PR #141)', () => {
+    const doiTen = workflow({ ...stage('clone'), steps: [{ id: 'doi-ten', name: 'clone', durationTicks: 2, blocking: true }] });
+    const ket = cham({ initialState: BAI, actions: [nop(doiTen)], testcases: [tc('sieu-nhanh', 'leadTimeUnder', { seconds: 1 })] });
+    expect(ket.verdict).toBe('WA');
+    expect(ket.failedCode).toBeNull();
   });
 
   it('ngưỡng 1 giây ⇒ WA — thời lượng lấy lại từ bài, không phải 0', () => {

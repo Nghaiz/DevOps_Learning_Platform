@@ -640,6 +640,9 @@ export { writeWorkflowYaml } from './cicd/yaml-write.ts';
 export type { CicdCacheChoice, CicdHydrateSources, CicdPlayerOverrides } from './cicd/hydrate.ts';
 export type { CicdCacheControl, CicdRetryControl } from './cicd/controls.ts';
 export { cacheControls, overridesToReach, retryControls } from './cicd/controls.ts';
+export type { JobShapeProblem } from './cicd/job-shapes.ts';
+export { checkJobShapes } from './cicd/job-shapes.ts';
+export { ownValue } from './cicd/id-dict.ts';
 export { cacheOverrideKey, hydrateWorkflow, mergeStageCatalogue } from './cicd/hydrate.ts';
 
 /*

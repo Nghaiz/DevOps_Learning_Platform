@@ -101,6 +101,26 @@ trước, nếu không bài OJ về cache/retries không giải được.
 | Nhiễu canary: Irwin–Hall thay Box–Muller | `225e7f8` | `Math.log`/`Math.cos` được phép lệch giữa engine JS ⇒ Node và Safari có thể ra hai verdict |
 | Nối CD vào bộ chấm, tám vị từ | `f63d84c` | `CD_SIMULATION_PREDICATES` không khai được ở OJ |
 
+**Review sau khi gộp PR #141 (2026-09-17)** — Copilot hết hạn mức nên không review được; một
+lượt review đối kháng có probe chạy thật tìm ra lỗ hổng chấm điểm, và đo thêm lộ ra lỗ thứ ba:
+
+| Lỗ | Đo được trên `main` | Vá |
+|---|---|---|
+| Đổi tên bước ⇒ thời lượng về 0 | thắng 9/13 level; OJ `leadTimeUnder 1s` từ WA thành AC | **Khuôn job** (chủ dự án chốt): `(id job, dãy id bước)` phải trùng một cấu hình level đã khai ở ban đầu / lời giải / lời giải thay thế |
+| Xoá bước không tạo sản phẩm | thắng 10/13 level, kể cả level không cho sửa `stages` | như trên |
+| Bỏ nguyên job kiểm thử | thắng 7/9 level cho sửa `stages` | **Khuôn tập job** (chủ dự án chốt): tập id job phải trùng tập của một workflow đã khai |
+| `environmentGuardedByApproval` đạt khi cổng không chặn / `reviewers: 0` | bản bị từ chối vẫn lên prod 4 lần mà vẫn đạt | cổng + mọi stage ở giữa phải `blocking`, `reviewers ≥ 1`, bản ghi không có lần lên nào khi cổng đỏ |
+| `promotedArtifactUnchanged` đạt khi staging và prod chạy song song | prod xong tick 6, staging tick 35 | `to` phải phụ thuộc `from` và xong sau nó; lên `to` mà chưa qua `from` là trượt |
+| `hydrate` để YAML thêm `environment` / `strategy.matrix` vào trường không sửa được | `editable: []` vẫn ra `prod` | dựng từng trường, không `...edited` |
+| Ngưỡng canary "bằng không vượt" hỏng vì chia số thực | 7/100−24/400 lùi, 8/100−28/400 thăng | so nhân chéo bằng `BigInt` |
+| Định danh `constructor` | job tên đó làm `evaluate` ném; sản phẩm tên đó đỏ giả; ghi đè hàm `Object` toàn cục | `id-dict.ts`: từ điển không prototype + `ownValue` |
+| Núm cho stage bị xoá khỏi YAML không tác dụng; bật cache điền sẵn khoá của lời giải | | ghép cả stage trả lại; khoá mặc định rỗng |
+| "Chèn nhanh" trên ô soạn chưa đụng tới (lộ ra khi viết e2e cho #6, không phải từ review) | "Job mới" rơi ngay dưới `name:`, ngoài `jobs:` — lần dựng đầu `selectionStart` là 0, không phải cuối | thanh chèn nhớ phần tử ô soạn đã nhận focus; chưa focus thì chèn cuối |
+
+Đánh đổi đã chấp nhận của hai luật khuôn: cấu trúc job chỉ chọn được trong các phương án level
+khai; bài OJ (một workflow) không đổi được tập job hay dãy bước. Tác giả 19.G muốn một cách
+chia job khác được chấm thì phải KHAI nó thành một workflow của level.
+
 **Việc để lại của đợt 3:**
 
 | # | Việc | Vì sao chưa làm |

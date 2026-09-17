@@ -599,6 +599,63 @@ describe('xoá đối tượng đi KHÔNG thoả được mục tiêu', () => {
     expect(CICD_PREDICATES.rollbackUnder(voiPhatHanh(BLUE_GREEN, { ...REL, candidateErrorRate: 0 }), { seconds: 1_000_000 })).toBe(false);
   });
 
+  // ── Review PR #141: bốn cách đạt mà không thật sự canh / thăng hạng ──
+
+  function tuChoiHet(wf: WorkflowSpec): CicdScoringContext {
+    const wl: WorkloadSpec = { ...WORKLOAD, commits: WORKLOAD.commits.map((c) => ({ ...c, approvalRejected: true })) };
+    return { workflow: wf, record: evaluate(wf, wl, CHAM) };
+  }
+
+  it('`environmentGuardedByApproval` — cổng KHÔNG chặn ⇒ bản bị từ chối vẫn lên prod ⇒ false', () => {
+    const wf: WorkflowSpec = {
+      ...WF_CO_DUYET,
+      stages: WF_CO_DUYET.stages.map((s) => (s.id === 'duyet' ? { ...s, blocking: false } : s)),
+    };
+    expect(CICD_PREDICATES.environmentGuardedByApproval(tuChoiHet(wf), { environment: 'prod', reviewers: 2 })).toBe(false);
+  });
+
+  it('`environmentGuardedByApproval` — stage KHÔNG chặn đứng giữa cổng và prod ⇒ false', () => {
+    const wf: WorkflowSpec = {
+      ...WF_CO_DUYET,
+      stages: [
+        ...WF_CO_DUYET.stages.filter((s) => s.id !== 'prod'),
+        giaiDoan('bao-cao', 'gate', ['duyet'], [buoc('ghi-bao-cao', 1)], { blocking: false }),
+        giaiDoan('prod', 'deploy', ['bao-cao'], [buoc('len-prod', 3, { requires: ['image'] })], { environment: 'prod' }),
+      ],
+    };
+    expect(CICD_PREDICATES.environmentGuardedByApproval(tuChoiHet(wf), { environment: 'prod', reviewers: 2 })).toBe(false);
+  });
+
+  it('`environmentGuardedByApproval` — đối chứng: cổng chặn thật, mọi commit bị từ chối ⇒ prod không lên, vẫn true', () => {
+    const ctx = tuChoiHet(WF_CO_DUYET);
+    expect(ctx.record.passes.every((pass) => pass.runs.every((run) => run.instances.find((i) => i.stageId === 'prod')?.attempts.at(-1)?.outcome !== 'passed'))).toBe(true);
+    expect(CICD_PREDICATES.environmentGuardedByApproval(ctx, { environment: 'prod', reviewers: 2 })).toBe(true);
+  });
+
+  it('`environmentGuardedByApproval` — `reviewers: 0` không biến mọi stage thành cổng', () => {
+    expect(CICD_PREDICATES.environmentGuardedByApproval(CTX_THANG_HANG, { environment: 'prod', reviewers: 0 })).toBe(false);
+  });
+
+  it('`promotedArtifactUnchanged` — staging và prod chạy SONG SONG ⇒ prod chưa qua staging ⇒ false', () => {
+    const wf: WorkflowSpec = {
+      ...WF_THANG_HANG,
+      stages: WF_THANG_HANG.stages.map((s) => (s.id === 'prod' ? { ...s, dependsOn: ['dung'] } : s)),
+    };
+    expect(CICD_PREDICATES.promotedArtifactUnchanged(chay(wf), { output: 'image', from: 'staging', to: 'prod' })).toBe(false);
+  });
+
+  it('`promotedArtifactUnchanged` — staging đỏ mà prod vẫn lên ⇒ false, không phải "bỏ qua"', () => {
+    const wf: WorkflowSpec = {
+      ...WF_THANG_HANG,
+      stages: WF_THANG_HANG.stages.map((s) =>
+        s.id === 'staging'
+          ? { ...s, blocking: false, steps: [buoc('len-staging', 3, { requires: ['khong-co'] })] }
+          : s,
+      ),
+    };
+    expect(CICD_PREDICATES.promotedArtifactUnchanged(chay(wf), { output: 'image', from: 'staging', to: 'prod' })).toBe(false);
+  });
+
   it('`environmentGuardedByApproval` — không stage nào phát hành vào môi trường đó thì trả false', () => {
     expect(CICD_PREDICATES.environmentGuardedByApproval(CTX_NOI_TIEP, { environment: 'prod', reviewers: 1 })).toBe(false);
   });

@@ -283,6 +283,29 @@ describe('R3 — canary, trên kịch bản không nhiễu', () => {
     );
   });
 
+  it('bằng đúng ngưỡng ở cỡ mẫu NHỎ, có nhiễu: mọi cửa sổ hiệu đúng 0,01 đều thăng hạng (so số nguyên, không chia số thực)', () => {
+    // Review PR #141: 7/100 − 24/400 và 8/100 − 28/400 đều đúng 0,01, nhưng phép
+    // chia số thực cho một cái ">" và một cái "≤" — hai hạt giống, hai kết cục.
+    // Quét hạt giống thay vì ghim số: ô này đo LUẬT, không đo một con xúc xắc.
+    const scen = scenario({ ...base, baselineErrorRate: 0.06, candidateErrorRate: 0.07 });
+    const mot = canary({ weightPercent: 20, intervalSeconds: 10, intervals: 1, maxErrorRateDelta: 0.01 });
+    let bangNguong = 0;
+    for (let seed = 1; seed <= 500; seed += 1) {
+      const pass = onlyPass(run(mot, scen, 1, seed));
+      const [khoang] = pass.intervals;
+      if (khoang === undefined) throw new Error('canary phải có một khoảng đo');
+      expect(khoang.canaryRequests).toBe(100);
+      expect(khoang.baselineRequests).toBe(400);
+      // Hiệu đúng 0,01 ⇔ ce·400 − be·100 = 0,01 · 100 · 400 = 400.
+      if (khoang.canaryErrors * 400 - khoang.baselineErrors * 100 === 400) {
+        bangNguong += 1;
+        expect(pass.outcome, `seed ${seed}: ${khoang.canaryErrors}/100 vs ${khoang.baselineErrors}/400`).toBe('promoted');
+      }
+    }
+    // Đối chứng: quét phải thật sự gặp ca bằng ngưỡng, không thì ô trên xanh vì rỗng.
+    expect(bangNguong).toBeGreaterThanOrEqual(2);
+  });
+
   it('số máy canary làm tròn LÊN, và đợt thăng hạng cuối được thiếu máy: 7 × 30% ⇒ 3 máy, còn 4 ⇒ 2 đợt', () => {
     // ceil(7 × 30 / 100) = ceil(2,1) = 3. Cửa sổ hết ở 65 như trên. ceil(4/3) = 2 đợt × 30 ⇒ xong ở 125.
     const pass = onlyPass(

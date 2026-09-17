@@ -218,17 +218,59 @@ test.describe('Game CI/CD — §19.E/§19.H', { tag: '@games-cicd' }, () => {
     await moManChoi(page);
     const o = oSoan(page);
     await o.fill('jobs:\n  clone:\n    steps: []\n');
-    // Đặt con trỏ cuối dòng 2 bằng bàn phím, rồi Tab sang nút — đường của người dùng bàn phím.
+    /*
+     * Đường của người dùng BÀN PHÍM, không chuột: đặt con trỏ bằng phím, đưa focus
+     * sang nút rồi bấm Enter. Bản trước đặt vùng chọn bằng `evaluate` và click
+     * chuột — chú thích nói bàn phím mà phép đo thì không (review PR #141).
+     */
     await o.focus();
-    await o.evaluate((el: HTMLTextAreaElement) => {
-      el.setSelectionRange('jobs:\n  clone:'.length, 'jobs:\n  clone:'.length);
-    });
-    await page.getByRole('group', { name: 'Chèn nhanh' }).getByRole('button', { name: 'Cạnh phụ thuộc' }).click();
+    await page.keyboard.press('Control+Home');
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('End');
+    const nut = page.getByRole('group', { name: 'Chèn nhanh' }).getByRole('button', { name: 'Cạnh phụ thuộc' });
+    await nut.focus();
+    await page.keyboard.press('Enter');
 
     const van = await o.inputValue();
     expect(van.startsWith('jobs:\n  clone:\n    needs:\n')).toBe(true);
     expect(van.endsWith('    steps: []\n')).toBe(true);
     await expect(o).toBeFocused();
+  });
+
+  test('#6 — ô soạn CHƯA từng đụng tới ⇒ mẩu chèn vào CUỐI văn bản', async ({ page }) => {
+    // `cicd-snippet-bar.tsx` dựa vào đặc tả HTML: gán `value` bằng mã đưa con trỏ về
+    // cuối. Ô này đo giả định đó trên trình duyệt thật, trên một màn có sẵn workflow.
+    const hai = CI_LEVELS[1];
+    if (hai === undefined) throw new Error('thiếu màn thứ hai');
+    await openScreen(page, `${CICD_PATH}?level=${hai.id}`, 'user');
+    await settle(page);
+    const o = oSoan(page);
+    const truoc = await o.inputValue();
+    expect(truoc.trim().length, 'màn thứ hai phải có workflow khởi đầu').toBeGreaterThan(0);
+    await page.getByRole('group', { name: 'Chèn nhanh' }).getByRole('button', { name: 'Job mới' }).click();
+    const sau = await o.inputValue();
+    expect(sau.startsWith(truoc.trimEnd())).toBe(true);
+    expect(sau.trimEnd().endsWith('run: make build')).toBe(true);
+  });
+
+  test('khuôn job — đổi tên một bước thì KHÔNG chấm, và nói ra job nào lệch', async ({ page }) => {
+    const hai = CI_LEVELS[1];
+    if (hai === undefined) throw new Error('thiếu màn thứ hai');
+    await openScreen(page, `${CICD_PATH}?level=${hai.id}`, 'user');
+    await settle(page);
+    const o = oSoan(page);
+    const goc = await o.inputValue();
+    const doiTen = goc.replace(/- id: ([a-z0-9-]+)/u, '- id: z-$1');
+    expect(doiTen, 'workflow khởi đầu phải có ít nhất một bước mang id').not.toBe(goc);
+    await o.fill(doiTen);
+    await page.getByRole('button', { name: 'Chạy thử' }).click();
+    await expect(vungKetQua(page).getByTestId('cicd-shape-error')).toBeVisible();
+    await expect(page.getByTestId('cicd-axis-lead')).toHaveCount(0);
+
+    // Đối chứng: workflow khởi đầu nguyên vẹn thì CHẤM được (có ba trục).
+    await o.fill(goc);
+    await page.getByRole('button', { name: 'Chạy thử' }).click();
+    await expect(page.getByTestId('cicd-axis-lead')).toBeVisible();
   });
 
   test('#3 — bảng tra nhanh hiện ra, và mục YAML của nó đọc được khi dán vào ô soạn', async ({ page }) => {
@@ -241,7 +283,17 @@ test.describe('Game CI/CD — §19.E/§19.H', { tag: '@games-cicd' }, () => {
     expect(await khoi.count()).toBeGreaterThan(0);
     await oSoan(page).fill((await khoi.first().textContent()) ?? '');
     await page.getByRole('button', { name: 'Chạy thử' }).click();
-    await expect(vungKetQua(page).getByText('Không quét được YAML')).toHaveCount(0);
+    /*
+     * Phải CÓ kết quả, không chỉ "không có lỗi quét": bản trước xanh cả khi không
+     * gì hiện ra. Ví dụ tra nhanh là MẢNH dạy cú pháp chứ không phải lời giải, nên
+     * kết quả hợp lệ là một trong: đường ống rỗng, lệch khuôn job, hoặc đã chấm.
+     */
+    const kq = vungKetQua(page);
+    await expect(kq).toBeVisible();
+    await expect(kq.getByText('Không quét được YAML')).toHaveCount(0);
+    await expect(
+      kq.getByTestId('cicd-empty').or(kq.getByTestId('cicd-shape-error')).or(page.getByTestId('cicd-axis-lead')),
+    ).toBeVisible();
   });
 
   test('AC-2/AC-H — 0 lời gọi backend trong suốt một lượt chơi', async ({ page }, testInfo) => {

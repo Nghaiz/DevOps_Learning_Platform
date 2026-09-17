@@ -80,6 +80,7 @@ import {
   type StepSpec,
   type WorkflowSpec,
 } from './contract.ts';
+import { ownValue } from './id-dict.ts';
 
 /**
  * Phần của một cache mà NGƯỜI CHƠI chọn: khoá băm vào đâu. Chỉ vậy.
@@ -172,7 +173,7 @@ function hydrateStep(
   }
 
   const cache = has(editable, 'cache')
-    ? resolveCache(goc.cache, chuanStep?.cache, overrides.cache?.[cacheOverrideKey(stageId, edited.id)])
+    ? resolveCache(goc.cache, chuanStep?.cache, ownValue(overrides.cache, cacheOverrideKey(stageId, edited.id)))
     : /*
        * Không cho sửa ⇒ bước của bản chuẩn là thẩm quyền. Catalogue chỉ lên
        * tiếng cho bước level chưa từng mô tả — và nó phải KHÔNG được lên tiếng
@@ -249,46 +250,46 @@ function hydrateStage(
   );
 
   /*
-   * Stage người chơi TỰ TẠO: level không mô tả nó, nên không có thẩm quyền nào
-   * để áp. Giữ nguyên đồ thị, máy chạy, blocking của người chơi — chỉ mượn thời
-   * lượng từ hộp linh kiện, việc đã làm ở `steps` bên trên.
+   * ⛔ Dựng TỪNG TRƯỜNG, không `...edited`. Bản trước trải `edited` rồi chỉ ghi đè
+   * trường nào bản chuẩn CÓ giá trị — nên trường bản chuẩn VẮNG thì giá trị YAML
+   * lọt qua nguyên vẹn. Đo 2026-09-17 (review PR #141): YAML thêm `environment:
+   * prod` vào một stage bản chuẩn không có môi trường ⇒ vẫn là `prod` dù
+   * `editable: []`; `strategy.matrix` lọt tương tự khi không cho sửa `fan-out`.
+   * Liệt kê đủ trường làm một trường mới của `StageSpec` đỏ ở typecheck thay vì
+   * lọt im lặng.
    */
-  if (chuan === undefined) {
-    const retriesMoi = overrides.retries?.[edited.id];
-    return {
-      ...edited,
-      steps,
-      ...(kho?.kind === undefined ? {} : { kind: kho.kind }),
-      retries: has(editable, 'retries') ? (retriesMoi ?? edited.retries) : edited.retries,
-      ...(kho?.runnerSlots === undefined ? {} : { runnerSlots: kho.runnerSlots }),
-    };
-  }
+  const nguon = chuan ?? kho;
+  const retriesOverride = ownValue(overrides.retries, edited.id);
+  const fanOut = has(editable, 'fan-out') || chuan === undefined ? edited.fanOut : chuan.fanOut;
+  /* Không nằm trong `EDITABLE_PARTS` ⇒ luôn của level (bản chuẩn, hoặc hộp linh kiện cho stage tự thêm). */
+  const runnerSlots = nguon?.runnerSlots;
+  const environment = nguon?.environment;
+  const approval = nguon?.approval;
 
-  const retriesOverride = overrides.retries?.[edited.id];
   return {
-    ...edited,
+    id: edited.id,
+    name: edited.name,
+    /*
+     * `kind` của level: ngữ nghĩa do người viết level đặt. Giá trị trong `edited`
+     * là thứ `yaml-kind.ts` SUY RA từ hình dạng bước — chỉ dùng khi level không có
+     * lời khai nào cho stage này.
+     */
+    kind: nguon?.kind ?? edited.kind,
     steps,
     /*
-     * `kind` từ bản chuẩn: ngữ nghĩa do người viết level đặt. Giá trị trong
-     * `edited` là thứ `yaml-kind.ts` SUY RA từ hình dạng bước — đúng cho stage
-     * mới, nhưng không có quyền ghi đè lời khai của level.
+     * Stage người chơi TỰ TẠO (`chuan` vắng): level không có ý kiến về đồ thị, máy
+     * chạy hay blocking của nó, nên các trường đó là của người chơi.
      */
-    kind: chuan.kind,
-    dependsOn: has(editable, 'edges') ? edited.dependsOn : chuan.dependsOn,
-    runnerClass: has(editable, 'runners') ? edited.runnerClass : chuan.runnerClass,
-    blocking: has(editable, 'blocking') ? edited.blocking : chuan.blocking,
-    retries: has(editable, 'retries') ? (retriesOverride ?? chuan.retries) : chuan.retries,
-    ...(has(editable, 'fan-out')
-      ? edited.fanOut === undefined
-        ? {}
-        : { fanOut: edited.fanOut }
-      : chuan.fanOut === undefined
-        ? {}
-        : { fanOut: chuan.fanOut }),
-    /* Không nằm trong `EDITABLE_PARTS` ⇒ luôn của bản chuẩn. */
-    ...(chuan.runnerSlots === undefined ? {} : { runnerSlots: chuan.runnerSlots }),
-    ...(chuan.environment === undefined ? {} : { environment: chuan.environment }),
-    ...(chuan.approval === undefined ? {} : { approval: chuan.approval }),
+    dependsOn: chuan === undefined || has(editable, 'edges') ? edited.dependsOn : chuan.dependsOn,
+    runnerClass: chuan === undefined || has(editable, 'runners') ? edited.runnerClass : chuan.runnerClass,
+    blocking: chuan === undefined || has(editable, 'blocking') ? edited.blocking : chuan.blocking,
+    retries: has(editable, 'retries')
+      ? (retriesOverride ?? (chuan === undefined ? edited.retries : chuan.retries))
+      : (chuan === undefined ? edited.retries : chuan.retries),
+    ...(fanOut === undefined ? {} : { fanOut }),
+    ...(runnerSlots === undefined ? {} : { runnerSlots }),
+    ...(environment === undefined ? {} : { environment }),
+    ...(approval === undefined ? {} : { approval }),
   };
 }
 
@@ -330,7 +331,13 @@ export function hydrateWorkflow(
       ...nguon.map((stage) =>
         hydrateStage(stage, chuanStages.get(stage.id), khoStages.get(stage.id), editable, overrides),
       ),
-      ...thieu,
+      /*
+       * Stage bản chuẩn bị xoá khỏi YAML (khi không cho sửa `stages`) được trả lại
+       * QUA CÙNG phép ghép, không nguyên bản: bản trước nối `thieu` thô, nên núm
+       * retries/cache vẫn hiện cho stage đó (`controls.ts` đọc tập stage đã ghép)
+       * mà vặn không đổi gì — đúng "núm vặn không tác dụng". Đo 2026-09-17.
+       */
+      ...thieu.map((stage) => hydrateStage(stage, stage, khoStages.get(stage.id), editable, overrides)),
     ],
   };
 }

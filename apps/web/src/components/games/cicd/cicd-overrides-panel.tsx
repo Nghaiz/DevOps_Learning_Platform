@@ -1,7 +1,7 @@
 'use client';
 
 import type { ReactElement } from 'react';
-import { cacheControls, retryControls } from '@devops-platform/games';
+import { cacheControls, ownValue, retryControls } from '@devops-platform/games';
 import type {
   CicdCacheChoice,
   CicdHydrateSources,
@@ -108,7 +108,7 @@ export function CicdOverridesPanel({
                     min={0}
                     max={5}
                     step={1}
-                    value={overrides.retries?.[nut.stageId] ?? nut.defaultRetries}
+                    value={ownValue(overrides.retries, nut.stageId) ?? nut.defaultRetries}
                     onChange={(event) => {
                       const parsed = Number.parseInt(event.target.value, 10);
                       /*
@@ -140,7 +140,7 @@ export function CicdOverridesPanel({
           ) : (
             <ul className="flex flex-col gap-3">
               {nutCache.map((nut) => {
-                const chon = overrides.cache?.[nut.key];
+                const chon = ownValue(overrides.cache, nut.key);
                 const bat = chon === undefined ? nut.defaultOn : chon !== null;
                 const keyParts = chon == null ? nut.defaultKeyParts : chon.keyParts;
                 return (

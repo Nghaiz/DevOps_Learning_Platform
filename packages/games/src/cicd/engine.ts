@@ -64,6 +64,7 @@ import type {
 } from './contract.ts';
 import { rollsForKey } from './rng-keys.ts';
 import { validateGraph } from './graph.ts';
+import { idDict } from './id-dict.ts';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 1. QUẠT STAGE RA THỰC THỂ
@@ -599,7 +600,7 @@ export function simulatePass(
     }
   });
 
-  const busy: Record<RunnerClassId, number> = {};
+  const busy: Record<RunnerClassId, number> = idDict();
   for (const pool of workload.runners) {
     busy[pool.id] = 0;
   }
@@ -831,7 +832,7 @@ function sortedForScheduling(items: readonly LiveInstance[]): readonly LiveInsta
  * trước prod thì prod nhận bản dựng lại.
  */
 function suppliersFor(live: readonly LiveInstance[], item: LiveInstance): readonly OutputSupplier[] {
-  const theoSanPham: Record<OutputId, LiveInstance> = {};
+  const theoSanPham: Record<OutputId, LiveInstance> = idDict();
   for (const other of live) {
     if (other.runIndex !== item.runIndex || !item.transitive.includes(other.stage.id)) {
       continue;

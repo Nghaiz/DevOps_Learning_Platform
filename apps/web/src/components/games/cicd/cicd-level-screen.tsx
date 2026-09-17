@@ -83,6 +83,7 @@ export function CicdLevelScreen({ level, onExit, onNext }: CicdLevelScreenProps)
     const ketQua = runWorkflow({
       yaml,
       sourcesFor: () => sources,
+      knownFor: () => [level.initialWorkflow, level.solutionWorkflow, level.altSolutionWorkflow],
       editable: level.editable,
       overrides,
       workload: level.workload,
@@ -259,6 +260,8 @@ function AttemptHistory({ history }: { readonly history: readonly AttemptEntry[]
                 </span>
               ) : entry.outcome.kind === 'engine-error' ? (
                 <span className="text-destructive">Workflow không chạy được</span>
+              ) : entry.outcome.kind === 'shape-error' ? (
+                <span className="text-destructive">Job không khớp màn — chưa chấm</span>
               ) : entry.outcome.kind === 'empty' ? (
                 <span className="text-muted-foreground">Chưa có job nào để chạy</span>
               ) : (

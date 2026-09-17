@@ -69,6 +69,7 @@ import type {
 import { CICD_PREDICATE_NAMES, DEFAULT_EVALUATION_PASSES, EDITABLE_PARTS } from './contract.ts';
 import { evaluate } from './engine.ts';
 import { hydrateWorkflow } from './hydrate.ts';
+import { checkJobShapes } from './job-shapes.ts';
 import type { CicdScoringContext } from './predicates.ts';
 import {
   CD_SIMULATION_PREDICATES,
@@ -430,6 +431,23 @@ export function gradeCicdProblem(input: {
        * YAML; bản nộp nhận giá trị của bài. Đó là câu còn mở, ghi ở phase-19.md
        * §0b "Đợt 3", phải quyết trước ngày mở chế độ làm bài CI/CD.
        */
+      /*
+       * ⛔ KHUÔN JOB trước khi ghép (`job-shapes.ts`). Bài OJ chỉ có một workflow
+       * đã biết — `initialState.workflow` — nên người làm sửa được đồ thị /
+       * blocking / retries mà không đổi được tập job hay dãy bước. Không có luật
+       * này thì đổi tên một bước làm thời lượng về 0 và `leadTimeUnder` ra AC
+       * (review PR #141, đo được). Lệch khuôn là câu trả lời SAI, tức WA — cùng lý
+       * do với đồ thị có chu trình (quyết định 2): bài không hỏng, bài làm sai.
+       */
+      if (checkJobShapes(doc.workflow, [initialState.workflow], initialState.workflow, EDITABLE_PARTS).length > 0) {
+        return {
+          verdict: problemVerdictOf(0, testcases.length),
+          passed: [],
+          total: testcases.length,
+          failedReason: null,
+          failedCode: null,
+        };
+      }
       workflow = hydrateWorkflow(
         doc.workflow,
         { baseline: initialState.workflow, catalogue: initialState.workflow },

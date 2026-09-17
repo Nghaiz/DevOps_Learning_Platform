@@ -1,4 +1,5 @@
 import {
+  checkJobShapes,
   evaluate,
   failingObjectiveIds,
   hydrateWorkflow,
@@ -12,6 +13,7 @@ import {
   type EvaluationError,
   type EvaluationRecord,
   type EvaluationSpec,
+  type JobShapeProblem,
   type EvaluationSummary,
   type ScoreAxes,
   type WorkflowSpec,
@@ -57,6 +59,11 @@ export type CicdEditableParts = CicdLevel['editable'];
 export interface CicdRunInput {
   readonly yaml: string;
   readonly sourcesFor: CicdHydrateSourcesFor;
+  /**
+   * Workflow level ĐÃ KHAI — khuôn job (`job-shapes.ts`). Màn chơi: ban đầu + hai
+   * lời giải. Bàn thử: chính workflow vừa đọc (không có level nào để đối chiếu).
+   */
+  readonly knownFor: (parsed: WorkflowSpec) => readonly WorkflowSpec[];
   readonly editable: CicdEditableParts;
   readonly overrides: CicdPlayerOverrides;
   readonly workload: WorkloadSpec;
@@ -76,6 +83,12 @@ export type CicdRunOutcome =
    * c01 (bắt đầu từ số không), bấm "Chạy thử" ngay khi chưa gõ gì.
    */
   | { readonly kind: 'empty' }
+  /**
+   * Quét được, nhưng job/bước không khớp cấu hình nào level đã khai — KHÔNG chấm.
+   * Đổi tên hay xoá bước làm thời lượng về 0 hoặc bỏ việc kiểm thử; chấm những
+   * bản đó là thưởng cho việc lách (review PR #141, đo được 9–10/13 level).
+   */
+  | { readonly kind: 'shape-error'; readonly problems: readonly JobShapeProblem[] }
   /**
    * Quét được nhưng KHÔNG chạy được: chu trình, phụ thuộc trỏ vào hư không, hoặc
    * một job đòi hạng máy mà workload không cấp. `error` có thể `null` trong một
@@ -112,12 +125,13 @@ export function runWorkflow(input: CicdRunInput): CicdRunOutcome {
    * áp mặc định trung tính cho tất cả. `hydrateWorkflow` là chỗ những trường đó
    * quay về từ dữ liệu level — và là lý do ba trục ra số thật chứ không ra 0.
    */
-  const workflow = hydrateWorkflow(
-    read.workflow,
-    input.sourcesFor(read.workflow),
-    input.editable,
-    input.overrides,
-  );
+  const sources = input.sourcesFor(read.workflow);
+  const problems = checkJobShapes(read.workflow, input.knownFor(read.workflow), sources.baseline, input.editable);
+  if (problems.length > 0) {
+    return { kind: 'shape-error', problems };
+  }
+
+  const workflow = hydrateWorkflow(read.workflow, sources, input.editable, input.overrides);
 
   if (workflow.stages.length === 0) {
     return { kind: 'empty' };
@@ -164,6 +178,23 @@ export function formatNumber(value: number): string {
 
 export function formatPercent(ratio: number): string {
   return `${Math.round(ratio * 100)}%`;
+}
+
+/**
+ * Câu tiếng Việt cho một lỗi khuôn job.
+ *
+ * ⚠ KHÔNG liệt kê các tập job hay dãy bước được chấp nhận: chúng là cấu trúc của
+ * LỜI GIẢI, và in ra là in đáp án. Nói ra job nào lệch và job nào màn này biết là
+ * đủ để sửa.
+ */
+export function describeJobShapeProblem(problem: JobShapeProblem): string {
+  if (problem.kind === 'unknown-job') {
+    return `Màn này không có job "${problem.job}". Các job màn này biết: ${problem.knownJobs.join(', ')}.`;
+  }
+  if (problem.kind === 'unknown-steps') {
+    return `Các bước của job "${problem.job}" (${problem.steps.join(', ') || 'không có bước nào'}) không khớp cách chia nào màn này chấm được. Giữ đúng id và thứ tự bước của job, đổi tên hay bỏ bước là không chấm.`;
+  }
+  return `Tập job (${problem.jobs.join(', ') || 'rỗng'}) không khớp phương án nào màn này chấm được — đang thiếu hoặc thừa job. Bỏ hẳn một job kiểm thử cũng không được tính.`;
 }
 
 /** Câu tiếng Việt cho từng dạng lỗi đồ thị. Nói ra TÊN job, không chỉ tên lỗi. */

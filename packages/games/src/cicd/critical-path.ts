@@ -70,6 +70,7 @@
 
 import { compareKeys } from '../git/deterministic.ts';
 import type { BlockedBy, InstanceKey, StageId, StageInstanceRecord } from './contract.ts';
+import { idDict } from './id-dict.ts';
 
 /** Một mắt xích trên đường găng. */
 export interface CriticalPathNode {
@@ -140,7 +141,7 @@ export interface CriticalPath {
 export function criticalPath(instances: readonly StageInstanceRecord[]): CriticalPath | null {
   if (instances.length === 0) return null;
 
-  const byKey: Record<InstanceKey, StageInstanceRecord> = {};
+  const byKey: Record<InstanceKey, StageInstanceRecord> = idDict();
   for (const record of instances) byKey[record.instance] = record;
 
   const first = instances[0];
@@ -159,7 +160,7 @@ export function criticalPath(instances: readonly StageInstanceRecord[]): Critica
   /* Dựng ngược từ đuôi, rồi đảo. Cạnh `i` nối `nodes[i]` với `nodes[i + 1]`. */
   const reversedNodes: CriticalPathNode[] = [];
   const reversedEdges: CriticalPathEdge[] = [];
-  const walked: Record<InstanceKey, true> = {};
+  const walked: Record<InstanceKey, true> = idDict();
 
   let cursor: StageInstanceRecord | undefined = sink;
   let truncated = false;
