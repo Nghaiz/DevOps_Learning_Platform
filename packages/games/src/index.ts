@@ -33,12 +33,24 @@ export type {
   GameAction,
   GameActionBase,
   GameActionKind,
-  CicdGameAction,
+  CicdActionShape,
+  CicdCdPoliciesLike,
+  CicdOverridesLike,
   GitGameAction,
   K8sActionShape,
   ResourceRefLike,
   RunLog,
 } from './core/run-log.ts';
+
+/**
+ * ⚠ `CicdGameAction` ra khỏi khối trên ở 19.J và KHÔNG phải một lần dọn tên.
+ *
+ * `core/run-log.ts` nay chỉ khai dạng MỞ (`CicdActionShape`); bản đóng — dạng
+ * mang `CicdPlayerOverrides` + `CicdCdPolicies` thật — sống ở `cicd/action.ts`,
+ * vì `core/` không được nhập từ thư mục game. Tên xuất ra ngoài barrel giữ
+ * NGUYÊN, nên không consumer nào phải sửa import.
+ */
+export type { CicdGameAction, CicdRunLog } from './cicd/action.ts';
 
 export type {
   ChaosWave,
@@ -407,6 +419,7 @@ export {
   PROBLEM_VERDICTS,
   problemCodePattern,
   problemVerdictOf,
+  problemDifficultyToLevelDifficultyLossy,
 } from './core/problem.ts';
 
 /*
@@ -454,6 +467,50 @@ export {
  */
 export { K8S_UNSEEDED_REPLAY_SEED } from './k8s/problem-plugin.ts';
 export { GIT_UNSEEDED_REPLAY_SEED } from './git/problem-plugin.ts';
+export { CICD_UNSEEDED_REPLAY_SEED } from './cicd/problem-plugin.ts';
+
+/**
+ * Bộ chấm CI/CD, xuất thẳng cho adapter PHÁT LẠI phía máy chủ
+ * (`apps/web/src/server/problems/replay.ts`) — 19.J.
+ *
+ * ⚠ Đường CHẤM đã gọi nó gián tiếp qua `gradeProblemRun` → bảng plugin. Đường
+ * XÁC MINH cần chính hàm đó, và phải là CHÍNH nó chứ không phải một bản diễn
+ * giải thứ hai của cùng nhật ký: hai bản sẽ trôi, và chỗ trôi là "máy chủ chấm
+ * ra một verdict, máy chủ xác minh ra một verdict khác" — người giải đúng bị từ
+ * chối và không lệnh nào nói vì sao.
+ */
+export { gradeCicdProblem } from './cicd/problem-plugin.ts';
+
+/*
+ * Hình dạng đề bài CI/CD — 19.J. Trang soạn bài (`app/author/problems/`) và màn
+ * làm bài (`components/games/cicd/cicd-problem.tsx`) đều dựng đúng bộ này, nên
+ * không bên nào được gõ lại hình dạng của nó.
+ */
+export type { CicdProblemCd, CicdProblemSpec } from './cicd/problem-plugin.ts';
+
+/*
+ * Bảng "vị từ CD nào cần khối kịch bản nào". Xuất ra vì cổng lúc LƯU
+ * (`server/problems/validate.ts`, 19.J.2.2) phải hỏi đúng câu mà bộ chấm hỏi —
+ * hai bản chép tay của cùng một bảng sẽ trôi, và chỗ trôi sẽ là một bài lưu
+ * được nhưng không chấm được.
+ */
+export { CD_PREDICATE_NEEDS } from './cicd/predicates.ts';
+
+/**
+ * Bộ seed hai bài CI/CD — 19.J.4.
+ *
+ * ⛔ DỮ LIỆU GỐC để nạp một lần, KHÔNG phải nguồn đọc lúc chạy. Trang danh sách
+ * và trang làm bài đọc từ DB; đọc thẳng từ đây thì bài do người soạn tạo ra sẽ
+ * không bao giờ hiện.
+ *
+ * Xuất ra barrel vì hai chỗ ngoài package cần nó: `scripts/seed-content.mjs`
+ * (nạp vào Postgres) và `save-cicd-problem.integration.test.ts` (dựng body từ
+ * một đề ĐÃ được chứng minh là giải được, nên khi ô đó đỏ thì nguyên nhân nằm ở
+ * đường ghi/đọc chứ không ở chất lượng đề).
+ */
+export { CICD_PROBLEMS_SEED } from './cicd/problems-seed/index.ts';
+export type { CicdProblemSeed } from './cicd/problems-seed/index.ts';
+export type { CdSimulatorKind } from './cicd/predicates.ts';
 
 /*
  * `ProblemPluginRegistry` đã ở trên; không có tên phần tử thì consumer cầm được
@@ -623,6 +680,22 @@ export type {
   WorkloadSpec,
 } from './cicd/contract.ts';
 export { DEFAULT_EVALUATION_PASSES, RELEASE_STRATEGIES, SECONDS_PER_TICK, STAGE_KINDS } from './cicd/contract.ts';
+
+/**
+ * `EDITABLE_PARTS` — mở ra ở 19.J.3, và nó ĐÍNH CHÍNH một chú thích cũ.
+ *
+ * `components/games/cicd/cicd-run.ts` ghi (đo 2026-09-16) rằng barrel này không
+ * xuất `EDITABLE_PARTS`, nên nó suy kiểu gián tiếp qua `CicdLevel['editable']`.
+ * Cách suy kiểu đó vẫn đúng và vẫn nên giữ — nhưng màn LÀM BÀI cần chính GIÁ TRỊ,
+ * không chỉ cái kiểu: `cicdOjLevel` phải khai `editable` đúng bằng tập mà
+ * `gradeCicdProblem` truyền cho `hydrateWorkflow`. Hai bên lệch nhau thì người
+ * làm gõ được thứ máy chủ lặng lẽ bỏ qua, và verdict không giải thích được.
+ *
+ * Xuất giá trị là cách duy nhất giữ chúng khớp; chép bảy chuỗi literal sang tầng
+ * web sẽ tạo bản thứ hai của một tập đóng, và bản đó trôi trong im lặng.
+ */
+export { EDITABLE_PARTS } from './cicd/contract.ts';
+export type { EditablePart } from './cicd/contract.ts';
 
 export { CD_LEVELS, CI_LEVELS, CICD_LEVELS } from './cicd/levels/index.ts';
 

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import {
   ALL_KINDS,
+  CD_PREDICATE_NEEDS,
   GAME_IDS,
   PROBLEM_DIFFICULTIES,
   PROBLEM_PLUGINS,
@@ -261,6 +262,101 @@ function isPlainObject(value: unknown): boolean {
 }
 
 /**
+ * Cùng phép kiểm `isPlainObject`, nhưng ĐỌC ĐƯỢC: trả chính object đó, hoặc `{}`.
+ *
+ * Tách ra chứ không đổi `isPlainObject` thành một type predicate: hàm kia đang
+ * được dùng như một `boolean` thuần ở bốn nhánh `addIssue`, và đổi chữ ký của nó
+ * là sửa mã ngoài phạm vi lượt này. Ở đây ta cần *giá trị đã thu hẹp*, không cần
+ * một câu trả lời đúng/sai.
+ *
+ * `{}` cho mọi thứ không phải object là câu trả lời ĐÚNG chứ không phải một
+ * fallback im lặng: một `cd: 42` không chở khối kịch bản nào, y như `cd` vắng
+ * mặt, và bộ chấm cũng đọc nó đúng như vậy.
+ */
+function nhuObject(value: unknown): Readonly<Record<string, unknown>> {
+  return isPlainObject(value) ? (value as Readonly<Record<string, unknown>>) : {};
+}
+
+/**
+ * 19.J.2.2 — vị từ chương CD chỉ khai được khi đề CÓ khối kịch bản nó đọc.
+ *
+ * ## Vì sao cổng này phải ở BIÊN GHI, không chỉ ở form
+ *
+ * Thiếu khối kịch bản, vị từ CD trả `false` ở MỌI lượt nộp — kể cả lượt nộp
+ * đúng — và trả `false` một cách im lặng. Người soạn xuất bản một bài không ai
+ * giải được; người làm nhận đúng hai chữ "chưa đạt" và không có đường nào đọc ra
+ * vì sao. Cái giá của một phép kiểm chỉ-ở-giao-diện đã ghi ngay đầu file này:
+ * *"một lời gọi API viết tay không đi qua file đó"*.
+ *
+ * Bộ chấm (`gradeCicdProblem`) cũng chặn ca này và trả `CE`. Hai chỗ chặn KHÔNG
+ * thừa: bộ chấm chỉ nói sau khi bài đã xuất bản và đã có người nộp, còn cổng này
+ * nói lúc người soạn còn đang sửa. Cả hai đọc CÙNG bảng `CD_PREDICATE_NEEDS` —
+ * một bản chép tay ở tầng web sẽ trôi, và chỗ trôi đúng là "bài lưu được nhưng
+ * không chấm được".
+ *
+ * ⚠ Cổng này KHÔNG kiểm hình dạng bên trong `cd` (một `ReleaseScenario` có đủ
+ * mười ba trường không). Đó là khoảng trống CÓ CHỦ Ý, cùng lý do đã ghi cho
+ * `initialState` của game không phải K8s: một schema Zod thứ hai cho hợp đồng
+ * đang sống ở `packages/games` sẽ trôi khỏi bản gốc. Chỗ đúng của phép kiểm đó
+ * là một `parseSpec` trong `GameProblemPlugin`, và hợp đồng plugin chưa có ô cho
+ * nó. Cho tới lúc đó, một kịch bản thiếu trường sẽ ném ở `runLevelCd` và bộ chấm
+ * bắt thành `CE` — đọc được, chỉ là muộn hơn.
+ */
+function refineCicdCd(
+  body: {
+    readonly initialState: unknown;
+    readonly objectives: readonly { readonly id: string; readonly check: string }[];
+  },
+  ctx: z.RefinementCtx,
+): void {
+  /*
+   * `initialState` ở đây là `unknown` (biên này cố ý không dựng lại `CicdProblemSpec`),
+   * nên đọc `cd` bằng tay và coi mọi thứ không-phải-object là "không có khối nào".
+   * Một `cd: 42` vì thế bị xử như vắng mặt và người soạn nhận đúng câu "thiếu
+   * khối cd.release" — trung thực, vì với bộ chấm nó cũng vắng mặt như vậy.
+   */
+  const cd = nhuObject(nhuObject(body.initialState)['cd']);
+  const initial = nhuObject(cd['initial']);
+
+  body.objectives.forEach((objective, index) => {
+    const can = CD_PREDICATE_NEEDS[objective.check as keyof typeof CD_PREDICATE_NEEDS];
+    if (can === undefined) return;
+
+    /*
+     * ⛔ HAI KHỐI, không phải một — và vế thứ hai là một lỗi ĐÃ ĐO (review PR
+     * #146). Bản đầu chỉ hỏi `cd[can] !== undefined`, tức chỉ hỏi về KỊCH BẢN.
+     *
+     * Chấm một vị từ CD cần thêm CHÍNH SÁCH khởi điểm: `mergeCdPolicies`
+     * (`cd-run.ts`) bỏ hẳn một bộ mô phỏng khi `cd.initial` thiếu khối tương
+     * ứng, và `runLevelCd` chỉ ghi bản ghi khi CẢ HAI có mặt. Không bản ghi thì
+     * mọi vị từ CD trả `false` — im lặng, vĩnh viễn, kể cả với lời giải đúng.
+     * Đó đúng là hình dạng "bài không ai giải được" mà cổng này sinh ra để chặn,
+     * chỉ khác chỗ thiếu.
+     *
+     * `isPlainObject` chứ không `!== undefined`: `null` thoả phép so với
+     * `undefined` nhưng KHÔNG phải một khối kịch bản, và nó đi tiếp tới
+     * `cd-run.ts` rồi ném ở một phép destructure nằm NGOÀI khối `try` — lượt
+     * chấm thành `CE` kèm một câu lỗi JS thô. Một mảng cũng vậy.
+     */
+    const thieu: string | null = !isPlainObject(cd[can])
+      ? `cd.${can}`
+      : !isPlainObject(initial[can])
+        ? `cd.initial.${can}`
+        : null;
+    if (thieu === null) return;
+
+    ctx.addIssue({
+      code: 'custom',
+      path: ['objectives', index, 'check'],
+      message:
+        `Vị từ "${objective.check}" đọc bản ghi của bộ mô phỏng "${can}", nhưng đề chưa khai ` +
+        `khối "${thieu}". Thiếu kịch bản thì không có gì để mô phỏng; thiếu chính sách khởi ` +
+        `điểm thì bộ mô phỏng không chạy, và vị từ sẽ trượt ở MỌI lượt nộp.`,
+    });
+  });
+}
+
+/**
  * Phép kiểm PHỤ THUỘC GAME — chỗ duy nhất đọc `gameId` cùng lúc với phần còn lại.
  *
  * Viết thành một hàm dùng chung cho cả `create` lẫn `update` chứ không gọi
@@ -276,6 +372,7 @@ function refineByGame(
     readonly initialState: unknown;
     readonly targetState?: unknown;
     readonly seedable: boolean;
+    readonly objectives: readonly { readonly id: string; readonly check: string }[];
   },
   ctx: z.RefinementCtx,
 ): void {
@@ -340,6 +437,10 @@ function refineByGame(
       path: ['initialState'],
       message: 'Trạng thái ban đầu phải là một object',
     });
+  }
+
+  if (body.gameId === 'cicd') {
+    refineCicdCd(body, ctx);
   }
 
   if (body.targetState !== undefined && !isPlainObject(body.targetState)) {

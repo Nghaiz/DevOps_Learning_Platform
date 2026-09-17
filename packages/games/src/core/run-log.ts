@@ -136,6 +136,36 @@ export type GitGameAction =
   | { readonly gameId: 'git'; readonly tick: number; readonly kind: 'hint'; readonly index: number };
 
 /**
+ * Bảng núm của người chơi, ở độ chính xác `core/` cần — cùng vai `ResourceRefLike`.
+ *
+ * `cicd/hydrate.ts` đóng generic lại bằng `CicdPlayerOverrides` thật, nơi giá trị
+ * cache là một `CicdCacheChoice` có cấu trúc. `core/` chỉ cần biết đây là hai bảng
+ * tra theo id, và cố tình KHÔNG biết một "lựa chọn cache" gồm những gì.
+ *
+ * ⚠ Bound phải là một hình dạng CÓ TÊN, không thể là `Readonly<Record<string, unknown>>`:
+ * `CicdPlayerOverrides` là một `interface`, và interface trong TypeScript KHÔNG có
+ * index signature ngầm — một bound dạng `Record` sẽ không nhận nó, và lỗi hiện ra
+ * ở tận chỗ đóng generic chứ không ở đây.
+ */
+export interface CicdOverridesLike {
+  readonly retries?: Readonly<Record<string, number>>;
+  readonly cache?: Readonly<Record<string, unknown>>;
+}
+
+/**
+ * Chính sách CD, ở độ chính xác `core/` cần. Ba khối vì có ba bộ mô phỏng
+ * (`cicd/cd-contract.ts` §4); `core/` không biết một chính sách phát hành gồm gì.
+ *
+ * Thêm một bộ mô phỏng thứ tư KHÔNG bắt phải sửa chỗ này: một trường thừa vẫn
+ * thoả quan hệ `extends`, nên `CicdCdPolicies` mở rộng được mà bound vẫn đúng.
+ */
+export interface CicdCdPoliciesLike {
+  readonly release?: unknown;
+  readonly gitops?: unknown;
+  readonly masking?: unknown;
+}
+
+/**
  * Game CI/CD cũng chỉ có HAI loại action, vì lý do khác hẳn game Git.
  *
  * Người chơi không điều khiển từng tick. Họ **soạn một `WorkflowSpec`** rồi bấm
@@ -147,10 +177,36 @@ export type GitGameAction =
  * `WorkflowSpec` đã chuẩn hoá làm mất chú thích và thứ tự khoá, nên phát lại sẽ
  * không ra đúng thứ người chơi thấy), và nó giữ `core/` khỏi phải biết hình
  * dạng `WorkflowSpec` — thứ chỉ `cicd/contract.ts` mới được biết.
+ *
+ * ── ⚠ BA MẢNH, KHÔNG PHẢI MỘT (19.J.1.1) ──
+ *
+ * YAML một mình KHÔNG đủ để tái lập một lượt chấm, và đó là một lỗi đã đo chứ
+ * không phải một chỗ thiếu trên lý thuyết. Bảng núm retries/cache và bảng chính
+ * sách CD đều đổi kết quả mô phỏng, mà cả hai đều KHÔNG đi qua văn bản YAML —
+ * `hydrate.ts` và `cd-run.ts` nhận chúng như hai đường vào riêng. Một `evaluate`
+ * chỉ chở `source` vì thế là một bản ghi phát lại ra **một lượt chơi khác** với
+ * lượt người ta thật sự chơi.
+ *
+ * ⛔ Cả ba trường BẮT BUỘC, không trường nào tuỳ chọn. Một `overrides?` sẽ không
+ * phân biệt được "người chơi không xoay núm nào" với "client quên gửi", và hai
+ * thứ đó chấm ra hai kết quả khác nhau. `cd` mang `null` TƯỜNG MINH khi bài
+ * không có kịch bản CD — một giá trị nói ra, không phải một khoá vắng mặt.
  */
-export type CicdGameAction =
+export type CicdActionShape<
+  Overrides extends CicdOverridesLike = CicdOverridesLike,
+  Cd extends CicdCdPoliciesLike = CicdCdPoliciesLike,
+> =
   /** Nộp một bản YAML để chấm. Engine tự chạy đủ số lượt theo `EvaluationSpec`. */
-  | { readonly gameId: 'cicd'; readonly tick: number; readonly kind: 'evaluate'; readonly source: string }
+  | {
+      readonly gameId: 'cicd';
+      readonly tick: number;
+      readonly kind: 'evaluate';
+      readonly source: string;
+      /** Bảng núm retries + cache đang đặt lúc bấm chạy. `{}` = chưa xoay núm nào. */
+      readonly overrides: Overrides;
+      /** Chính sách CD đang đặt. `null` = bài không có khối `cd` nào. */
+      readonly cd: Cd | null;
+    }
   /** Mở gợi ý thứ `index` (đếm từ 0). Cùng quy ước không-mang-`levelId` như hai game kia. */
   | { readonly gameId: 'cicd'; readonly tick: number; readonly kind: 'hint'; readonly index: number };
 
@@ -169,8 +225,14 @@ export type CicdGameAction =
  * ngược từ `core/` xuống thư mục game sẽ phá đúng ranh giới mà
  * `problem-plugins.ts` đang gác bằng cách sống ở gốc `src/` thay vì trong
  * `core/`.
+ *
+ * ⛔ 19.J: nhánh `cicd` dùng dạng MỞ (`CicdActionShape` với tham số mặc định),
+ * y như `K8sActionShape`. Bản đóng — `CicdGameAction` ở `cicd/action.ts` — gán
+ * được vào đây vì mọi trường là `readonly` nên hiệp biến. Đừng nhập bản đóng
+ * vào file này để "cho gọn": `cicd/contract.ts` nhập `RunLog` từ đây, nên đó là
+ * đúng cái VÒNG mà khối chú thích đầu file mô tả.
  */
-export type GameAction = K8sActionShape | GitGameAction | CicdGameAction;
+export type GameAction = K8sActionShape | GitGameAction | CicdActionShape;
 
 /** Rút gọn cho chỗ chỉ cần phân loại. */
 export type GameActionKind = GameAction['kind'];

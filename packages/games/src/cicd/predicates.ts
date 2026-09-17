@@ -139,9 +139,18 @@ export const UNIMPLEMENTED_CICD_PREDICATES: readonly CicdPredicateName[] = [];
  * Vị từ đọc `CicdScoringContext.cd` — CẦN một kịch bản phát hành / GitOps / log.
  *
  * Tách khỏi `UNIMPLEMENTED_CICD_PREDICATES` vì lý do khác hẳn: chúng CHẤM ĐƯỢC,
- * chỉ là bài OJ (`CicdProblemSpec`: workflow + workload + evaluation) không chở
- * kịch bản nào. Cho người soạn chọn chúng là mời một bài mọi lượt nộp đều
- * `false`. Ngày bài OJ chở kịch bản, bỏ tên khỏi đây.
+ * chỉ là chúng không tự đứng một mình — thiếu bản ghi tương ứng thì chúng trả
+ * `false` ở MỌI lượt nộp, im lặng.
+ *
+ * ⛔ ĐÍNH CHÍNH 19.J (2026-09-17). Câu cũ ở đây nói *"bài OJ không chở kịch bản
+ * nào… ngày bài OJ chở kịch bản, bỏ tên khỏi đây"*. Bài OJ nay CHỞ
+ * (`CicdProblemSpec.cd`), nhưng **danh sách này không bị bỏ đi** — nó chỉ đổi
+ * vai. Trước: "tám tên cấm khai". Nay: "tám tên chỉ khai được khi bài có đúng
+ * khối `cd` mà chúng đọc", và phép gác đó là `CD_PREDICATE_NEEDS` ngay dưới.
+ *
+ * Xoá danh sách này và mở toang sẽ đưa ta về đúng cái bẫy nó sinh ra để chặn,
+ * chỉ hẹp hơn: một bài khai `secretLeaksAtMost` mà chỉ có khối `release` sẽ là
+ * một bài không ai giải được, và không có gì đỏ.
  */
 export const CD_SIMULATION_PREDICATES: readonly CicdPredicateName[] = [
   'rollbackUnder',
@@ -153,6 +162,34 @@ export const CD_SIMULATION_PREDICATES: readonly CicdPredicateName[] = [
   'selfHealFightsAtMost',
   'secretLeaksAtMost',
 ];
+
+/** Ba bộ mô phỏng chương CD. Khoá của `CicdCdRecords` và của `CicdCdPolicies`. */
+export type CdSimulatorKind = 'release' | 'gitops' | 'masking';
+
+/**
+ * Vị từ CD ⇒ khối `cd` nó ĐỌC. Bảng gác của 19.J.1.4.
+ *
+ * Bài OJ khai một vị từ ở đây mà thiếu khối tương ứng thì đó là **lỗi bài soạn**
+ * (`CE`), không phải một bài khó: vị từ sẽ trả `false` ở mọi lượt nộp, kể cả lượt
+ * nộp đúng, và người làm không có cách nào đọc ra vì sao.
+ *
+ * ⛔ Bảng phải phủ ĐÚNG `CD_SIMULATION_PREDICATES`, hai chiều — `predicates.test.ts`
+ * ghim cả hai. Thiếu một tên thì vị từ đó đi qua cổng mà không ai hỏi nó cần gì;
+ * thừa một tên thì cổng đòi một khối cho một vị từ không đọc khối nào.
+ *
+ * Nguồn của từng dòng là chính thân vị từ ở §5 — `ctx.cd?.release`,
+ * `ctx.cd?.gitops`, `ctx.cd?.masking`. Đổi thân thì đổi luôn dòng ở đây.
+ */
+export const CD_PREDICATE_NEEDS: Readonly<Partial<Record<CicdPredicateName, CdSimulatorKind>>> = {
+  rollbackUnder: 'release',
+  badReleasePromotedAtMost: 'release',
+  goodReleaseAbortedAtMost: 'release',
+  noDataIncident: 'release',
+  peakInstancesAtMost: 'release',
+  driftLongestUnder: 'gitops',
+  selfHealFightsAtMost: 'gitops',
+  secretLeaksAtMost: 'masking',
+};
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 2. ĐỌC THAM SỐ

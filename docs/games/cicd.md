@@ -244,12 +244,26 @@ lý do tại chỗ trong `contract.ts`, đáng nhớ nhất:
 
 ## 7. Việc còn mở
 
-- **Tầng 3D (19.D) chưa làm.** `CicdView` đã khai sẵn ranh giới engine ↔ renderer (nút, cạnh có cờ
-  `critical` và `resourceEdge`, làn máy chạy, trục Y đổi theo chương), nhưng chưa có renderer nào
-  đọc nó.
-- **Chế độ làm bài OJ cho `cicd` chưa mở.** `CicdGameAction` loại `evaluate` chỉ chở **toàn văn
-  YAML**. Giá trị bảng điều khiển (`retries`, `cache`) và chính sách CD không đi qua YAML, nên một
-  nhật ký chơi không đủ để dựng lại bài làm khi phát lại phía máy chủ.
+- ✅ **Tầng 3D (19.D) — ĐÃ LÀM** (gộp ở `11ee415` + `e0ca524`). Cảnh 2D là chế độ mặc định, 3D bật
+  từ thanh trên, và có đường rơi về 2D trên máy không có WebGL2. Mục này ở lại làm dấu chứ không
+  còn là việc: `CicdView` nay có hai renderer đọc nó.
+- ✅ **Chế độ làm bài OJ cho `cicd` — ĐÃ MỞ** (19.J). `CicdGameAction` loại `evaluate` nay chở **ba
+  mảnh**: toàn văn YAML, `overrides` (bảng núm retries/cache) và `cd` (chính sách chương CD). Đó
+  chính là thứ khiến mục này từng là một việc còn mở — một nhật ký chỉ có YAML dựng lại được một
+  lượt chơi KHÁC lượt người ta vừa chơi. Đề bài chở khối `cd` qua `CicdProblemSpec.cd`
+  (`Omit<CicdLevelCd, 'solution' | 'altSolution'>` — đề thi không chở lời giải), và tám vị từ chương
+  CD khai được khi và chỉ khi đề có đúng khối kịch bản chúng đọc (`CD_PREDICATE_NEEDS`, cưỡng chế ở
+  cả biên ghi lẫn bộ chấm).
+
+  Hai mảnh nền tảng phải vá cùng lượt, cả hai đều hỏng CÂM:
+  `'evaluate'` vắng khỏi `ACTION_KINDS` (`core/verify.ts`) nên mọi nhật ký CI/CD bị đọc thành "kind
+  lạ"; và `verifyProblemRun` không có nhánh `'cicd'` nên mọi lượt nộp ném
+  `UnsupportedReplayGameError`. Nay có cổng vét cạn lúc biên dịch cho cái thứ nhất, và
+  `cicd-replay.test.ts` — suy từ `PROBLEM_PLUGINS` — cho cái thứ hai.
+- **Soạn bài CI/CD chưa có ô e2e trong CI.** `games-cicd-problem.spec.ts` mở đề từ bộ seed
+  (`CICD_PROBLEMS_SEED`) chứ không tự soạn: `problems.create` là `authorProcedure`, mà vai trò đầu
+  tiên chỉ đặt được từ ngoài hệ thống (`e2e/scripts/promote-role.sh`, dùng `kubectl`). Đường soạn đề
+  thuộc suite `@flow` chạy trên cụm, và nó chưa có ô cho `gameId: 'cicd'`.
 - `retries` và `cache` nằm trong `EDITABLE_PARTS` nhưng không có khoá YAML; hướng đã chọn là núm
   riêng ngoài ô soạn. Hướng ánh xạ qua `with:` của một hành động dùng lại chưa bị loại hẳn.
 - Khuôn job từ chối những cách tách job sáng tạo nằm ngoài các cấu hình đã khai. Đây là đánh đổi

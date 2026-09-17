@@ -1,7 +1,7 @@
 import {
+  problemDifficultyToLevelDifficultyLossy,
   scoreProblemRun,
   tallyLog,
-  type Difficulty,
   type GitLevel,
   type GitObjective,
   type GitPredicateName,
@@ -89,33 +89,6 @@ export interface GitOjProblem {
  */
 const NHAN_TESTCASE_AN = 'Testcase ẩn chưa hiện tên';
 
-/**
- * Thang bốn bậc của `Problem` → thang ba bậc của `Level`, MẤT THÔNG TIN.
- *
- * Bản sao thứ hai của `problemDifficultyToLevelDifficultyLossy`
- * (`server/problems/replay.ts`), và nó là bản sao CÓ CHỦ Ý: hàm kia sống trong
- * `src/server/`, và một file `'use client'` import giá trị từ đó chỉ đứng được
- * chừng nào không ai thêm `import 'server-only'` vào file kia — điều kiện ấy là
- * một sự tình cờ, không phải một bảo đảm. `use-problem-submit.ts` đã trả giá
- * đúng khe này một lần và lời đính chính của nó còn nằm nguyên trong file.
- *
- * Bản sao này an toàn vì nó KHÔNG đi vào phép xác minh: `difficulty` không có
- * mặt trong `RunLog` lẫn `RunResult`, nên hai bên lệch nhau cũng không từ chối
- * lượt nộp nào. Nó chỉ đổi một chữ trên màn. Chỗ đúng lâu dài là
- * `packages/games/src/core/`, cạnh `problemVerdictOf` — cùng lý lẽ đã chuyển
- * `verdict-view.ts` xuống đó — nhưng barrel là file lead giữ.
- */
-function doKhoLevelMatThongTin(difficulty: ProblemDifficulty): Difficulty {
-  switch (difficulty) {
-    case 'easy':
-      return 'basic';
-    case 'medium':
-      return 'intermediate';
-    case 'hard':
-    case 'expert':
-      return 'advanced';
-  }
-}
 
 /**
  * Bài này có chấm được không.
@@ -186,7 +159,7 @@ export function gitOjLevel(problem: GitOjProblem): GitLevel {
     title: problem.title,
     mission: problem.title,
     brief: problem.statement,
-    difficulty: doKhoLevelMatThongTin(problem.difficulty),
+    difficulty: problemDifficultyToLevelDifficultyLossy(problem.difficulty),
     setup: problem.initialState as WorldSpec,
     /*
      * Trải CÓ ĐIỀU KIỆN. `exactOptionalPropertyTypes: true` phân biệt "không có

@@ -21,6 +21,7 @@ import { CicdResultPanel } from './cicd-result-panel';
 import { formatNumber, formatSeconds, runWorkflow, type CicdRunOutcome } from './cicd-run';
 import { CicdSnippetBar } from './cicd-snippet-bar';
 import type { CicdSceneInteraction, CicdSceneProps } from './scene-props';
+import type { HintReveal } from '../../../lib/use-hint-reveal';
 import { CicdAxesPanel } from './hud/cicd-axes-panel';
 import { CicdAxisIntro, useAxisIntro } from './hud/cicd-axis-intro';
 import { CicdEditorDrawer } from './hud/cicd-editor-drawer';
@@ -61,12 +62,63 @@ import { useRendererMode } from './hud/use-renderer-mode';
  * duyệt (AC-D6 đo bằng network trace, KỂ CẢ khi bật 3D).
  */
 
+/**
+ * Chế độ LÀM BÀI OJ — 19.J.3. Vắng ⇒ màn chơi level bình thường.
+ *
+ * ⛔ Sự có mặt của prop này đổi MỘT bất biến của màn hình: lượt "Chạy thử" tại
+ * chỗ thôi là phép chấm. Client không có `check` của testcase (§18.B.4 cắt nó ở
+ * máy chủ), nên không có gì để chấm tại chỗ — lượt chạy chỉ còn cho ba trục và
+ * chẩn đoán engine. Verdict chỉ tới từ `problems.tryGrade`.
+ *
+ * Hai hệ quả cưỡng chế ngay trong thân component, đừng gỡ:
+ *  1. `runWorkflow` nhận danh sách mục tiêu RỖNG (`checkObjective` sẽ ném trên
+ *     một `check` rỗng — xem `cicd-oj-level.ts`).
+ *  2. Bảng kết quả nhận `showVerdict: false`, nên không vẽ chữ "Đạt" của một
+ *     phép chấm không hề chạy.
+ */
+export interface CicdOjScreenProps {
+  /** Bài có đủ testcase để nộp không. OJ luôn chấm trên máy chủ. */
+  readonly gradable: boolean;
+  /** Câu nói ra giới hạn, hiện TRÊN MÀN khi `gradable` là `false`. */
+  readonly notice: string | null;
+  readonly submitLabel: string;
+  readonly submitDisabled: boolean;
+  /**
+   * Nộp lượt chơi hiện tại.
+   *
+   * ⛔ Nhận CẢ BA mảnh, vì `CicdGameAction.evaluate` chở cả ba và chúng phải đến
+   * từ CÙNG một khoảnh khắc. Màn hình này là chỗ duy nhất giữ đủ ba, nên nếu
+   * chữ ký chỉ chở `yaml` thì bảng núm lại rơi ra ngoài nhật ký — đúng khe mà
+   * 19.J.1 vừa đóng.
+   */
+  readonly onSubmit: (nop: {
+    readonly yaml: string;
+    readonly overrides: CicdPlayerOverrides;
+    readonly cd: CicdCdPolicies | null;
+  }) => void;
+  /** Dòng kết quả máy chủ trả về, hoặc câu lỗi. `null` = chưa nộp lần nào. */
+  readonly result: string | null;
+  /** Tên testcase chưa qua, theo lần chấm gần nhất của máy chủ. */
+  readonly failedLabels: readonly string[];
+  /**
+   * Trạng thái xin chữ gợi ý từ máy chủ, theo chỉ số.
+   *
+   * Bài OJ nạp qua `problems.byCode`, và đường đó CHE chữ của gợi ý chưa mở
+   * (§18.B.4) — nên `level.hints` ở chế độ này toàn chuỗi rỗng.
+   */
+  readonly hintReveals: ReadonlyMap<number, HintReveal>;
+  /** Xin chữ gợi ý thứ `index`; `null` ⇒ ĐỪNG mở gợi ý (không trừ điểm). */
+  readonly onRevealHint: (index: number) => Promise<string | null>;
+}
+
 export interface CicdLevelScreenProps {
   readonly level: CicdLevel;
   /** Bài lý thuyết của màn. `null` khi level không khai `theoryId`. */
   readonly theory: TheoryDoc | null;
   readonly onExit: () => void;
   readonly onNext?: () => void;
+  /** Chế độ làm bài OJ. Vắng ⇒ màn chơi level. Xem `CicdOjScreenProps`. */
+  readonly oj?: CicdOjScreenProps;
 }
 
 interface AttemptEntry {
@@ -79,6 +131,7 @@ export function CicdLevelScreen({
   theory,
   onExit,
   onNext,
+  oj,
 }: CicdLevelScreenProps): ReactElement {
   /*
    * Văn bản khởi điểm là workflow ban đầu ĐƯỢC IN RA, không phải một chuỗi viết
@@ -153,7 +206,19 @@ export function CicdLevelScreen({
       overrides,
       workload: level.workload,
       evaluation: level.evaluation,
-      objectives: level.objectives,
+      /*
+       * ⛔ RỖNG ở chế độ làm bài, và đây là một ràng buộc RUNTIME chứ không phải
+       * một lựa chọn hiển thị.
+       *
+       * `level.objectives` của một bài OJ mang `check: ''` — máy chủ cắt tên vị
+       * từ trước khi dữ liệu rời nó (§18.B.4). `checkObjective` tra
+       * `CICD_PREDICATES['']` rồi GỌI kết quả, nên một danh sách không rỗng ở
+       * đây ném `TypeError` giữa lượt chơi và người làm nhận một trang trắng.
+       *
+       * Danh sách đầy đủ vẫn đi tới bảng mục tiêu để HIỆN tiêu chí — hiện và
+       * chấm là hai việc khác nhau, và ở chế độ này chỉ máy chủ làm việc thứ hai.
+       */
+      objectives: oj === undefined ? level.objectives : [],
       ...(level.cd === undefined ? {} : { cd: { level: level.cd, edited: cdPolicies } }),
     });
     setOutcome(ketQua);
@@ -164,7 +229,7 @@ export function CicdLevelScreen({
      * chính thứ vừa yêu cầu là một cú bấm thừa, mỗi lượt.
      */
     panels.open('result');
-  }, [yaml, sources, level, overrides, cdPolicies, panels]);
+  }, [yaml, sources, level, overrides, cdPolicies, panels, oj]);
 
   /*
    * Tập RỖNG chứ không `undefined`: `exactOptionalPropertyTypes` cấm truyền
@@ -293,6 +358,23 @@ export function CicdLevelScreen({
 
       {/* Lớp phủ. Vỏ không nhận chuột; từng bảng tự bật lại. */}
       <div className="pointer-events-none absolute inset-x-0 top-14 bottom-0 z-20">
+        {/*
+         * Thanh nộp bài — LUÔN hiện ở chế độ OJ, không đi qua hệ công tắc bảng.
+         *
+         * Nó không phải một bảng tuỳ chọn: nộp bài là lý do người dùng mở màn
+         * hình này. Một công tắc có thể tắt sẽ cho phép trạng thái "đang làm bài
+         * mà không thấy nút nộp", và người làm không có cách nào đoán rằng nút
+         * ấy nằm sau một menu.
+         */}
+        {oj !== undefined ? (
+          <CicdOjBar
+            oj={oj}
+            onSubmit={() => {
+              oj.onSubmit({ yaml, overrides, cd: level.cd === undefined ? null : cdPolicies });
+            }}
+          />
+        ) : null}
+
         <CicdAxesPanel
           outcome={outcome}
           className="absolute top-3 left-1/2 -translate-x-1/2"
@@ -371,11 +453,21 @@ export function CicdLevelScreen({
                   outcome={outcome}
                   objectives={level.objectives}
                   thresholds={level.thresholds}
-                  showVerdict
+                  /*
+                   * ⛔ `false` ở chế độ làm bài. Lượt chạy tại chỗ KHÔNG chấm gì
+                   * (danh sách mục tiêu truyền cho `runWorkflow` là rỗng), nên
+                   * `outcome.won` ở đây luôn `true` một cách vô nghĩa — vẽ chữ
+                   * "Đạt" từ nó là nói với người làm rằng họ đã giải xong bài
+                   * trong khi máy chủ chưa hề chấm.
+                   *
+                   * Cùng đường mà bàn thử đi, vì cùng lý do: không có ngưỡng
+                   * đạt/trượt nào để đọc.
+                   */
+                  showVerdict={oj === undefined}
                 />
               )}
 
-              <AttemptHistory history={history} />
+              <AttemptHistory history={history} chamTaiCho={oj === undefined} />
 
               <section className="mt-3 flex flex-col gap-2" aria-label="Gợi ý">
                 <div className="flex items-center gap-2">
@@ -387,7 +479,19 @@ export function CicdLevelScreen({
                       variant="ghost"
                       size="sm"
                       onClick={() => {
-                        setHintsShown((n) => n + 1);
+                        /*
+                         * ⛔ Ở chế độ OJ, XIN TRƯỚC rồi mới đếm. `useHintReveal`
+                         * trả `null` khi máy chủ từ chối, và tăng bộ đếm trước
+                         * lời từ chối đó sẽ hiện một ô gợi ý RỖNG — người làm
+                         * mất điểm cho một dòng chữ không tồn tại.
+                         */
+                        if (oj === undefined) {
+                          setHintsShown((n) => n + 1);
+                          return;
+                        }
+                        void oj.onRevealHint(hintsShown).then((text) => {
+                          if (text !== null) setHintsShown((n) => n + 1);
+                        });
                       }}
                     >
                       Mở gợi ý {hintsShown + 1}/{level.hints.length}
@@ -400,7 +504,12 @@ export function CicdLevelScreen({
                   <ul className="flex flex-col gap-1">
                     {level.hints.slice(0, hintsShown).map((hint, index) => (
                       <li key={index} className="text-sm text-muted-foreground">
-                        {hint}
+                        {/*
+                         * Ở chế độ OJ `level.hints` toàn chuỗi rỗng — chữ thật
+                         * tới từ máy chủ qua `hintReveals`, vì `problems.byCode`
+                         * che gợi ý chưa mở (§18.B.4).
+                         */}
+                        {oj === undefined ? hint : chuGoiY(oj.hintReveals.get(index))}
                       </li>
                     ))}
                   </ul>
@@ -515,7 +624,90 @@ export function CicdLevelScreen({
  * thấy được lượt nào đổi trục nào — lượt vừa rồi nhanh hơn nhưng tốn hơn thì
  * hàng đó phải nói ra cả hai.
  */
-function AttemptHistory({ history }: { readonly history: readonly AttemptEntry[] }): ReactElement {
+/**
+ * Thanh nộp bài của chế độ OJ — nút nộp, dòng verdict, danh sách testcase trượt.
+ *
+ * ⚠ Mọi chữ ở đây là TIẾNG VỌNG của máy chủ. Component này không suy ra verdict,
+ * không đếm `passed/total`, không đoán `AC` từ bất cứ thứ gì nó thấy trên màn —
+ * `cicd-problem.tsx` dựng câu chữ từ `toVerdictView`, nguồn DUY NHẤT được phép
+ * suy verdict (§18.B.5 và AC-J1). Một phép suy thứ hai ở đây sẽ trôi khỏi bản
+ * gốc và nói khác nó, trên cùng một màn hình.
+ *
+ * `aria-live="polite"` trên dòng kết quả: người dùng bàn phím và trình đọc màn
+ * hình bấm nộp rồi không có gì báo là kết quả đã về — nút đổi chữ thành "Đang
+ * chấm…" rồi đổi lại, và một vùng không live thì im lặng suốt.
+ */
+function CicdOjBar({
+  oj,
+  onSubmit,
+}: {
+  readonly oj: CicdOjScreenProps;
+  readonly onSubmit: () => void;
+}): ReactElement {
+  return (
+    <section
+      aria-label="Nộp bài"
+      data-testid="cicd-oj-bar"
+      /*
+       * ⛔ BOTTOM-CENTER, và vị trí này là kết quả của một phép đo chứ không phải
+       * một lựa chọn thẩm mỹ.
+       *
+       * Bản đầu đặt ở `right-3 bottom-3` và nút nộp KHÔNG BẤM ĐƯỢC: cột bảng bên
+       * phải là `absolute inset-y-3 right-3 … overflow-y-auto`, tức nó phủ TRỌN
+       * chiều cao mép phải và nuốt mọi cú bấm xuống dưới. Playwright bắt được
+       * ("subtree intercepts pointer events"); mắt thì không, vì thanh vẫn hiện
+       * ra đầy đủ và trông hoàn toàn bình thường.
+       *
+       * `z-30` nâng trên lớp phủ (`z-20`) để một bảng mở rộng không che lại nút.
+       * Mép trái ở giữa chiều cao là ngăn kéo ô soạn, mép trên giữa là bảng ba
+       * trục — nên đáy-giữa là vùng còn trống thật sự.
+       */
+      className="pointer-events-auto absolute bottom-3 left-1/2 z-30 flex max-w-sm -translate-x-1/2 flex-col gap-2 rounded-lg border border-border bg-card/95 p-3 shadow-lg"
+    >
+      <div className="flex items-center gap-2">
+        <Button
+          size="sm"
+          disabled={oj.submitDisabled}
+          onClick={onSubmit}
+          data-testid="cicd-oj-submit"
+        >
+          {oj.submitLabel}
+        </Button>
+        {oj.notice === null ? null : (
+          <p className="text-xs text-muted-foreground">{oj.notice}</p>
+        )}
+      </div>
+
+      <p aria-live="polite" data-testid="cicd-oj-result" className="text-sm">
+        {oj.result ?? 'Chưa nộp lần nào. Ba trục ở trên là của lượt chạy thử, không phải điểm bài.'}
+      </p>
+
+      {oj.failedLabels.length > 0 ? (
+        <ul className="flex flex-col gap-1 text-xs text-warning">
+          {oj.failedLabels.map((label, index) => (
+            <li key={index}>{label}</li>
+          ))}
+        </ul>
+      ) : null}
+    </section>
+  );
+}
+
+function AttemptHistory({
+  history,
+  chamTaiCho,
+}: {
+  readonly history: readonly AttemptEntry[];
+  /**
+   * Lượt chạy tại chỗ có chấm mục tiêu không.
+   *
+   * `false` ở chế độ làm bài OJ: `runWorkflow` nhận danh sách mục tiêu rỗng, nên
+   * `outcome.won` luôn `true` và chữ "Đạt" ở đây sẽ là một lời nói dối trên MỌI
+   * dòng lịch sử — kể cả những lượt mà máy chủ vừa trả WA. Ba trục vẫn thật và
+   * vẫn hiện; chỉ chữ phán xét biến mất.
+   */
+  readonly chamTaiCho: boolean;
+}): ReactElement {
   return (
     <section className="mt-3 flex flex-col gap-2" aria-label="Lịch sử các lượt chạy">
       <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
@@ -545,9 +737,13 @@ function AttemptHistory({ history }: { readonly history: readonly AttemptEntry[]
                 <span className="text-muted-foreground">Chưa có job nào để chạy</span>
               ) : (
                 <>
-                  <span className={entry.outcome.won ? 'text-success' : 'text-warning'}>
-                    {entry.outcome.won ? 'Đạt' : 'Chưa đạt'}
-                  </span>
+                  {chamTaiCho ? (
+                    <span className={entry.outcome.won ? 'text-success' : 'text-warning'}>
+                      {entry.outcome.won ? 'Đạt' : 'Chưa đạt'}
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground">Đã chạy</span>
+                  )}
                   <span className="text-muted-foreground">
                     ① {formatSeconds(entry.outcome.axes.leadTimeSeconds)}
                   </span>
@@ -565,4 +761,19 @@ function AttemptHistory({ history }: { readonly history: readonly AttemptEntry[]
       )}
     </section>
   );
+}
+
+/**
+ * Chữ của một gợi ý đã xin, theo pha.
+ *
+ * `HintReveal` là union ba pha, và chỉ pha `ready` mới có chữ. Đọc thẳng
+ * `.text` bằng optional-chaining sẽ cho `undefined` ở hai pha kia rồi rơi về một
+ * dấu ba chấm cho CẢ pha lỗi — người dùng nhìn thấy "đang tải" vĩnh viễn cho một
+ * lời gọi đã hỏng, và không có đường nào biết để thử lại.
+ */
+function chuGoiY(reveal: HintReveal | undefined): string {
+  if (reveal === undefined) return '…';
+  if (reveal.phase === 'ready') return reveal.text;
+  if (reveal.phase === 'error') return `Chưa lấy được gợi ý: ${reveal.message}`;
+  return 'Đang lấy gợi ý…';
 }

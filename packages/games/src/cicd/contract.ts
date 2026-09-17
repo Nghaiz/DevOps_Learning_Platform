@@ -89,7 +89,6 @@
  */
 
 import type { Difficulty } from '../core/types.ts';
-import type { CicdGameAction, RunLog } from '../core/run-log.ts';
 import type { CdPolicyPart, CicdLevelCd } from './cd-contract.ts';
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1602,29 +1601,39 @@ export interface CicdLevel {
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
- * ✅ **NỢ HỢP ĐỒNG ĐÃ ĐÓNG (lead, 2026-09-16).**
+ * ⚠ **KIỂU HÀNH ĐỘNG ĐÃ DỜI NHÀ LẦN THỨ HAI (19.J, 2026-09-17).**
  *
- * Lane A.1 khai tạm kiểu này tại đây vì `packages/games/src/core/**` do lead sở
- * hữu. Lead đã thêm nhánh `| CicdGameAction` vào `GameAction` của
- * `core/run-log.ts`, nên bản chính tắc nay nằm ở đó cạnh `K8sActionShape` và
- * `GitGameAction`, và file này chỉ tái xuất.
+ * Lịch sử ngắn, ghi lại vì cả hai lần dời đều có lý do khác nhau:
  *
- * Vì sao phải đóng nợ chứ không để hai bản khai song song: `RunLog<CicdGameAction>`
- * vẫn biên dịch được khi kiểu nằm riêng (tham số chỉ bị chặn bởi `GameActionBase`),
- * nhưng nó KHÔNG gán được vào `RunLog` dạng rộng. Nghĩa là `core/verify.ts`, cơ
- * chế chấm lại phía máy chủ của 18.C, sẽ im lặng không nhận nhật ký game này, và
- * 19.H (bài OJ cho `gameId: 'cicd'`) bị chặn mà không lệnh nào báo.
+ *  1. Lane A.1 khai tạm `CicdGameAction` tại file này (2026-09-16 lead đưa hình
+ *     dạng lên `core/run-log.ts`, file này tái xuất). Lý do: `RunLog<CicdGameAction>`
+ *     không gán được vào `RunLog` dạng rộng khi kiểu khai riêng, nên `core/verify.ts`
+ *     sẽ im lặng không nhận nhật ký game này.
+ *  2. 19.J cho nhánh `evaluate` chở thêm `overrides` (`hydrate.ts`) và `cd`
+ *     (`cd-contract.ts`). Cả hai file đó nhập file NÀY, nên một tái xuất ở đây
+ *     buộc `contract.ts` phải nhập ngược lại chúng.
  *
- * ⛔ ĐỪNG khai lại kiểu này ở đây. Hai bản khai cùng hình dạng sẽ trôi khỏi nhau
- * ở lần đầu tiên ai đó thêm một `kind` mới, và cả hai vẫn biên dịch.
+ *     ⚠ Lý do KHÔNG phải "vòng là không biên dịch được" — vòng chỉ-kiểu bị xoá
+ *     lúc biên dịch, và thực tế `contract.ts` ↔ `cd-contract.ts` ĐÃ là một vòng
+ *     như vậy (file này nhập `CicdLevelCd`, file kia nhập `ReleaseStrategy`).
+ *     Lý do là TẦNG: `hydrate.ts` là mã HÀNH VI (nó ghép workflow), còn file này
+ *     là hợp đồng. Một hợp đồng nhập kiểu từ mã hành vi thì thứ tự đọc đảo ngược
+ *     — người đọc phải biết cách ghép mới hiểu được hình dạng dữ liệu.
+ *
+ * Nên bản MỞ nay là `CicdActionShape` ở `core/run-log.ts` (cạnh `K8sActionShape`),
+ * và bản ĐÓNG là `CicdGameAction` ở **`cicd/action.ts`** — một file lá mà không ai
+ * trong `cicd/` nhập.
+ *
+ * ⛔ ĐỪNG khai lại kiểu này ở đây, và đừng tái xuất nó từ đây. Hai bản khai cùng
+ * hình dạng sẽ trôi khỏi nhau ở lần đầu tiên ai đó thêm một `kind` mới, và cả hai
+ * vẫn biên dịch; còn một tái xuất sẽ dựng lại đúng cái vòng ở mục 2.
  *
  * Thiết kế giữ nguyên, ghi lại vì lý lẽ nằm ở tầng game chứ không ở `core/`:
  *
  * Hai loại hành động, và sự nghèo nàn đó là chủ ý. Toàn bộ tương tác của người
- * chơi là **sửa YAML rồi bấm chạy**; không có palette kéo-thả, không có nút
- * "thêm máy" riêng (số máy nằm trong level, sửa được thì sửa qua cùng ô soạn
- * thảo). Nhờ thế một `RunLog` của game này là **một chuỗi phiên bản YAML đọc
- * được bằng mắt**: mở ra xem là biết người chơi đã thử gì.
+ * chơi là **sửa YAML rồi bấm chạy** (cộng hai bảng núm, và chúng đi thẳng vào
+ * action chứ không qua văn bản). Nhờ thế một `RunLog` của game này là **một chuỗi
+ * phiên bản YAML đọc được bằng mắt**: mở ra xem là biết người chơi đã thử gì.
  *
  * ⚠ `evaluate.source` ghi TOÀN VĂN chứ không ghi diff, và đó là lựa chọn có giá:
  * nhật ký phình ra theo số lần thử. Đổi lại, phát lại không cần một bộ áp diff,
@@ -1632,13 +1641,3 @@ export interface CicdLevel {
  * kể cả khi bộ đọc YAML của 19.C về sau sửa một lỗi phân tích và đọc ra khác đi.
  * Với diff thì phát lại sẽ âm thầm cho ra một workflow khác.
  */
-export type { CicdGameAction };
-
-/**
- * `tick` ở đây là **số lần chấm đã chạy**, không phải tick mô phỏng.
- *
- * Hai đồng hồ khác nhau và trùng tên là một cái bẫy: `RunRecord.finishedTick`
- * đếm tick bên trong một lượt mô phỏng, còn `GameActionBase.tick` đếm hành động
- * của người chơi. Cả hai tất định, nhưng cộng chúng lại thì không ra gì cả.
- */
-export type CicdRunLog = RunLog<CicdGameAction>;
