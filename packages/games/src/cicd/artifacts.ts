@@ -27,6 +27,7 @@ import type {
   WorkflowSpec,
 } from './contract.ts';
 import { hashDrawKey } from './rng-keys.ts';
+import { idDict } from './id-dict.ts';
 
 export type ArtifactId = string;
 
@@ -52,7 +53,7 @@ export interface DeploymentView {
  * trường đang chạy.
  */
 export function deploymentsOf(run: RunRecord, workflow: WorkflowSpec): readonly DeploymentView[] {
-  const moiTruong: Record<StageId, EnvironmentId> = {};
+  const moiTruong: Record<StageId, EnvironmentId> = idDict();
   for (const stage of workflow.stages) {
     if (stage.environment !== undefined) {
       moiTruong[stage.id] = stage.environment;

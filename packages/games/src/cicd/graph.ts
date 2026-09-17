@@ -46,6 +46,7 @@
 
 import { compareKeys } from '../git/deterministic.ts';
 import type { EvaluationError, StageId, WorkflowSpec } from './contract.ts';
+import { idDict } from './id-dict.ts';
 
 /** Nhánh `unknown-dependency` của `EvaluationError`, tách ra để khỏi lặp hình dạng. */
 export type UnknownDependencyError = Extract<EvaluationError, { readonly kind: 'unknown-dependency' }>;
@@ -75,14 +76,14 @@ export type UnknownDependencyError = Extract<EvaluationError, { readonly kind: '
  *   và ở đó kiểu vẫn cho phép hai mục cùng id.
  */
 function adjacency(workflow: WorkflowSpec): Readonly<Record<StageId, readonly StageId[]>> {
-  const seen: Record<StageId, Record<StageId, true>> = {};
+  const seen: Record<StageId, Record<StageId, true>> = idDict();
   for (const stage of workflow.stages) {
-    const bucket = seen[stage.id] ?? {};
+    const bucket = seen[stage.id] ?? idDict<true>();
     seen[stage.id] = bucket;
     for (const dep of stage.dependsOn) bucket[dep] = true;
   }
 
-  const out: Record<StageId, readonly StageId[]> = {};
+  const out: Record<StageId, readonly StageId[]> = idDict();
   for (const id of Object.keys(seen).sort(compareKeys)) {
     const bucket = seen[id];
     out[id] = bucket === undefined ? [] : Object.keys(bucket).sort(compareKeys);
@@ -121,10 +122,10 @@ export function findUnknownDependency(workflow: WorkflowSpec): UnknownDependency
  * `compareKeys`, rồi thứ tự khai trong `dependsOn` của stage đó.
  */
 export function findAllUnknownDependencies(workflow: WorkflowSpec): readonly UnknownDependencyError[] {
-  const known: Record<StageId, true> = {};
+  const known: Record<StageId, true> = idDict();
   for (const stage of workflow.stages) known[stage.id] = true;
 
-  const byId: Record<StageId, readonly StageId[]> = {};
+  const byId: Record<StageId, readonly StageId[]> = idDict();
   for (const stage of workflow.stages) {
     const before = byId[stage.id];
     byId[stage.id] = before === undefined ? stage.dependsOn : [...before, ...stage.dependsOn];
@@ -165,7 +166,7 @@ export function findCycle(workflow: WorkflowSpec): readonly StageId[] | null {
   const ids = Object.keys(adj).sort(compareKeys);
 
   /* 'open' = đang nằm trên ngăn xếp hiện tại · 'done' = đã duyệt xong, sạch. */
-  const state: Record<StageId, 'open' | 'done'> = {};
+  const state: Record<StageId, 'open' | 'done'> = idDict();
   const path: StageId[] = [];
 
   function visit(id: StageId): readonly StageId[] | null {
