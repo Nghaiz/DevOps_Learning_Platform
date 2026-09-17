@@ -24,7 +24,7 @@
 import { t } from '@devops-platform/copy';
 
 import type { GameAction, RunLog } from './run-log.ts';
-import type { GameId } from './types.ts';
+import type { Difficulty, GameId } from './types.ts';
 
 // ── Độ khó ──────────────────────────────────────────────────────────────────
 
@@ -275,6 +275,48 @@ export type ProblemVerdict = (typeof PROBLEM_VERDICTS)[number];
 export function problemVerdictOf(passedCount: number, total: number): ProblemVerdict {
   if (total <= 0) return 'CE';
   return passedCount >= total ? 'AC' : 'WA';
+}
+
+/**
+ * Thang BỐN bậc của `Problem` → thang BA bậc của `Level`. **MẤT THÔNG TIN.**
+ *
+ * Tên hàm nói ra điều đó vì hợp đồng bắt: *"vì hai thang KHÁC nhau, TUYỆT ĐỐI
+ * không ánh xạ ngầm giữa chúng — chỗ nào cần đổi qua lại thì viết hàm đổi tường
+ * minh và đặt tên nói rõ nó làm mất thông tin."* `hard` và `expert` gộp lại
+ * thành `advanced`, và phép gộp đó KHÔNG đảo ngược được.
+ *
+ * ⚠ Chỉ dùng cho `Level` tổng hợp phục vụ phát lại / dựng màn chơi. KHÔNG dùng
+ * để hiển thị, để lọc, hay để lưu: ở đó bốn bậc là bốn bậc, và một bản đồ về ba
+ * bậc sẽ xoá đúng ranh giới người dùng dựa vào để chọn bài kế tiếp.
+ *
+ * ## ⛔ CHUYỂN NHÀ 2026-09-17 — trước đó có BỐN bản sao
+ *
+ * `server/problems/replay.ts`, `components/k8s-arena/problem-level.ts`,
+ * `components/games/git/problem-level.ts`, `components/games/cicd/cicd-oj-level.ts`.
+ * Mỗi bản sao đều mang một chú thích thừa nhận mình là bản sao, và mỗi lần thêm
+ * một game là thêm một bản nữa — bản thứ tư sinh ra ở 19.J.
+ *
+ * Phép sao chép khi ấy có lý do THẬT: bản gốc sống trong `src/server/`, và một
+ * file `'use client'` nhập giá trị từ đó chỉ đứng được chừng nào không ai thêm
+ * `import 'server-only'` vào file kia — một sự tình cờ, không phải bảo đảm.
+ * Chỗ này thì không có ranh giới đó: `packages/games` chạy ở CẢ hai phía.
+ *
+ * Nó an toàn để gộp vì `difficulty` KHÔNG có mặt trong `RunLog` lẫn `RunResult`,
+ * nên bốn bản lệch nhau cũng chưa bao giờ từ chối một lượt nộp nào — chúng chỉ
+ * đổi một chữ trên màn. Đó là lý do món nợ này sống lâu mà không ai thấy đau.
+ */
+export function problemDifficultyToLevelDifficultyLossy(
+  difficulty: ProblemDifficulty,
+): Difficulty {
+  switch (difficulty) {
+    case 'easy':
+      return 'basic';
+    case 'medium':
+      return 'intermediate';
+    case 'hard':
+    case 'expert':
+      return 'advanced';
+  }
 }
 
 // ── Bài tập ─────────────────────────────────────────────────────────────────

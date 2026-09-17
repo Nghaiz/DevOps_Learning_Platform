@@ -1,9 +1,9 @@
 import {
   ALL_KINDS,
+  problemDifficultyToLevelDifficultyLossy,
   scoreProblemRun,
   tallyLog,
   type ClusterSpec,
-  type Difficulty,
   type Level,
   type Objective,
   type ProblemDifficulty,
@@ -96,36 +96,6 @@ export interface K8sOjProblem {
  */
 const NHAN_TESTCASE_AN = 'Testcase ẩn chưa hiện tên';
 
-/**
- * Thang bốn bậc của `Problem` → thang ba bậc của `Level`, MẤT THÔNG TIN.
- *
- * Bản sao thứ ba của phép đổi này (`server/problems/replay.ts` §
- * `problemDifficultyToLevelDifficultyLossy`, và bản Git ở
- * `components/games/git/problem-level.ts`), và nó là bản sao CÓ CHỦ Ý: hàm gốc
- * sống trong `src/server/`, và một file client import GIÁ TRỊ từ đó chỉ đứng
- * được chừng nào không ai thêm `import 'server-only'` vào file kia — điều kiện
- * ấy là một sự tình cờ, không phải một bảo đảm. `use-problem-submit.ts` đã trả
- * giá đúng khe này một lần và lời đính chính của nó còn nằm nguyên trong file.
- *
- * Bản sao này an toàn vì nó KHÔNG đi vào phép xác minh: `difficulty` không có
- * mặt trong `RunLog` lẫn `RunResult`, nên hai bên lệch nhau cũng không từ chối
- * lượt nộp nào. Nó chỉ đổi một chữ trên màn.
- *
- * ⚠ Ba bản là quá ngưỡng rule-of-three. Chỗ đúng lâu dài là
- * `packages/games/src/core/`, cạnh `problemVerdictOf` — cùng lý lẽ đã chuyển
- * `verdict-view.ts` xuống đó. Ghi ra đây thay vì để người sau tưởng là thiết kế.
- */
-function doKhoLevelMatThongTin(difficulty: ProblemDifficulty): Difficulty {
-  switch (difficulty) {
-    case 'easy':
-      return 'basic';
-    case 'medium':
-      return 'intermediate';
-    case 'hard':
-    case 'expert':
-      return 'advanced';
-  }
-}
 
 /**
  * Bài này có chấm được không.
@@ -207,7 +177,7 @@ export function k8sOjLevel(problem: K8sOjProblem): Level {
     // không có ô riêng cho nó — cả đề bài NẰM ở `statement` — nên dùng tiêu đề.
     mission: problem.title,
     brief: problem.statement,
-    difficulty: doKhoLevelMatThongTin(problem.difficulty),
+    difficulty: problemDifficultyToLevelDifficultyLossy(problem.difficulty),
     initialState: problem.initialState as ClusterSpec,
     /*
      * (4) `ALL_KINDS` chứ KHÔNG phải `[]` khi bài không giới hạn. Hai giá trị

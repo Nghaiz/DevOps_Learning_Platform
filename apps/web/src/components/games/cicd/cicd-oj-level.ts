@@ -1,12 +1,12 @@
 import {
   CICD_UNSEEDED_REPLAY_SEED,
   EDITABLE_PARTS,
+  problemDifficultyToLevelDifficultyLossy,
   scoreProblemRun,
   tallyLog,
   type CicdLevel,
   type CicdObjective,
   type CicdProblemSpec,
-  type Difficulty,
   type ProblemDifficulty,
   type RunLog,
   type RunResult,
@@ -82,29 +82,6 @@ export interface CicdOjProblem {
  */
 const NHAN_TESTCASE_AN = 'Testcase ẩn chưa hiện tên';
 
-/**
- * Thang bốn bậc của `Problem` → thang ba bậc của `Level`, MẤT THÔNG TIN.
- *
- * Bản sao thứ ba của cùng phép chiếu (`server/problems/replay.ts` và
- * `games/git/problem-level.ts` là hai bản kia), và lý lẽ cho phép sao chép vẫn y
- * nguyên: `difficulty` KHÔNG có mặt trong `RunLog` lẫn `RunResult`, nên hai bên
- * lệch nhau cũng không từ chối lượt nộp nào — nó chỉ đổi một chữ trên màn.
- *
- * ⚠ Nhưng ba bản là ngưỡng `code-conventions.md` gọi là phải trích ra, và chỗ
- * đúng của nó là `packages/games/src/core/` cạnh `problemVerdictOf`. Ghi ra đây
- * để lần thứ tư không ai phải tự nghĩ lại, và để món nợ có tên.
- */
-function doKhoLevelMatThongTin(difficulty: ProblemDifficulty): Difficulty {
-  switch (difficulty) {
-    case 'easy':
-      return 'basic';
-    case 'medium':
-      return 'intermediate';
-    case 'hard':
-    case 'expert':
-      return 'advanced';
-  }
-}
 
 /**
  * Bài này có chấm được không.
@@ -346,7 +323,7 @@ export function cicdOjLevel(problem: CicdOjProblem): CicdLevel {
      */
     mission: `Bài ${problem.code}: sửa đường ống cho qua hết tiêu chí chấm.`,
     brief: problem.statement,
-    difficulty: doKhoLevelMatThongTin(problem.difficulty),
+    difficulty: problemDifficultyToLevelDifficultyLossy(problem.difficulty),
     initialWorkflow: spec.workflow,
     workload: spec.workload,
     evaluation: spec.evaluation,

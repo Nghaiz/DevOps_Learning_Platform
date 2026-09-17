@@ -4,10 +4,10 @@ import {
   createGitSession,
   gradeCicdProblem,
   createSession,
+  problemDifficultyToLevelDifficultyLossy,
   scoreProblemRun,
   sessionReplayEngine,
   verifyRun,
-  type Difficulty,
   type GitEngineSession,
   type GitLevel,
   type GitObjective,
@@ -18,7 +18,6 @@ import {
   type ClusterSpec,
   type GameId,
   type Level,
-  type ProblemDifficulty,
   type ReplayEngine,
   type RunLog,
   type RunResult,
@@ -27,6 +26,16 @@ import {
   type WorldSpec,
 } from '@devops-platform/games';
 import type { StoredProblem } from './dto';
+
+/*
+ * ⛔ TÁI XUẤT, không khai lại — `problemDifficultyToLevelDifficultyLossy` chuyển
+ * nhà sang `packages/games/src/core/problem.ts` ngày 2026-09-17 (xem chú thích
+ * tại chỗ khai mới về BỐN bản sao trước đó).
+ *
+ * Giữ tên xuất ra ở đây vì `replay.test.ts` và hai chỗ dùng trong file này đã
+ * trỏ vào nó; một lượt đổi import ở mọi call-site không mua được gì.
+ */
+export { problemDifficultyToLevelDifficultyLossy } from '@devops-platform/games';
 
 /**
  * Dựng bộ phát lại cho một bài OJ.
@@ -49,31 +58,6 @@ export function expectedLogLevelId(problem: StoredProblem): string {
   return problem.code;
 }
 
-/**
- * Thang bốn bậc của `Problem` → thang ba bậc của `Level`, MẤT THÔNG TIN.
- *
- * Tên hàm nói ra điều đó vì hợp đồng bắt: *"vì hai thang KHÁC nhau, TUYỆT ĐỐI
- * không ánh xạ ngầm giữa chúng — chỗ nào cần đổi qua lại thì viết hàm đổi tường
- * minh và đặt tên nói rõ nó làm mất thông tin."* `hard` và `expert` gộp lại
- * thành `advanced`, và phép gộp đó KHÔNG đảo ngược được.
- *
- * ⚠ Chỉ dùng cho `Level` tổng hợp phục vụ phát lại. KHÔNG dùng nó để hiển thị,
- * để lọc, hay để lưu: ở những chỗ đó bốn bậc là bốn bậc, và một bản đồ về ba bậc
- * sẽ xoá mất đúng ranh giới mà người dùng dựa vào để chọn bài kế tiếp.
- */
-export function problemDifficultyToLevelDifficultyLossy(
-  difficulty: ProblemDifficulty,
-): Difficulty {
-  switch (difficulty) {
-    case 'easy':
-      return 'basic';
-    case 'medium':
-      return 'intermediate';
-    case 'hard':
-    case 'expert':
-      return 'advanced';
-  }
-}
 
 /**
  * `Problem` → `Level` tổng hợp, đủ để `createSession` chạy.

@@ -419,6 +419,7 @@ export {
   PROBLEM_VERDICTS,
   problemCodePattern,
   problemVerdictOf,
+  problemDifficultyToLevelDifficultyLossy,
 } from './core/problem.ts';
 
 /*
@@ -494,6 +495,21 @@ export type { CicdProblemCd, CicdProblemSpec } from './cicd/problem-plugin.ts';
  * được nhưng không chấm được.
  */
 export { CD_PREDICATE_NEEDS } from './cicd/predicates.ts';
+
+/**
+ * Bộ seed hai bài CI/CD — 19.J.4.
+ *
+ * ⛔ DỮ LIỆU GỐC để nạp một lần, KHÔNG phải nguồn đọc lúc chạy. Trang danh sách
+ * và trang làm bài đọc từ DB; đọc thẳng từ đây thì bài do người soạn tạo ra sẽ
+ * không bao giờ hiện.
+ *
+ * Xuất ra barrel vì hai chỗ ngoài package cần nó: `scripts/seed-content.mjs`
+ * (nạp vào Postgres) và `save-cicd-problem.integration.test.ts` (dựng body từ
+ * một đề ĐÃ được chứng minh là giải được, nên khi ô đó đỏ thì nguyên nhân nằm ở
+ * đường ghi/đọc chứ không ở chất lượng đề).
+ */
+export { CICD_PROBLEMS_SEED } from './cicd/problems-seed/index.ts';
+export type { CicdProblemSeed } from './cicd/problems-seed/index.ts';
 export type { CdSimulatorKind } from './cicd/predicates.ts';
 
 /*

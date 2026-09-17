@@ -34,12 +34,14 @@
 | 19.C.1/C.2/C.3 cầu nối YAML | **XONG** | PR #139 (`0c41efd`, `f457fe8`) |
 | 19.C.5/C.6 khoá tên stage + cổng lõi-trung-lập | **XONG** | PR #139 (`cbc7bac`), `scripts/check-cicd-vendor-neutral.mjs` |
 | 19.C.4 lỗi ngữ nghĩa | **XONG** | đợt 2 — xem hộp cảnh báo ở §19.C |
-| 19.D tầng 3D | chưa bắt đầu | Plan exec: [`phase-19-d-exec.md`](phase-19-d-exec.md) (2026-09-17) — gồm CẢ cảnh 2D, vì hôm nay game CI/CD chưa vẽ đồ thị ở chế độ nào |
+| 19.D tầng 3D | **XONG** | gộp ở `11ee415` (2D + 3D + HUD toàn màn hình) và `e0ca524` (hợp đồng, AC-D3 đủ, hai lỗi chỉ mắt mới thấy). Plan exec: [`phase-19-d-exec.md`](phase-19-d-exec.md) |
 | 19.E giao diện soạn YAML | **XONG (E.1–E.5)** | đợt 2 — kèm tầng ghép `cicd/hydrate.ts`, thứ plan không dự liệu |
 | 19.F chương CI, 14 level | **XONG** | PR #139 (`e0f4ed9`, `824ee8b`, `2d8fce5`) |
 | 19.G chương CD | **XONG, đã nghiệm thu AC-G** | 14 level C15–C28 (2 lane) + lượt nghiệm thu `eeda563`, nối web `c2c3043`; xem [báo cáo nghiệm thu](reports/2026-09-17-p19-g-i-acceptance.md) |
 | 19.H sandbox + tích hợp | **XONG phần web** | route, ô danh mục, sandbox, plugin OJ, ô Playwright AC-H. Đợt 3 vá bộ chấm OJ chấm bản CHƯA GHÉP |
 | 19.I lý thuyết + tài liệu | **XONG** | `64bd191` — 21 bài phủ 28 level, `docs/games/cicd.md`; AC-I đo trên image `runner` theo file cụ thể |
+| 19.J chế độ làm bài OJ | **XONG** | PR #146 — action chở ba mảnh, `CicdProblemSpec.cd`, màn làm bài, ô e2e trong `e2e:ci`, hai bài seed. Xem "19.J — kết quả" bên dưới |
+| **Nghiệm thu cả chặng (§3)** | **ĐẠT 10/10** | [báo cáo đóng chặng](reports/2026-09-17-p19-closing-acceptance.md) — AC-1..AC-10 đều có phép đo, kèm một phép đo SAI đã sửa (AC-10 đọc nhầm `/app` thay vì `/repo`) |
 
 **Đợt 2 đóng xong 19.C.4 + 19.E + 19.H.** 14 level của 19.F nay chơi được ở `/games/cicd`, và
 bài OJ cho `gameId: 'cicd'` soạn được qua `/author/problems`.
@@ -158,8 +160,9 @@ Chế độ làm bài OJ của game CI/CD đã mở. Bảy trong tám ô AC có 
 
 | # | Việc | Vì sao chưa làm |
 |---|---|---|
-| 1 | Ô e2e SOẠN một bài CI/CD qua `/author/problems` | `problems.create` là `authorProcedure`; vai trò đầu tiên chỉ đặt được bằng `promote-role.sh` (kubectl), thứ không chạy trong CI. Ô e2e hiện mở đề từ `CICD_PROBLEMS_SEED`. Đường soạn đề thuộc suite `@flow` |
-| 2 | `doKhoLevelMatThongTin` nay có BA bản sao | Bản thứ ba thêm ở `cicd-oj-level.ts`. Chỗ đúng là `packages/games/src/core/` cạnh `problemVerdictOf`; không đi vào phép chấm nên chưa chặn gì |
+| ~~1~~ | ~~`doKhoLevelMatThongTin` có BỐN bản sao~~ | **XONG** — gộp về `core/problem.ts` cạnh `problemVerdictOf` (`replay.ts` tái xuất để `replay.test.ts` không phải đổi import). Bốn chứ không ba: `replay.ts`, `k8s-arena/`, `games/git/`, `games/cicd/` |
+| ~~2~~ | ~~Chưa đo được đường SOẠN một bài CI/CD~~ | **XONG phần đo được** — `save-cicd-problem.integration.test.ts`: body → biên ghi Zod → Postgres → đọc lại → CHẤM, chạy trong CI. Phần giao diện: xem mục 3 |
+| 3 | ⛔ **Ô chọn vị từ của trang soạn bài chỉ biết K8s** | ĐO 2026-09-17 bằng một lượt `@flow` chạy thật: lưu bài CI/CD dừng ở *"Chưa chọn vị từ kiểm tra"*. `importProblemJson` giữ nguyên `check` (đo riêng), thứ đánh rơi là ô chọn: `objective-fields.tsx:154` dựng danh sách bằng `PREDICATE_NAMES` (riêng K8s), và `predicate-spec.ts:37` khai `PREDICATE_SPECS` là `Record<PredicateName, …>`. **Game Git cũng dính** — có từ 18.D, đợt đó chỉ mở đa-game ở BIÊN GHI. Sửa đòi một bảng đặc tả tham số theo từng game, tức một ô mới trong hợp đồng `GameProblemPlugin`. Ô `@flow` để ở `test.fixme` kèm bằng chứng |
 
 ### Cách chạy lượt e2e của màn này
 
