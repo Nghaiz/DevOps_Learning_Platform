@@ -1,6 +1,9 @@
 # 19.G — Tiến độ triển khai nội dung chương CD, 2026-09-17
 
 **Trạng thái:** đã viết và gộp đủ 14 level C15–C28; chưa nghiệm thu AC-G.
+
+> **Cập nhật cùng ngày:** AC-G đã nghiệm thu, mâu thuẫn `minGreenRate` đã giải, chương CD đã nối
+> vào web — xem [`2026-09-17-p19-g-i-acceptance.md`](2026-09-17-p19-g-i-acceptance.md).
 **Phạm vi:** 14 level C15–C28 theo [phase-19-g-lanes.md](../phase-19-g-lanes.md) và
 [phase-19.md](../phase-19.md), giữ nguyên hợp đồng engine.
 

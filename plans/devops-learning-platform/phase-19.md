@@ -37,9 +37,9 @@
 | 19.D tầng 3D | chưa bắt đầu | — |
 | 19.E giao diện soạn YAML | **XONG (E.1–E.5)** | đợt 2 — kèm tầng ghép `cicd/hydrate.ts`, thứ plan không dự liệu |
 | 19.F chương CI, 14 level | **XONG** | PR #139 (`e0f4ed9`, `824ee8b`, `2d8fce5`) |
-| 19.G chương CD | **ĐÃ VIẾT C15–C28, chưa nghiệm thu** | 2 lane: C15–C21 và C22–C28; xem [báo cáo 2026-09-17](reports/2026-09-17-p19-g-implementation.md). Không chạy test/smoke hay lệnh xác minh trong lượt này theo yêu cầu chủ dự án |
+| 19.G chương CD | **XONG, đã nghiệm thu AC-G** | 14 level C15–C28 (2 lane) + lượt nghiệm thu `eeda563`, nối web `c2c3043`; xem [báo cáo nghiệm thu](reports/2026-09-17-p19-g-i-acceptance.md) |
 | 19.H sandbox + tích hợp | **XONG phần web** | route, ô danh mục, sandbox, plugin OJ, ô Playwright AC-H. Đợt 3 vá bộ chấm OJ chấm bản CHƯA GHÉP |
-| 19.I lý thuyết + tài liệu | chưa bắt đầu | `content/games/cicd/` và `docs/games/cicd.md` chưa tồn tại |
+| 19.I lý thuyết + tài liệu | **XONG** | `64bd191` — 21 bài phủ 28 level, `docs/games/cicd.md`; AC-I đo trên image `runner` theo file cụ thể |
 
 **Đợt 2 đóng xong 19.C.4 + 19.E + 19.H.** 14 level của 19.F nay chơi được ở `/games/cicd`, và
 bài OJ cho `gameId: 'cicd'` soạn được qua `/author/problems`.
@@ -342,14 +342,14 @@ của cả 14 level chạy được và cho AC.
 **Lượt triển khai 2026-09-17:** thực hiện nội dung C15–C28 theo
 [`phase-19-g-lanes.md`](phase-19-g-lanes.md), chia 2 lane C15–C21 và C22–C28. Hợp đồng engine
 được giữ nguyên; nếu một level cần mở rộng hợp đồng thì ghi nhận riêng, không tự sửa.
-Trạng thái hiện tại là **đang triển khai, chưa nghiệm thu AC-G**. Chủ dự án yêu cầu bỏ pha test,
-không chạy test, smoke test hay lệnh xác minh trong lượt này; vì vậy không có bằng chứng nghiệm
-thu mới. Tiến độ và việc còn lại được ghi tại
-[`reports/2026-09-17-p19-g-implementation.md`](reports/2026-09-17-p19-g-implementation.md).
+Lượt viết không chạy test (theo yêu cầu chủ dự án lúc đó); lượt nghiệm thu cùng ngày chạy đủ và
+**AC-G đạt** — xem [`reports/2026-09-17-p19-g-i-acceptance.md`](reports/2026-09-17-p19-g-i-acceptance.md).
+Chốt 2026-09-17 (chủ dự án): level có commit bị từ chối duyệt có chủ ý (C17, C27) được đặt
+`minGreenRate: 0`, vì `score.ts` đếm LƯỢT xanh; ô test chỉ miễn trừ đúng những level đó.
 
-**Tích hợp web còn lại:** đọc mã nguồn cho thấy màn web vẫn nhập `CI_LEVELS` và chưa có nơi
-tiêu thụ cheatsheet `cd-panel`. Nối chương CD và bảng điều khiển CD vào web là việc tiếp nối
-riêng; nội dung level được thêm trong lượt này chưa đồng nghĩa với chương CD chơi được trên web.
+**Tích hợp web: XONG** (`c2c3043`). Danh mục, route và màn chơi đọc `CICD_LEVELS`; bảng núm CD
+chỉ hiện núm trong `cd.editable`; `runWorkflow` chạy ba bộ mô phỏng sau engine và có nhánh
+`cd-error` riêng. Cheatsheet `cd-panel` đã render từ đợt 3.
 
 ### 19.H — Sandbox + tích hợp (M, ~2 ngày)
 
