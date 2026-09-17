@@ -1296,13 +1296,25 @@ export const CICD_PREDICATE_NAMES = [
   'badReleasePromotedAtMost',
   /** Số lượt hủy nhầm bản ứng viên TỐT tối đa. args: `{ max }` */
   'goodReleaseAbortedAtMost',
-  /** Không lượt nào lùi vào một migration không lùi được. args: `{}` */
+  /**
+   * Không lượt nào lùi vào một migration không lùi được. args: `{}`
+   *
+   * ⚠ Đạt được bằng cách KHÔNG BAO GIỜ rút bản xấu. Level dùng nó phải ghép kèm
+   * `badReleasePromotedAtMost` (hoặc `rollbackUnder`), nếu không mục tiêu dạy
+   * ngược: "đừng xử lý sự cố thì không có sự cố dữ liệu".
+   */
   'noDataIncident',
   /** Số máy chạy cùng lúc cao nhất, qua mọi lượt, không vượt. args: `{ max }` */
   'peakInstancesAtMost',
   /** Đoạn lệch dài nhất trên trường `field` ngắn hơn ngưỡng, giây. args: `{ field, seconds }` */
   'driftLongestUnder',
-  /** Số lần tự sửa giành nhau với một bộ điều khiển tối đa. args: `{ max }` */
+  /**
+   * Số lần tự sửa giành nhau với một bộ điều khiển tối đa. args: `{ max }`
+   *
+   * ⚠ Đạt được bằng cách TẮT tự sửa. Level dạy C25 phải ghép kèm
+   * `driftLongestUnder` trên một trường KHÔNG do bộ điều khiển quản, để "tắt hẳn"
+   * không phải lời giải.
+   */
   'selfHealFightsAtMost',
   /** Số mục rò bí mật trong log tối đa. args: `{ max }` */
   'secretLeaksAtMost',

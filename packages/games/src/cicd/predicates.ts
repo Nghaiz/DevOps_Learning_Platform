@@ -78,6 +78,7 @@ import {
 } from './release.ts';
 import { criticalPath } from './critical-path.ts';
 import { findCycle } from './graph.ts';
+import { idDict } from './id-dict.ts';
 import { scoreAxes } from './score.ts';
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -199,7 +200,7 @@ function stageById(workflow: WorkflowSpec, id: StageId): StageSpec | undefined {
  * `validateGraph` mới là chỗ báo cạnh treo.
  */
 function dependsOnTransitively(workflow: WorkflowSpec, from: StageId, target: StageId): boolean {
-  const seen: Record<StageId, true> = {};
+  const seen: Record<StageId, true> = idDict();
   const stack: StageId[] = [from];
   while (stack.length > 0) {
     const current = stack.pop();
@@ -253,11 +254,11 @@ function stepsDeclaringCache(
   workflow: WorkflowSpec,
   cache: CacheId,
 ): Readonly<Record<StageId, Readonly<Record<StepId, true>>>> {
-  const out: Record<StageId, Record<StepId, true>> = {};
+  const out: Record<StageId, Record<StepId, true>> = idDict();
   for (const stage of workflow.stages) {
     for (const step of stage.steps) {
       if (step.cache?.id === cache) {
-        out[stage.id] ??= {};
+        out[stage.id] ??= idDict<true>();
         (out[stage.id] as Record<StepId, true>)[step.id] = true;
       }
     }
@@ -625,14 +626,19 @@ const stageNonBlocking: CicdPredicate = (ctx, args) => {
 /**
  * 19.B.2 — thăng hạng, đừng dựng lại.
  *
- * Mỗi commit của mỗi lượt: lần phát hành CUỐI vào `from` và lần phát hành CUỐI
- * vào `to` (theo thứ tự `deploymentsOf`) phải mang cùng danh tính cho `output`.
- * "Cuối" vì một môi trường chỉ chạy một bản ở một thời điểm, và bản đó là bản
- * lên sau cùng.
+ * Mỗi commit của mỗi lượt có phát hành `output` vào `to`: lần phát hành CUỐI vào
+ * `to` phải có một lần phát hành vào `from` XONG TRƯỚC hoặc cùng lúc nó, stage
+ * phát hành `to` phải phụ thuộc (bắc cầu) vào stage phát hành `from` đó, và hai
+ * bên cùng danh tính.
  *
- * Luật 4: phải có ÍT NHẤT một commit phát hành `output` vào CẢ HAI môi trường —
- * không thì xoá hẳn stage prod cũng thoả. Một commit chỉ tới được một môi
- * trường (prod bị chặn vì staging đỏ) thì không có gì để so và được bỏ qua.
+ * ⚠ Bản đầu chỉ so danh tính khi CẢ HAI cùng có mặt, và bỏ qua mọi commit còn lại.
+ * Review PR #141 đo ra hai đường lọt: staging và prod chạy SONG SONG (prod xong ở
+ * tick 6, staging ở tick 35) vẫn đạt, và một commit lên prod mà staging đỏ bị lặng
+ * lẽ bỏ qua. "Thăng hạng" nghĩa là bản ở `to` ĐÃ đi qua `from`; lên `to` mà chưa
+ * qua `from` là trượt, không phải "không có gì để so".
+ *
+ * Luật 4: phải có ÍT NHẤT một commit phát hành vào `to` — không thì xoá hẳn stage
+ * prod cũng thoả.
  */
 const promotedArtifactUnchanged: CicdPredicate = (ctx, args) => {
   const output = argString(args, 'output');
@@ -642,13 +648,16 @@ const promotedArtifactUnchanged: CicdPredicate = (ctx, args) => {
   let soSanh = 0;
   for (const pass of ctx.record.passes) {
     for (const run of pass.runs) {
-      const phatHanh = deploymentsOf(run, ctx.workflow);
-      const banO = (env: string) =>
-        phatHanh.filter((d) => d.environment === env).at(-1)?.artifacts.find((a) => a.output === output)?.artifact;
-      const a = banO(from);
-      const b = banO(to);
-      if (a === undefined || b === undefined) continue;
-      if (a !== b) return false;
+      const phatHanh = deploymentsOf(run, ctx.workflow).filter((d) => d.artifacts.some((a) => a.output === output));
+      const banTo = phatHanh.filter((d) => d.environment === to).at(-1);
+      if (banTo === undefined) continue;
+      const banFrom = phatHanh
+        .filter((d) => d.environment === from && d.finishedTick <= banTo.finishedTick)
+        .at(-1);
+      if (banFrom === undefined) return false;
+      if (!dependsOnTransitively(ctx.workflow, banTo.stageId, banFrom.stageId)) return false;
+      const artifactOf = (d: typeof banTo) => d.artifacts.find((a) => a.output === output)?.artifact;
+      if (artifactOf(banFrom) !== artifactOf(banTo)) return false;
       soSanh += 1;
     }
   }
@@ -656,21 +665,60 @@ const promotedArtifactUnchanged: CicdPredicate = (ctx, args) => {
 };
 
 /**
- * 19.B.3 — mọi đường vào `environment` phải đi qua một cổng đủ người duyệt.
+ * 19.B.3 — mọi đường vào `environment` phải đi qua một cổng đủ người duyệt, và
+ * cổng đó phải THẬT SỰ chặn được.
  *
- * Đọc ĐỒ THỊ, không đọc bản ghi: câu hỏi là "đường ống có bắt buộc duyệt
- * không", và một commit được duyệt hay bị từ chối không đổi câu trả lời đó.
+ * Ba điều kiện, cả ba đo được là cần ở review PR #141:
+ *
+ * 1. Cổng là stage CÓ `approval` với ít nhất `reviewers` người, và `reviewers ≥ 1`.
+ *    Bản đầu đọc `(approval?.reviewers ?? 0) >= reviewers` nên `reviewers: 0` biến
+ *    MỌI stage phía trên thành "cổng", kể cả khi không có cổng nào.
+ * 2. Cổng và mọi stage NẰM GIỮA cổng và stage phát hành đều `blocking`. Engine cho
+ *    stage phía sau chạy qua một phụ thuộc đỏ không chặn — nên một cổng
+ *    `continue-on-error`, hay một stage không chặn đứng giữa, để bản bị từ chối
+ *    lên thẳng prod (đo: 4 lần phát hành prod với mọi commit bị từ chối).
+ * 3. Bản ghi không có lần phát hành nào vào `environment` trong một commit mà mọi
+ *    cổng canh nó đều đỏ. Đồ thị nói "có chặn", bản ghi xác nhận "đã chặn".
  */
+function gatesGuarding(workflow: WorkflowSpec, deployStage: StageId, reviewers: number): readonly StageSpec[] {
+  return workflow.stages.filter((gate) => {
+    if (gate.approval === undefined || gate.approval.reviewers < reviewers || !gate.blocking) return false;
+    if (!dependsOnTransitively(workflow, deployStage, gate.id)) return false;
+    return workflow.stages.every(
+      (between) =>
+        between.id === deployStage ||
+        between.id === gate.id ||
+        !dependsOnTransitively(workflow, deployStage, between.id) ||
+        !dependsOnTransitively(workflow, between.id, gate.id) ||
+        between.blocking,
+    );
+  });
+}
+
 const environmentGuardedByApproval: CicdPredicate = (ctx, args) => {
   const environment = argString(args, 'environment');
   const reviewers = argNumber(args, 'reviewers');
-  if (environment === null || reviewers === null) return false;
+  if (environment === null || reviewers === null || reviewers < 1) return false;
   const phatHanh = ctx.workflow.stages.filter((stage) => stage.environment === environment);
-  const cong = ctx.workflow.stages.filter((stage) => (stage.approval?.reviewers ?? 0) >= reviewers);
-  return (
-    phatHanh.length > 0 &&
-    phatHanh.every((stage) => cong.some((gate) => dependsOnTransitively(ctx.workflow, stage.id, gate.id)))
-  );
+  if (phatHanh.length === 0) return false;
+  const congTheoStage = new Map(phatHanh.map((stage) => [stage.id, gatesGuarding(ctx.workflow, stage.id, reviewers)]));
+  if ([...congTheoStage.values()].some((gates) => gates.length === 0)) return false;
+
+  for (const pass of ctx.record.passes) {
+    for (const run of pass.runs) {
+      for (const d of deploymentsOf(run, ctx.workflow)) {
+        if (d.environment !== environment) continue;
+        const gates = congTheoStage.get(d.stageId) ?? [];
+        const coCongQua = gates.some((gate) =>
+          run.instances
+            .filter((instance) => instance.stageId === gate.id)
+            .every((instance) => instance.attempts.at(-1)?.outcome === 'passed'),
+        );
+        if (!coCongQua) return false;
+      }
+    }
+  }
+  return true;
 };
 
 // ── Chương CD: đọc bản ghi của ba bộ mô phỏng ─────────────────────────────
