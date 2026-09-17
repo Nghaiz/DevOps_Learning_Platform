@@ -45,20 +45,34 @@
  *    cổng §18.G.3 cho kỳ thi `per-student` chạy trong khi mọi sinh viên nhận
  *    cùng một đề — đúng lời nói dối mà `core/problem-plugin.ts` cấm.
  *
- * 4. **Vị từ không chấm được ở OJ bị chặn ở `predicateNames`, không chỉ ở `grade`.**
- *    Khai một tên mà mọi lượt nộp sẽ `CE` là mời người soạn dựng một bài không ai
- *    giải được, không ai biết vì sao. Tập khai là tập ĐÃ TRỪ, suy ra từ dữ liệu,
- *    của hai danh sách: `UNIMPLEMENTED_CICD_PREDICATES` (rỗng từ 19.B) và
- *    `CD_SIMULATION_PREDICATES` — vị từ đọc bản ghi mô phỏng phát hành / GitOps /
- *    log, thứ bộ ba của bài OJ không chở. Hai vị từ CD đọc bản ghi ĐƯỜNG ỐNG
- *    (`promotedArtifactUnchanged`, `environmentGuardedByApproval`) thì khai được.
+ * 4. **Vị từ không chấm được bị chặn, nhưng ở HAI tầng khác nhau.**
+ *    Khai một tên mà mọi lượt nộp sẽ trượt là mời người soạn dựng một bài không
+ *    ai giải được, không ai biết vì sao. Hai loại "không chấm được", hai chỗ gác:
+ *
+ *    | Loại | Gác ở đâu | Vì sao ở đó |
+ *    |---|---|---|
+ *    | chưa có hiện thực (`UNIMPLEMENTED_CICD_PREDICATES`, rỗng từ 19.B) | `predicateNames` | đúng-sai với MỌI bài, nên một danh sách tĩnh nói đủ |
+ *    | cần kịch bản CD (`CD_PREDICATE_NEEDS`) | `grade`, theo từng bài | phụ thuộc bài CÓ khối `cd` nào; `predicateNames` không biết bài nào |
+ *
+ *    ⛔ ĐỔI Ở 19.J: trước đợt này tám vị từ CD bị trừ thẳng khỏi `predicateNames`,
+ *    vì bộ ba của bài OJ không chở kịch bản nào. `CicdProblemSpec.cd` nay chở,
+ *    nên lệnh cấm phẳng đó đã thành sai — nó khoá đúng nửa game mà chương CD mở
+ *    ra. Phép gác không mất đi, nó chuyển xuống `grade` và hỏi một câu hẹp hơn:
+ *    *bài NÀY có khối kịch bản mà vị từ NÀY đọc không.*
+ *
+ * 5. **Ba mảnh của một lượt nộp đi cùng nhau hoặc không đi** (19.J). `evaluate`
+ *    chở YAML + `overrides` + `cd`, vì cả ba đổi kết quả mô phỏng và chỉ mảnh đầu
+ *    đi qua văn bản. Ghép YAML của lượt này với núm của lượt kia là chấm một lượt
+ *    chơi chưa từng xảy ra — xem `luotNopCuoiCung`.
  */
 
 import type { AuthorField, GameProblemPlugin } from '../core/problem-plugin.ts';
 import type { GradeResult, Testcase } from '../core/problem.ts';
 import { problemVerdictOf, type ProblemFailureCode } from '../core/problem.ts';
-import type { CicdGameAction } from '../core/run-log.ts';
 import { CICD_PROBLEM_TOPICS } from '../problem-topic-labels.ts';
+import type { CicdGameAction } from './action.ts';
+import type { CicdCdPolicies, CicdLevelCd } from './cd-contract.ts';
+import { runLevelCd } from './cd-run.ts';
 import type {
   CicdObjective,
   CicdPredicateName,
@@ -68,11 +82,12 @@ import type {
 } from './contract.ts';
 import { CICD_PREDICATE_NAMES, DEFAULT_EVALUATION_PASSES, EDITABLE_PARTS } from './contract.ts';
 import { evaluate } from './engine.ts';
+import type { CicdPlayerOverrides } from './hydrate.ts';
 import { hydrateWorkflow } from './hydrate.ts';
 import { checkJobShapes } from './job-shapes.ts';
-import type { CicdScoringContext } from './predicates.ts';
+import type { CicdCdRecords, CicdScoringContext } from './predicates.ts';
 import {
-  CD_SIMULATION_PREDICATES,
+  CD_PREDICATE_NEEDS,
   UNIMPLEMENTED_CICD_PREDICATES,
   checkObjective,
   validateObjectiveArgs,
@@ -126,12 +141,30 @@ export const CICD_UNSEEDED_REPLAY_SEED = 1;
  * | `workflow` | NGƯỜI LÀM (qua YAML) | điểm xuất phát; cũng là thứ được chấm khi nhật ký rỗng |
  * | `workload` | người soạn | số máy chạy + dòng commit + đầu vào biến động; YAML không chở được |
  * | `evaluation` | người soạn | `baseSeed` + số lượt mô phỏng; quyết định tính lặp lại của điểm |
+ * | `cd` | người soạn | kịch bản chương CD + núm nào cho xoay; VẮNG ⇒ bài thuần CI |
  */
 export interface CicdProblemSpec {
   readonly workflow: WorkflowSpec;
   readonly workload: WorkloadSpec;
   readonly evaluation: EvaluationSpec;
+  /**
+   * Khối chương CD — 19.J.1.2. Vắng ⇒ bài thuần CI, và mọi vị từ CD bị từ chối
+   * lúc chấm (xem `gradeCicdProblem`).
+   *
+   * ⛔ Kiểu suy ra bằng `Omit`, KHÔNG gõ lại. Đây đúng là `CicdLevelCd` trừ hai
+   * trường lời giải, và một bản khai song song sẽ trôi khỏi bản gốc ở lần đầu
+   * tiên ai đó thêm một bộ mô phỏng thứ tư — im lặng, vì cả hai vẫn biên dịch.
+   *
+   * Vì sao trừ `solution`/`altSolution`: chúng là LỜI GIẢI của level, và một đề
+   * thi không chở lời giải. `problems.byCode` cắt `check`/`args` của testcase
+   * trước khi rời máy chủ (§18.B.4) chính vì lý do đó; để hai trường này ở lại
+   * sẽ gửi thẳng đáp án CD xuống trình duyệt qua đúng đường vừa bịt.
+   */
+  readonly cd?: CicdProblemCd;
 }
+
+/** Xem `CicdProblemSpec.cd`. */
+export type CicdProblemCd = Omit<CicdLevelCd, 'solution' | 'altSolution'>;
 
 /**
  * Bộ ba nhỏ nhất mà `evaluate()` chạy tới nơi, và người soạn nhìn vào là hiểu
@@ -199,14 +232,19 @@ function specBanDau(): CicdProblemSpec {
  * `problem-plugin.test.ts` ghim CẢ HAI chiều: tập này cộng tập chưa-hiện-thực
  * phủ đúng bảng `CICD_PREDICATES`, VÀ tập này không chứa tên nào chưa hiện thực.
  *
- * ⚠ Trừ thêm `CD_SIMULATION_PREDICATES` (19.B): chúng CHẤM ĐƯỢC, nhưng đọc bản ghi
- * của bộ mô phỏng phát hành / GitOps / log, mà bộ ba của bài OJ không chở kịch bản
- * nào. Khai chúng là mời một bài mọi lượt nộp đều trượt.
+ * ⛔ ĐỔI Ở 19.J.1.4: tám vị từ `CD_SIMULATION_PREDICATES` nay **khai được**.
+ * Bản trước trừ chúng ra vì bộ ba của bài OJ không chở kịch bản CD nào; nay
+ * `CicdProblemSpec.cd` chở, nên một lệnh cấm phẳng ở đây sẽ khoá đúng nửa game
+ * mà chương CD vừa mở ra.
+ *
+ * Phép gác KHÔNG biến mất, nó ĐỔI CHỖ và đổi hình dạng: từ "cấm mọi bài" thành
+ * "cấm bài THIẾU khối `cd` tương ứng", cưỡng chế ở `gradeCicdProblem` qua
+ * `CD_PREDICATE_NEEDS`. Đây là điều kiện phụ thuộc bài, mà `predicateNames` là
+ * một danh sách tĩnh không biết gì về một bài cụ thể — nên nó không thể là chỗ
+ * gác, và giả vờ nó gác được là cách mất phép gác.
  */
 export const CICD_IMPLEMENTED_PREDICATE_NAMES: readonly CicdPredicateName[] =
-  CICD_PREDICATE_NAMES.filter(
-    (name) => !UNIMPLEMENTED_CICD_PREDICATES.includes(name) && !CD_SIMULATION_PREDICATES.includes(name),
-  );
+  CICD_PREDICATE_NAMES.filter((name) => !UNIMPLEMENTED_CICD_PREDICATES.includes(name));
 
 // ── Form soạn `initialState` ────────────────────────────────────────────────
 
@@ -252,6 +290,25 @@ export const CICD_AUTHOR_FIELDS: readonly AuthorField[] = [
     label: 'Cấu hình chấm',
     help: 'Hạt giống gốc và số lượt mô phỏng. Cùng hạt giống cho cùng kết quả, từng byte.',
     required: true,
+  },
+  {
+    /*
+     * Ô THỨ TƯ, và là ô duy nhất KHÔNG bắt buộc (19.J.2.1): một bài thuần CI bỏ
+     * trống nó, và đó là trạng thái đúng chứ không phải một ô chưa điền.
+     *
+     * `json` vì cùng lý do ba ô trên: `ReleaseScenario` có mười ba trường số,
+     * `GitOpsScenario` chứa một mảng thay đổi mỗi cái bốn trường, và `editable`
+     * là một tập con của một hằng tám phần tử. Một biểu mẫu trực quan cho ngần
+     * ấy sẽ hỏng trước khi hữu ích — đúng lời `core/problem-plugin.ts` đã ghi.
+     */
+    kind: 'json',
+    path: 'cd',
+    label: 'Chương CD (tuỳ chọn)',
+    help:
+      'Kịch bản phát hành / GitOps / che bí mật, kèm "editable" (núm cho xoay) và "initial" ' +
+      '(chính sách khởi điểm). Bỏ trống nếu bài chỉ dạy CI. Vị từ CD chỉ chấm được khi khối ' +
+      'tương ứng có mặt ở đây.',
+    required: false,
   },
 ];
 
@@ -351,7 +408,6 @@ export function gradeCicdProblem(input: {
 
   const known: readonly string[] = CICD_PREDICATE_NAMES;
   const chuaHienThuc: readonly string[] = UNIMPLEMENTED_CICD_PREDICATES;
-  const canMoPhong: readonly string[] = CD_SIMULATION_PREDICATES;
   for (const testcase of testcases) {
     if (!known.includes(testcase.check)) {
       return compileError(`testcase "${testcase.id}" gọi vị từ không tồn tại: "${testcase.check}"`);
@@ -369,10 +425,20 @@ export function gradeCicdProblem(input: {
           '(chương CD chưa lên), nên không bài nào chấm bằng nó được',
       );
     }
-    if (canMoPhong.includes(testcase.check)) {
+    /*
+     * Cổng 19.J.1.4 — vị từ CD chỉ mở khi bài CÓ đúng khối kịch bản nó đọc.
+     *
+     * Chặn ở đây, TRƯỚC khi mô phỏng, chứ không để vị từ trả `false` lúc chấm:
+     * thiếu bản ghi thì mọi vị từ CD trả `false` một cách im lặng, nên một bài
+     * soạn thiếu khối `cd` sẽ đọc ra thành "chưa ai giải nổi bài này" thay vì
+     * "bài này soạn hỏng". Hai chẩn đoán đó dẫn tới hai hành động trái ngược.
+     */
+    const canKhoi = CD_PREDICATE_NEEDS[testcase.check as CicdPredicateName];
+    if (canKhoi !== undefined && initialState.cd?.[canKhoi] === undefined) {
       return compileError(
-        `testcase "${testcase.id}" gọi vị từ "${testcase.check}" — vị từ này đọc bản ghi mô phỏng ` +
-          'phát hành / GitOps / log của chương CD, mà bài OJ chưa chở kịch bản nào, nên không chấm được',
+        `testcase "${testcase.id}" gọi vị từ "${testcase.check}" — vị từ này đọc bản ghi của bộ mô ` +
+          `phỏng "${canKhoi}", mà bài không khai khối "cd.${canKhoi}". Thêm kịch bản đó vào đề, ` +
+          'hoặc chấm bằng một vị từ khác',
       );
     }
     const loiThamSo = validateObjectiveArgs(asObjective(testcase));
@@ -397,12 +463,12 @@ export function gradeCicdProblem(input: {
    */
   let ctx: CicdScoringContext;
   try {
-    const nguon = nguonCuoiCung(actions);
+    const cuoi = luotNopCuoiCung(actions);
     let workflow: WorkflowSpec;
-    if (nguon === null) {
+    if (cuoi === null) {
       workflow = initialState.workflow;
     } else {
-      const doc = readWorkflowYaml(nguon);
+      const doc = readWorkflowYaml(cuoi.source);
       if (!doc.ok) {
         /*
          * Chuyển tiếp NGUYÊN VẸN dòng + cột của từng lỗi. `yaml-read.ts` đã giữ
@@ -427,9 +493,13 @@ export function gradeCicdProblem(input: {
        *
        * Bài OJ không có level, nên `initialState.workflow` đóng cả hai vai —
        * đúng lối bàn thử của 19.H — và mọi phần mở: bài không khai `editable`.
-       * `retries`/`cache` KHÔNG vào được đây vì `CicdGameAction.evaluate` chỉ chở
-       * YAML; bản nộp nhận giá trị của bài. Đó là câu còn mở, ghi ở phase-19.md
-       * §0b "Đợt 3", phải quyết trước ngày mở chế độ làm bài CI/CD.
+       *
+       * ✅ KHE ĐÃ ĐÓNG (19.J.1.3). Câu cũ ở đây ghi *"`retries`/`cache` KHÔNG vào
+       * được đây vì `CicdGameAction.evaluate` chỉ chở YAML"*. Nay action chở
+       * `overrides`, và chúng đi thẳng vào `hydrateWorkflow` dưới đây — đúng cùng
+       * một đường mà màn chơi level dùng (`components/games/cicd/cicd-run.ts`).
+       * Không có bước này thì bảng núm trên màn làm bài là một bảng núm giả: xoay
+       * hay không xoay đều ra cùng một verdict.
        */
       /*
        * ⛔ KHUÔN JOB trước khi ghép (`job-shapes.ts`). Bài OJ chỉ có một workflow
@@ -452,11 +522,53 @@ export function gradeCicdProblem(input: {
         doc.workflow,
         { baseline: initialState.workflow, catalogue: initialState.workflow },
         EDITABLE_PARTS,
+        cuoi.overrides,
       );
+    }
+
+    /*
+     * Chương CD — 19.J.1.3. Bài không khai khối `cd` ⇒ `cd` của ngữ cảnh VẮNG,
+     * và mọi vị từ CD đã bị cổng ở vòng trên từ chối, nên không có đường nào
+     * chấm một bài CD bằng một bản ghi rỗng.
+     *
+     * ⛔ `runLevelCd` gọi `mergeCdPolicies` BÊN TRONG nó — đó là lý do ta gửi
+     * chính sách người làm NGUYÊN VẸN chứ không tự khoá trước. Phần không nằm
+     * trong `cd.editable` luôn lấy từ `cd.initial`, bất kể lượt nộp gửi gì. Đây
+     * là phép gác thật của AC-J4: thiếu nó, một bài "tìm đúng ngưỡng canary"
+     * giải được bằng cách sửa luôn kịch bản.
+     */
+    let cdRecords: CicdCdRecords | null = null;
+    if (initialState.cd !== undefined) {
+      const daGui: CicdCdPolicies = cuoi?.cd ?? {};
+      /*
+       * `CicdProblemCd` là `CicdLevelCd` TRỪ hai trường lời giải, mà `runLevelCd`
+       * đòi bản đầy đủ. Hai trường thiếu KHÔNG được đọc trong đó (`cd-run.ts` chỉ
+       * chạm `release`/`gitops`/`masking`/`editable`/`initial`), nên đắp vào bằng
+       * `{}` là trung thực chứ không phải bịa: một đề thi không có lời giải, và
+       * đây là chỗ nói ra điều đó thay vì im lặng ép kiểu.
+       */
+      const run = runLevelCd({ ...initialState.cd, solution: {}, altSolution: {} }, daGui);
+      if (!run.ok) {
+        /*
+         * Bộ mô phỏng NÉM vì giá trị ngoài miền (ví dụ canary weight 0). Đó là
+         * một bài làm SAI, không phải một bài soạn hỏng — cùng lý lẽ với đồ thị
+         * có chu trình (quyết định 2 ở đầu file). Trả `CE` ở đây sẽ nói với người
+         * làm rằng đề hỏng trong khi chính họ vừa nhập một con số không hợp lệ.
+         */
+        return {
+          verdict: problemVerdictOf(0, testcases.length),
+          passed: [],
+          total: testcases.length,
+          failedReason: null,
+          failedCode: null,
+        };
+      }
+      cdRecords = run.records;
     }
 
     ctx = {
       workflow,
+      ...(cdRecords === null ? {} : { cd: cdRecords }),
       /*
        * Hạt giống lấy từ BÀI (`evaluation.baseSeed`), không phải từ `seed` của
        * lượt nộp. Đó là điều kiện để hai lượt nộp cùng một workflow cho cùng
@@ -490,20 +602,35 @@ export function gradeCicdProblem(input: {
   };
 }
 
+/** Ba mảnh của một lượt nộp, tách khỏi union để chỗ dùng không phải hỏi lại `kind`. */
+interface LuotNop {
+  readonly source: string;
+  readonly overrides: CicdPlayerOverrides;
+  readonly cd: CicdCdPolicies | null;
+}
+
 /**
- * Bản YAML của hành động `evaluate` CUỐI CÙNG, hoặc `null` khi không có.
+ * Hành động `evaluate` CUỐI CÙNG, hoặc `null` khi không có.
+ *
+ * ⛔ Trả CẢ BA mảnh, không riêng YAML (19.J.1.3). Bản trước trả `string` và
+ * chính chữ ký đó là chỗ `overrides`/`cd` không có đường đi tiếp: một hàm trả
+ * một chuỗi thì người gọi không thể ghép cái nó không nhận được.
+ *
+ * ⚠ Ba mảnh phải đến từ CÙNG một hành động. Lấy YAML của lượt cuối rồi ghép với
+ * núm của một lượt khác là chấm một lượt chơi chưa từng xảy ra — nên gom chúng
+ * thành một object ở đây thay vì ba vòng quét riêng.
  *
  * Vòng lặp xuôi gán đè chứ không `findLast`: cùng kết quả, và nó đọc ra ngay
  * rằng thứ tự nhật ký là thứ tự thời gian. Xem khối "WORKFLOW NÀO ĐƯỢC CHẤM".
  */
-function nguonCuoiCung(actions: readonly CicdGameAction[]): string | null {
-  let nguon: string | null = null;
+function luotNopCuoiCung(actions: readonly CicdGameAction[]): LuotNop | null {
+  let cuoi: LuotNop | null = null;
   for (const action of actions) {
     if (action.kind === 'evaluate') {
-      nguon = action.source;
+      cuoi = { source: action.source, overrides: action.overrides, cd: action.cd };
     }
   }
-  return nguon;
+  return cuoi;
 }
 
 // ── Plugin ──────────────────────────────────────────────────────────────────

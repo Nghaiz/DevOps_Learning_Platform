@@ -16,8 +16,10 @@
 import { describe, expect, it } from 'vitest';
 
 import type { GradeResult, Testcase } from '../core/problem.ts';
-import type { CicdGameAction } from '../core/run-log.ts';
+import type { CicdGameAction } from './action.ts';
+import type { CicdCdPolicies } from './cd-contract.ts';
 import type { StageId, StageSpec, WorkflowSpec } from './contract.ts';
+import type { CicdPlayerOverrides } from './hydrate.ts';
 import type { CicdProblemSpec } from './problem-plugin.ts';
 import {
   CICD_IMPLEMENTED_PREDICATE_NAMES,
@@ -25,7 +27,12 @@ import {
   CICD_PROBLEM_PLUGIN,
   gradeCicdProblem,
 } from './problem-plugin.ts';
-import { CD_SIMULATION_PREDICATES, CICD_PREDICATES, UNIMPLEMENTED_CICD_PREDICATES } from './predicates.ts';
+import {
+  CD_PREDICATE_NEEDS,
+  CD_SIMULATION_PREDICATES,
+  CICD_PREDICATES,
+  UNIMPLEMENTED_CICD_PREDICATES,
+} from './predicates.ts';
 import { writeWorkflowYaml } from './yaml-write.ts';
 
 // ── Dữ liệu dựng sẵn ────────────────────────────────────────────────────────
@@ -67,9 +74,27 @@ function specVoi(wf: WorkflowSpec): CicdProblemSpec {
   return { ...CICD_PROBLEM_PLUGIN.initialSpec(), workflow: wf };
 }
 
-/** Một lượt nộp: bản YAML của `wf`, đi qua đúng bộ ghi mà giao diện dùng. */
-function nop(wf: WorkflowSpec): CicdGameAction {
-  return { gameId: 'cicd', tick: 0, kind: 'evaluate', source: writeWorkflowYaml(wf).yaml };
+/**
+ * Một lượt nộp: bản YAML của `wf`, đi qua đúng bộ ghi mà giao diện dùng.
+ *
+ * Ba mảnh vì `evaluate` chở ba (19.J); `overrides`/`cd` mặc định là "chưa xoay
+ * núm nào" / "bài không có CD" — tức đúng thứ một lượt nộp trần trông như thế.
+ */
+function nop(
+  wf: WorkflowSpec,
+  extra: {
+    readonly overrides?: CicdPlayerOverrides;
+    readonly cd?: CicdCdPolicies | null;
+  } = {},
+): CicdGameAction {
+  return {
+    gameId: 'cicd',
+    tick: 0,
+    kind: 'evaluate',
+    source: writeWorkflowYaml(wf).yaml,
+    overrides: extra.overrides ?? {},
+    cd: extra.cd ?? null,
+  };
 }
 
 function cham(input: {
@@ -119,21 +144,43 @@ describe('định danh plugin', () => {
   });
 
   /*
-   * Ba ô `json` phẳng ở cấp cao nhất. Bắt được: ai đó đổi sang đường có dấu
-   * chấm (`evaluation.baseSeed`) — form của trang soạn bài đọc
-   * `props.value[field.path]` NGUYÊN VĂN, nên một đường như vậy tra ra
+   * BỐN ô `json` phẳng ở cấp cao nhất (ô `cd` thêm ở 19.J.2.1). Bắt được: ai đó
+   * đổi sang đường có dấu chấm (`evaluation.baseSeed`) — form của trang soạn bài
+   * đọc `props.value[field.path]` NGUYÊN VĂN, nên một đường như vậy tra ra
    * `undefined` và ô đó không bao giờ lưu được gì, im lặng.
    */
-  it('`authorFields` là ba khoá PHẲNG, khớp đúng ba mảnh của bộ ba', () => {
+  it('`authorFields` là bốn khoá PHẲNG, khớp đúng bốn mảnh của đề bài', () => {
     expect(CICD_PROBLEM_PLUGIN.authorFields.map((field) => field.path)).toEqual([
       'workflow',
       'workload',
       'evaluation',
+      'cd',
     ]);
     for (const field of CICD_PROBLEM_PLUGIN.authorFields) {
       expect(field.path).not.toContain('.');
       expect(field.label.length, field.path).toBeGreaterThan(0);
     }
+  });
+
+  /*
+   * ⛔ `cd` là ô DUY NHẤT không bắt buộc, và nó phải giữ nguyên như vậy.
+   *
+   * Bắt được: một lượt "cho nhất quán" đánh `required: true` lên cả bốn ô. Lúc
+   * đó mọi bài thuần CI — tức toàn bộ chương một, 14 màn — không lưu được nữa,
+   * và thông điệp lỗi sẽ đòi người soạn khai một kịch bản phát hành cho một bài
+   * dạy cache.
+   */
+  it('chỉ ô `cd` là tuỳ chọn; ba ô kia bắt buộc', () => {
+    const batBuoc = new Map(
+      CICD_PROBLEM_PLUGIN.authorFields.map((field) => [
+        field.path,
+        'required' in field ? field.required : null,
+      ]),
+    );
+    expect(batBuoc.get('workflow')).toBe(true);
+    expect(batBuoc.get('workload')).toBe(true);
+    expect(batBuoc.get('evaluation')).toBe(true);
+    expect(batBuoc.get('cd')).toBe(false);
   });
 });
 
@@ -142,20 +189,58 @@ describe('định danh plugin', () => {
 describe('predicateNames — khớp hiện thực CẢ HAI CHIỀU', () => {
   /*
    * Hợp đồng đòi đúng chữ này: *"mọi tên ở đây có hiện thực, VÀ mọi hiện thực
-   * có tên ở đây"*. Ở game này vế thứ hai có thêm một lớp: hai tên chương CD
-   * CÓ mặt trong bảng nhưng nhánh của chúng NÉM, nên chúng phải nằm ngoài tập
-   * khai được — mà vẫn phải được đếm, nếu không thì một vị từ biến mất khỏi
-   * bảng cũng không ai thấy.
+   * có tên ở đây"*.
+   *
+   * ⛔ Ô này ĐÃ ĐẢO ở 19.J, không phải ghim lại một con số mới. Bản trước cộng
+   * ba tập (`khai` + `chưa hiện thực` + `cần mô phỏng CD`) vì tám vị từ CD bị
+   * trừ khỏi tập khai. Nay chúng khai được, nên phép cộng đó sẽ ĐẾM ĐÔI tám tên
+   * và đỏ — và cách sửa ĐÚNG là bỏ vế thứ ba đi, không phải `new Set()` cho nó
+   * im: một `Set` ở đây sẽ nuốt luôn ca "một tên nằm ở cả hai danh sách", đúng
+   * cái mâu thuẫn mà ô này tồn tại để bắt.
    */
-  it('tập khai + tập chưa hiện thực + tập cần mô phỏng CD = đúng bảng `CICD_PREDICATES`', () => {
-    expect(
-      [...CICD_IMPLEMENTED_PREDICATE_NAMES, ...UNIMPLEMENTED_CICD_PREDICATES, ...CD_SIMULATION_PREDICATES].sort(),
-    ).toEqual(Object.keys(CICD_PREDICATES).sort());
+  it('tập khai + tập chưa hiện thực = đúng bảng `CICD_PREDICATES`', () => {
+    expect([...CICD_IMPLEMENTED_PREDICATE_NAMES, ...UNIMPLEMENTED_CICD_PREDICATES].sort()).toEqual(
+      Object.keys(CICD_PREDICATES).sort(),
+    );
   });
 
-  it('tập khai KHÔNG chứa vị từ cần bản ghi mô phỏng CD — bài OJ không chở kịch bản', () => {
-    const canMoPhong: readonly string[] = CD_SIMULATION_PREDICATES;
-    expect(CICD_IMPLEMENTED_PREDICATE_NAMES.filter((name) => canMoPhong.includes(name))).toEqual([]);
+  /*
+   * ⛔ ĐẢO của ô cũ *"tập khai KHÔNG chứa vị từ cần mô phỏng CD"*. Bài OJ nay
+   * CHỞ kịch bản (`CicdProblemSpec.cd`), nên vế cũ đã thành sai — giữ nó là
+   * khoá vĩnh viễn nửa CD của game khỏi chế độ làm bài.
+   *
+   * Bắt được: một lượt lùi đưa bộ lọc `CD_SIMULATION_PREDICATES` trở lại
+   * `CICD_IMPLEMENTED_PREDICATE_NAMES`. Lúc đó trang soạn bài lặng lẽ mất tám
+   * lựa chọn, và không gì đỏ ngoài ô này.
+   */
+  it('tập khai CHỨA đủ tám vị từ CD — chúng chấm được khi bài có kịch bản', () => {
+    const khai: readonly string[] = CICD_IMPLEMENTED_PREDICATE_NAMES;
+    expect(CD_SIMULATION_PREDICATES.filter((name) => !khai.includes(name))).toEqual([]);
+  });
+
+  /*
+   * Bảng gác của 19.J.1.4 phải phủ ĐÚNG tập vị từ CD, hai chiều.
+   *
+   * Thiếu một tên: vị từ đó đi qua cổng mà không ai hỏi nó cần khối nào, rồi trả
+   * `false` ở mọi lượt nộp — bài không giải được, không gì đỏ. Thừa một tên:
+   * cổng đòi một khối kịch bản cho một vị từ không đọc khối nào, tức từ chối
+   * những bài hoàn toàn hợp lệ.
+   */
+  it('`CD_PREDICATE_NEEDS` phủ đúng `CD_SIMULATION_PREDICATES`, không thiếu không thừa', () => {
+    expect(Object.keys(CD_PREDICATE_NEEDS).sort()).toEqual([...CD_SIMULATION_PREDICATES].sort());
+  });
+
+  /*
+   * Và mọi giá trị phải là một khối `cd` CÓ THẬT. Bắt được: một lỗi gõ
+   * (`'realease'`) làm cổng đòi một khối không bao giờ tồn tại, tức chặn sạch
+   * mọi bài dùng vị từ đó — im lặng, vì chuỗi nào cũng biên dịch nếu kiểu nới.
+   */
+  it('mọi khối `CD_PREDICATE_NEEDS` trỏ tới là một trong ba bộ mô phỏng', () => {
+    expect([...new Set(Object.values(CD_PREDICATE_NEEDS))].sort()).toEqual([
+      'gitops',
+      'masking',
+      'release',
+    ]);
   });
 
   /*
@@ -433,6 +518,8 @@ describe('bài không chấm được thì nói ra', () => {
       tick: 0,
       kind: 'evaluate',
       source: ['ten: mot', '---', 'ten: hai'].join('\n'),
+      overrides: {},
+      cd: null,
     };
     const ket = cham({ initialState: BAI, actions: [hong], testcases: [CO_CLONE] });
     expect(ket.verdict).toBe('CE');

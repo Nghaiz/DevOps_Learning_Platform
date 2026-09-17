@@ -33,12 +33,24 @@ export type {
   GameAction,
   GameActionBase,
   GameActionKind,
-  CicdGameAction,
+  CicdActionShape,
+  CicdCdPoliciesLike,
+  CicdOverridesLike,
   GitGameAction,
   K8sActionShape,
   ResourceRefLike,
   RunLog,
 } from './core/run-log.ts';
+
+/**
+ * ⚠ `CicdGameAction` ra khỏi khối trên ở 19.J và KHÔNG phải một lần dọn tên.
+ *
+ * `core/run-log.ts` nay chỉ khai dạng MỞ (`CicdActionShape`); bản đóng — dạng
+ * mang `CicdPlayerOverrides` + `CicdCdPolicies` thật — sống ở `cicd/action.ts`,
+ * vì `core/` không được nhập từ thư mục game. Tên xuất ra ngoài barrel giữ
+ * NGUYÊN, nên không consumer nào phải sửa import.
+ */
+export type { CicdGameAction, CicdRunLog } from './cicd/action.ts';
 
 export type {
   ChaosWave,
@@ -454,6 +466,23 @@ export {
  */
 export { K8S_UNSEEDED_REPLAY_SEED } from './k8s/problem-plugin.ts';
 export { GIT_UNSEEDED_REPLAY_SEED } from './git/problem-plugin.ts';
+export { CICD_UNSEEDED_REPLAY_SEED } from './cicd/problem-plugin.ts';
+
+/*
+ * Hình dạng đề bài CI/CD — 19.J. Trang soạn bài (`app/author/problems/`) và màn
+ * làm bài (`components/games/cicd/cicd-problem.tsx`) đều dựng đúng bộ này, nên
+ * không bên nào được gõ lại hình dạng của nó.
+ */
+export type { CicdProblemCd, CicdProblemSpec } from './cicd/problem-plugin.ts';
+
+/*
+ * Bảng "vị từ CD nào cần khối kịch bản nào". Xuất ra vì cổng lúc LƯU
+ * (`server/problems/validate.ts`, 19.J.2.2) phải hỏi đúng câu mà bộ chấm hỏi —
+ * hai bản chép tay của cùng một bảng sẽ trôi, và chỗ trôi sẽ là một bài lưu
+ * được nhưng không chấm được.
+ */
+export { CD_PREDICATE_NEEDS } from './cicd/predicates.ts';
+export type { CdSimulatorKind } from './cicd/predicates.ts';
 
 /*
  * `ProblemPluginRegistry` đã ở trên; không có tên phần tử thì consumer cầm được
