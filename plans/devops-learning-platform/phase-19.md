@@ -115,6 +115,7 @@ lượt review đối kháng có probe chạy thật tìm ra lỗ hổng chấm 
 | Ngưỡng canary "bằng không vượt" hỏng vì chia số thực | 7/100−24/400 lùi, 8/100−28/400 thăng | so nhân chéo bằng `BigInt` |
 | Định danh `constructor` | job tên đó làm `evaluate` ném; sản phẩm tên đó đỏ giả; ghi đè hàm `Object` toàn cục | `id-dict.ts`: từ điển không prototype + `ownValue` |
 | Núm cho stage bị xoá khỏi YAML không tác dụng; bật cache điền sẵn khoá của lời giải | | ghép cả stage trả lại; khoá mặc định rỗng |
+| "Chèn nhanh" trên ô soạn chưa đụng tới (lộ ra khi viết e2e cho #6, không phải từ review) | "Job mới" rơi ngay dưới `name:`, ngoài `jobs:` — lần dựng đầu `selectionStart` là 0, không phải cuối | thanh chèn nhớ phần tử ô soạn đã nhận focus; chưa focus thì chèn cuối |
 
 Đánh đổi đã chấp nhận của hai luật khuôn: cấu trúc job chỉ chọn được trong các phương án level
 khai; bài OJ (một workflow) không đổi được tập job hay dãy bước. Tác giả 19.G muốn một cách

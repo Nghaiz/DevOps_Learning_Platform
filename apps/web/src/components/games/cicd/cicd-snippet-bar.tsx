@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, type ReactElement, type RefObject } from 'react';
+import { useEffect, useMemo, useRef, type ReactElement, type RefObject } from 'react';
 import { Button } from '@devops-platform/ui';
 
 import { cicdSnippets, insertSnippetAt } from './cicd-snippets';
@@ -14,9 +14,12 @@ import { cicdSnippets, insertSnippetAt } from './cicd-snippets';
  * lần cuối nó có focus — nên đọc vị trí ngay trong trình xử lý click là đọc đúng
  * chỗ người dùng vừa đứng, kể cả người dùng Tab từ ô soạn sang nút.
  *
- * Chưa từng đụng tới ô soạn thì con trỏ nằm CUỐI văn bản: đặc tả HTML đưa con
- * trỏ về cuối mỗi khi `value` của `<textarea>` được gán bằng mã, và React gán
- * đúng như vậy. Nên "chưa đụng tới" tự rơi về hành vi chèn cuối, không cần cờ.
+ * Chưa từng đụng tới ô soạn thì chèn CUỐI văn bản — và việc này CẦN cờ. Đặc tả
+ * HTML chỉ đưa con trỏ về cuối khi `value` được gán một giá trị KHÁC giá trị đang
+ * có; lần dựng đầu văn bản đến từ HTML của server (hoặc `defaultValue`), nên
+ * `selectionStart` đứng ở 0. Tin nó thì "Job mới" rơi ngay dưới dòng `name:`,
+ * nằm ngoài `jobs:` — e2e #6 đo ra đúng như vậy trên Chromium. Cờ là CHÍNH phần
+ * tử đã nhận focus chứ không phải boolean: ô soạn dựng lại thì tự thành "chưa đụng".
  *
  * ## Focus trả về ô soạn
  *
@@ -34,10 +37,22 @@ export interface CicdSnippetBarProps {
 
 export function CicdSnippetBar({ runnerClassIds, editorRef, value, onInsert }: CicdSnippetBarProps): ReactElement {
   const snippets = useMemo(() => cicdSnippets(runnerClassIds), [runnerClassIds]);
+  const daFocus = useRef<EventTarget | null>(null);
+
+  useEffect(() => {
+    // Nghe ở document: ô soạn thuộc component khác và có thể dựng sau thanh này.
+    const ghiNhan = (event: FocusEvent): void => {
+      if (event.target !== null && event.target === editorRef.current) daFocus.current = event.target;
+    };
+    document.addEventListener('focusin', ghiNhan);
+    return () => {
+      document.removeEventListener('focusin', ghiNhan);
+    };
+  }, [editorRef]);
 
   const chen = (yaml: string): void => {
     const area = editorRef.current;
-    const cursor = area === null ? null : area.selectionStart;
+    const cursor = area !== null && daFocus.current === area ? area.selectionStart : null;
     const ket = insertSnippetAt(value, cursor, yaml);
     onInsert(ket.text);
     /*
