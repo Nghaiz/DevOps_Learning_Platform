@@ -14,7 +14,6 @@ import {
   type TheoryDoc,
 } from '@devops-platform/games';
 
-import { YamlEditor } from '../shared/yaml-editor';
 import { CicdCdPanel } from './cicd-cd-panel';
 import { CicdCheatsheet } from './cicd-cheatsheet';
 import { CicdOverridesPanel } from './cicd-overrides-panel';
@@ -23,9 +22,12 @@ import { formatNumber, formatSeconds, runWorkflow, type CicdRunOutcome } from '.
 import { CicdSnippetBar } from './cicd-snippet-bar';
 import type { CicdSceneInteraction, CicdSceneProps } from './scene-props';
 import { CicdAxesPanel } from './hud/cicd-axes-panel';
+import { CicdEditorDrawer } from './hud/cicd-editor-drawer';
 import { CicdField } from './hud/cicd-field';
 import { CicdHudPanel } from './hud/cicd-hud-panel';
+import { CicdInspector } from './hud/cicd-inspector';
 import { CicdMinimap } from './hud/cicd-minimap';
+import { CicdMissionCard } from './hud/cicd-mission-card';
 import { buildCicdScene, firstRun, sceneWorkflow } from './hud/cicd-scene-model';
 import { CicdTopBar, type CicdQualityTier } from './hud/cicd-top-bar';
 import { useHudPanels, type CicdPanelId } from './hud/use-hud-panels';
@@ -255,34 +257,28 @@ export function CicdLevelScreen({
           className="absolute top-3 left-1/2 -translate-x-1/2"
         />
 
-        {panels.state.editor ? (
-          <CicdHudPanel
-            title="Ô soạn workflow"
-            onClose={() => {
-              panels.close('editor');
-            }}
-            className="absolute inset-y-3 left-3 w-[min(30rem,42vw)]"
-            bodyClassName="flex flex-col gap-3 overflow-hidden"
-            testId="cicd-panel-editor"
-          >
-            <div className="flex min-h-0 flex-1 flex-col">
-              <YamlEditor
-                value={yaml}
-                onChange={setYaml}
-                ariaLabel={`Workflow YAML của màn ${level.title}`}
-                errorLines={errorLines}
-                showLineNumbers
-                textareaRef={editorRef}
-              />
-            </div>
+        <CicdEditorDrawer
+          open={panels.state.editor}
+          onOpen={() => {
+            panels.open('editor');
+          }}
+          onClose={() => {
+            panels.close('editor');
+          }}
+          yaml={yaml}
+          onYaml={setYaml}
+          ariaLabel={`Workflow YAML của màn ${level.title}`}
+          errorLines={errorLines}
+          textareaRef={editorRef}
+          footer={
             <CicdSnippetBar
               runnerClassIds={level.workload.runners.map((pool) => pool.id)}
               editorRef={editorRef}
               onInsert={setYaml}
               value={yaml}
             />
-          </CicdHudPanel>
-        ) : null}
+          }
+        />
 
         <div className="absolute inset-y-3 right-3 flex w-[min(26rem,38vw)] flex-col gap-3 overflow-y-auto">
           {panels.state.mission ? (
@@ -294,18 +290,12 @@ export function CicdLevelScreen({
               className="max-h-[45vh] shrink-0"
               testId="cicd-panel-mission"
             >
-              <p className="text-sm font-medium text-foreground">{level.mission}</p>
-              <div className="mt-2 text-sm text-muted-foreground">
-                <MarkdownView markdown={level.brief} resolveAssetUrl={() => null} />
-              </div>
-              <ul className="mt-3 flex flex-col gap-1">
-                {level.objectives.map((objective) => (
-                  <li key={objective.id} className="text-xs text-muted-foreground">
-                    <span className="font-mono">{objective.required ? '◆' : '◇'}</span>{' '}
-                    {objective.label}
-                  </li>
-                ))}
-              </ul>
+              <CicdMissionCard
+                mission={level.mission}
+                brief={level.brief}
+                objectives={level.objectives}
+                outcome={outcome}
+              />
             </CicdHudPanel>
           ) : null}
 
@@ -318,23 +308,7 @@ export function CicdLevelScreen({
               className="max-h-[45vh] shrink-0"
               testId="cicd-panel-inspector"
             >
-              {selectedNode === null ? (
-                <p className="text-xs text-muted-foreground">
-                  Chưa chọn job nào. Bấm một node trên sân, hoặc chọn một chấm trên bản đồ thu
-                  nhỏ.
-                </p>
-              ) : (
-                <dl className="flex flex-col gap-1 text-xs">
-                  <div className="flex gap-2">
-                    <dt className="text-muted-foreground">Job</dt>
-                    <dd className="font-mono text-foreground">{selectedNode.name}</dd>
-                  </div>
-                  <div className="flex gap-2">
-                    <dt className="text-muted-foreground">Trạng thái</dt>
-                    <dd className="text-foreground">{selectedNode.state}</dd>
-                  </div>
-                </dl>
-              )}
+              <CicdInspector node={selectedNode} run={run} selectedId={selectedId} />
             </CicdHudPanel>
           ) : null}
 
