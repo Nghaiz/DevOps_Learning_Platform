@@ -357,3 +357,114 @@ describe('đếm từ và định dạng mã bài', () => {
     expect(formatProblemCode('GIT', 1)).not.toBe(formatProblemCode('K8S', 1));
   });
 });
+
+// ── 19.J.2.2 — vị từ CD đòi khối kịch bản tương ứng ─────────────────────────
+
+/**
+ * Đề CI/CD gốc, dùng lại `CICD_BODY` đã khai ở trên chứ không dựng bản thứ hai.
+ *
+ * `initialState` của nó là bộ đề THẬT của plugin (`initialSpec()`), và điều đó
+ * quan trọng: ô "khai vị từ CD mà đủ khối ⇒ lưu được" chỉ có nghĩa nếu phần còn
+ * lại của đề thật sự hợp lệ. Một object bịa cũng qua được biên này (với game
+ * không phải K8s biên chỉ đòi object), nên nó không phân biệt nổi "qua vì khối
+ * `cd` đủ" với "qua vì biên chẳng kiểm gì".
+ */
+const CICD_SPEC = CICD_BODY.initialState as Record<string, unknown>;
+
+/** Khối `cd` nhỏ nhất chở một kịch bản phát hành. Giá trị lấy từ level c20. */
+const CD_RELEASE = {
+  release: {
+    scenarios: [
+      {
+        instances: 100,
+        requestsPerSecond: 10_000,
+        baselineErrorRate: 0.01,
+        candidateErrorRate: 0.15,
+        replaceSeconds: 60,
+        switchSeconds: 3,
+        routeSeconds: 12,
+        alertSeconds: 30,
+        migration: 'none',
+        fixForwardSeconds: 300,
+      },
+    ],
+    evaluation: { baseSeed: 200_801, passes: 20 },
+  },
+  editable: ['release.onBadRelease'],
+  initial: {
+    release: {
+      strategy: 'canary',
+      onBadRelease: 'roll-forward',
+      canary: { weightPercent: 5, intervalSeconds: 5, intervals: 3, maxErrorRateDelta: 0.03 },
+    },
+  },
+};
+
+describe('biên ghi — vị từ chương CD đòi kịch bản', () => {
+  /*
+   * ĐỐI CHỨNG DƯƠNG, và nó phải đứng TRƯỚC ba ô từ chối bên dưới.
+   *
+   * Thiếu nó, cả ba ô kia vẫn xanh trên một biên từ chối MỌI bài `cicd` — tức
+   * xanh trong khi chính tính năng 19.J chết. Đó đúng hình dạng "một màu xanh
+   * chẳng chứng minh gì" mà `rules/green-that-proves-nothing.md` gọi tên.
+   */
+  it('bài CI/CD thuần CI, không vị từ CD nào ⇒ LƯU ĐƯỢC', () => {
+    expect(problemBodySchema.safeParse(CICD_BODY).success).toBe(true);
+  });
+
+  it('khai vị từ CD và CÓ đủ khối kịch bản ⇒ LƯU ĐƯỢC', () => {
+    const ok = problemBodySchema.safeParse({
+      ...CICD_BODY,
+      initialState: { ...CICD_SPEC, cd: CD_RELEASE },
+      objectives: [{ id: 'o1', label: 'Lùi nhanh', check: 'rollbackUnder', visible: true, args: { seconds: 120 } }],
+    });
+    expect(ok.success).toBe(true);
+  });
+
+  /*
+   * Ô CHÍNH. Bắt được: cổng không tồn tại, hoặc nó đọc một bảng chép tay đã trôi
+   * khỏi `CD_PREDICATE_NEEDS`. Bài lọt qua đây là bài xuất bản được mà mọi lượt
+   * nộp — kể cả lượt đúng — đều trượt, im lặng.
+   */
+  it('khai vị từ CD mà THIẾU khối kịch bản ⇒ từ chối, nói rõ thiếu khối nào', () => {
+    const ket = problemBodySchema.safeParse({
+      ...CICD_BODY,
+      objectives: [{ id: 'o1', label: 'Lùi nhanh', check: 'rollbackUnder', visible: true, args: { seconds: 120 } }],
+    });
+    expect(ket.success).toBe(false);
+    if (ket.success) return;
+    const issue = ket.error.issues.find((i) => i.path.join('.') === 'objectives.0.check');
+    expect(issue?.message).toContain('cd.release');
+  });
+
+  /*
+   * Khối SAI bộ mô phỏng. Bắt được: một cổng chỉ hỏi "đề có `cd` không" thay vì
+   * "đề có ĐÚNG khối vị từ này đọc không" — bài lưu được và trượt vĩnh viễn.
+   */
+  it('khai vị từ `masking` trên đề chỉ có `release` ⇒ từ chối', () => {
+    const ket = problemBodySchema.safeParse({
+      ...CICD_BODY,
+      initialState: { ...CICD_SPEC, cd: CD_RELEASE },
+      objectives: [{ id: 'o1', label: 'Kín', check: 'secretLeaksAtMost', visible: true, args: { max: 0 } }],
+    });
+    expect(ket.success).toBe(false);
+    if (ket.success) return;
+    expect(ket.error.issues.some((i) => i.message.includes('cd.masking'))).toBe(true);
+  });
+
+  /*
+   * `cd` không phải object (một số, một chuỗi) đọc như VẮNG MẶT, không như một
+   * khối hợp lệ. Bắt được: một hiện thực dùng `'release' in cd` trên một giá trị
+   * chưa thu hẹp và ném ở biên ghi — đổi một lỗi đọc được lấy một lỗi 500.
+   */
+  it('`cd` sai kiểu đọc như vắng mặt, không làm biên ném', () => {
+    const ket = problemBodySchema.safeParse({
+      ...CICD_BODY,
+      initialState: { ...CICD_SPEC, cd: 42 },
+      objectives: [{ id: 'o1', label: 'Lùi nhanh', check: 'rollbackUnder', visible: true, args: { seconds: 120 } }],
+    });
+    expect(ket.success).toBe(false);
+    if (ket.success) return;
+    expect(ket.error.issues.some((i) => i.message.includes('cd.release'))).toBe(true);
+  });
+});
