@@ -336,9 +336,23 @@ function measureIntervals(
   return out;
 }
 
+/** Ngưỡng hủy đọc ra phần triệu nguyên — đủ mịn cho mọi ngưỡng một người đặt tay. */
+/* `BigInt(...)` chứ không literal `1_000_000n`: apps/web biên dịch gói này với target thấp hơn ES2020, nơi literal BigInt bị cấm. */
+const THRESHOLD_SCALE = BigInt(1_000_000);
+
 /**
  * R3. So hiệu tỷ lệ lỗi GỘP trên cả cửa sổ, nghiêm ngặt `>`: hiệu bằng đúng ngưỡng
  * là chưa vượt. Nhóm nào không có request thì không có tỷ lệ — điểm 2 đầu file.
+ *
+ * ⛔ So bằng SỐ NGUYÊN, không bằng phép chia số thực. Bản đầu viết
+ * `ce/cr − be/br > max`, và "bằng đúng ngưỡng" thì không bao giờ bằng được: review
+ * PR #141 đo 7/100 − 24/400 ra `> 0.01` nhưng 8/100 − 28/400 ra `≤ 0.01`, dù cả hai
+ * hiệu đều ĐÚNG 0,01 — cùng một cửa sổ, hai hạt giống, một lùi một thăng. Bài C21
+ * sống đúng ở cỡ mẫu nhỏ như vậy.
+ *
+ * Nhân chéo: `ce/cr − be/br > P/S` ⇔ `(ce·br − be·cr)·S > P·cr·br`, với `P` là
+ * ngưỡng làm tròn về phần triệu. `BigInt` vì tích có thể vượt 2⁵³ ở đội máy lớn,
+ * và `BigInt` tất định ở mọi engine.
  */
 function pooledDeltaExceeds(
   intervals: readonly CanaryIntervalRecord[],
@@ -357,7 +371,12 @@ function pooledDeltaExceeds(
   if (canaryRequests === 0 || baselineRequests === 0) {
     return false;
   }
-  return canaryErrors / canaryRequests - baselineErrors / baselineRequests > maxErrorRateDelta;
+  const ce = BigInt(canaryErrors);
+  const cr = BigInt(canaryRequests);
+  const be = BigInt(baselineErrors);
+  const br = BigInt(baselineRequests);
+  const nguong = BigInt(Math.round(maxErrorRateDelta * Number(THRESHOLD_SCALE)));
+  return (ce * br - be * cr) * THRESHOLD_SCALE > nguong * cr * br;
 }
 
 /**
