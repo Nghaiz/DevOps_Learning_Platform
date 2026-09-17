@@ -143,6 +143,46 @@ test.describe('Game CI/CD — §19.D tầng hình ảnh', () => {
     await expect(page.getByTestId('cicd-scene-2d')).toBeVisible();
   });
 
+  test('AC-D2 — hai renderer vẽ CÙNG tập node và cạnh @games-cicd-scene', async ({ page }) => {
+    /*
+     * Cả hai renderer lấy tập được vẽ từ CÙNG một hàm thuần (`cicdSceneNodes` /
+     * `cicdSceneEdges` ở `scene-props.ts`), nên về nguyên tắc chúng KHÔNG THỂ
+     * lệch. Ô này vẫn cần, vì "về nguyên tắc" là một lời khai: một renderer tự
+     * lọc thêm ở tầng vẽ — bỏ node ngoài khung nhìn, gộp cạnh trùng, cắt theo
+     * trần nhãn — sẽ lệch mà không gì ở tầng kiểu kêu lên.
+     *
+     * So bằng chính hai bộ đếm mà mỗi renderer tự phát ra, không so hai phép lọc
+     * do ô test dựng lại.
+     */
+    const level = manQuatRa();
+    await openScreen(page, duongDanMan(level.id), 'user');
+    await settle(page);
+
+    const canh2d = page.getByTestId('cicd-scene-2d');
+    await expect(canh2d).toBeVisible();
+    const node2d = await canh2d.getAttribute('data-cicd-node-count');
+    const canh2d_edge = await canh2d.getAttribute('data-cicd-edge-count');
+
+    await doiCheDo(page, '3D');
+    const canh3d = page.getByTestId('cicd-scene-3d');
+    await expect(canh3d).toBeVisible();
+
+    await expect(canh3d).toHaveAttribute('data-cicd-node-count', node2d ?? '');
+    await expect(canh3d).toHaveAttribute('data-cicd-edge-count', canh2d_edge ?? '');
+
+    // Và phép so không được chạy trên một cảnh rỗng ở CẢ HAI phía.
+    expect(Number(node2d), 'phải có node để mà so').toBeGreaterThan(0);
+    expect(Number(canh2d_edge), 'phải có cạnh để mà so').toBeGreaterThan(0);
+
+    /*
+     * Không node/cạnh nào bị rơi vì toạ độ không hữu hạn. Cảnh 3D chỉ phát hai
+     * thuộc tính này khi chúng khác 0, và một `NaN` lọt vào `BufferAttribute` làm
+     * three vứt TRỌN draw call trong im lặng.
+     */
+    await expect(canh3d).not.toHaveAttribute('data-cicd-node-dropped', /.*/u);
+    await expect(canh3d).not.toHaveAttribute('data-cicd-edge-dropped', /.*/u);
+  });
+
   test('AC-D4 — số lệnh vẽ < 100, ghim theo bậc chất lượng @games-cicd-scene', async ({ page }) => {
     const level = manQuatRa();
     await openScreen(page, duongDanMan(level.id), 'user');
