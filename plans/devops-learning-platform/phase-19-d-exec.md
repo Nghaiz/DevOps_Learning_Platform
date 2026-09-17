@@ -146,6 +146,17 @@ vì hết hạn.
 | D.1.3 | `cicd/scene-encoding.ts`: bảng ba kênh, `satisfies Record<StageRunState, ...>` để thiếu một trạng thái là đỏ lúc biên dịch | 2h | ✅ `48d8d42` |
 | D.1.4 | Nâng `scene-tokens.ts` lên `games/shared/`, arena import từ chỗ mới, test cũ của arena giữ nguyên xanh | 3h | ✅ `ce2b1d9` + `68dfc1a` |
 
+⚠ **Ô AC-D1 phải chạy trên C13, KHÔNG phải C12** (đo 2026-09-17). Trực giác chọn
+C12 vì tên nó là "ma trận quạt ra", nhưng `initialWorkflow` của C12 **không có
+`fanOut`** — người chơi phải tự gõ nó vào, đó chính là bài học của màn. Chỉ
+`solutionWorkflow` mới quạt. C13 (`gom-ket-qua-nhieu-nhanh`) thì có `fanOut`
+ngay trong `initialWorkflow`.
+
+Chạy AC-D1 trên C13 với workflow ban đầu ⇒ đồ thị KHÔNG quạt ra ⇒ ô đó không phủ
+được con bug gộp node mà nó tồn tại để bắt, và nó vẫn XANH. Số kỳ vọng lấy bằng
+`buildGraphView({ workflow: level.initialWorkflow, run: null, yAxis }).nodes.length`
+— đọc từ dữ liệu level, đừng chép tay một con số.
+
 **19.D.1 XONG** — nền hợp đồng đã chốt, lane đọc được. Bảng token tham số hoá
 bằng generic nên mỗi game khai bảng riêng mà vẫn giữ đúng khoá của mình; 5/6 chỗ
 import của arena không phải sửa ký tự nào và 13 ô test cũ của arena xanh nguyên
@@ -235,7 +246,7 @@ chương nên người chơi phải học lại cách đọc không gian.
 
 | # | Ô | Đo bằng |
 |---|---|---|
-| AC-D1 | Đồ thị và đường găng hiện được ở CẢ HAI chế độ | e2e: chạy thử một level, số node vẽ ra bằng **số thực thể** (`view.nodes.length`), cạnh đường găng mang dấu riêng. ⛔ **KHÔNG đếm theo số stage** — C12/C13 quạt ra nên hai con số khác nhau, và bản đếm-theo-stage XANH ngay trên con bug gộp node mà nó đáng lẽ phải bắt. Ô này phải chạy trên MỘT level có `fanOut` |
+| AC-D1 | Đồ thị và đường găng hiện được ở CẢ HAI chế độ | e2e: chạy thử một level, số node vẽ ra bằng **số thực thể** (`view.nodes.length`), cạnh đường găng mang dấu riêng. ⛔ **KHÔNG đếm theo số stage** — C12/C13 quạt ra nên hai con số khác nhau, và bản đếm-theo-stage XANH ngay trên con bug gộp node mà nó đáng lẽ phải bắt. Ô này phải chạy trên **C13**, không phải C12 |
 | AC-D2 | Hai renderer vẽ CÙNG tập node/cạnh | Test gọi `placeWorkflow(view)` một lần rồi so tập `instance` mà mỗi renderer dựng — không so hai phép lọc riêng |
 | AC-D3 | AC-5: đường 2D dùng được | Playwright `--disable-3d-apis`, **có đối chứng dương** (cùng ô chạy không cờ đó phải đi nhánh 3D) |
 | AC-D4 | AC-7: draw call < 100 ở level đông nhất | `renderer.info.render.calls` sau `gl.info.reset()` đầu `useFrame`, ghi số theo TỪNG bậc chất lượng. ⛔ Không ghim bậc là ô xanh chứng minh đúng zero điều gì |
