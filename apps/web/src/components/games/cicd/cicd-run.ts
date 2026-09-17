@@ -4,9 +4,14 @@ import {
   failingObjectiveIds,
   hydrateWorkflow,
   readWorkflowYaml,
+  runLevelCd,
   scoreAxes,
   summarizeEvaluation,
+  type CdSimulatorName,
+  type CicdCdPolicies,
+  type CicdCdRecords,
   type CicdHydrateSources,
+  type CicdLevelCd,
   type CicdLevel,
   type CicdObjective,
   type CicdPlayerOverrides,
@@ -69,6 +74,15 @@ export interface CicdRunInput {
   readonly workload: WorkloadSpec;
   readonly evaluation: EvaluationSpec;
   readonly objectives: readonly CicdObjective[];
+  /**
+   * Chương CD (19.G): khối kịch bản của level + chính sách bảng núm CD đang đặt.
+   * Vắng ⇒ màn CI hoặc bàn thử, không bộ mô phỏng nào chạy.
+   *
+   * ⚠ Gửi chính sách NGUYÊN như bảng núm giữ, không tự khoá: `runLevelCd` gọi
+   * `mergeCdPolicies` bên trong, nên phần level không cho sửa luôn lấy từ
+   * `initial` bất kể bảng gửi gì.
+   */
+  readonly cd?: { readonly level: CicdLevelCd; readonly edited: CicdCdPolicies };
 }
 
 export type CicdRunOutcome =
@@ -100,6 +114,18 @@ export type CicdRunOutcome =
       readonly error: EvaluationError | null;
       readonly workflow: WorkflowSpec;
     }
+  /**
+   * Đường ống chạy được, nhưng một bộ mô phỏng CD NÉM vì chính sách người chơi
+   * nhập nằm ngoài miền (ví dụ weight 0). Nhánh riêng vì ba trục vẫn có thật mà
+   * mục tiêu CD thì không chấm được — gộp vào `scored` sẽ đọc ra thành "chưa đạt"
+   * thay vì "giá trị này không hợp lệ".
+   */
+  | {
+      readonly kind: 'cd-error';
+      readonly simulator: CdSimulatorName;
+      readonly message: string;
+      readonly workflow: WorkflowSpec;
+    }
   | {
       readonly kind: 'scored';
       readonly workflow: WorkflowSpec;
@@ -110,6 +136,8 @@ export type CicdRunOutcome =
       readonly failingRequired: readonly string[];
       /** Mục tiêu THƯỞNG còn trượt. Không chặn thắng. */
       readonly failingOptional: readonly string[];
+      /** Bản ghi ba bộ mô phỏng CD. `null` ở màn CI và bàn thử. */
+      readonly cd: CicdCdRecords | null;
       readonly won: boolean;
     };
 
@@ -145,8 +173,22 @@ export function runWorkflow(input: CicdRunInput): CicdRunOutcome {
     return { kind: 'engine-error', error: record.error, workflow };
   }
 
-  const failingRequired = failingObjectiveIds(input.objectives, { workflow, record }, true);
-  const failingOptional = failingObjectiveIds(input.objectives, { workflow, record }, false);
+  /*
+   * Chạy CD SAU engine: một workflow hỏng thì đã rẽ nhánh ở trên, và báo lỗi
+   * đồ thị quan trọng hơn báo lỗi một ô số trên bảng núm CD.
+   */
+  let cd: CicdCdRecords | null = null;
+  if (input.cd !== undefined) {
+    const run = runLevelCd(input.cd.level, input.cd.edited);
+    if (!run.ok) {
+      return { kind: 'cd-error', simulator: run.simulator, message: run.message, workflow };
+    }
+    cd = run.records;
+  }
+
+  const ctx = cd === null ? { workflow, record } : { workflow, record, cd };
+  const failingRequired = failingObjectiveIds(input.objectives, ctx, true);
+  const failingOptional = failingObjectiveIds(input.objectives, ctx, false);
 
   return {
     kind: 'scored',
@@ -156,6 +198,7 @@ export function runWorkflow(input: CicdRunInput): CicdRunOutcome {
     summary,
     failingRequired,
     failingOptional,
+    cd,
     won: failingRequired.length === 0,
   };
 }

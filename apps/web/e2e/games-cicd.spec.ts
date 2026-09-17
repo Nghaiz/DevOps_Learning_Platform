@@ -37,7 +37,7 @@
  */
 
 import type { Page } from '@playwright/test';
-import { CI_LEVELS, writeWorkflowYaml } from '@devops-platform/games';
+import { CD_LEVELS, CI_LEVELS, CICD_LEVELS, writeWorkflowYaml } from '@devops-platform/games';
 
 import { expect, test } from './fixtures/api';
 import { openScreen, settle } from './fixtures/nav';
@@ -99,7 +99,7 @@ function vungKetQua(page: Page) {
 }
 
 test.describe('Game CI/CD — §19.E/§19.H', { tag: '@games-cicd' }, () => {
-  test('màn danh sách mở được và liệt kê đủ 14 màn của chương CI', async ({ page }) => {
+  test('màn danh sách mở được và liệt kê đủ 28 màn của hai chương', async ({ page }) => {
     await openScreen(page, CICD_PATH, 'user');
     await settle(page);
 
@@ -112,8 +112,33 @@ test.describe('Game CI/CD — §19.E/§19.H', { tag: '@games-cicd' }, () => {
      * im lặng đúng ngày chương CD thêm màn.
      */
     const the = page.getByTestId('cicd-level-list').getByRole('listitem');
-    await expect(the).toHaveCount(CI_LEVELS.length);
+    await expect(the).toHaveCount(CICD_LEVELS.length);
     expect(CI_LEVELS.length, 'chương CI phải có đủ 14 màn').toBe(14);
+    expect(CD_LEVELS.length, 'chương CD phải có đủ 14 màn').toBe(14);
+    await expect(page.getByRole('heading', { name: /^Chương CD/u })).toBeVisible();
+  });
+
+  test('chương CD — bảng núm CD quyết kết quả: cùng YAML lời giải, đổi đường phục hồi thì mới đạt', async ({ page }) => {
+    /*
+     * C19 chỉ mở một núm CD (`release.onBadRelease`). Chạy HAI lượt với cùng YAML
+     * lời giải: lượt đầu giữ núm như mở màn ⇒ PHẢI chưa đạt; lượt sau đổi núm ⇒
+     * đạt. Lượt đầu là đối chứng: một bảng núm vẽ ra mà không nối vào bộ chấm
+     * thì lượt sau cũng chưa đạt, còn một bộ chấm bỏ qua CD thì lượt đầu đã đạt.
+     */
+    const level = CD_LEVELS.find((l) => l.id.startsWith('cicd-c19-'));
+    if (level?.cd === undefined) throw new Error('không tìm thấy C19 có khối cd');
+    await openScreen(page, `${CICD_PATH}?level=${level.id}`, 'user');
+    await settle(page);
+
+    await oSoan(page).fill(writeWorkflowYaml(level.solutionWorkflow).yaml);
+    await page.getByRole('button', { name: 'Chạy thử' }).click();
+    await expect(vungKetQua(page).getByText('Chưa đạt', { exact: true })).toBeVisible();
+
+    const bang = page.getByTestId('cicd-cd-panel');
+    await bang.getByRole('radio', { name: /rollback/u }).check();
+    await page.getByRole('button', { name: 'Chạy thử' }).click();
+    await expect(vungKetQua(page).getByText('Đạt', { exact: true })).toBeVisible();
+    await expect(page.getByTestId('cicd-cd-rollback-0')).toBeVisible();
   });
 
   test('AC-E4 — chạy thử xong, ba trục hiện CÙNG LÚC và đều KHÁC 0', async ({ page }, testInfo) => {

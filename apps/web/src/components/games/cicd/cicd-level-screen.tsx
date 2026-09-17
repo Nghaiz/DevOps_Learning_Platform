@@ -6,12 +6,14 @@ import {
   mergeStageCatalogue,
   readWorkflowYaml,
   writeWorkflowYaml,
+  type CicdCdPolicies,
   type CicdHydrateSources,
   type CicdLevel,
   type CicdPlayerOverrides,
 } from '@devops-platform/games';
 
 import { YamlEditor } from '../shared/yaml-editor';
+import { CicdCdPanel } from './cicd-cd-panel';
 import { CicdCheatsheet } from './cicd-cheatsheet';
 import { CicdOverridesPanel } from './cicd-overrides-panel';
 import { CicdResultPanel } from './cicd-result-panel';
@@ -49,6 +51,11 @@ export function CicdLevelScreen({ level, onExit, onNext }: CicdLevelScreenProps)
    */
   const [yaml, setYaml] = useState(() => writeWorkflowYaml(level.initialWorkflow).yaml);
   const [overrides, setOverrides] = useState<CicdPlayerOverrides>({});
+  /*
+   * Chính sách CD khởi đầu từ `cd.initial` của level, cùng lý do văn bản YAML
+   * khởi đầu từ `initialWorkflow`: bản chép tay sẽ trôi khỏi dữ liệu level.
+   */
+  const [cdPolicies, setCdPolicies] = useState<CicdCdPolicies>(() => level.cd?.initial ?? {});
   const [outcome, setOutcome] = useState<CicdRunOutcome | null>(null);
   const [history, setHistory] = useState<readonly AttemptEntry[]>([]);
   const [hintsShown, setHintsShown] = useState(0);
@@ -89,6 +96,7 @@ export function CicdLevelScreen({ level, onExit, onNext }: CicdLevelScreenProps)
       workload: level.workload,
       evaluation: level.evaluation,
       objectives: level.objectives,
+      ...(level.cd === undefined ? {} : { cd: { level: level.cd, edited: cdPolicies } }),
     });
     setOutcome(ketQua);
     setHistory((truoc) => [...truoc, { n: truoc.length + 1, outcome: ketQua }]);
@@ -159,6 +167,10 @@ export function CicdLevelScreen({ level, onExit, onNext }: CicdLevelScreenProps)
             overrides={overrides}
             onChange={setOverrides}
           />
+
+          {level.cd === undefined ? null : (
+            <CicdCdPanel cd={level.cd} value={cdPolicies} onChange={setCdPolicies} />
+          )}
         </div>
 
         <div className="flex flex-col gap-4">
@@ -262,6 +274,8 @@ function AttemptHistory({ history }: { readonly history: readonly AttemptEntry[]
                 <span className="text-destructive">Workflow không chạy được</span>
               ) : entry.outcome.kind === 'shape-error' ? (
                 <span className="text-destructive">Job không khớp màn — chưa chấm</span>
+              ) : entry.outcome.kind === 'cd-error' ? (
+                <span className="text-destructive">Chính sách CD không hợp lệ</span>
               ) : entry.outcome.kind === 'empty' ? (
                 <span className="text-muted-foreground">Chưa có job nào để chạy</span>
               ) : (

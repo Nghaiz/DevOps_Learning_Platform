@@ -609,7 +609,7 @@ export type {
   WorkflowSpec,
   WorkloadSpec,
 } from './cicd/contract.ts';
-export { DEFAULT_EVALUATION_PASSES, SECONDS_PER_TICK, STAGE_KINDS } from './cicd/contract.ts';
+export { DEFAULT_EVALUATION_PASSES, RELEASE_STRATEGIES, SECONDS_PER_TICK, STAGE_KINDS } from './cicd/contract.ts';
 
 export { CD_LEVELS, CI_LEVELS, CICD_LEVELS } from './cicd/levels/index.ts';
 
