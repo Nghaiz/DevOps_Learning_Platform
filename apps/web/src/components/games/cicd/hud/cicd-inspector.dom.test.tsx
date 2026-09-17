@@ -20,7 +20,7 @@ afterEach(cleanup);
 const NODE: StageNodeView = {
   instance: 'test#node20',
   stageId: 'test',
-  kind: 'test',
+  kind: 'unit-test',
   name: 'test (node20)',
   state: 'failed',
   attempt: 1,
