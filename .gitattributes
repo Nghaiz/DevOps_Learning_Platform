@@ -17,6 +17,14 @@ images/sandbox-base/bin/* text eol=lf
 # vừa bật lại mà file của nó có nguy cơ CRLF thì là hàng rào không đáng tin.
 scripts/git-hooks/* text eol=lf
 
+# Python CHẠY TRÊN LINUX (host/VM): fixture pentest, cổng render netpol, probe
+# tải sandbox, verify observability. Blob đã LF, nhưng chỉ nhờ `* text=auto` —
+# `eol` là `unspecified`, nên checkout Windows (core.autocrlf=true) smudge thành
+# CRLF trong working tree. Lượt tự-pentest 2026-09-18 dính đúng thế: harness scp
+# từ Windows sang VM mang theo CRLF, phải `sed -i 's/\r$//'` tay mới chạy được
+# bash/python3. Pin LF để `scp` thẳng từ mọi nền tảng đều chạy, cùng lý lẽ `*.sh`.
+*.py   text eol=lf
+
 *.yaml text eol=lf
 *.yml  text eol=lf
 

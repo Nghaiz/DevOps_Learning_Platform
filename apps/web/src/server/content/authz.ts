@@ -1,5 +1,5 @@
 import { TRPCError } from '@trpc/server';
-import type { ContentVisibility } from '@devops-platform/shared-types/authoring';
+import type { ContentState, ContentVisibility } from '@devops-platform/shared-types/authoring';
 import type { AuthedUser } from '../trpc/init';
 
 /**
@@ -53,4 +53,39 @@ export function assertContentOwner(user: AuthedUser, ownerId: string): void {
     // route asset không phân biệt ENOENT với EACCES.
     throw new TRPCError({ code: 'NOT_FOUND', message: 'Không có bài đó' });
   }
+}
+
+/**
+ * Route asset (`/api/scenarios/[id]/assets/[...path]`, nhánh nguồn DB) có được
+ * phát byte của asset này cho người đang xem không.
+ *
+ * ⛔ Đây là lớp DEFENSE-IN-DEPTH, thêm 2026-09-18. Trước đó nhánh nguồn DB chỉ
+ * gác ĐĂNG NHẬP: bất kỳ ai đã đăng nhập, biết `(contentId, storageKey)`, đều
+ * tải được asset của một bài NHÁP/ARCHIVE — đi vòng qua tầng visibility của
+ * tRPC (`visibilityFor` + nguồn DB) vốn chỉ trả bài `published` cho người học.
+ * `storageKey` là 128-bit server-sinh nên khó đoán trong thực tế, nhưng "khó
+ * đoán" không phải "được phép": một key rò ra (log, header `Referer`, ảnh chụp
+ * bản xem trước chia sẻ) là đủ để asset của bản nháp rò theo. Cổng này khép
+ * đúng bất đối xứng đó.
+ *
+ * Luật: asset của bài `published` phát cho mọi người đã đăng nhập (đối xứng với
+ * "người học thấy bài published"); mọi state khác (`draft`/`publishing`/
+ * `archived`) chỉ CHỦ hoặc ADMIN. Đọc `state` + `authorId` TỪ DB (join trong
+ * `readContentAsset`), không từ input — cùng kỷ luật `assertContentOwner`.
+ *
+ * Hàm THUẦN + `viewer.isAdmin` (không phải `AuthedUser`) vì route đọc session
+ * thô của Better Auth: `role` là chuỗi tự do, nên "admin?" fail-closed ở
+ * `=== 'admin'` tại call-site, và ở đây chỉ còn một boolean đã quyết.
+ */
+export function mayServeContentAsset(
+  item: { readonly state: ContentState; readonly authorId: string },
+  viewer: { readonly id: string; readonly isAdmin: boolean },
+): boolean {
+  if (item.state === 'published') {
+    return true;
+  }
+  if (viewer.isAdmin) {
+    return true;
+  }
+  return viewer.id === item.authorId;
 }

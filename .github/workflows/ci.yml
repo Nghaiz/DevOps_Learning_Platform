@@ -10,9 +10,9 @@
 #   web-a11y         │
 #   no-commerce     ┘
 #
-# (`dependency-review` từng nằm ở đây, ĐÃ XOÁ — xem khối lý do ngay trên job
-#  `sandbox-image`. Sơ đồ này lệch suốt từ lúc đó tới 1.E-2; sửa cùng lúc với
-#  việc `sandbox-image` nhận thêm toàn bộ cổng E6/E7/E8/E9.)
+# (`dependency-review` ĐÃ THÊM LẠI 2026-09-18 sau khi repo thành public, nhưng
+#  CỐ Ý đứng NGOÀI `ci-ok` — nó là cổng cố vấn PR-only, không phải required
+#  check; xem khối lý do ngay trên chính job `dependency-review`.)
 #
 # VÌ SAO MỘT FILE: `images: needs: ci-ok` là phụ thuộc job THẬT trong cùng
 # workflow run. Tách sang file khác thì phải đi đường workflow_run, vốn phải chạy
@@ -961,13 +961,12 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # KHÔNG có job `dependency-review`. Bản đầu có, và nó đỏ ngay lần chạy đầu:
-  # "Dependency review is not supported on this repository." Action đó cần
-  # GitHub Advanced Security khi repo là PRIVATE (repo này private) — GHAS là
-  # tính năng trả phí. Giữ lại chỉ tạo một job đỏ vĩnh viễn, và một cổng luôn đỏ
-  # là cổng bị bỏ qua. Phần lớn giá trị của nó đã có ở nơi khác: Dependabot
-  # alerts (cảnh báo CVE trong dependency) + govulncheck (Go, có reachability) +
-  # Trivy (image). Khi nào repo thành public thì thêm lại.
+  # Job `dependency-review` ĐÃ THÊM LẠI 2026-09-18 (định nghĩa nằm ngay trước
+  # `ci-ok`, không phải ở đây). Lịch sử: bản đầu đỏ ngay vì "Dependency review is
+  # not supported on this repository" — action cần GitHub Advanced Security khi
+  # repo PRIVATE. Repo thành PUBLIC ngày 2026-09-14 ⇒ điều kiện đó hết hiệu lực,
+  # action chạy miễn phí. Nó bổ sung cho ba lớp đã có (Dependabot alerts +
+  # govulncheck + Trivy) một cổng CHẶN Ở PR-TIME cho CVE >= high trong dep mới.
   #
   # ──────────────────────────────────────────── build thử image sandbox ở PR-time
   #
@@ -1584,6 +1583,35 @@ jobs:
       # 0 file lõi — một cổng quét rỗng thì luôn xanh, và xanh vì KHÔNG ĐO GÌ.
       - name: 'Quét tên nhà cung cấp trong lõi cicd + khoá tên stage `clone`'
         run: node scripts/check-cicd-vendor-neutral.mjs
+
+  # ─────────────────────────────────────────────── dependency-review (PR-only)
+  #
+  # ĐÃ THÊM LẠI 2026-09-18: repo chuyển PUBLIC ngày 2026-09-14, nên điều kiện gỡ
+  # ("action cần GitHub Advanced Security khi repo PRIVATE") đã hết hiệu lực —
+  # nó chạy miễn phí trên repo public. Job soi DIFF dependency của PR và đỏ khi
+  # một PR kéo vào package có CVE đã biết mức >= high, NGAY Ở PR-TIME (sớm hơn
+  # Dependabot alert, vốn chỉ báo SAU khi đã trên main).
+  #
+  # ⛔ CỐ Ý KHÔNG nằm trong `ci-ok.needs`, và CỐ Ý `if: pull_request`: action
+  # này so base↔head nên KHÔNG có nghĩa trên `push`. Đưa vào `ci-ok` thì trên
+  # push nó bị skip ⇒ `ci-ok` thấy một need "chưa chạy" và treo vĩnh viễn (đúng
+  # bẫy ci-cd-trigger-design #3). Là cổng CỐ VẤN trên PR, không phải required
+  # check — cùng lối xử lý với vế gitleaks-trên-PR đã nằm trong `secret-scan`.
+  dependency-review:
+    name: 'Dependency review (PR)'
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: high
+          comment-summary-in-pr: on-failure
 
   ci-ok:
     name: ci-ok
