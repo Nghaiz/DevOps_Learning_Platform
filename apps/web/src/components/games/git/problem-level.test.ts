@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GIT_UNSEEDED_REPLAY_SEED, createGitSession } from '@devops-platform/games';
+import { GIT_UNSEEDED_REPLAY_SEED, createGitSession, scoreProblemRun } from '@devops-platform/games';
 
 import { gitOjClaim, gitOjGradable, gitOjLevel, type GitOjProblem } from './problem-level';
 
@@ -182,5 +182,100 @@ describe('gitOjClaim — lời khai khớp thứ máy chủ phát lại ra', () 
     expect([...claim.objectivesMet].sort()).toEqual(['t1', 't2']);
     expect(claim.commandsUsed).toBe(2);
     expect(claim.score).toBe(1000);
+  });
+});
+
+/**
+ * Cái giá mà cờ `revealed` trả nếu nó nói dối — hồi quy cho lỗi đo 2026-09-18.
+ *
+ * ⛔ Ô này soi đúng khe mà fixture ở trên KHÔNG soi được: `PROBLEM_JSON` khai
+ * `"hints": []`, nên toàn bộ nhánh trừ điểm gợi ý chưa từng chạy trong file này.
+ * Một bộ ô xanh trên một bài không gợi ý không nói được gì về một bài có gợi ý —
+ * và lỗi thật chỉ sống ở nhánh kia.
+ *
+ * Phép đo là phép SO HAI BÊN, không phải một hằng số chép tay: client dựng
+ * `revealedHintIds` từ cờ `revealed` mà máy chủ gửi xuống, máy chủ dựng tập của
+ * nó từ bảng `problem_hint_reveals`. Hai tập lệch một phần tử ⇒ hai điểm lệch
+ * `penaltyPoints` ⇒ `verifyRun` trả `khong-khop` ⇒ người nộp nhận `CE` kèm một
+ * câu đọc như lời buộc tội. Nên ô này gọi CẢ HAI hàm và bắt chúng ra cùng số.
+ *
+ * ⚠ Khối đầu file cấm "tính lại bằng chính hàm mà cổng đang dùng" vì một ô như
+ * thế tự điều chỉnh theo công thức và không gác gì. Ô dưới KHÔNG phạm điều đó:
+ * thứ nó đo là hai TẬP `revealedHintIds` có bằng nhau không, còn công thức thì
+ * vẫn bị neo bằng hai hằng 1000 / 980 viết tay ngay cạnh. Bỏ hằng đi là ô này
+ * rơi đúng vào cái bẫy kia.
+ */
+describe('điểm client khai == điểm máy chủ phát lại, ở bài CÓ gợi ý', () => {
+  const GOI_Y = { id: 'h1', text: 'Dung git branch', penaltyPoints: 20 } as const;
+
+  /*
+   * ⚠ Dựng trên `problem()` (CÒN `check`) chứ không trên `problemDaChe()`, đúng
+   * lý do mà `choi()` ở trên đã ghi: ô này đo phép tính ĐIỂM, nên nó cần một tập
+   * objective THẬT từ `getStatus()`. Bản đã che trả rỗng ⇒ mọi điểm bằng 0, và ô
+   * khi đó xanh-đỏ theo một thứ chẳng liên quan gì tới gợi ý.
+   */
+
+  /** Bài như TÁC GIẢ nhận nó: đọc được `text`, và CHƯA trả điểm nào. */
+  function nhuTacGia(): GitOjProblem {
+    return {
+      ...problem(),
+      hints: [{ id: GOI_Y.id, penaltyPoints: GOI_Y.penaltyPoints, revealed: false, text: GOI_Y.text }],
+    };
+  }
+
+  /** Bài như NGƯỜI HỌC ĐÃ MỞ gợi ý nhận nó: có dòng trong bảng, nên đã trả điểm. */
+  function nhuNguoiDaMo(): GitOjProblem {
+    return {
+      ...problem(),
+      hints: [{ id: GOI_Y.id, penaltyPoints: GOI_Y.penaltyPoints, revealed: true, text: GOI_Y.text }],
+    };
+  }
+
+  /** Điểm MÁY CHỦ tính, với đúng tập id nó đọc được từ bảng. */
+  function diemMayChu(idDaMo: readonly string[], commandsUsed: number): number {
+    return scoreProblemRun({
+      objectivesMet: 2,
+      objectivesTotal: 2,
+      movesUsed: commandsUsed,
+      parMoves: null,
+      hints: [GOI_Y],
+      revealedHintIds: idDaMo,
+    });
+  }
+
+  function khaiCua(target: GitOjProblem) {
+    const session = createGitSession({
+      level: gitOjLevel(target),
+      seed: GIT_UNSEEDED_REPLAY_SEED,
+      undoDepth: 0,
+    });
+    for (const command of ['git branch feature', 'git branch hotfix']) session.run(command);
+    return gitOjClaim({
+      problem: target,
+      log: session.getLog(),
+      objectivesMet: session.getStatus().objectivesMet,
+      startedAt: 1_700_000_000_000,
+      finishedAt: 1_700_000_060_000,
+    });
+  }
+
+  it('TÁC GIẢ: đọc được gợi ý mà không bị trừ — hai bên cùng ra 1000', () => {
+    /*
+     * Đây là ca đã hỏng. `toAuthorProblem` từng gửi `revealed: true`, nên client
+     * khai 980 trong khi máy chủ (bảng rỗng) tính 1000. Lệch đúng MỘT field, và
+     * `verifyRun` gọi tên nó là `khong-khop`.
+     */
+    expect(khaiCua(nhuTacGia()).score).toBe(diemMayChu([], 2));
+    expect(khaiCua(nhuTacGia()).score).toBe(1000);
+  });
+
+  it('NGƯỜI ĐÃ MỞ: bị trừ ở CẢ HAI bên — hai bên cùng ra 980', () => {
+    /*
+     * ĐỐI CHỨNG DƯƠNG, và nó bắt buộc: không có ô này thì một bản vá "bỏ hẳn
+     * phép trừ gợi ý ở client" cũng làm ô trên xanh — trong khi nó vừa tạo ra
+     * đúng cái lệch cũ, chỉ theo chiều ngược lại.
+     */
+    expect(khaiCua(nhuNguoiDaMo()).score).toBe(diemMayChu([GOI_Y.id], 2));
+    expect(khaiCua(nhuNguoiDaMo()).score).toBe(980);
   });
 });

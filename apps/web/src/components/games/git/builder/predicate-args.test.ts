@@ -1,6 +1,13 @@
 /**
  * Ô gác giữ `PREDICATE_ARGS` khớp với thứ ENGINE thật sự đọc.
  *
+ * ⛔ Ô Ở LẠI `apps/web` dù bảng nó gác đã chuyển sang `packages/games` (P20), và
+ * đó không phải một chỗ quên dọn: ô này đọc mã nguồn engine bằng `node:fs`, mà
+ * `packages/games/tsconfig.json` CỐ Ý bỏ `types: ["node"]` để một lần lạc tay là
+ * đỏ ngay ở typecheck (package đó đi thẳng vào bundle trình duyệt). Chuyển ô vào
+ * đó thì hoặc phải nới tsconfig — tức gỡ chính cái cổng ấy — hoặc ô không biên
+ * dịch nổi.
+ *
  * `PREDICATE_ARGS` là một bản sao có chủ ý (xem khối đầu `predicate-args.ts`).
  * Ô này là cái giá phải trả cho bản sao đó: nó mở thẳng
  * `packages/games/src/git/predicates.ts`, bóc mọi lời gọi `arg*(args, '<tên>')`
@@ -38,9 +45,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
-import { GIT_PREDICATE_NAMES } from '@devops-platform/games';
-
-import { PREDICATE_ARGS, type ArgKind } from './predicate-args';
+import { GIT_PREDICATE_NAMES, PREDICATE_ARGS, type ArgKind } from '@devops-platform/games';
 
 /** Đi ngược lên tới gốc workspace. Đếm `..` bằng tay là một con số sẽ sai lúc ai đó đổi cây. */
 function workspaceRoot(): string {

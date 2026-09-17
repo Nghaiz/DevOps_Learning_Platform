@@ -136,15 +136,38 @@ export function toHintTeasers(
  * ở đúng chỗ này nghĩa là kiểu trên dây lại có chỗ chứa cách chấm, và phép che
  * quay về phụ thuộc vào một nhánh `if` chạy đúng. Người soạn cần bản đầy đủ thì
  * đi `problems.forEdit`, đường đó trả `Problem` và có cổng chủ sở hữu riêng.
+ *
+ * ## ⛔ `revealed` vẫn đọc từ BẢNG, dù người gọi là tác giả
+ *
+ * Tác giả đọc được `text` của mọi gợi ý — đó là toàn bộ việc của hàm này. Nhưng
+ * `revealed` trả lời một câu khác: *"máy chủ đã ghi một dòng
+ * `problem_hint_reveals` cho người này chưa"*, tức *"đã bị trừ điểm chưa"*. Với
+ * tác giả câu trả lời gần như luôn là KHÔNG, và họ vẫn đọc được.
+ *
+ * Bản đầu đặt cứng `revealed: true`, và nó hỏng theo một đường vòng đủ dài để
+ * không ai thấy: `*OjClaim` phía client dựng `revealedHintIds` TỪ cờ này, nên
+ * một tác giả làm bài của chính mình khai điểm đã trừ `penaltyPoints`; máy chủ
+ * phát lại với tập rỗng nên tính ra điểm CAO hơn; `verifyRun` thấy lệch đúng một
+ * field và trả `khong-khop`. Người nộp nhận `CE — phát lại ra kết quả khác`, một
+ * câu đọc như "bạn gian lận", cho một lời giải đúng. Đo được 2026-09-18 trên
+ * `CICD-0005` (một gợi ý, `penaltyPoints: 20`, điểm khai 980 vs 1000).
+ *
+ * Game Git đã ghi lại khe này ngày 2026-09-15 và để lại cho tầng máy chủ
+ * (`games/git/problem-level.ts`); đây là chỗ nó được đóng — cho cả ba game cùng
+ * lúc, vì cả ba đọc chung một cờ.
  */
-export function toAuthorProblem(problem: StoredProblem): SolverProblem {
+export function toAuthorProblem(
+  problem: StoredProblem,
+  revealedIds: ReadonlySet<string>,
+): SolverProblem {
   const { hints, testcases, ...rest } = problem;
   return {
     ...rest,
     hints: hints.map((hint) => ({
       id: hint.id,
       penaltyPoints: hint.penaltyPoints,
-      revealed: true,
+      revealed: revealedIds.has(hint.id),
+      // Không phụ thuộc `revealed` — đây LÀ chỗ khác biệt của đường tác giả.
       text: hint.text,
     })),
     testcases: toAuthorTestcaseTeasers(testcases),

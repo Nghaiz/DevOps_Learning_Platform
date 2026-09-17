@@ -69,6 +69,7 @@
 import type { AuthorField, GameProblemPlugin } from '../core/problem-plugin.ts';
 import type { GradeResult, Testcase } from '../core/problem.ts';
 import { problemVerdictOf, type ProblemFailureCode } from '../core/problem.ts';
+import { CICD_PLUGIN_PREDICATE_ARGS } from './predicate-args-plugin.ts';
 import { CICD_PROBLEM_TOPICS } from '../problem-topic-labels.ts';
 import type { CicdGameAction } from './action.ts';
 import type { CicdCdPolicies, CicdLevelCd } from './cd-contract.ts';
@@ -672,6 +673,7 @@ export const CICD_PROBLEM_PLUGIN: GameProblemPlugin<CicdProblemSpec, CicdGameAct
   codePrefix: CICD_PROBLEM_CODE_PREFIX,
   topics: CICD_PROBLEM_TOPICS,
   predicateNames: CICD_IMPLEMENTED_PREDICATE_NAMES,
+  predicateArgs: CICD_PLUGIN_PREDICATE_ARGS,
   initialSpec: specBanDau,
   authorFields: CICD_AUTHOR_FIELDS,
   grade: gradeCicdProblem,

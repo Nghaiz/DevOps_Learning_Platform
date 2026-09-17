@@ -1,10 +1,10 @@
 import { errText, t } from '@devops-platform/copy';
-import type { ProblemHint, Testcase } from '@devops-platform/games';
+import type { GameId, ProblemHint, Testcase } from '@devops-platform/games';
 import type { FieldIssue } from './cluster-form';
 import { clusterToSpec } from './cluster-to-spec';
 import { pluginViewFor } from './game-plugin-view';
 import type { ObjectiveFormState, ProblemDraftInput, ProblemFormState } from './problem-form';
-import { PREDICATE_SPECS, isPredicateName } from './predicate-spec';
+import { coerceGenericArg, genericArgs, isPredicateOfGame, k8sSpec } from './predicate-catalog';
 import type { PredicateArgSpec } from './predicate-arg-types';
 import { specFromText } from './spec-text';
 import { parseTags, toSlug } from './text-tools';
@@ -79,10 +79,16 @@ function readArg(spec: PredicateArgSpec, raw: string, path: string, issues: Fiel
 function toObjective(
   form: ObjectiveFormState,
   index: number,
+  gameId: GameId,
   issues: FieldIssue[],
 ): Testcase | null {
   const path = `objectives.${String(index)}`;
-  if (form.check === '' || !isPredicateName(form.check)) {
+  /*
+   * ⛔ Hỏi theo GAME, không hỏi `isPredicateName` (bảng của riêng K8s) — P20.
+   * Trước đợt này dòng đó từ chối MỌI vị từ của Git và CI/CD, và người soạn nhận
+   * đúng câu "Chưa chọn vị từ kiểm tra" cho một ô họ đã chọn.
+   */
+  if (!isPredicateOfGame(gameId, form.check)) {
     issues.push({
       path: `${path}.check`,
       message: errText('problem.problem-draft-chua-chon-vi-tu-kiem-tra'),
@@ -90,17 +96,38 @@ function toObjective(
     return null;
   }
 
-  const spec = PREDICATE_SPECS[form.check];
+  const spec = k8sSpec(gameId, form.check);
   const args: Record<string, unknown> = {};
-  for (const argSpec of spec.args) {
-    const value = readArg(
-      argSpec,
-      form.args[argSpec.key] ?? '',
-      `${path}.args.${argSpec.key}`,
-      issues,
-    );
-    if (value !== undefined) {
-      args[argSpec.key] = value;
+  if (spec !== null) {
+    for (const argSpec of spec.args) {
+      const value = readArg(
+        argSpec,
+        form.args[argSpec.key] ?? '',
+        `${path}.args.${argSpec.key}`,
+        issues,
+      );
+      if (value !== undefined) {
+        args[argSpec.key] = value;
+      }
+    }
+  } else {
+    /*
+     * Game khác K8s đi bảng CHUNG của hợp đồng plugin. Ép kiểu ở đây chứ không
+     * để nguyên chuỗi: `Testcase.args` là `unknown`, nên một `'120'` thay vì
+     * `120` lưu xuống được và chỉ hỏng lúc chấm — `argNumber` trả `null`, vị từ
+     * trả `false`, và bài không bao giờ qua được.
+     */
+    for (const argSpec of genericArgs(gameId, form.check)) {
+      const raw = form.args[argSpec.name] ?? '';
+      const ket = coerceGenericArg(argSpec, raw);
+      if (ket.kind === 'ok') {
+        args[argSpec.name] = ket.value;
+      } else if (ket.kind === 'sai-kieu') {
+        issues.push({
+          path: `${path}.args.${argSpec.name}`,
+          message: errText('problem.problem-draft-phai-la-so', { specLabel: argSpec.name }),
+        });
+      }
     }
   }
 
@@ -178,7 +205,7 @@ export function toProblemDraft(form: ProblemFormState): DraftResult {
 
   const objectives: Testcase[] = [];
   form.objectives.forEach((objective, index) => {
-    const built = toObjective(objective, index, issues);
+    const built = toObjective(objective, index, form.gameId, issues);
     if (built !== null) {
       objectives.push(built);
     }

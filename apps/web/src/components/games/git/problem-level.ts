@@ -277,11 +277,13 @@ export interface GitOjClaimInput {
  * không đọc được bảng đó, nhưng `problems.byCode` đã trả cờ `revealed` của chính
  * người đang xem — đó LÀ vế thứ nhất. Vế thứ hai đọc từ nhật ký.
  *
- * ⚠ Cờ `revealed` nói dối với TÁC GIẢ bài: `toAuthorProblem` đặt `revealed: true`
- * cho mọi gợi ý bất kể bảng, nên một tác giả nộp bài CỦA MÌNH mà bài có gợi ý
- * tính điểm sẽ khai điểm thấp hơn máy chủ và nhận `CE`. Khe nằm ở tầng máy chủ
- * (`server/problems/solver.ts`), ngoài lane này. Bài không có gợi ý thì không
- * chạm phải — xem báo cáo lane.
+ * ✅ ĐÃ ĐÓNG 2026-09-18 (khe ghi ở đây ngày 2026-09-15). `toAuthorProblem` từng
+ * đặt cứng `revealed: true` cho mọi gợi ý, nên một tác giả nộp bài CỦA MÌNH mà
+ * bài có gợi ý tính điểm sẽ khai điểm thấp hơn máy chủ và nhận `CE`. Nay cờ đó
+ * đọc từ bảng `problem_hint_reveals` ở CẢ HAI nhánh, và `text` là thứ duy nhất
+ * đường tác giả nới ra — xem `server/problems/solver.ts` § `toAuthorProblem` và
+ * `core/problem.ts` § `ProblemHintTeaser`. Đừng viết lại phép suy "tác giả thì
+ * revealed" ở đây: nó là chính khe vừa đóng.
  */
 export function gitOjClaim(input: GitOjClaimInput): RunResult {
   const { problem, log, objectivesMet, startedAt, finishedAt } = input;

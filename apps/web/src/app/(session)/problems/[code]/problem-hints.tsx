@@ -74,6 +74,16 @@ export function ProblemHints(props: {
                     <span className="text-xs text-muted-foreground">
                       {t('catalog.problem.hint-revealed', { points: hint.penaltyPoints })}
                     </span>
+                  ) : hint.text !== null ? (
+                    /*
+                     * Đọc được mà CHƯA trả điểm — đường của tác giả và người
+                     * duyệt (`toAuthorProblem`). Không vẽ nút mở: bấm nó sẽ ghi
+                     * một dòng `problem_hint_reveals` và trừ điểm thật của họ để
+                     * đổi lấy một đoạn chữ đang hiện sẵn ngay dưới.
+                     */
+                    <span className="text-xs text-muted-foreground">
+                      {t('catalog.problem.hint-author-preview')}
+                    </span>
                   ) : (
                     <Button
                       variant="outline"
@@ -89,7 +99,13 @@ export function ProblemHints(props: {
                     </Button>
                   )}
                 </div>
-                {hint.revealed && hint.text !== null && (
+                {/*
+                  Gác bằng `text`, KHÔNG bằng `revealed`: hai trường trả lời hai
+                  câu hỏi khác nhau (`core/problem.ts` § `ProblemHintTeaser`), và
+                  `revealed` là câu "đã bị trừ điểm chưa". Tác giả có `text` với
+                  `revealed: false` và vẫn phải đọc được gợi ý mình vừa viết.
+                */}
+                {hint.text !== null && (
                   <p className="mt-3 flex gap-2 text-sm leading-relaxed text-foreground">
                     <Lightbulb aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
                     {hint.text}

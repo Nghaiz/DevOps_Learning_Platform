@@ -28,7 +28,7 @@ import {
 
 import { ISSUE_TEXT, LIMIT_TEXT } from './builder-copy';
 import { SaveProblemPanel } from './save-problem-panel';
-import { PREDICATE_ARGS, missingArgs } from './predicate-args';
+import { PREDICATE_ARGS, missingArgs } from '@devops-platform/games';
 import {
   exportFileName,
   formatAllowedCommands,

@@ -195,7 +195,7 @@ describe('không rò cách chấm ra dây', () => {
   it('đường người soạn của trang chi tiết cũng không chở cách chấm', () => {
     // Người soạn cần `check`/`args` thì đi `problems.forEdit`. Trang chi tiết
     // là MỘT trang cho cả hai vai nên nó có MỘT kiểu trả về — xem `solver.ts`.
-    const wire = JSON.stringify(toAuthorProblem(problemFixture()));
+    const wire = JSON.stringify(toAuthorProblem(problemFixture(), new Set()));
 
     expect(wire).not.toContain(SECRET_CHECK);
     expect(wire).not.toContain(SECRET_ARG);
@@ -204,6 +204,22 @@ describe('không rò cách chấm ra dây', () => {
     expect(wire).not.toContain('"objectives"');
     // Gợi ý thì ngược lại: tác giả đọc được nguyên văn.
     expect(wire).toContain('Nội dung gợi ý');
+  });
+
+  /*
+   * Hồi quy cho lỗi đo được 2026-09-18: `revealed: true` đặt cứng ở đường tác
+   * giả làm mọi lượt nộp của chính tác giả nhận `CE`. Ô này gác đúng cặp
+   * (`revealed` sai ⇒ đỏ) chứ không gác "có đọc được không" — vế đó đã có ô trên.
+   */
+  it('tác giả ĐỌC ĐƯỢC gợi ý nhưng KHÔNG bị tính là đã trả điểm', () => {
+    const chuaTra = toAuthorProblem(problemFixture(), new Set());
+    expect(chuaTra.hints.map((hint) => hint.revealed)).toEqual([false]);
+    expect(chuaTra.hints[0]?.text).toContain('Nội dung gợi ý');
+
+    // ĐỐI CHỨNG DƯƠNG: đã có dòng trong bảng thì cờ phải lên — nếu không, ô trên
+    // xanh vì hàm trả `false` cứng, đúng kiểu lỗi ngược lại.
+    const daTra = toAuthorProblem(problemFixture(), new Set(['h1']));
+    expect(daTra.hints.map((hint) => hint.revealed)).toEqual([true]);
   });
 
   it('gợi ý chưa mở vẫn không rò — hồi quy cho lỗ hổng đã vá trước đó', () => {

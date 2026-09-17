@@ -133,9 +133,23 @@ async function walkAllPages(
 ): Promise<readonly AuthorProblemWithStats[]> {
   const collected: AuthorProblemWithStats[] = [];
   let cursor: string | null = null;
-  // Trần vòng lặp: một keyset hỏng theo chiều "không tiến" sẽ lặp vô hạn, và một
-  // test treo đọc ra như một test chậm.
-  for (let page = 0; page < 20; page += 1) {
+  /*
+   * Trần vòng lặp: một keyset hỏng theo chiều "không tiến" sẽ lặp vô hạn, và một
+   * test treo đọc ra như một test chậm.
+   *
+   * ⛔ Suy TỪ SỐ DÒNG THẬT, không phải một hằng. Bản đầu ghi cứng `20`, và với
+   * `limit: 1` điều đó có nghĩa là ô này chỉ sống khi DB cục bộ có ≤ 20 bài nhìn
+   * thấy được. Nó đỏ thật ngày 2026-09-18 sau hai lượt `@flow` soạn bài (mỗi
+   * lượt thêm một bài `published`) — *"phân trang không kết thúc sau 20 trang"*,
+   * một câu đọc ra như "keyset hỏng" trong khi keyset hoàn toàn lành. Máy dùng
+   * chung thì bài chỉ có thêm, nên hằng đó chắc chắn sẽ sai lần nữa.
+   *
+   * `+ 2` là biên an toàn cho trang cuối rỗng và cho một dòng chen vào giữa lượt
+   * đi; vẫn hữu hạn nên vế "không tiến" vẫn bị bắt.
+   */
+  const tong = await db.$count(problems);
+  const tranTrang = Math.ceil(tong / Math.max(1, options.limit ?? 20)) + 2;
+  for (let page = 0; page < tranTrang; page += 1) {
     const result = await listProblems(db, {
       visibility: problemVisibilityFor(viewer),
       viewerId: viewer.id,
@@ -147,7 +161,7 @@ async function walkAllPages(
     }
     cursor = result.nextCursor;
   }
-  throw new Error('phân trang không kết thúc sau 20 trang');
+  throw new Error(`phân trang không kết thúc sau ${String(tranTrang)} trang (${String(tong)} bài trong DB)`);
 }
 
 function codesOf(items: readonly AuthorProblemWithStats[]): readonly string[] {

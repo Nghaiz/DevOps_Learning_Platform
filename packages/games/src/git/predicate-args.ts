@@ -23,26 +23,28 @@
  * `levelDraftIssues` đã có mã lỗi `thieu-cay-dich` riêng cho nó.
  */
 
-import type { GitPredicateName } from '@devops-platform/games';
+import type { ProblemArgSpec } from '../core/problem-plugin.ts';
+import type { GitPredicateName } from './contract.ts';
 
 /**
- * Kiểu giá trị, đặt theo ĐÚNG hàm mà engine dùng để đọc nó.
+ * ⛔ CHUYỂN NHÀ 2026-09-18 (P20): `apps/web/src/components/games/git/builder/` →
+ * `packages/games/src/git/`.
+ *
+ * Bảng này từng chỉ phục vụ Level Builder của game Git nên nó sống ở tầng web.
+ * Nay hợp đồng `GameProblemPlugin.predicateArgs` đòi MỌI game khai bảng của
+ * mình — trang soạn bài dựng ô nhập từ đó — và plugin sống trong package này.
+ *
+ * Kiểu riêng cũ (`ArgKind` / `ArgSpec`) nay là BÍ DANH của kiểu chung
+ * `ProblemArgSpec` ở `core/problem-plugin.ts`, không phải một bản khai thứ hai:
+ * hai bản cùng hình dạng là đúng chỗ chúng trôi khỏi nhau. Giữ hai tên cũ vì
+ * `git-builder.tsx` và ô gác đã gọi chúng, và đổi tên ở đây không mua được gì.
  *
  * `lines` là `argLines`: nhận cả một chuỗi (tự cắt theo xuống dòng) lẫn một mảng
  * chuỗi. Giao diện cho gõ nhiều dòng rồi gửi đi dạng mảng.
  */
-export type ArgKind = 'string' | 'number' | 'boolean' | 'lines';
+export type ArgKind = ProblemArgSpec['kind'];
 
-export interface ArgSpec {
-  readonly name: string;
-  readonly kind: ArgKind;
-  /**
-   * Engine có giá trị mặc định cho tham số này (`argBoolean(...) ?? true`), nên
-   * bỏ trống vẫn chấm được. Thiếu một tham số BẮT BUỘC thì vị từ trả `false`
-   * vĩnh viễn, và đó là thứ giao diện phải cảnh báo.
-   */
-  readonly optional: boolean;
-}
+export type ArgSpec = ProblemArgSpec;
 
 const REF: ArgSpec = { name: 'ref', kind: 'string', optional: false };
 const MESSAGE: ArgSpec = { name: 'message', kind: 'string', optional: false };

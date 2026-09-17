@@ -131,6 +131,14 @@ export const problem = {
   'problem.node-fields-moi-dong-mot-taint': 'Mỗi dòng một taint.',
   'problem.objective-arg-field-tuy-chon': (p: { propsSpecLabel: string }) =>
     `${p.propsSpecLabel} (tuỳ chọn)`,
+  /*
+   * P20: ô nhập tham số cho game KHÁC K8s. Nhãn hiện TÊN THAM SỐ trần
+   * (`ref`, `seconds`), vì đó là định danh của engine và người soạn tra tài liệu
+   * bằng chính nó; một bản dịch tạm sẽ làm họ tìm không ra.
+   */
+  'problem.objective-arg-generic-chon-mot-gia-tri': 'Chọn một giá trị',
+  'problem.objective-arg-generic-de-mac-dinh': 'Để trống = dùng mặc định của engine',
+  'problem.objective-arg-generic-moi-dong-mot-phan-tu': 'Mỗi dòng là một phần tử',
   'problem.objective-arg-field-readiness-san-sang-nhan-luu-luong':
     'readiness: sẵn sàng nhận lưu lượng',
   'problem.objective-arg-field-liveness-con-song': 'liveness: còn sống',
@@ -149,7 +157,14 @@ export const problem = {
   'problem.objective-fields-noi-nguoi-lam-phai-lam-duoc-gi-khong-noi-lam-the-nao':
     'Nói người làm phải làm ĐƯỢC gì, không nói làm THẾ NÀO.',
   'problem.objective-fields-vi-tu-kiem-tra': 'Vị từ kiểm tra',
-  'problem.objective-fields-chon-mot-trong-32-vi-tu': 'Chọn một trong 32 vị từ…',
+  /*
+   * ⛔ ĐỔI Ở P20: số vị từ nay THEO GAME (K8s 32, Git 25, CI/CD 27), nên một con
+   * số ghi cứng trong câu chữ là một lời nói dối trên hai trong ba game. Khoá cũ
+   * `...-chon-mot-trong-32-vi-tu` bỏ hẳn thay vì giữ lại: một khoá không ai gọi
+   * là thứ trôi mà không ai thấy.
+   */
+  'problem.objective-fields-chon-mot-vi-tu': (p: { n: number }) =>
+    `Chọn một trong ${String(p.n)} vị từ…`,
   'problem.objective-fields-phai-dien-it-nhat-mot-trong': 'Phải điền ít nhất một trong:',
   'problem.objective-fields-hoac': ' hoặc ',
   'problem.objective-fields-thieu-ca-hai-thi-vi-tu-luon-tra-sai-va-bai-khong-bao-gio-qua-duoc':
