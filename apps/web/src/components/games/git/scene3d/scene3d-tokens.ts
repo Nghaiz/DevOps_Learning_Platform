@@ -51,7 +51,7 @@ import {
   createCanvasColorResolver,
   parseCssRgb,
   type Rgb,
-} from '../../../k8s-arena/shared/scene-tokens';
+} from '../../shared/scene-tokens';
 import { ACCENT_STYLE, EDGE_STYLE, REF_STYLE, type ColorToken } from '../git-palette.ts';
 
 export { createCanvasColorResolver, parseCssRgb };
