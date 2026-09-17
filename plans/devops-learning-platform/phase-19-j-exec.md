@@ -17,11 +17,20 @@
 thành không hợp lệ.
 
 Suy từ MÃ NGUỒN: chế độ làm bài CI/CD chưa bao giờ mở (`cicd-game.tsx` trả màn "Chế độ làm bài
-chưa mở"), nên **không có đường nào ghi được một `RunLog` CI/CD**, và tập bản ghi bị vỡ phải là
-rỗng. ⚠ Suy luận đó CHƯA đối chiếu với cơ sở dữ liệu: Docker Desktop không chạy lúc viết plan này
-(2026-09-17), nên `select game_id, count(*) from problems / submissions` chưa chạy lượt nào.
-**Bước đầu tiên của J.1.1 là chạy hai truy vấn đó.** Có dòng nào thì DỪNG và hỏi lại chủ dự án,
-vì lúc đó "đổi hẳn" không còn rẻ như khi ra quyết định.
+chưa mở"), nên không có đường nào ghi được một `RunLog` CI/CD.
+
+**ĐÃ ĐO trên DB phát triển (docker compose, 2026-09-17)** — không còn là suy luận:
+
+```
+select game_id, count(*) from problems group by game_id;   ->  k8s | 10   (KHÔNG có cicd, cũng không có git)
+select count(*) from problem_submissions;                  ->  0
+```
+
+Không bài CI/CD nào tồn tại và **chưa có lượt nộp nào trong toàn bảng**, nên tập bản ghi bị vỡ là
+rỗng và việc đổi hẳn không tốn một đường di trú nào. ⚠ Phạm vi phép đo: DB cục bộ của máy phát
+triển. Trước khi chạy J.1.1 trên một môi trường khác (cụm lab, hay bản đã có người dùng), chạy lại
+đúng hai truy vấn đó; có dòng nào thì DỪNG và hỏi lại chủ dự án, vì lúc đó "đổi hẳn" không còn rẻ
+như khi ra quyết định.
 
 ---
 
@@ -150,7 +159,7 @@ Khuôn mẫu: `games/git/git-problem.tsx`. Đọc nó trước, gồm cả khố
 | Rủi ro | L | I | Điểm | Giảm thiểu |
 |---|---|---|---|---|
 | Verdict client khác verdict máy chủ ⇒ người giải ĐÚNG bị từ chối | 3 | 5 | 15 | Client không chấm; verdict chỉ đến từ máy chủ, dựng qua `toVerdictView` |
-| Đổi hình dạng action làm hỏng bản ghi cũ | 2 | 4 | 8 | Suy từ mã: không có đường ghi nào nên tập phải rỗng. CHƯA đo trên DB — truy vấn `problems`/`submissions` là bước đầu của J.1.1; có dòng nào thì DỪNG |
+| Đổi hình dạng action làm hỏng bản ghi cũ | 1 | 4 | 4 | **Đã đo 2026-09-17**: 0 bài `cicd`, 0 dòng `problem_submissions` trên DB phát triển. Chạy lại hai truy vấn đó trên môi trường khác trước khi áp J.1.1 ở đó |
 | Bài CD ra đề không giải được vì thiếu núm | 3 | 4 | 12 | J.2.2 kiểm lúc lưu; thêm một ô test chạy thử "lời giải mẫu" của chính người soạn |
 | Giá trị `NaN` từ bảng núm đi vào bộ mô phỏng phía máy chủ | 3 | 3 | 9 | Zod chặn ở biên `problems.submit`; bộ mô phỏng vẫn ném và `grade` bắt thành lỗi bài làm, không thành 500 |
 | Hai lượt gọi mỗi lần nộp ăn trần nhịp | 2 | 3 | 6 | Ghi rõ trần thật (3 lần/phút) trên màn, như game Git đã làm |
