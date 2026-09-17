@@ -86,6 +86,7 @@ import {
   criticalCount,
   criticalHasResourceWait,
   envBands,
+  formatRunTime,
   isNavKey,
   navigateFrom,
   runTotalTicks,
@@ -228,7 +229,7 @@ export function CicdSvgScene(props: CicdSceneProps): ReactElement {
   const description = [
     `Đồ thị có ${nodes.length} job và ${edges.length} liên kết.`,
     criticalEdgeCount > 0
-      ? `Đường găng gồm ${criticalEdgeCount} đoạn${totalTicks === null ? '' : `, lượt chạy hết ${totalTicks} tick`}.`
+      ? `Đường găng gồm ${criticalEdgeCount} đoạn${totalTicks === null ? '' : `, lượt chạy hết ${formatRunTime(totalTicks)}`}.`
       : 'Lượt chạy chưa có đường găng nào được tính.',
     criticalWaitsOnMachine
       ? 'Đường găng đi qua một đoạn chờ máy chạy: muốn nhanh hơn thì thêm máy, sửa đồ thị không đổi được gì.'
@@ -401,8 +402,7 @@ export function CicdSvgScene(props: CicdSceneProps): ReactElement {
  * qua một đoạn **chờ máy**, nó nói tiếp rằng thứ phải sửa là số máy — nếu không
  * người chơi sẽ đi sửa đồ thị và không hiểu vì sao thời gian đứng yên.
  *
- * ⚠ Đơn vị là TICK. `CicdGraphView` không mang `tickSeconds`, nên đổi ra giây ở
- * đây là bịa một hệ số (đã ghi đề xuất trong báo cáo lane).
+ * Đơn vị đọc ra là GIÂY (kèm tick trong ngoặc) qua `formatRunTime()`.
  */
 function CriticalBadge(props: {
   readonly box: { readonly x: number; readonly y: number; readonly width: number };
@@ -426,7 +426,7 @@ function CriticalBadge(props: {
       />
       <text x={x + 16} y={y + 30} fontSize={16} fontWeight={700} fill={cssVar(CRITICAL_TEXT_TOKEN)}>
         Đường găng · {props.segments} đoạn
-        {props.totalTicks === null ? '' : ` · lượt chạy hết ${props.totalTicks} tick`}
+        {props.totalTicks === null ? '' : ` · lượt chạy hết ${formatRunTime(props.totalTicks)}`}
       </text>
       {props.machineWait && (
         <text x={x + 16} y={y + 56} fontSize={12.5} fill={cssVar(CRITICAL_TEXT_TOKEN)}>

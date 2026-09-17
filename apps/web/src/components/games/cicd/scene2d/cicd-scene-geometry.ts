@@ -40,7 +40,7 @@
  * mà không gì đỏ.
  */
 
-import type { CicdBounds, ScenePoint } from '@devops-platform/games';
+import { SECONDS_PER_TICK, type CicdBounds, type ScenePoint } from '@devops-platform/games';
 import {
   project2d,
   type CicdPlacedNode,
@@ -261,9 +261,8 @@ export function waitTicks(node: CicdPlacedNode): number | null {
  * thay vì hiện `0 tick`, vì `0` ở đây đọc ra là "chạy xong tức thì" chứ không
  * phải "chưa chạy".
  *
- * ⚠ Đơn vị là TICK, không phải giây. `CicdGraphView` là `Pick<CicdView, 'nodes'
- * | 'edges' | 'yAxis'>` nên nó KHÔNG mang `tickSeconds` — đổi ra giây ở đây là
- * bịa một hệ số. Đã ghi vào báo cáo lane như một đề xuất cho hợp đồng.
+ * Đơn vị là TICK — dữ kiện gốc. Đổi sang giây là việc của `formatRunTime()` ngay
+ * dưới, không phải của hàm này.
  */
 export function runTotalTicks(nodes: readonly CicdPlacedNode[]): number | null {
   let max: number | null = null;
@@ -273,6 +272,31 @@ export function runTotalTicks(nodes: readonly CicdPlacedNode[]): number | null {
     if (max === null || finished > max) max = finished;
   }
   return max;
+}
+
+/**
+ * Tổng thời gian lượt chạy, đọc ra cho người xem.
+ *
+ * ⚠ **SỬA 2026-09-17.** Bản đầu để nguyên "N tick" kèm chú thích rằng đổi ra
+ * giây "là bịa một hệ số, vì `CicdGraphView` không mang `tickSeconds`". Hệ số đó
+ * KHÔNG bịa: `SECONDS_PER_TICK` là một hằng của hợp đồng (`contract.ts` §1) và
+ * nó đã export ở barrel `packages/games` từ trước chặng này.
+ *
+ * Nhìn vào `CicdGraphView` để kết luận một hằng không tồn tại là nhìn nhầm chỗ:
+ * view chở DỮ LIỆU của một lượt chạy, còn hằng quy đổi đơn vị thì giống nhau ở
+ * mọi lượt và thuộc về hợp đồng. Nhét nó vào mỗi view là chở cùng một con số
+ * kèm theo từng node.
+ *
+ * Giữ cả hai đơn vị: giây cho người đọc, tick trong ngoặc cho người đang cân
+ * bằng level — hai trục điểm phát biểu bằng đơn vị đời thật, còn engine xếp lịch
+ * bằng tick, nên người chỉnh level cần thấy con số họ đang chỉnh.
+ */
+export function formatRunTime(ticks: number): string {
+  const giay = ticks * SECONDS_PER_TICK;
+  const phut = Math.floor(giay / 60);
+  const du = Math.round(giay % 60);
+  const doc = phut === 0 ? `${String(Math.round(giay))} giây` : `${String(phut)} phút ${String(du)} giây`;
+  return `${doc} (${String(ticks)} tick)`;
 }
 
 /** Số cạnh nằm trên đường găng. `0` ⇒ không vẽ nhãn đường găng. */
