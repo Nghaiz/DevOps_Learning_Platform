@@ -88,5 +88,5 @@ Mục tiêu thời gian trong bài chỉ đo image, trường không do bộ đi
       'Loại trừ cả image: cuộc giành replicas có thể hết, nhưng ảnh sai không được khôi phục hay nhận commit mới.',
     ],
   },
-  theoryId: null,
+  theoryId: '19-tu-sua-va-quyen-so-huu',
 };

@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useRef, useState, type ReactElement } from 'react';
-import { Button } from '@devops-platform/ui';
+import { Button, MarkdownView } from '@devops-platform/ui';
 import {
   mergeStageCatalogue,
   readWorkflowYaml,
@@ -10,6 +10,7 @@ import {
   type CicdHydrateSources,
   type CicdLevel,
   type CicdPlayerOverrides,
+  type TheoryDoc,
 } from '@devops-platform/games';
 
 import { YamlEditor } from '../shared/yaml-editor';
@@ -34,6 +35,8 @@ import { CicdSnippetBar } from './cicd-snippet-bar';
 
 export interface CicdLevelScreenProps {
   readonly level: CicdLevel;
+  /** Bài lý thuyết của màn. `null` khi level không khai `theoryId`. */
+  readonly theory: TheoryDoc | null;
   readonly onExit: () => void;
   readonly onNext?: () => void;
 }
@@ -43,7 +46,7 @@ interface AttemptEntry {
   readonly outcome: CicdRunOutcome;
 }
 
-export function CicdLevelScreen({ level, onExit, onNext }: CicdLevelScreenProps): ReactElement {
+export function CicdLevelScreen({ level, theory, onExit, onNext }: CicdLevelScreenProps): ReactElement {
   /*
    * Văn bản khởi điểm là workflow ban đầu ĐƯỢC IN RA, không phải một chuỗi viết
    * tay: hai bản sẽ trôi khỏi nhau ngay lần đầu ai đó sửa dữ liệu level, và bản
@@ -59,6 +62,7 @@ export function CicdLevelScreen({ level, onExit, onNext }: CicdLevelScreenProps)
   const [outcome, setOutcome] = useState<CicdRunOutcome | null>(null);
   const [history, setHistory] = useState<readonly AttemptEntry[]>([]);
   const [hintsShown, setHintsShown] = useState(0);
+  const [showTheory, setShowTheory] = useState(false);
 
   /*
    * Bảng ghép gom stage từ CẢ BA workflow (ban đầu + hai lời giải). Không có nó,
@@ -231,6 +235,25 @@ export function CicdLevelScreen({ level, onExit, onNext }: CicdLevelScreenProps)
                 </li>
               ))}
             </ul>
+            {theory === null ? null : (
+              <div className="flex flex-col gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  aria-expanded={showTheory}
+                  onClick={() => {
+                    setShowTheory((dangMo) => !dangMo);
+                  }}
+                >
+                  Bài lý thuyết: {theory.frontmatter.title} · {theory.frontmatter.readMinutes} phút
+                </Button>
+                {showTheory ? (
+                  <div className="rounded-lg border border-border px-4 py-3" data-testid="cicd-theory">
+                    <MarkdownView markdown={theory.body} resolveAssetUrl={() => null} />
+                  </div>
+                ) : null}
+              </div>
+            )}
           </section>
 
           <CicdCheatsheet entries={level.teaching.cheatsheet} />

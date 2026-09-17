@@ -81,7 +81,7 @@ export const LEVEL_C15: CicdLevel = {
     ],
     pitfalls: ['Đặt bước dựng trước trong văn bản rồi tưởng ảnh đã được giao: vị trí hiển thị không tạo cạnh phụ thuộc.', 'Thử lại bước thiếu sản phẩm có vẻ đơn giản, nhưng lỗi đồ thị vẫn còn ở mọi lần thử.'],
   },
-  theoryId: null,
+  theoryId: '12-artifact-co-danh-tinh',
   solutionWorkflow: noiDev(false),
   altSolutionWorkflow: noiDev(true),
 };

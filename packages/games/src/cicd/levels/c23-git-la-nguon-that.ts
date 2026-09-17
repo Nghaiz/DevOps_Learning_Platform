@@ -105,5 +105,5 @@ Quan sát cả hai trạng thái ở giữa hai nhịp giúp phân biệt độ 
       'Gỡ cạnh gom kết quả để bước ghi chạy sớm: nó mất ảnh hoặc khai báo đã được soát.',
     ],
   },
-  theoryId: null,
+  theoryId: '18-gitops-va-drift',
 };

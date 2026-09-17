@@ -96,7 +96,7 @@ export const LEVEL_C16: CicdLevel = {
     ],
     pitfalls: ['Dùng cùng tên image làm bằng chứng: tên là nhãn, danh tính mới phân biệt hai bản dựng.', 'Cho staging và prod chạy song song để nhanh hơn: prod có thể lên trước khi staging xong.'],
   },
-  theoryId: null,
+  theoryId: '13-thang-hang-dung-dung-lai',
   solutionWorkflow: THANG_HANG,
   altSolutionWorkflow: QUA_CONG,
 };

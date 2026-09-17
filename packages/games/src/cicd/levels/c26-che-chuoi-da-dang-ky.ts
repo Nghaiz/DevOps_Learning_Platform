@@ -122,5 +122,5 @@ Kịch bản log và đường ống chạy độc lập trong bài. Đổi cạ
       'Xếp lịch khác rồi cho rằng bí mật biến mất: bộ che vẫn nhận nguyên kịch bản log.',
     ],
   },
-  theoryId: null,
+  theoryId: '20-che-bi-mat-trong-log',
 };

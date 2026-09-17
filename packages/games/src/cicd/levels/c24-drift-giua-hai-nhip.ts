@@ -85,5 +85,5 @@ Hai đồng hồ trong bài độc lập: đường ống ghi nhận cấu hình
       'Tắt tự sửa rồi cho rằng cứ đối soát nhanh là drift tự hết: không có commit mới thì chỉnh tay vẫn ở lại.',
     ],
   },
-  theoryId: null,
+  theoryId: '18-gitops-va-drift',
 };

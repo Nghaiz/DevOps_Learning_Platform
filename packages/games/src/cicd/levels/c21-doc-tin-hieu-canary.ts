@@ -66,7 +66,7 @@ export const LEVEL_C21: CicdLevel = {
     ],
     pitfalls: ['Hạ ngưỡng thật thấp để không bỏ sót bản lỗi: ứng viên tốt cũng có thể bị hủy vì nhiễu.', 'Nâng ngưỡng để bảng không còn hủy nhầm: bản lỗi có thể được thăng hạng.', 'Coi 50% là mặc định an toàn vì đủ mẫu nhanh: một nửa lưu lượng sẽ gặp ứng viên chưa được xác nhận; đây là đánh đổi có chủ ý.'],
   },
-  theoryId: null,
+  theoryId: '16-canary-va-co-mau',
   solutionWorkflow: WORKFLOW,
   altSolutionWorkflow: WORKFLOW,
   cd: {

@@ -220,7 +220,7 @@ năm là một việc đã ngừng kiểm tra từ ba năm trước.`,
       'Đặt dấu không-chặn cho mọi stage "cho chắc". Lúc đó lượt chạy không bao giờ đỏ nữa, và một đường ống không bao giờ đỏ thì không kiểm tra gì cả.',
     ],
   },
-  theoryId: null,
+  theoryId: '04-viec-khong-chan',
   solutionWorkflow: {
     name: 'Stage tích hợp không chặn — vẫn hiện đỏ trong bảng',
     stages: [

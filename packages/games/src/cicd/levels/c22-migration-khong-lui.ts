@@ -99,5 +99,5 @@ Canary giới hạn đội máy dành cho ứng viên, nhưng bản sửa vẫn 
       'Tăng ngưỡng để bản lỗi được giữ lại: tránh được trạng thái rollback-blocked nhưng dịch vụ vẫn lỗi ở mọi request.',
     ],
   },
-  theoryId: null,
+  theoryId: '17-migration-khong-lui',
 };

@@ -61,7 +61,7 @@ export const LEVEL_C20: CicdLevel = {
     ],
     pitfalls: ['Chọn tiến vì nghĩ đây cũng là khôi phục nhanh: trong tình huống này bản sửa cần năm phút.', 'Thu hẹp trọng số mà giữ nguyên cửa sổ rất ngắn: ít yêu cầu hơn khiến quyết định dựa trên số liệu kém ổn định.'],
   },
-  theoryId: null,
+  theoryId: '16-canary-va-co-mau',
   solutionWorkflow: WORKFLOW,
   altSolutionWorkflow: WORKFLOW,
   cd: {

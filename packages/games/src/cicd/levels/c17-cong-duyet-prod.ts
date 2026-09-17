@@ -99,7 +99,7 @@ export const LEVEL_C17: CicdLevel = {
     ],
     pitfalls: ['Để cổng ở nhánh riêng cho sơ đồ gọn: prod có thể phát hành trước khi người duyệt quyết định.', 'Cho cổng bỏ qua lỗi để giữ bảng xanh: quyết định từ chối sẽ mất tác dụng.'],
   },
-  theoryId: null,
+  theoryId: '14-cong-duyet-moi-truong',
   solutionWorkflow: coCong(false),
   altSolutionWorkflow: coCong(true),
 };

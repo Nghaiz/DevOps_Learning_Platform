@@ -261,7 +261,7 @@ bước hỏng 4 tick sẽ đốt 14 tick mỗi lần thử lại — trong đó
       'Hạ `passes` xuống cho nhanh — làm thế là tự bịt mắt đúng cái giác quan duy nhất phân biệt được đã-sửa với vừa-may.',
     ],
   },
-  theoryId: null,
+  theoryId: '07-flaky-mot-luot-xanh',
   solutionWorkflow: {
     name: 'Thử lại cả stage kiểm thử',
     stages: [

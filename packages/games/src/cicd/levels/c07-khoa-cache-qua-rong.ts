@@ -263,7 +263,7 @@ mấy lần một tuần?"* Bất cứ thứ gì đổi theo mỗi commit mà n�
       'Thêm máy chạy cho nhanh. Đường ống sẽ nhanh hơn thật, và cache vẫn trượt đúng như cũ — đó là lý do level này có ngưỡng runner-phút.',
     ],
   },
-  theoryId: null,
+  theoryId: '06-khoa-cache-rong-va-hep',
   solutionWorkflow: {
     name: 'Khoá đúng bằng tệp khoá phụ thuộc',
     stages: [

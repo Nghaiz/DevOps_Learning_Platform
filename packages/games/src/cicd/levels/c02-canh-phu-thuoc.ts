@@ -256,7 +256,7 @@ phải lần cuối.`,
       'Nối tất cả thành một chuỗi cho chắc. Nó luôn đúng về mặt sản phẩm, nhưng biến mọi việc độc lập thành xếp hàng, và độ trễ cộng dồn.',
     ],
   },
-  theoryId: null,
+  theoryId: '01-duong-ong-la-do-thi',
   solutionWorkflow: {
     name: 'Test và đóng gói cùng đợi build',
     stages: [

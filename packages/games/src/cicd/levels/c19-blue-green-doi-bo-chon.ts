@@ -78,7 +78,7 @@ export const LEVEL_C19: CicdLevel = {
     ],
     pitfalls: ['Chọn tiến vì muốn luôn dùng bản mới nhất: khi bản sửa chưa sẵn sàng, lưu lượng lỗi còn kéo dài.', 'Bỏ mọi cạnh để chạy nhanh: việc giao bản cần đủ hai sản phẩm trước khi bắt đầu.'],
   },
-  theoryId: null,
+  theoryId: '15-rolling-va-blue-green',
   // A chỉ đổi cách khôi phục; B còn tách hai nhánh chuẩn bị độc lập, giảm 80 xuống 50 giây.
   solutionWorkflow: TUAN_TU,
   altSolutionWorkflow: SONG_SONG,

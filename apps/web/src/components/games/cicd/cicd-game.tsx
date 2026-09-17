@@ -2,7 +2,7 @@
 
 import { useMemo, useState, type ReactElement } from 'react';
 import { Button } from '@devops-platform/ui';
-import { CICD_LEVELS } from '@devops-platform/games';
+import { CICD_LEVELS, type TheoryDoc } from '@devops-platform/games';
 
 import { CicdCampaign } from './cicd-campaign';
 import { CicdLevelScreen } from './cicd-level-screen';
@@ -35,9 +35,11 @@ export interface CicdGameProps {
    * đang ở chế độ nào.
    */
   readonly initialProblemCode: string | null;
+  /** Bài lý thuyết của cả game, đọc ở server. Xem `server/games/cicd-theory.ts`. */
+  readonly theory: readonly TheoryDoc[];
 }
 
-export function CicdGame({ initialLevelId, initialProblemCode }: CicdGameProps): ReactElement {
+export function CicdGame({ initialLevelId, initialProblemCode, theory }: CicdGameProps): ReactElement {
   const [levelId, setLevelId] = useState<string | null>(initialLevelId);
   const [sandbox, setSandbox] = useState(false);
   /*
@@ -112,6 +114,7 @@ export function CicdGame({ initialLevelId, initialProblemCode }: CicdGameProps):
     <CicdLevelScreen
       key={level.id}
       level={level}
+      theory={theory.find((doc) => doc.frontmatter.id === level.theoryId) ?? null}
       {...(next === undefined ? {} : { onNext: () => setLevelId(next.id) })}
       onExit={() => {
         setLevelId(null);

@@ -399,4 +399,26 @@ test.describe('Game CI/CD — §19.E/§19.H', { tag: '@games-cicd' }, () => {
     await expect(page.getByTestId('cicd-axis-lead')).toBeVisible();
     await scanAxe(page, testInfo, 'cicd-co-ket-qua');
   });
+
+  test('AC-6 — axe 0 vi phạm trên màn CD: bảng núm, số đo ba bộ mô phỏng, bài lý thuyết', async ({ page }, testInfo) => {
+    /*
+     * C28 là màn duy nhất có CẢ ba bộ mô phỏng, nên một lượt quét phủ bảng núm
+     * phát hành + đối soát + che bí mật và cả ba khối số đo. Ô AC-6 ở trên chỉ
+     * quét màn CI, nơi không phần tử nào của chương CD được dựng.
+     */
+    const level = CD_LEVELS.find((l) => l.id.startsWith('cicd-c28-'));
+    if (level?.cd === undefined) throw new Error('không tìm thấy C28 có khối cd');
+    await openScreen(page, `${CICD_PATH}?level=${level.id}`, 'user');
+    await settle(page);
+    await expect(page.getByTestId('cicd-cd-panel')).toBeVisible();
+
+    await oSoan(page).fill(writeWorkflowYaml(level.solutionWorkflow).yaml);
+    await page.getByRole('button', { name: 'Chạy thử' }).click();
+    await expect(page.getByTestId('cicd-cd-drift')).toBeVisible();
+    await expect(page.getByTestId('cicd-cd-leaks')).toBeVisible();
+
+    await page.getByRole('button', { name: /^Bài lý thuyết:/u }).click();
+    await expect(page.getByTestId('cicd-theory')).toBeVisible();
+    await scanAxe(page, testInfo, 'cicd-man-cd');
+  });
 });

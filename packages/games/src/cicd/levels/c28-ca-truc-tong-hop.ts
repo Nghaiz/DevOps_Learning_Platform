@@ -144,5 +144,5 @@ Không có một cấu hình duy nhất: có thể dành thêm máy để đổi
     ],
     pitfalls: ['Chỉ tối ưu lead time rồi bỏ quên thời gian phục hồi.', 'Tắt tự sửa và tưởng drift biến mất ngay sau commit.', 'Che khóa thô rồi bỏ qua chuỗi base64 có thể khôi phục.'],
   },
-  theoryId: null,
+  theoryId: '21-hotfix-va-ca-truc',
 };

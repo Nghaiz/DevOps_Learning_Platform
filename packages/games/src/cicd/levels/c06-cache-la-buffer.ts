@@ -231,7 +231,7 @@ Và cache không bao giờ trúng 100%. Ngày tệp khoá đổi, đường ốn
       'Cache mọi bước cho chắc. Mỗi mục cache là một khoá phải khớp và một lần khôi phục phải chạy; cache một bước 1 tick không mua được gì.',
     ],
   },
-  theoryId: null,
+  theoryId: '05-cache-dat-dung-cho',
   solutionWorkflow: {
     name: 'Một cache thô đặt vào bước tải gói',
     stages: [

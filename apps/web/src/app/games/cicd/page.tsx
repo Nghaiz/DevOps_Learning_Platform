@@ -6,6 +6,7 @@ import { CICD_LEVELS } from '@devops-platform/games';
 // `paths` ở tsconfig nào và không đặt alias webpack, nên dạng `@/` sẽ đỏ ở cả
 // typecheck lẫn `next build`.
 import { CicdGame } from '../../../components/games/cicd/cicd-game';
+import { loadCicdTheory } from '../../../server/games/cicd-theory';
 
 export const metadata: Metadata = {
   title: t('catalog.meta-title.games-cicd'),
@@ -15,9 +16,9 @@ export const metadata: Metadata = {
 /**
  * `/games/cicd` — vỏ route của Xưởng đường ống CI/CD (19.H).
  *
- * Server Component làm đúng MỘT việc ngoài `metadata`: đọc hai tham số truy vấn
- * và chuyển xuống. Không nạp gì từ đĩa, khác `/games/git` — game CI/CD không có
- * tập bài lý thuyết ngoài `level.teaching`, thứ đã nằm sẵn trong `CICD_LEVELS`.
+ * Server Component làm hai việc ngoài `metadata`: đọc hai tham số truy vấn, và
+ * nạp bài lý thuyết từ đĩa (19.I) — ở server, như `/games/git`, để lúc chơi không
+ * có lời gọi backend nào.
  *
  * Không gác auth — game chạy hoàn toàn trong trình duyệt, nên `/games` KHÔNG có
  * trong `PROTECTED_PATHS` của `proxy.ts`.
@@ -65,11 +66,14 @@ export default async function CicdGamePage({
   const initialProblemCode =
     typeof rawProblem === 'string' && rawProblem.length > 0 ? rawProblem : null;
 
+  const theory = loadCicdTheory();
+
   return (
     <CicdGame
       key={initialProblemCode ?? initialLevelId ?? 'campaign'}
       initialLevelId={initialLevelId}
       initialProblemCode={initialProblemCode}
+      theory={theory}
     />
   );
 }

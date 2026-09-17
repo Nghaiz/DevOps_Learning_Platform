@@ -61,7 +61,7 @@ export const LEVEL_C18: CicdLevel = {
     ],
     pitfalls: ['Chọn một máy mỗi đợt vì trông thận trọng: tới khi cảnh báo, nhiều đợt đã bắt đầu và đều phải lùi.', 'Thay cả 12 máy một lần để lùi nhanh: đỉnh tài nguyên vượt giới hạn 16 máy.'],
   },
-  theoryId: null,
+  theoryId: '15-rolling-va-blue-green',
   solutionWorkflow: WORKFLOW,
   altSolutionWorkflow: WORKFLOW,
   cd: {

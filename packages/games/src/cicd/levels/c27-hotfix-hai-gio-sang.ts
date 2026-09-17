@@ -136,5 +136,5 @@ Một lượt đỏ do từ chối là kết quả đúng. Không nên dùng t�
       'Đổi chiến lược phát hành rồi mong đường ống 180 giây tự ngắn lại: hai bộ mô phỏng chạy độc lập.',
     ],
   },
-  theoryId: null,
+  theoryId: '21-hotfix-va-ca-truc',
 };
