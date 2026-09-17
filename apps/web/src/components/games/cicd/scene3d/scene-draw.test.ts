@@ -88,6 +88,23 @@ describe('AC-D2 — tập được vẽ lấy từ hợp đồng chung', () => {
     expect(draw.droppedEdges).toBe(0);
   });
 
+  /*
+   * Ô này gác một GIẢ ĐỊNH mà `cicd-scene-3d.tsx` dựa vào để đặt phụ thuộc của
+   * `useMemo`: mô hình vẽ không đọc `interaction`. Giả định đó đúng hôm nay, và
+   * nếu ngày nào đó ai thêm một trường tương tác vào đây thì memo sẽ trả mô hình
+   * CŨ khi người chơi chọn node — một lỗi mà mắt đọc ra là "bấm không ăn". Ô này
+   * đỏ trước khi điều đó kịp xảy ra.
+   */
+  it('mô hình vẽ KHÔNG phụ thuộc trạng thái tương tác', () => {
+    const base = propsFor([st('a', []), st('b', ['a'])]);
+    const withSelection: CicdSceneProps = {
+      ...base,
+      interaction: { ...base.interaction, selectedId: 'a', hoveredId: 'b' },
+    };
+
+    expect(buildSceneDraw(withSelection)).toEqual(buildSceneDraw(base));
+  });
+
   it('GIAO chứ không hợp: node thiếu chỗ đứng thì KHÔNG vẽ, và cạnh của nó rụng theo', () => {
     const props = propsFor([st('a', []), st('b', ['a'])]);
     const cut: CicdSceneProps = {

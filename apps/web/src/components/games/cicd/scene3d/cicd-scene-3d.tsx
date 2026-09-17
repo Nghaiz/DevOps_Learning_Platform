@@ -72,8 +72,29 @@ function usePrefersReducedMotion(): boolean {
   return reduced;
 }
 
+/**
+ * Tương tác rỗng, dùng riêng cho phép dựng mô hình vẽ.
+ *
+ * `buildSceneDraw` chỉ đọc `view` và `placement` — nó KHÔNG đọc `interaction`,
+ * và `scene-draw.test.ts` ghim đúng điều đó bằng một ô so hai mô hình dựng từ
+ * hai tương tác khác nhau. Nhờ vậy `useMemo` dưới đây phụ thuộc đúng hai thứ đổi
+ * hiếm, thay vì cả object `props` (đổi mỗi lần cha render) hay `interaction`
+ * (đổi mỗi lần con trỏ nhúc nhích) — nếu không thì cả đồ thị được dựng lại ở
+ * MỖI bước rê chuột.
+ */
+const DRAW_ONLY_INTERACTION = {
+  selectedId: null,
+  hoveredId: null,
+  onSelect: () => {},
+  onHover: () => {},
+} as const;
+
 export function CicdScene3d(props: CicdScene3dProps): ReactElement {
-  const draw = useMemo(() => buildSceneDraw(props), [props]);
+  const { view, placement } = props;
+  const draw = useMemo(
+    () => buildSceneDraw({ view, placement, interaction: DRAW_ONLY_INTERACTION }),
+    [view, placement],
+  );
   const reducedMotion = usePrefersReducedMotion();
   const probeRef = useRef<HTMLSpanElement>(null);
   const [labelLayer, setLabelLayer] = useState<HTMLDivElement | null>(null);
