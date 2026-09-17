@@ -33,6 +33,7 @@ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeom
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 import { NODE_HALF } from './scene-3d-math';
+import { RIM_ATTRIBUTE, RIM_UNIFORM, patchRimShaders } from './rim-shader';
 import { SKIPPED_OPACITY, SUNKEN_HEIGHT, type BodyStyle } from './node-visuals';
 
 const W = NODE_HALF.x * 2;
@@ -137,11 +138,7 @@ export function createRingGeometry(index: 0 | 1, segments: number): THREE.Buffer
   );
 }
 
-/** Tên thuộc tính instanced mang độ mạnh viền sáng của từng node. */
-export const RIM_ATTRIBUTE = 'aRim';
-
-const RIM_VERTEX_ANCHOR = '#include <common>';
-const RIM_FRAGMENT_ANCHOR = '#include <emissivemap_fragment>';
+export { RIM_ATTRIBUTE } from './rim-shader';
 
 /**
  * Vật liệu thân có viền sáng fresnel theo từng instance.
@@ -179,52 +176,34 @@ export function createBodyMaterial(options: BodyMaterialOptions): THREE.MeshStan
 /**
  * Vá fresnel vào shader chuẩn.
  *
- * Trả `true` khi vá được. Không vá được thì ghi ra một câu và để vật liệu chạy
- * tiếp KHÔNG có viền — thà mất viền còn hơn mất cả cảnh, nhưng "mất viền" phải
- * là một dòng đọc được ở console chứ không phải một thay đổi không ai giải
- * thích nổi (`development-principles.md` § "Errors Over Silent Fallbacks").
+ * Phép vá và phép TỰ KIỂM nằm ở `rim-shader.ts` (thuần chuỗi, test được ở env
+ * `node`); ở đây chỉ còn việc nối nó vào vật liệu và xử lý ca từ chối.
+ *
+ * ⚠ Bản đầu của hàm này vá xong rồi mới hỏng, và hỏng ở tầng GLSL nên không lời
+ * cảnh báo nào của nó chạm tới được: fragment shader dùng `uRimColor` và
+ * `vRimAmount` mà không khai cái nào, chương trình hỏng, **mọi node biến mất ở
+ * cả hai theme** trong khi bộ đếm draw call vẫn khoẻ. Đo 2026-09-17. Đừng gộp
+ * phép vá trở lại vào file này — tách ra mới test được.
  */
-export function applyRimPatch(
-  material: THREE.MeshStandardMaterial,
-  rimColor: THREE.Color,
-): boolean {
-  let patched = true;
+export function applyRimPatch(material: THREE.MeshStandardMaterial, rimColor: THREE.Color): void {
   material.onBeforeCompile = (shader): void => {
-    if (
-      !shader.vertexShader.includes(RIM_VERTEX_ANCHOR) ||
-      !shader.fragmentShader.includes(RIM_FRAGMENT_ANCHOR)
-    ) {
-      patched = false;
+    const result = patchRimShaders(shader.vertexShader, shader.fragmentShader);
+    if (!result.ok) {
+      /*
+       * Giữ NGUYÊN shader gốc. Cảnh chạy tiếp, chỉ mất viền chọn/rê — còn vá một
+       * nửa rồi hỏng thì mất TOÀN BỘ node, và mất im lặng (xem `rim-shader.ts`).
+       */
       console.error(
-        '[cicd-scene-3d] Không tìm thấy mốc vá shader viền sáng. ' +
-          'three có thể đã đổi cấu trúc chunk meshphysical — viền chọn/rê bị tắt.',
+        `[cicd-scene-3d] Không vá được viền sáng (${result.reason}). ` +
+          'Cảnh vẫn chạy, viền chọn/rê bị tắt.',
       );
       return;
     }
-    shader.uniforms.uRimColor = { value: rimColor };
-    shader.vertexShader = shader.vertexShader.replace(
-      RIM_VERTEX_ANCHOR,
-      `${RIM_VERTEX_ANCHOR}
-attribute float ${RIM_ATTRIBUTE};
-varying float vRimAmount;`,
-    );
-    shader.vertexShader = shader.vertexShader.replace(
-      '#include <begin_vertex>',
-      `#include <begin_vertex>
-vRimAmount = ${RIM_ATTRIBUTE};`,
-    );
-    shader.fragmentShader = shader.fragmentShader.replace(
-      RIM_FRAGMENT_ANCHOR,
-      `${RIM_FRAGMENT_ANCHOR}
-{
-  // normal va vViewPosition da co san o diem nay cua meshphysical_frag.
-  float rimFacing = 1.0 - abs(dot(normalize(normal), normalize(vViewPosition)));
-  totalEmissiveRadiance += uRimColor * pow(rimFacing, 2.2) * vRimAmount * 1.6;
-}`,
-    );
+    shader.uniforms[RIM_UNIFORM] = { value: rimColor };
+    shader.vertexShader = result.vertexShader;
+    shader.fragmentShader = result.fragmentShader;
   };
   material.customProgramCacheKey = (): string => `cicd-rim-${RIM_ATTRIBUTE}`;
-  return patched;
 }
 
 /**

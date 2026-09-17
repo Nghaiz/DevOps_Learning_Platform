@@ -259,6 +259,18 @@ export function EdgeLines({ draw, colors, flowActive }: EdgeLinesProps): ReactEl
         if (geometry === undefined || material === undefined) {
           return null;
         }
+        /*
+         * ⛔ Lô RỖNG vẫn tốn một lệnh vẽ. Đặt `drawRange` về 0 là chưa đủ: đo
+         * 2026-09-17 trên level C13 (chỉ có cạnh thường, không có đường găng và
+         * không có cạnh chờ-máy) `__dlpCicdScene()` báo `calls: 4` — một lô thân
+         * cộng ĐỦ BA lô cạnh, trong đó hai lô không có lấy một đoạn.
+         *
+         * Không tháo hẳn thì ô AC-D4 đếm cả những lô không vẽ gì, và con số nó
+         * ghim mô tả số lô ta KHAI chứ không mô tả việc cảnh thật sự làm.
+         */
+        if ((grouped.get(kind) ?? []).length === 0) {
+          return null;
+        }
         return <lineSegments key={kind} geometry={geometry} material={material} frustumCulled={false} />;
       })}
       {flowActive && dots.count > 0 ? (
