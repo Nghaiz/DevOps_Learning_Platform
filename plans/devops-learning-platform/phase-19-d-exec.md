@@ -231,6 +231,28 @@ hình. Người chơi phải đóng/thu được mọi panel và còn lại mộ
 | D.4.7 | Bảng ba trục thành lớp phủ góc, **vẫn thường trực** (19.E.4 là hợp đồng: ba số hiện CÙNG LÚC, không giấu sau nút) + minimap kiểu `hud/minimap.tsx` | 4h |
 | D.4.8 | Bàn phím đủ cho mọi thao tác; không thao tác nào chỉ làm được bằng chuột | 3h |
 
+### Quyết định phát sinh khi làm thật (2026-09-17)
+
+| # | Việc | Chốt |
+|---|---|---|
+| 1 | `/games/cicd` không immersive nên sân chơi chỉ rộng ~82.5% ⇒ AC-D7 đỏ vì VỎ TRANG | Màn chơi dọn sang **`/games/cicd/<levelId>`** (đoạn con thật) và dùng `IMMERSIVE_CHILD_PREFIXES` có sẵn. `?level=` hợp lệ chuyển hướng sang đường mới |
+| 2 | D.3.6 đòi selective bloom cho `running` | **Bỏ bloom**, thay bằng lớp vỏ cộng dồn instanced (1 lệnh vẽ). `@react-three/postprocessing` nhận `Object3D` mà node là *instance*, nên chọn một node sẽ tô sáng cả lô — đúng lý do arena đã loại `Outline` |
+| 3 | D.3.2 cho 4–8 góc camera | **Bốn**. Tám góc bước 45° lọt 4 hướng nhìn DỌC trục (một trục chồng lên chính nó); đổi gốc sang 22.5° thì mất tính trục lượng. Hai tính chất chỉ cùng đúng ở `(±1,±1,±1)/√3` |
+| 4 | D.4.8 "bàn phím đủ mọi thao tác" ở chế độ 3D | Cảnh 3D **tự giữ tiêu điểm nội bộ**, KHÔNG thêm `focusedId` vào hợp đồng. Ở 2D mỗi node là phần tử DOM nên trình duyệt lo tiêu điểm; 3D không có DOM để lo, nên đó là trạng thái của cảnh chứ không phải thứ HUD cần biết |
+
+**Vì sao quyết định #1 không phải một quyết định mới:** quyết định #3 của chủ dự án
+(§0) đã chốt *"toàn màn hình, đúng như game K8s"*, và game K8s đạt điều đó CHÍNH
+BẰNG việc nằm trong danh sách immersive. Cái mới chỉ là phát hiện rằng `?level=`
+không đi tới đó được: `isImmersiveRoute()` chỉ nhận `pathname`. Và `levelId`
+trước đây là React state, nên bấm một màn KHÔNG đổi URL — cùng một `/games/cicd`
+phục vụ cả hai trạng thái. Nhét cả `/games/cicd` vào danh sách khớp-chính-nó thì
+kéo theo trang danh mục, nơi `CicdCampaign` không có nút thoát nào.
+
+**Nợ đã ghi, KHÔNG làm trong 19.D:** nâng `k8s-arena/shared/scene-quality.ts` và
+`k8s-arena/scene/label-layout.ts` lên `components/games/shared/` — nay đã có hai
+game dùng, đúng khuôn `scene-tokens.ts`. Hoãn vì đổi chỗ chúng là đụng file arena
+giữa lúc lane khác đang viết.
+
 ### 19.D.5 — Màn chuyển tiếp giữa hai chương (S, ~0.5 ngày)
 
 `phase-19.md` §19.D.4 gọi đây là **rủi ro thật của quyết định #13**: trục Y đổi nghĩa giữa hai
