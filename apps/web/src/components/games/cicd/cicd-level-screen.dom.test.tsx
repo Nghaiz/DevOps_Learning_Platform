@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { CICD_LEVELS } from '@devops-platform/games';
 
 import { CicdLevelScreen } from './cicd-level-screen.tsx';
@@ -28,6 +28,15 @@ import { RENDERER_MODE_STORAGE_KEY } from '../shared/renderer-mode.ts';
  */
 
 const LEVEL = CICD_LEVELS[0]!;
+/**
+ * Level đầu tiên của chương CD — C15 trong kế hoạch.
+ *
+ * Tìm theo `chapter` chứ KHÔNG ghim `'cicd-c15-...'`: id là định danh, và một
+ * ngày nào đó chương CD có thể mở bằng một level khác. Ghim id thì ô này đỏ vì
+ * một lý do không liên quan gì tới thứ nó đo.
+ */
+const CD_LEVEL = CICD_LEVELS.find((level) => level.chapter === 'cd')!;
+const INTRO_KEY = 'dlp:games:cicd:axis-intro:cd';
 
 /** Bộ dò WebGL2 đọc `document.createElement('canvas').getContext('webgl2')`. */
 function stubWebgl(available: boolean): void {
@@ -45,8 +54,8 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function renderScreen(): void {
-  render(<CicdLevelScreen level={LEVEL} theory={null} onExit={() => {}} />);
+function renderScreen(level = LEVEL): void {
+  render(<CicdLevelScreen level={level} theory={null} onExit={() => {}} />);
 }
 
 describe('bố cục toàn màn hình', () => {
@@ -135,5 +144,87 @@ describe('nút 2D/3D — lựa chọn tay thắng kết quả dò', () => {
 
     fireEvent.click(modeButton('2D'));
     expect(localStorage.getItem(RENDERER_MODE_STORAGE_KEY)).toBe('2d');
+  });
+});
+
+describe('màn chuyển tiếp trục Y (D.5.1)', () => {
+  it('tự hiện khi vào chương CD lần đầu', () => {
+    stubWebgl(false);
+    renderScreen(CD_LEVEL);
+
+    const intro = screen.getByTestId('cicd-axis-intro');
+    /*
+     * Tìm TRONG màn chuyển tiếp, không tìm cả trang: chú thích của bản đồ thu
+     * nhỏ cũng mang chữ "dải môi trường", nên một phép tìm toàn trang sẽ xanh
+     * kể cả khi màn này rỗng.
+     */
+    expect(within(intro).getByText(/dải môi trường/)).toBeTruthy();
+  });
+
+  it('KHÔNG hiện ở chương CI — ở đó không có nghĩa cũ nào để học lại', () => {
+    stubWebgl(false);
+    renderScreen();
+    expect(screen.queryByTestId('cicd-axis-intro')).toBeNull();
+  });
+
+  it('bỏ qua được, và không hiện lại ở lần sau', () => {
+    stubWebgl(false);
+    renderScreen(CD_LEVEL);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Bỏ qua' }));
+    expect(screen.queryByTestId('cicd-axis-intro')).toBeNull();
+    expect(localStorage.getItem(INTRO_KEY)).not.toBeNull();
+
+    cleanup();
+    renderScreen(CD_LEVEL);
+    expect(screen.queryByTestId('cicd-axis-intro')).toBeNull();
+  });
+
+  it('mở lại được từ nút Trợ giúp, ở CẢ chương CI', () => {
+    stubWebgl(false);
+    renderScreen();
+
+    fireEvent.click(screen.getByRole('button', { name: /Trợ giúp/ }));
+    expect(screen.getByTestId('cicd-axis-intro')).toBeTruthy();
+    // Chương CI đọc chiều dọc là thời gian chờ hàng đợi.
+    expect(screen.getByText(/thời gian chờ hàng đợi/)).toBeTruthy();
+  });
+});
+
+describe('phím tắt (D.4.8)', () => {
+  it('phím E bật/tắt ô soạn', () => {
+    stubWebgl(false);
+    renderScreen();
+
+    expect(screen.queryByTestId('cicd-panel-editor')).not.toBeNull();
+    fireEvent.keyDown(window, { key: 'e' });
+    expect(screen.queryByTestId('cicd-panel-editor')).toBeNull();
+    // Thu rồi thì tay nắm mép trái là đường mở lại đứng ngay chỗ nó vừa biến mất.
+    expect(screen.getByTestId('cicd-editor-handle')).toBeTruthy();
+
+    fireEvent.keyDown(window, { key: 'e' });
+    expect(screen.queryByTestId('cicd-panel-editor')).not.toBeNull();
+  });
+
+  it('phím 0 thu hết, phím ? mở trợ giúp', () => {
+    stubWebgl(false);
+    renderScreen();
+
+    fireEvent.keyDown(window, { key: '0' });
+    expect(screen.queryByTestId('cicd-panel-editor')).toBeNull();
+    expect(screen.queryByTestId('cicd-panel-mission')).toBeNull();
+
+    fireEvent.keyDown(window, { key: '?' });
+    expect(screen.getByTestId('cicd-axis-intro')).toBeTruthy();
+  });
+
+  it('gõ vào ô soạn KHÔNG kích hoạt phím tắt', () => {
+    stubWebgl(false);
+    renderScreen();
+
+    const editor = screen.getByRole('textbox', { name: /Workflow YAML/ });
+    fireEvent.keyDown(editor, { key: 'm' });
+    // `m` là "bản đồ". Mở sẵn theo mặc định, nên nuốt nhầm phím sẽ ĐÓNG nó.
+    expect(screen.queryByTestId('cicd-panel-minimap')).not.toBeNull();
   });
 });

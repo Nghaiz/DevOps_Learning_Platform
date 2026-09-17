@@ -34,6 +34,8 @@ import type { ReactElement } from 'react';
 import { SECONDS_PER_TICK } from '@devops-platform/games';
 import type {
   AttemptRecord,
+  BlockedBy,
+  FailureCause,
   InstanceKey,
   RunRecord,
   StageInstanceRecord,
@@ -41,21 +43,6 @@ import type {
 } from '@devops-platform/games';
 
 import { formatSeconds } from '../cicd-run';
-
-/**
- * ⚠ **`BlockedBy` và `FailureCause` KHÔNG được barrel `@devops-platform/games`
- * xuất ra** — đo 2026-09-17: `tsc` báo TS2305 cho cả hai.
- *
- * Suy lại từ hai kiểu CÓ xuất, thay vì chép hình dạng xuống đây. Một bản chép sẽ
- * trôi khỏi bản gốc trong im lặng, và nó trôi ở đúng chỗ khó thấy nhất: engine
- * thêm một nhánh `kind` mới thì bản chép vẫn biên dịch, vẫn chạy, chỉ là rơi ra
- * khỏi mọi `switch` ở đây mà không gì đỏ. Suy từ kiểu thật thì nhánh mới làm
- * `switch` thiếu-nhánh đỏ ngay.
- *
- * Đề xuất cho lead: mở hai kiểu này ở `packages/games/src/index.ts`.
- */
-type BlockedBy = StageInstanceRecord['blockedBy'];
-type FailureCause = NonNullable<AttemptRecord['cause']>;
 
 export interface CicdInspectorProps {
   readonly node: StageNodeView | null;

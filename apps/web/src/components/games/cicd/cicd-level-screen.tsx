@@ -22,6 +22,7 @@ import { formatNumber, formatSeconds, runWorkflow, type CicdRunOutcome } from '.
 import { CicdSnippetBar } from './cicd-snippet-bar';
 import type { CicdSceneInteraction, CicdSceneProps } from './scene-props';
 import { CicdAxesPanel } from './hud/cicd-axes-panel';
+import { CicdAxisIntro, useAxisIntro } from './hud/cicd-axis-intro';
 import { CicdEditorDrawer } from './hud/cicd-editor-drawer';
 import { CicdField } from './hud/cicd-field';
 import { CicdHudPanel } from './hud/cicd-hud-panel';
@@ -29,8 +30,10 @@ import { CicdInspector } from './hud/cicd-inspector';
 import { CicdMinimap } from './hud/cicd-minimap';
 import { CicdMissionCard } from './hud/cicd-mission-card';
 import { buildCicdScene, firstRun, sceneWorkflow } from './hud/cicd-scene-model';
+import type { CicdHotkey } from './hud/cicd-keymap';
 import { CicdTopBar, type CicdQualityTier } from './hud/cicd-top-bar';
-import { useHudPanels, type CicdPanelId } from './hud/use-hud-panels';
+import { useHudKeyboard } from './hud/use-hud-keyboard';
+import { CICD_PANEL_IDS, useHudPanels, type CicdPanelId } from './hud/use-hud-panels';
 import { useRendererMode } from './hud/use-renderer-mode';
 
 /**
@@ -105,6 +108,11 @@ export function CicdLevelScreen({
    * dự phòng**: người chơi mới không bị đẩy vào đường nặng hơn mà không ai chọn.
    */
   const rendererMode = useRendererMode({ has3d: true, fallback: '2d' });
+  /*
+   * Màn chuyển tiếp trục Y (D.5.1). Tự hiện ĐÚNG MỘT LẦN khi vào chương CD, và
+   * mở lại được từ nút Trợ giúp ở cả hai chương — xem `cicd-axis-intro.tsx`.
+   */
+  const intro = useAxisIntro(level.chapter);
 
   /*
    * Bảng ghép gom stage từ CẢ BA workflow (ban đầu + hai lời giải). Không có nó,
@@ -192,6 +200,49 @@ export function CicdLevelScreen({
     [selectedId, hoveredId, onSelect],
   );
 
+  /*
+   * Phím tắt (D.4.8). ⚠ Đây là lớp THỨ HAI: mọi thao tác dưới đây đều đã có một
+   * `<button>` thật trong luồng Tab (công tắc lớp phủ và nút 2D/3D ở thanh trên,
+   * chọn node ở bản đồ thu nhỏ). Một phím tắt không ai nhìn thấy không phải một
+   * đường đi được — nên vế "bàn phím đủ cho mọi thao tác" do những cái nút đó
+   * đóng, còn bảng phím chỉ rút ngắn đường.
+   */
+  const onHotkey = useCallback(
+    (hotkey: CicdHotkey) => {
+      const action = hotkey.action;
+      switch (action.kind) {
+        case 'run':
+          chay();
+          return;
+        case 'panel': {
+          /*
+           * `action.panel` khai kiểu `string` chứ không `CicdPanelId`: bảng phím
+           * là dữ liệu thuần và không được biết tới module lớp phủ (import vòng).
+           * Thu hẹp bằng cách TRA trong tập thật — một id gõ sai thì không làm
+           * gì, thay vì mở một bảng không tồn tại.
+           */
+          const id = CICD_PANEL_IDS.find((panel) => panel === action.panel);
+          if (id !== undefined) panels.toggle(id);
+          return;
+        }
+        case 'close-all':
+          panels.closeAll();
+          return;
+        case 'mode':
+          rendererMode.choose(action.mode);
+          return;
+        case 'deselect':
+          setSelectedId(null);
+          return;
+        case 'help':
+          intro.show();
+          return;
+      }
+    },
+    [chay, panels, rendererMode, intro],
+  );
+  useHudKeyboard(onHotkey);
+
   const scene: CicdSceneProps | null = model.ok
     ? {
         view: model.view,
@@ -207,19 +258,11 @@ export function CicdLevelScreen({
       : (scene.view.nodes.find((node) => node.instance === selectedId) ?? null);
 
   /*
-   * Công tắc lớp phủ: chỉ hiện bảng nào level này THẬT SỰ có. Một công tắc mở ra
-   * một bảng rỗng là một nút nói dối — và ở chương CI thì bảng núm CD đúng là
-   * rỗng.
+   * Công tắc lớp phủ đọc thẳng tập thật, không chép một danh sách thứ hai: thêm
+   * một bảng mà quên thêm công tắc là bảng đó không có cách nào bật lên, và
+   * không gì báo.
    */
-  const panelIds: readonly CicdPanelId[] = [
-    'editor',
-    'mission',
-    'inspector',
-    'result',
-    'tools',
-    'learn',
-    'minimap',
-  ];
+  const panelIds: readonly CicdPanelId[] = CICD_PANEL_IDS;
 
   return (
     <div className="relative h-dvh w-full overflow-hidden bg-background text-foreground">
@@ -243,9 +286,7 @@ export function CicdLevelScreen({
         onTogglePanel={panels.toggle}
         onCloseAllPanels={panels.closeAll}
         onRun={chay}
-        onHelp={() => {
-          panels.toggle('learn');
-        }}
+        onHelp={intro.show}
         onExit={onExit}
         {...(onNext === undefined ? {} : { onNext })}
       />
@@ -454,6 +495,12 @@ export function CicdLevelScreen({
           ) : null}
         </div>
       </div>
+
+      {/*
+       * Màn chuyển tiếp trục Y (D.5.1). Nằm NGOÀI vỏ lớp phủ vì nó không phải
+       * một lớp phủ: nó che kín sân và nhận tiêu điểm, đúng như một hộp thoại.
+       */}
+      {intro.open ? <CicdAxisIntro chapter={level.chapter} onDismiss={intro.dismiss} /> : null}
     </div>
   );
 }

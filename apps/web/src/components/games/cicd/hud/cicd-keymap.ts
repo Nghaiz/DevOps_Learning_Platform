@@ -105,5 +105,11 @@ export function isTypingTarget(target: EventTarget | null): boolean {
   if (target === null || !(target instanceof HTMLElement)) return false;
   const tag = target.tagName.toLowerCase();
   if (tag === 'input' || tag === 'textarea' || tag === 'select') return true;
-  return target.isContentEditable;
+  /*
+   * `=== true` chứ không trả thẳng: `isContentEditable` là `undefined` trên một
+   * phần tử chưa gắn vào tài liệu ở jsdom, và một `undefined` lọt ra ngoài sẽ
+   * làm mọi phép so `=== false` ở bên gọi sai — trong khi kiểu khai vẫn là
+   * `boolean` nên `tsc` không thấy gì.
+   */
+  return target.isContentEditable === true;
 }
