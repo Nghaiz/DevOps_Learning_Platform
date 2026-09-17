@@ -231,20 +231,29 @@ hình. Người chơi phải đóng/thu được mọi panel và còn lại mộ
 | D.4.7 | Bảng ba trục thành lớp phủ góc, **vẫn thường trực** (19.E.4 là hợp đồng: ba số hiện CÙNG LÚC, không giấu sau nút) + minimap kiểu `hud/minimap.tsx` | 4h |
 | D.4.8 | Bàn phím đủ cho mọi thao tác; không thao tác nào chỉ làm được bằng chuột | 3h |
 
-### Tiến độ (2026-09-17)
+### Tiến độ (2026-09-17) — 19.D XONG
 
 | Chuỗi | Trạng thái | Commit |
 |---|---|---|
 | 19.D.1 — nền hợp đồng | ✅ 5/5 | `48d8d42` `ce2b1d9` `68dfc1a` `f1b2c54` `b9ab108` |
-| 19.D.2 — cảnh 2D | ⏳ đang chạy | `f391cad` `2b160ba` |
+| 19.D.2 — cảnh 2D | ✅ 9/9 | `f391cad` `2b160ba` `6ffb98c` |
 | 19.D.3 — cảnh 3D | ✅ 9/9 | `6bd9486` `e3db5e7` `df2f562` `44e9270` |
 | 19.D.4 + 19.D.5 — HUD | ✅ 9/9 | `f54138d` `07ba6e5` `cc3df50` `a158876` |
 | Route immersive (phát sinh) | ✅ | `64657ad` `a41e081` |
+| Sửa sau e2e + bộ ô AC-D | ✅ | `c4f39d3` `91ad520` `67cc087` `018353e` `e47c1e5` |
 
-⚠ **Chưa có gì được RENDER lần nào.** Toàn bộ xác minh tới đây là tĩnh: typecheck,
-lint, unit/DOM test, cổng màu. Chưa có số lệnh vẽ thật cho AC-D4, chưa kiểm hai
-theme bằng mắt, chưa kiểm `prefers-reduced-motion` trong trình duyệt. Đó là phần
-e2e + build của lead, chạy sau khi lane-2d khép lại.
+**Cảnh ĐÃ được render và đo trong trình duyệt thật.** `games-cicd-scene.spec.ts`
+10/10 xanh, `games-cicd.spec.ts` 15/15 xanh.
+
+Hai lỗi SẢN PHẨM mà e2e tìm ra, không cổng tĩnh nào thấy:
+
+1. **Bảng núm CD đóng mặc định ở chương CD** — nó là thứ QUYẾT ĐỊNH kết quả
+   (cùng YAML lời giải, đổi đường phục hồi thì mới đạt). Người chơi sẽ gõ lại
+   YAML nhiều lượt mà không hiểu vì sao vẫn trượt. (`c4f39d3`)
+2. **Thân lớp phủ `overflow-y-auto` không focus được** — người dùng bàn phím
+   không cuộn được, nội dung dưới nếp gấp là nội dung họ không với tới. axe đỏ
+   thật, luật `scrollable-region-focusable` mức `serious`, trên CẢ HAI theme.
+   (`91ad520`)
 
 ### Quyết định phát sinh khi làm thật (2026-09-17)
 
@@ -295,6 +304,39 @@ chương nên người chơi phải học lại cách đọc không gian.
 | AC-D10 | Reduced motion | `prefers-reduced-motion: reduce` thì không còn chuyển động lặp vô hạn ở cả hai chế độ |
 
 ---
+
+### Kết quả nghiệm thu (2026-09-17)
+
+| Ô | Kết quả | Đo bằng |
+|---|---|---|
+| AC-D1 | ✅ | `games-cicd-scene.spec.ts`, chạy trên C13; đối chứng nội tại `soThucThe > soStage` |
+| AC-D2 | ✅ | So hai bộ đếm mà mỗi renderer tự phát; kèm khẳng định khác 0 và không node/cạnh nào rơi vì `NaN` |
+| AC-D3 | ⚠ **một phần** | Chọn tay 2D/3D đi đúng nhánh, có đối chứng dương. **Chưa chạy `--disable-3d-apis`** — ca "máy không cấp được WebGL2" cần một project Playwright riêng, chưa dựng |
+| AC-D4 | ✅ | `__dlpCicdScene()`, số lệnh vẽ ghi CÙNG bậc chất lượng, kèm `nodes > 0` |
+| AC-D5 | ✅ | axe ở chế độ 3D, cả hai theme, kèm khẳng định class `dark` thật sự đổi |
+| AC-D6 | ✅ | `traceRequests`, 0 lời gọi `/api/` kể cả khi bật 3D |
+| AC-D7 | ✅ | `boundingBox()` của `cicd-field` sau khi thu hết lớp phủ: rộng > 95%, cao > 80% |
+| AC-D8 | ✅ | `pnpm tokens:check`, 837 file / 4 vùng, 0 dòng `KNOWN_HARDCODED` mới |
+| AC-D9 | ✅ | `traceScripts` + `THREE_MARKERS`; đối chứng dương: bật 3D thì `three` PHẢI xuất hiện |
+| AC-D10 | ✅ | Quét `getComputedStyle` đã phân giải + `repeatCount` của SMIL, không tin một cờ React |
+
+**Ba thứ CHƯA chứng minh được — đừng đọc thành đã kiểm:**
+
+1. **Chưa ai nhìn hai theme bằng MẮT.** `mcp__playwright__browser_navigate` treo
+   tới hết idle timeout 1800s (cắn cả lane-2d lẫn lead). Thứ làm thay: lane-2d
+   kiểm cả 18 token đều có mặt ở `:root` VÀ `.dark` rồi đối chiếu tỉ lệ tương
+   phản với bảng đo 2026-09-14 (cặp thấp nhất 4.95) — cách đó tìm ra một lỗi đảo
+   theme thật, nhưng nó **không** thay được mắt người.
+2. **`color-contrast` của axe KHÔNG chạy trong jsdom** (không layout, không
+   canvas 2D). Ô axe ở tầng e2e có chạy luật đó, nhưng chỉ trên những gì đang
+   hiện — lớp phủ đang thu thì không được quét.
+3. **AC-D3 chưa có ca không-WebGL2 thật**, xem bảng trên.
+
+**Ba lỗ hổng hợp đồng đã ghi, KHÔNG vá trong 19.D:** `StageNodeView` không mang
+`steps` (chặn cấp 3 của D.2.7 — cấp 3 hiện nằm ở inspector của HUD, không trong
+SVG); `CicdGraphView` không mang `tickSeconds` (nhãn đường găng nói "tick", không
+nói giây); `DagEdgeView` không có đại lượng lưu lượng nào (D.2.3 "mật độ chấm =
+lưu lượng" thay bằng "có việc đang chảy qua cạnh": đầu trên xong, đầu dưới chưa).
 
 ## 5. Chia lane
 
