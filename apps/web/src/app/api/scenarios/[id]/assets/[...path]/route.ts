@@ -6,6 +6,7 @@ import { scenarioIdSchema } from '@devops-platform/shared-types/scenario';
 import { contentStorageKeySchema } from '@devops-platform/shared-types/authoring';
 import { getAuth } from '../../../../../../server/auth/config';
 import { readContentAsset } from '../../../../../../server/content/assets';
+import { mayServeContentAsset } from '../../../../../../server/content/authz';
 import { getDb } from '../../../../../../server/db/client';
 import { scenarioDir } from '../../../../../../server/lessons/catalog';
 
@@ -86,6 +87,18 @@ export async function GET(
   if (onlySegment !== undefined && contentStorageKeySchema.safeParse(onlySegment).success) {
     const asset = await readContentAsset(getDb(), parsedId.data, onlySegment);
     if (asset === null) {
+      return NextResponse.json({ error: 'NOT_FOUND' }, { status: 404 });
+    }
+    // Gác state + chủ sở hữu (defense-in-depth, 2026-09-18): asset của bài chưa
+    // `published` chỉ chủ/admin xem được. Cùng NOT_FOUND với ca không tồn tại —
+    // không xác nhận cho người lạ rằng một bản nháp có `storageKey` đó tồn tại.
+    // `role` của session Better Auth là chuỗi tự do ⇒ so `=== 'admin'` fail-closed.
+    if (
+      !mayServeContentAsset(
+        { state: asset.itemState, authorId: asset.itemAuthorId },
+        { id: session.user.id, isAdmin: session.user.role === 'admin' },
+      )
+    ) {
       return NextResponse.json({ error: 'NOT_FOUND' }, { status: 404 });
     }
     return new NextResponse(new Uint8Array(asset.bytes), {

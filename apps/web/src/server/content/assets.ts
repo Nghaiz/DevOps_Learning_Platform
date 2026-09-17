@@ -7,7 +7,8 @@ import {
   contentAssetFilenameSchema,
 } from '@devops-platform/shared-types/authoring';
 import type { Database } from '../db/client';
-import { contentAssets, type ContentAssetRecord } from '../db/schema';
+import type { ContentState } from '@devops-platform/shared-types/authoring';
+import { contentAssets, contentItems, type ContentAssetRecord } from '../db/schema';
 
 /**
  * Asset của bài soạn trên UI — tải lên và phục vụ (P9 9.E).
@@ -141,15 +142,28 @@ export interface AssetBytes {
   readonly bytes: Buffer;
   readonly contentType: string;
   readonly sha256: string;
+  /**
+   * State + chủ sở hữu của content item CHỨA asset này — để route gác
+   * "chỉ published, hoặc chủ/admin" (`mayServeContentAsset`). Lấy bằng JOIN
+   * ngay trong lượt tra byte để không đẻ ra một round-trip thứ hai, và để
+   * quyết định gác luôn dựa trên trạng thái ĐỌC TỪ DB, không suy từ input.
+   */
+  readonly itemState: ContentState;
+  readonly itemAuthorId: string;
 }
 
 /**
- * Byte của một asset, tra theo `(contentId, storageKey)`.
+ * Byte của một asset, tra theo `(contentId, storageKey)`, KÈM state + chủ của
+ * content item (để route quyết định có được phát không).
  *
  * ⚠ Cả HAI khoá, dù `storageKey` đã unique toàn cục: route phục vụ biết
  * `contentId` từ URL và đã kiểm quyền trên bài đó. Tra chỉ theo `storageKey` sẽ
  * phục vụ được asset của bài KHÁC qua URL của một bài mình có quyền — một lỗ
  * IDOR mở ra bởi việc "khoá đã unique rồi mà".
+ *
+ * JOIN `content_items` (`content_assets.content_id → content_items.id`, FK có
+ * sẵn): `innerJoin` nên một asset mồ côi (item đã xoá) trả `null` như asset
+ * không tồn tại — không có ca "asset còn, item mất" phát ra được byte.
  */
 export async function readContentAsset(
   db: Database,
@@ -161,8 +175,11 @@ export async function readContentAsset(
       bytes: contentAssets.bytes,
       contentType: contentAssets.contentType,
       sha256: contentAssets.sha256,
+      itemState: contentItems.state,
+      itemAuthorId: contentItems.authorId,
     })
     .from(contentAssets)
+    .innerJoin(contentItems, eq(contentAssets.contentId, contentItems.id))
     .where(and(eq(contentAssets.contentId, contentId), eq(contentAssets.storageKey, storageKey)))
     .limit(1);
   return rows[0] ?? null;
