@@ -70,7 +70,28 @@ export function CicdHudPanel({
           <X className="size-4" aria-hidden="true" />
         </button>
       </header>
-      <div className={cn('min-h-0 flex-1 overflow-y-auto px-3 py-3', bodyClassName)}>
+      {/*
+        `tabIndex={0}` là BẮT BUỘC, không phải trang trí: một vùng `overflow-y-auto`
+        không focus được thì người dùng bàn phím không cuộn nó được — nội dung
+        dưới nếp gấp là nội dung họ không với tới. axe gác việc này bằng luật
+        `scrollable-region-focusable` (mức `serious`), và nó đã đỏ thật trên cả
+        hai theme ở lượt e2e 2026-09-17.
+
+        ⚠ Cặp `tabIndex` + `role="group"` + `aria-label` đi cùng nhau. Một phần tử
+        nhận tiêu điểm mà không có tên thì trình đọc màn hình chỉ đọc "group", và
+        người nghe không biết mình vừa dừng ở đâu — đúng lúc họ cần biết nhất, vì
+        có nhiều bảng cùng mở.
+      */}
+      <div
+        tabIndex={0}
+        role="group"
+        aria-label={title}
+        className={cn(
+          'min-h-0 flex-1 overflow-y-auto px-3 py-3',
+          'focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+          bodyClassName,
+        )}
+      >
         {children}
       </div>
     </section>
