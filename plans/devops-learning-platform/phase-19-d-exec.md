@@ -144,7 +144,12 @@ vì hết hạn.
 | D.1.1 | `cicd/scene-contract.ts`: `placeWorkflow`, ba trục theo chương, cạnh góc vuông qua `routeEdge` | 4h | ✅ `48d8d42` |
 | D.1.2 | `scene-contract.test.ts` + `scene-view.test.ts`: tất định (200 lượt cùng toạ độ), Y chỉ mang một biến **ở cả hai chiều**, `countNonAxialSegments === 0` | 4h | ✅ `48d8d42` |
 | D.1.3 | `cicd/scene-encoding.ts`: bảng ba kênh, `satisfies Record<StageRunState, ...>` để thiếu một trạng thái là đỏ lúc biên dịch | 2h | ✅ `48d8d42` |
-| D.1.4 | Nâng `scene-tokens.ts` lên `games/shared/`, arena import từ chỗ mới, test cũ của arena giữ nguyên xanh | 3h | |
+| D.1.4 | Nâng `scene-tokens.ts` lên `games/shared/`, arena import từ chỗ mới, test cũ của arena giữ nguyên xanh | 3h | ✅ `ce2b1d9` + `68dfc1a` |
+
+**19.D.1 XONG** — nền hợp đồng đã chốt, lane đọc được. Bảng token tham số hoá
+bằng generic nên mỗi game khai bảng riêng mà vẫn giữ đúng khoá của mình; 5/6 chỗ
+import của arena không phải sửa ký tự nào và 13 ô test cũ của arena xanh nguyên
+vẹn, không sửa dòng nào.
 
 Ba ghi chú từ lượt làm thật:
 
