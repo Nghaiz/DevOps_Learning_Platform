@@ -118,7 +118,12 @@ export function cacheControls(
           stepName: step.name,
           template,
           defaultOn: macDinh !== undefined,
-          defaultKeyParts: macDinh?.keyParts ?? template.keyParts,
+          /*
+           * Bản chuẩn không cache ⇒ khoá mặc định RỖNG, không phải khoá của khuôn.
+           * Khuôn đến từ catalogue, tức thường từ LỜI GIẢI (c06, c14): điền sẵn
+           * khoá của nó khi người chơi bật núm là điền sẵn đáp án. Review PR #141.
+           */
+          defaultKeyParts: macDinh?.keyParts ?? [],
         },
       ];
     }),

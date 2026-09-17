@@ -411,6 +411,8 @@ describe('controls — núm hiện đúng thứ tầng ghép sẽ đọc', () =>
     const [nut] = cacheControls(NGUOI_CHOI, { baseline: GOC, catalogue: CO_CACHE_NGOAI }, ['cache']);
     expect(nut?.key).toBe('a/b1');
     expect(nut?.defaultOn).toBe(false);
+    // Không điền sẵn khoá của khuôn — khuôn thường là của lời giải.
+    expect(nut?.defaultKeyParts).toEqual([]);
     expect(nut?.template.savesTicks).toBe(3);
   });
 });
@@ -432,3 +434,29 @@ const CO_CACHE_NGOAI: WorkflowSpec = {
     },
   ],
 };
+
+describe('hydrate — trường KHÔNG sửa được không lọt từ YAML (review PR #141)', () => {
+  it('`environment` luôn của level: YAML thêm môi trường vào stage bản chuẩn không có ⇒ bị bỏ', () => {
+    const coMoiTruong: WorkflowSpec = { ...NGUOI_CHOI, stages: [{ ...NGUOI_CHOI.stages[0]!, environment: 'prod' }] };
+    expect(hydrateWorkflow(coMoiTruong, { baseline: GOC, catalogue: GOC }, MOI_PHAN).stages[0]?.environment).toBeUndefined();
+    const gocStaging: WorkflowSpec = { ...GOC, stages: [{ ...GOC.stages[0]!, environment: 'staging' }] };
+    expect(hydrateWorkflow(coMoiTruong, { baseline: gocStaging, catalogue: gocStaging }, MOI_PHAN).stages[0]?.environment).toBe('staging');
+  });
+
+  it('`fanOut` không cho sửa ⇒ ma trận trong YAML bị bỏ khi bản chuẩn không quạt ra', () => {
+    const quat: WorkflowSpec = {
+      ...NGUOI_CHOI,
+      stages: [{ ...NGUOI_CHOI.stages[0]!, fanOut: { axes: [{ name: 'v', values: ['1', '2', '3'] }] } }],
+    };
+    expect(hydrateWorkflow(quat, { baseline: GOC, catalogue: GOC }, []).stages[0]?.fanOut).toBeUndefined();
+    expect(hydrateWorkflow(quat, { baseline: GOC, catalogue: GOC }, ['fan-out']).stages[0]?.fanOut?.axes[0]?.values).toEqual(['1', '2', '3']);
+  });
+
+  it('stage bản chuẩn bị xoá khỏi YAML được trả lại VÀ nhận núm retries', () => {
+    const haiStage: WorkflowSpec = { ...GOC, stages: [...GOC.stages, { ...GOC.stages[0]!, id: 'b', retries: 0 }] };
+    const chiB: WorkflowSpec = { name: 'x', stages: [{ ...NGUOI_CHOI.stages[0]!, id: 'b' }] };
+    const ra = hydrateWorkflow(chiB, { baseline: haiStage, catalogue: haiStage }, ['retries'], { retries: { a: 3, b: 3 } });
+    expect(ra.stages.map((s) => [s.id, s.retries])).toEqual([['b', 3], ['a', 3]]);
+    expect(retryControls(chiB, { baseline: haiStage, catalogue: haiStage }, ['retries']).map((c) => c.stageId)).toEqual(['b', 'a']);
+  });
+});
