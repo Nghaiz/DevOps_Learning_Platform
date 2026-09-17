@@ -57,7 +57,7 @@
     "postprocessing": "^6.39.4",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "three": "0.185.1",
+    "three": "0.186.0",
     "zod": "^4.5.4"
   },
   "//typescript": "Alias TS6/TS7 song song — xem giải thích ở package.json gốc: `tsc` = TS7 native, `typescript` = shim TS6 cho typescript-eslint/Next API.",
@@ -73,7 +73,7 @@
     "@types/nodemailer": "^8.0.1",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.5",
-    "@types/three": "^0.185.0",
+    "@types/three": "^0.186.0",
     "@typescript/native": "npm:typescript@^7.0.2",
     "axe-core": "~4.13.0",
     "drizzle-kit": "^0.31.10",
