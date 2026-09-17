@@ -60,6 +60,16 @@ const STATE_PRIORITY: Readonly<Record<StageRunState, number>> = {
 };
 
 export const PRIORITY_SELECTED = 1000;
+/**
+ * Tiêu điểm bàn phím đứng giữa "đang chọn" và "đang rê".
+ *
+ * Trên "đang rê" vì con trỏ chuột và con trỏ bàn phím không bao giờ ở cùng chỗ
+ * cùng lúc, và người đang dùng bàn phím là người KHÔNG thấy được con trỏ chuột —
+ * nhãn của chỗ họ đang đứng không được thua nhãn của một chỗ họ không điều khiển.
+ * Dưới "đang chọn" vì chọn là một quyết định đã ra, còn tiêu điểm mới chỉ là chỗ
+ * đang đứng.
+ */
+export const PRIORITY_FOCUSED = 950;
 export const PRIORITY_HOVERED = 900;
 
 export interface LabelPriorityInput {
@@ -67,6 +77,8 @@ export interface LabelPriorityInput {
   readonly state: StageRunState;
   readonly selectedId: string | null;
   readonly hoveredId: string | null;
+  /** Tiêu điểm bàn phím của cảnh 3D. Cảnh 2D không truyền — DOM tự lo. */
+  readonly focusedId?: string | null | undefined;
 }
 
 /**
@@ -79,6 +91,9 @@ export interface LabelPriorityInput {
 export function labelPriority(input: LabelPriorityInput): number {
   if (input.id === input.selectedId) {
     return PRIORITY_SELECTED;
+  }
+  if (input.focusedId !== undefined && input.focusedId !== null && input.id === input.focusedId) {
+    return PRIORITY_FOCUSED;
   }
   if (input.id === input.hoveredId) {
     return PRIORITY_HOVERED;
@@ -99,6 +114,7 @@ export function isPrimaryLabelPass(input: LabelPriorityInput): boolean {
   return (
     input.id === input.selectedId ||
     input.id === input.hoveredId ||
+    (input.focusedId !== undefined && input.focusedId !== null && input.id === input.focusedId) ||
     input.state === 'failed' ||
     input.state === 'running' ||
     input.state === 'retrying' ||

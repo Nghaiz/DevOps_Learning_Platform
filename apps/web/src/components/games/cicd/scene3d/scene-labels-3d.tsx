@@ -77,6 +77,8 @@ export interface SceneLabels3dProps {
   readonly draw: SceneDraw;
   readonly selectedId: InstanceKey | null;
   readonly hoveredId: InstanceKey | null;
+  /** Tiêu điểm bàn phím — nhãn của nó phải luôn hiện. Xem `label-priority.ts`. */
+  readonly focusedId: InstanceKey | null;
   /**
    * Lớp DOM chứa nhãn, truyền dưới dạng GIÁ TRỊ chứ không phải ref.
    *
@@ -91,6 +93,7 @@ export function SceneLabels3d({
   draw,
   selectedId,
   hoveredId,
+  focusedId,
   layer,
 }: SceneLabels3dProps): null {
   const camera = useThree((s) => s.camera);
@@ -139,7 +142,7 @@ export function SceneLabels3d({
         if (count >= MAX_CICD_LABEL_CANDIDATES) {
           break;
         }
-        const input = { id: node.id, state: node.state, selectedId, hoveredId };
+        const input = { id: node.id, state: node.state, selectedId, hoveredId, focusedId };
         if (isPrimaryLabelPass(input) !== (pass === 0)) {
           continue;
         }

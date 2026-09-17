@@ -12,6 +12,7 @@ import {
   MAX_CICD_LABELS,
   MAX_CICD_LABEL_CANDIDATES,
   MAX_LABEL_TEXT,
+  PRIORITY_FOCUSED,
   PRIORITY_HOVERED,
   PRIORITY_SELECTED,
   isPrimaryLabelPass,
@@ -39,8 +40,36 @@ describe('labelPriority', () => {
     }
   });
 
-  it('đang chọn thắng đang rê', () => {
-    expect(PRIORITY_SELECTED).toBeGreaterThan(PRIORITY_HOVERED);
+  it('đang chọn thắng tiêu điểm bàn phím, tiêu điểm thắng đang rê', () => {
+    expect(PRIORITY_SELECTED).toBeGreaterThan(PRIORITY_FOCUSED);
+    expect(PRIORITY_FOCUSED).toBeGreaterThan(PRIORITY_HOVERED);
+  });
+
+  /*
+   * Người đang dùng bàn phím là người KHÔNG thấy con trỏ chuột. Nhãn của chỗ họ
+   * đang đứng không được thua nhãn của một chỗ họ không điều khiển — nếu thua,
+   * một cú rê chuột bỏ quên trên màn hình sẽ cướp mất nhãn duy nhất họ cần.
+   */
+  it('tiêu điểm bàn phím thắng mọi trạng thái', () => {
+    for (const state of ALL_STATES) {
+      expect(
+        labelPriority({ id: 'n', state, selectedId: null, hoveredId: null, focusedId: 'n' }),
+      ).toBe(PRIORITY_FOCUSED);
+    }
+  });
+
+  it('không có tiêu điểm thì bảng ưu tiên không đổi gì — vế mới không rò rỉ', () => {
+    for (const state of ALL_STATES) {
+      const withUndefined = labelPriority({ id: 'n', state, selectedId: null, hoveredId: null });
+      const withNull = labelPriority({
+        id: 'n',
+        state,
+        selectedId: null,
+        hoveredId: null,
+        focusedId: null,
+      });
+      expect(withNull).toBe(withUndefined);
+    }
   });
 
   it('xếp thứ tự theo "cần hành động đến mức nào"', () => {
@@ -89,6 +118,18 @@ describe('isPrimaryLabelPass', () => {
     expect(isPrimaryLabelPass({ id: 'n', state: 'passed', selectedId: 'n', hoveredId: null })).toBe(
       true,
     );
+  });
+
+  it('node đang có tiêu điểm bàn phím vào lượt đầu dù trạng thái nào', () => {
+    expect(
+      isPrimaryLabelPass({
+        id: 'n',
+        state: 'passed',
+        selectedId: null,
+        hoveredId: null,
+        focusedId: 'n',
+      }),
+    ).toBe(true);
   });
 });
 

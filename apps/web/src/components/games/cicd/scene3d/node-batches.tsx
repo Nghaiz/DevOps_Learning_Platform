@@ -78,6 +78,11 @@ export interface NodeBatchesProps {
   readonly roundedSegments: number;
   readonly selectedId: InstanceKey | null;
   readonly hoveredId: InstanceKey | null;
+  /**
+   * Tiêu điểm BÀN PHÍM. Trạng thái nội bộ của cảnh 3D, không đi qua
+   * `CicdSceneInteraction` — xem `keyboard-nav.ts`.
+   */
+  readonly focusedId: InstanceKey | null;
   readonly reducedMotion: boolean;
 }
 
@@ -88,6 +93,7 @@ export function NodeBatches({
   roundedSegments,
   selectedId,
   hoveredId,
+  focusedId,
   reducedMotion,
 }: NodeBatchesProps): ReactElement {
   const capacity = batchCapacity(draw.nodes.length);
@@ -124,9 +130,16 @@ export function NodeBatches({
     () => createBodyGeometry('solid', roundedSegments),
     [roundedSegments],
   );
+  /*
+   * Lô vỏ sáng cấp thừa MỘT chỗ: node đang có tiêu điểm bàn phím cũng đeo một vỏ,
+   * và nó có thể ĐỒNG THỜI đang chạy — lúc đó nó cần hai vỏ. Dùng chung `capacity`
+   * thì đúng ở ca cả-cảnh-đang-chạy (số node là luỹ thừa 2 chẵn) vỏ tiêu điểm bị
+   * rơi mất, và rơi im lặng.
+   */
+  const glowCapacity = batchCapacity(draw.nodes.length + 1);
   const glowMesh = useMemo(
-    () => createInstancedMesh(glowGeometry, glowMaterial, capacity),
-    [glowGeometry, glowMaterial, capacity],
+    () => createInstancedMesh(glowGeometry, glowMaterial, glowCapacity),
+    [glowGeometry, glowMaterial, glowCapacity],
   );
 
   useEffect(() => {
@@ -245,7 +258,7 @@ export function NodeBatches({
     }
 
     for (const node of draw.glowNodes) {
-      if (glowMesh.count >= capacity) {
+      if (glowMesh.count >= glowCapacity) {
         break;
       }
       const index = glowMesh.count;
@@ -256,6 +269,29 @@ export function NodeBatches({
       SCALE.setScalar(1);
       glowMesh.setMatrixAt(index, MATRIX);
       glowMesh.setColorAt(index, colors.byToken[node.token]);
+    }
+
+    /*
+     * Vỏ của TIÊU ĐIỂM BÀN PHÍM — to hơn vỏ "đang chạy" và mang màu tương tác
+     * (`primary`) chứ không mang màu trạng thái.
+     *
+     * Hai khác biệt đó không phải trang trí: nếu vỏ tiêu điểm cùng cỡ cùng màu
+     * với vỏ "đang chạy" thì người dùng bàn phím không phân biệt được "con trỏ
+     * của tôi đang ở đây" với "job này đang chạy" — và cỡ là kênh đọc được cả khi
+     * không phân biệt được màu, đúng tinh thần ba kênh của `scene-encoding.ts`.
+     */
+    if (focusedId !== null && glowMesh.count < glowCapacity) {
+      const focused = draw.nodes.find((node) => node.id === focusedId);
+      if (focused !== undefined) {
+        const index = glowMesh.count;
+        glowMesh.count += 1;
+        POSITION.set(focused.world.x, focused.world.y, focused.world.z);
+        SCALE.setScalar(1.45);
+        MATRIX.compose(POSITION, ROTATION, SCALE);
+        SCALE.setScalar(1);
+        glowMesh.setMatrixAt(index, MATRIX);
+        glowMesh.setColorAt(index, colors.primary);
+      }
     }
 
     for (const batch of batches) {

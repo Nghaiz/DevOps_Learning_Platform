@@ -97,6 +97,15 @@ export interface FramePump3dProps {
   readonly draw: SceneDraw;
   readonly tier: QualityTier;
   readonly reducedMotion: boolean;
+  /**
+   * Dấu vân tay của trạng thái tương tác (chọn / rê / tiêu điểm bàn phím).
+   *
+   * Ba thứ đó KHÔNG sinh chuyển động, nên với `frameloop="demand"` chúng phải TỰ
+   * XIN một khung — không thì bấm mũi tên xong cảnh vẫn y nguyên và người dùng
+   * bàn phím đọc ra là "phím không ăn". Đường chuột đã tự gọi `invalidate()` ở
+   * `hit-picking.tsx`; đường bàn phím không đi qua đó, nên nó đi qua đây.
+   */
+  readonly interactionKey: string;
   readonly onQualityDowngrade: (tier: QualityTier, reason: string) => void;
 }
 
@@ -104,6 +113,7 @@ export function FramePump3d({
   draw,
   tier,
   reducedMotion,
+  interactionKey,
   onQualityDowngrade,
 }: FramePump3dProps): null {
   const gl = useThree((s) => s.gl);
@@ -168,7 +178,7 @@ export function FramePump3d({
    */
   useEffect(() => {
     invalidate();
-  }, [draw, tier, reducedMotion, invalidate]);
+  }, [draw, tier, reducedMotion, interactionKey, invalidate]);
 
   const controllerRef = useRef(createTierController(tier));
   useEffect(() => {

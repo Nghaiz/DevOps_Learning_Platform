@@ -31,7 +31,15 @@
  * node.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactElement,
+} from 'react';
 import * as THREE from 'three';
 import { Canvas } from '@react-three/fiber';
 
@@ -48,6 +56,7 @@ import { CameraRig3d } from './camera-rig-3d';
 import { EdgeLines } from './edge-lines';
 import { FramePump3d } from './frame-pump-3d';
 import { HitPicking } from './hit-picking';
+import { clampFocus, navIntentOf, resolveFocus } from './keyboard-nav';
 import { NodeBatches } from './node-batches';
 import { SceneLabels3d } from './scene-labels-3d';
 import { buildSceneDraw } from './scene-draw';
@@ -99,6 +108,7 @@ export function CicdScene3d(props: CicdScene3dProps): ReactElement {
   const probeRef = useRef<HTMLSpanElement>(null);
   const [labelLayer, setLabelLayer] = useState<HTMLDivElement | null>(null);
   const [angleIndex, setAngleIndex] = useState(0);
+  const [focusIndex, setFocusIndex] = useState<number | null>(null);
   const [autoTier, setAutoTier] = useState<QualityTier>('high');
   const tier = props.quality ?? autoTier;
   const features = TIER_FEATURES[tier];
@@ -118,6 +128,46 @@ export function CicdScene3d(props: CicdScene3dProps): ReactElement {
   }, []);
 
   /*
+   * Tiêu điểm bàn phím — xem `keyboard-nav.ts` về việc vì sao nó KHÔNG nằm trong
+   * `CicdSceneInteraction`. Kẹp lại ở mỗi lần dựng: đồ thị đổi hình sau mỗi lượt
+   * chạy, nên một chỉ số hợp lệ ở lượt trước có thể trỏ ra ngoài mảng ở lượt này.
+   */
+  const clampedFocus = clampFocus(focusIndex, draw.nodes.length);
+  const focusedNode = clampedFocus === null ? null : (draw.nodes[clampedFocus] ?? null);
+  const focusedId = focusedNode?.id ?? null;
+
+  const onSelectProp = props.interaction.onSelect;
+  const handleKeyDown = useCallback(
+    (event: ReactKeyboardEvent<HTMLDivElement>): void => {
+      const intent = navIntentOf(event.key, event.shiftKey);
+      if (intent === null) {
+        // ⛔ Không nuốt phím mình không xử lý — đó là cách làm hỏng mọi phím tắt
+        // của trình duyệt lẫn của ứng dụng, một cách âm thầm.
+        return;
+      }
+      const nodes = draw.nodes;
+      const current = clampFocus(focusIndex, nodes.length);
+      const move = resolveFocus(current, nodes.length, intent);
+
+      if (intent === 'select') {
+        const target = move.index === null ? null : (nodes[move.index] ?? null);
+        if (target !== null) {
+          onSelectProp(target.id);
+        }
+      } else if (intent === 'clear') {
+        onSelectProp(null);
+      } else if (move.index !== current) {
+        setFocusIndex(move.index);
+      }
+
+      if (move.handled) {
+        event.preventDefault();
+      }
+    },
+    [draw, focusIndex, onSelectProp],
+  );
+
+  /*
    * Đồ thị đổi hình (chạy lại đường ống, sửa YAML) thì góc camera giữ nguyên —
    * cố ý. Tự quay về góc mặc định sau mỗi lượt chạy là cướp lại góc mà người
    * chơi vừa chọn, và họ phải chọn lại sau MỖI lần bấm chạy.
@@ -126,15 +176,36 @@ export function CicdScene3d(props: CicdScene3dProps): ReactElement {
 
   return (
     <div
-      className="relative h-full w-full overflow-hidden"
+      className="relative h-full w-full overflow-hidden focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
       data-testid={CICD_SCENE_TESTIDS.scene3d}
       data-cicd-node-count={draw.nodeCount}
       data-cicd-edge-count={draw.edgeCount}
       {...(draw.droppedNodes > 0 ? { 'data-cicd-node-dropped': draw.droppedNodes } : {})}
       {...(draw.droppedEdges > 0 ? { 'data-cicd-edge-dropped': draw.droppedEdges } : {})}
       data-cicd-quality={tier}
-      role="img"
-      aria-label={props.label ?? 'Đồ thị đường ống CI/CD, chế độ 3D'}
+      {...(focusedId !== null ? { 'data-cicd-focused': focusedId } : {})}
+      /*
+       * `tabIndex={0}` là chỗ DUY NHẤT bàn phím vào được cảnh 3D: node không phải
+       * phần tử DOM nên trình duyệt không có gì để trao tiêu điểm. `aria-label`
+       * nói luôn cách dùng — người dùng đọc màn hình không có cách nào khác để
+       * biết một ô `role="img"` lại nhận phím.
+       */
+      tabIndex={0}
+      onKeyDown={handleKeyDown}
+      /*
+       * ⛔ `role="img"` KHÔNG đặt ở đây, nó đặt trên `<Canvas>` bên dưới.
+       *
+       * Vai trò `img` là "children presentational" theo ARIA: mọi thứ BÊN TRONG
+       * nó bị gỡ khỏi cây trợ năng. Lúc phần tử này còn rỗng (bản stub của lead)
+       * thì vô hại, nhưng giờ nó chứa hai nút xoay và một vùng `aria-live` — cả
+       * ba sẽ biến mất với trình đọc màn hình, và biến mất IM LẶNG: mắt vẫn thấy
+       * nút, `tabIndex` vẫn nhận tiêu điểm, không cổng tự động nào kêu.
+       *
+       * Canvas mới đúng là "cái hình"; khung ngoài là một NHÓM điều khiển. Đây
+       * cũng là cách arena đặt (`k8s-arena/scene/arena-scene.tsx:98`).
+       */
+      role="group"
+      aria-label={`${props.label ?? 'Đồ thị đường ống CI/CD, chế độ 3D'}. Dùng phím mũi tên để đi giữa các công việc, Enter để chọn, Escape để bỏ chọn.`}
     >
       {/*
         Phần tử dò màu: nằm TRONG cây DOM đang mang theme, nên `getComputedStyle`
@@ -145,7 +216,7 @@ export function CicdScene3d(props: CicdScene3dProps): ReactElement {
       <span
         ref={probeRef}
         aria-hidden="true"
-        className="pointer-events-none fixed -top-[9999px] h-px w-px opacity-0"
+        className="pointer-events-none fixed top-[-9999px] h-px w-px opacity-0"
       />
 
       <Canvas
@@ -163,6 +234,8 @@ export function CicdScene3d(props: CicdScene3dProps): ReactElement {
           toneMapping: THREE.ACESFilmicToneMapping,
           toneMappingExposure: 1.1,
         }}
+        role="img"
+        aria-label={props.label ?? 'Đồ thị đường ống CI/CD, chế độ 3D'}
       >
         <SceneLighting tier={tier} />
         <CameraRig3d
@@ -177,6 +250,7 @@ export function CicdScene3d(props: CicdScene3dProps): ReactElement {
           roundedSegments={features.roundedSegments}
           selectedId={props.interaction.selectedId}
           hoveredId={props.interaction.hoveredId}
+          focusedId={focusedId}
           reducedMotion={reducedMotion}
         />
         <EdgeLines draw={draw} colors={colors} flowActive={flowActive} />
@@ -190,12 +264,14 @@ export function CicdScene3d(props: CicdScene3dProps): ReactElement {
           draw={draw}
           selectedId={props.interaction.selectedId}
           hoveredId={props.interaction.hoveredId}
+          focusedId={focusedId}
           layer={labelLayer}
         />
         <FramePump3d
           draw={draw}
           tier={tier}
           reducedMotion={reducedMotion}
+          interactionKey={`${props.interaction.selectedId ?? ''}|${props.interaction.hoveredId ?? ''}|${focusedId ?? ''}`}
           onQualityDowngrade={handleDowngrade}
         />
       </Canvas>
@@ -217,6 +293,16 @@ export function CicdScene3d(props: CicdScene3dProps): ReactElement {
       <p className="sr-only">
         {`Đồ thị có ${draw.nodeCount} công việc và ${draw.edgeCount} quan hệ phụ thuộc. `}
         {draw.nodes.map((node) => node.ariaLabel).join('. ')}
+      </p>
+      {/*
+        Vùng đọc SỐNG cho tiêu điểm bàn phím.
+        Bản mô tả tĩnh ở trên đọc một lần lúc vào cảnh và không bao giờ đọc lại;
+        nó không nói được "con trỏ của tôi vừa chuyển sang đâu". Với người dùng
+        đọc màn hình, canvas là một ô đen, nên vùng này là đường DUY NHẤT họ biết
+        mũi tên vừa làm gì.
+      */}
+      <p className="sr-only" aria-live="polite" data-testid="cicd-scene-3d-live">
+        {focusedNode === null ? '' : focusedNode.ariaLabel}
       </p>
       {degraded ? (
         <p className="pointer-events-none absolute bottom-2 left-2 rounded bg-background/85 px-2 py-1 text-xs text-muted-foreground ring-1 ring-border">
