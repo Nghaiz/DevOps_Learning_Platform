@@ -88,6 +88,28 @@ async function moManChoi(page: Page): Promise<void> {
   await expect(page.getByRole('button', { name: 'Chạy thử' })).toBeVisible();
 }
 
+/**
+ * AC-6 đòi axe 0 vi phạm ở CẢ HAI theme.
+ *
+ * Chưa chọn theme thì app theo `prefers-color-scheme` (`packages/ui` theme provider),
+ * nên giả lập media là đủ và không phải bấm menu. Mỗi test một context mới, nên
+ * không có lựa chọn cũ nào trong localStorage đè lên.
+ */
+const THEMES = ['light', 'dark'] as const;
+
+async function datTheme(page: Page, theme: (typeof THEMES)[number]): Promise<void> {
+  await page.emulateMedia({ colorScheme: theme });
+}
+
+/**
+ * Đối chứng cho chính phép đổi theme: không có dòng này, một app lờ đi media
+ * query sẽ làm lượt "theme tối" quét lại đúng theme sáng mà vẫn xanh.
+ */
+async function khangDinhTheme(page: Page, theme: (typeof THEMES)[number]): Promise<void> {
+  const coDark = await page.evaluate(() => document.documentElement.classList.contains('dark'));
+  expect(coDark, `<html> phải ${theme === 'dark' ? 'CÓ' : 'KHÔNG có'} class dark`).toBe(theme === 'dark');
+}
+
 /** Ô soạn YAML của màn chơi. Nhãn mang tên màn nên khớp theo tiền tố. */
 function oSoan(page: Page) {
   return page.getByLabel(/^Workflow YAML của màn/u);
@@ -321,6 +343,49 @@ test.describe('Game CI/CD — §19.E/§19.H', { tag: '@games-cicd' }, () => {
     ).toBeVisible();
   });
 
+  test('AC-2/AC-H — 0 lời gọi backend trên màn CD: bảng núm, ba bộ mô phỏng, bài lý thuyết', async ({ page }, testInfo) => {
+    /*
+     * Ô AC-2 bên dưới chơi C01 — màn không dựng bảng núm CD, không chạy bộ mô
+     * phỏng nào và không có bài lý thuyết CD. C28 là màn duy nhất có cả ba bộ mô
+     * phỏng, nên một lượt chơi ở đây chạm mọi đường mới của chương CD.
+     */
+    const level = CD_LEVELS.find((l) => l.id.startsWith('cicd-c28-'));
+    if (level?.cd === undefined) throw new Error('không tìm thấy C28 có khối cd');
+
+    const trace = traceRequests(page);
+    await openScreen(page, `${CICD_PATH}?level=${level.id}`, 'user');
+    await settle(page);
+    await expect(page.getByTestId('cicd-cd-panel')).toBeVisible();
+
+    trace.phase('đang chơi');
+
+    const bang = page.getByTestId('cicd-cd-panel');
+    await oSoan(page).fill(writeWorkflowYaml(level.solutionWorkflow).yaml);
+    await bang.getByRole('radio', { name: 'canary' }).check();
+    await bang.getByRole('checkbox').first().click();
+    await page.getByRole('button', { name: 'Chạy thử' }).click();
+    await expect(page.getByTestId('cicd-cd-leaks')).toBeVisible();
+
+    await bang.getByRole('radio', { name: 'blue-green' }).check();
+    await page.getByRole('button', { name: 'Chạy thử' }).click();
+    await page.getByRole('button', { name: /^Bài lý thuyết:/u }).click();
+    await expect(page.getByTestId('cicd-theory')).toBeVisible();
+    await page.waitForTimeout(500);
+
+    const during = trace.all().filter((r) => r.phase === 'đang chơi');
+    const api = during.filter((r) => r.sameOrigin && r.pathname.startsWith('/api/'));
+    trace.stop();
+
+    await attachJson(testInfo, 'cicd-ac2-cd.json', { total: trace.all().length, during: during.length, api });
+
+    expect(trace.all().length, 'máy thu không ghi được request nào — phép lọc dưới đây sẽ xanh khống').toBeGreaterThan(0);
+    expect(
+      api.map((r) => `${r.method} ${r.pathname}`),
+      'AC-2/AC-H: bảng núm CD, ba bộ mô phỏng và bài lý thuyết phải chạy trong trình duyệt. ' +
+        'Bài lý thuyết nạp ở server lúc tải trang, không phải lúc mở.',
+    ).toEqual([]);
+  });
+
   test('AC-2/AC-H — 0 lời gọi backend trong suốt một lượt chơi', async ({ page }, testInfo) => {
     const trace = traceRequests(page);
     await moManChoi(page);
@@ -373,52 +438,60 @@ test.describe('Game CI/CD — §19.E/§19.H', { tag: '@games-cicd' }, () => {
     ).toEqual([]);
   });
 
-  test('AC-6 — axe 0 vi phạm, màn danh sách và màn chơi', async ({ page }, testInfo) => {
-    await openScreen(page, CICD_PATH, 'user');
-    await settle(page);
-    await scanAxe(page, testInfo, 'cicd-danh-sach');
+  for (const theme of THEMES) {
+    test(`AC-6 — axe 0 vi phạm, màn danh sách và màn chơi (theme ${theme})`, async ({ page }, testInfo) => {
+      await datTheme(page, theme);
+      await openScreen(page, CICD_PATH, 'user');
+      await settle(page);
+      await khangDinhTheme(page, theme);
+      await scanAxe(page, testInfo, `cicd-danh-sach-${theme}`);
 
-    await moManChoi(page);
-    await scanAxe(page, testInfo, 'cicd-man-choi');
+      await moManChoi(page);
+      await scanAxe(page, testInfo, `cicd-man-choi-${theme}`);
 
-    /*
-     * Quét lại ở HAI trạng thái kết quả, vì mỗi trạng thái dựng phần tử riêng.
-     *
-     * ⚠ Bản trước bấm "Chạy thử" ngay trên c01 (khởi đầu không job nào) rồi chờ
-     * thẻ trục — tức ô a11y này xanh NHỜ đúng lỗi #8 (ba con số 0 cho đường ống
-     * rỗng). Sửa #8 làm nó đỏ, và đó là tín hiệu đúng: ô này chưa bao giờ quét
-     * một kết quả thật.
-     */
-    await page.getByRole('button', { name: 'Chạy thử' }).click();
-    await expect(vungKetQua(page).getByTestId('cicd-empty')).toBeVisible();
-    await scanAxe(page, testInfo, 'cicd-duong-ong-rong');
+      /*
+       * Quét lại ở HAI trạng thái kết quả, vì mỗi trạng thái dựng phần tử riêng.
+       *
+       * ⚠ Bản trước bấm "Chạy thử" ngay trên c01 (khởi đầu không job nào) rồi chờ
+       * thẻ trục — tức ô a11y này xanh NHỜ đúng lỗi #8 (ba con số 0 cho đường ống
+       * rỗng). Sửa #8 làm nó đỏ, và đó là tín hiệu đúng: ô này chưa bao giờ quét
+       * một kết quả thật.
+       */
+      await page.getByRole('button', { name: 'Chạy thử' }).click();
+      await expect(vungKetQua(page).getByTestId('cicd-empty')).toBeVisible();
+      await scanAxe(page, testInfo, `cicd-duong-ong-rong-${theme}`);
 
-    // Bảng ba trục, danh sách mục tiêu và bảng tra nhanh chỉ có khi đã chấm thật.
-    await oSoan(page).fill(YAML_LOI_GIAI);
-    await page.getByRole('button', { name: 'Chạy thử' }).click();
-    await expect(page.getByTestId('cicd-axis-lead')).toBeVisible();
-    await scanAxe(page, testInfo, 'cicd-co-ket-qua');
-  });
+      // Bảng ba trục, danh sách mục tiêu và bảng tra nhanh chỉ có khi đã chấm thật.
+      await oSoan(page).fill(YAML_LOI_GIAI);
+      await page.getByRole('button', { name: 'Chạy thử' }).click();
+      await expect(page.getByTestId('cicd-axis-lead')).toBeVisible();
+      await scanAxe(page, testInfo, `cicd-co-ket-qua-${theme}`);
+    });
+  }
 
-  test('AC-6 — axe 0 vi phạm trên màn CD: bảng núm, số đo ba bộ mô phỏng, bài lý thuyết', async ({ page }, testInfo) => {
-    /*
-     * C28 là màn duy nhất có CẢ ba bộ mô phỏng, nên một lượt quét phủ bảng núm
-     * phát hành + đối soát + che bí mật và cả ba khối số đo. Ô AC-6 ở trên chỉ
-     * quét màn CI, nơi không phần tử nào của chương CD được dựng.
-     */
-    const level = CD_LEVELS.find((l) => l.id.startsWith('cicd-c28-'));
-    if (level?.cd === undefined) throw new Error('không tìm thấy C28 có khối cd');
-    await openScreen(page, `${CICD_PATH}?level=${level.id}`, 'user');
-    await settle(page);
-    await expect(page.getByTestId('cicd-cd-panel')).toBeVisible();
+  for (const theme of THEMES) {
+    test(`AC-6 — axe 0 vi phạm trên màn CD: bảng núm, số đo ba bộ mô phỏng, bài lý thuyết (theme ${theme})`, async ({ page }, testInfo) => {
+      /*
+       * C28 là màn duy nhất có CẢ ba bộ mô phỏng, nên một lượt quét phủ bảng núm
+       * phát hành + đối soát + che bí mật và cả ba khối số đo. Ô AC-6 ở trên chỉ
+       * quét màn CI, nơi không phần tử nào của chương CD được dựng.
+       */
+      const level = CD_LEVELS.find((l) => l.id.startsWith('cicd-c28-'));
+      if (level?.cd === undefined) throw new Error('không tìm thấy C28 có khối cd');
+      await datTheme(page, theme);
+      await openScreen(page, `${CICD_PATH}?level=${level.id}`, 'user');
+      await settle(page);
+      await khangDinhTheme(page, theme);
+      await expect(page.getByTestId('cicd-cd-panel')).toBeVisible();
 
-    await oSoan(page).fill(writeWorkflowYaml(level.solutionWorkflow).yaml);
-    await page.getByRole('button', { name: 'Chạy thử' }).click();
-    await expect(page.getByTestId('cicd-cd-drift')).toBeVisible();
-    await expect(page.getByTestId('cicd-cd-leaks')).toBeVisible();
+      await oSoan(page).fill(writeWorkflowYaml(level.solutionWorkflow).yaml);
+      await page.getByRole('button', { name: 'Chạy thử' }).click();
+      await expect(page.getByTestId('cicd-cd-drift')).toBeVisible();
+      await expect(page.getByTestId('cicd-cd-leaks')).toBeVisible();
 
-    await page.getByRole('button', { name: /^Bài lý thuyết:/u }).click();
-    await expect(page.getByTestId('cicd-theory')).toBeVisible();
-    await scanAxe(page, testInfo, 'cicd-man-cd');
-  });
+      await page.getByRole('button', { name: /^Bài lý thuyết:/u }).click();
+      await expect(page.getByTestId('cicd-theory')).toBeVisible();
+      await scanAxe(page, testInfo, `cicd-man-cd-${theme}`);
+    });
+  }
 });
