@@ -231,6 +231,21 @@ hình. Người chơi phải đóng/thu được mọi panel và còn lại mộ
 | D.4.7 | Bảng ba trục thành lớp phủ góc, **vẫn thường trực** (19.E.4 là hợp đồng: ba số hiện CÙNG LÚC, không giấu sau nút) + minimap kiểu `hud/minimap.tsx` | 4h |
 | D.4.8 | Bàn phím đủ cho mọi thao tác; không thao tác nào chỉ làm được bằng chuột | 3h |
 
+### Tiến độ (2026-09-17)
+
+| Chuỗi | Trạng thái | Commit |
+|---|---|---|
+| 19.D.1 — nền hợp đồng | ✅ 5/5 | `48d8d42` `ce2b1d9` `68dfc1a` `f1b2c54` `b9ab108` |
+| 19.D.2 — cảnh 2D | ⏳ đang chạy | `f391cad` `2b160ba` |
+| 19.D.3 — cảnh 3D | ✅ 9/9 | `6bd9486` `e3db5e7` `df2f562` `44e9270` |
+| 19.D.4 + 19.D.5 — HUD | ✅ 9/9 | `f54138d` `07ba6e5` `cc3df50` `a158876` |
+| Route immersive (phát sinh) | ✅ | `64657ad` `a41e081` |
+
+⚠ **Chưa có gì được RENDER lần nào.** Toàn bộ xác minh tới đây là tĩnh: typecheck,
+lint, unit/DOM test, cổng màu. Chưa có số lệnh vẽ thật cho AC-D4, chưa kiểm hai
+theme bằng mắt, chưa kiểm `prefers-reduced-motion` trong trình duyệt. Đó là phần
+e2e + build của lead, chạy sau khi lane-2d khép lại.
+
 ### Quyết định phát sinh khi làm thật (2026-09-17)
 
 | # | Việc | Chốt |
