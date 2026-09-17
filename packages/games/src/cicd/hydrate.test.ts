@@ -23,7 +23,7 @@ import {
 } from './contract.ts';
 import { cacheControls, overridesToReach, retryControls } from './controls.ts';
 import { evaluate } from './engine.ts';
-import { CI_LEVELS } from './levels/index.ts';
+import { CI_LEVELS, CICD_LEVELS } from './levels/index.ts';
 import { scoreAxes } from './score.ts';
 import { readWorkflowYaml } from './yaml-read.ts';
 import { writeWorkflowYaml } from './yaml-write.ts';
@@ -290,8 +290,8 @@ describe('mergeStageCatalogue', () => {
 // AC — vòng YAML không được đổi ba trục điểm, trên CẢ 28 lời giải
 // ═══════════════════════════════════════════════════════════════════════════
 
-describe('AC — vòng đọc-ghi YAML giữ nguyên ba trục, 14 level × 2 lời giải', () => {
-  const ca = CI_LEVELS.flatMap((level) => [
+describe('AC — vòng đọc-ghi YAML giữ nguyên ba trục, 28 level × 2 lời giải', () => {
+  const ca = CICD_LEVELS.flatMap((level) => [
     { level, nhan: 'lời giải', wf: level.solutionWorkflow },
     { level, nhan: 'lời giải thay thế', wf: level.altSolutionWorkflow },
   ]);
@@ -368,7 +368,7 @@ describe('dữ liệu level — cache là SỰ THẬT của bước, nên mọi 
    * không có núm nào sửa được chuyện đó. Đã đo ở C06 (`tai-goi` tiết kiệm 8 ở A,
    * 5 ở B) ngày 2026-09-16.
    */
-  it.each(CI_LEVELS.map((level) => ({ level })))('$level.id', ({ level }) => {
+  it.each(CICD_LEVELS.map((level) => ({ level })))('$level.id', ({ level }) => {
     const khuon = new Map<string, string>();
     const lech: string[] = [];
     for (const wf of [level.initialWorkflow, level.solutionWorkflow, level.altSolutionWorkflow]) {

@@ -21,12 +21,16 @@ import { describe, expect, it } from 'vitest';
 import type { CicdCdPolicies } from '../cd-contract.ts';
 import { mergeCdPolicies, runLevelCd } from '../cd-run.ts';
 import type { CicdLevel, CicdObjective, WorkflowSpec } from '../contract.ts';
+import { overridesToReach } from '../controls.ts';
 import { criticalPath } from '../critical-path.ts';
 import { evaluate } from '../engine.ts';
 import type { CicdScoringContext } from '../predicates.ts';
 import { checkObjective, failingObjectiveIds, validateObjectiveArgs } from '../predicates.ts';
 import { isBadCandidate } from '../release.ts';
 import { summarizeEvaluation } from '../score.ts';
+import { hydrateWorkflow, mergeStageCatalogue } from '../hydrate.ts';
+import { readWorkflowYaml } from '../yaml-read.ts';
+import { writeWorkflowYaml } from '../yaml-write.ts';
 import { CD_LEVELS } from './index.ts';
 
 type LoiGiai = 'initial' | 'solution' | 'altSolution';
@@ -97,9 +101,35 @@ describe.runIf(coLevel)('chương CD — hình dạng dữ liệu', () => {
     expect(nguong.parLeadSeconds).toBeLessThanOrEqual(nguong.budgetLeadSeconds);
     expect(nguong.minThroughputPerHour).toBeLessThanOrEqual(nguong.parThroughputPerHour);
     expect(nguong.parRunnerMinutes).toBeLessThanOrEqual(nguong.budgetRunnerMinutes);
-    expect(nguong.minGreenRate).toBeGreaterThan(0);
+    /*
+     * `score.ts` đếm LƯỢT xanh, và một commit bị từ chối duyệt làm stage mang cổng
+     * đỏ ở mọi lượt — nên level dạy cổng duyệt có greenRate = 0 dù lời giải đúng.
+     * Miễn trừ hẹp: chỉ level mà workload thật sự có commit bị từ chối (chốt
+     * 2026-09-17, chủ dự án). Mọi level khác vẫn phải đòi ngưỡng xanh > 0.
+     */
+    const coTuChoiChuY = level.workload.commits.some((commit) => commit.approvalRejected === true);
+    if (coTuChoiChuY) expect(nguong.minGreenRate).toBeGreaterThanOrEqual(0);
+    else expect(nguong.minGreenRate).toBeGreaterThan(0);
     expect(level.hints.length).toBeGreaterThanOrEqual(3);
     expect(level.teaching.takeaways.length).toBeGreaterThanOrEqual(2);
+    // Giới hạn độ dài của brief 19.G §3 — ghim ở đây để lần sửa sau không trôi.
+    const soTu = (van: string): number => van.trim().split(/\s+/u).filter(Boolean).length;
+    expect(soTu(level.mission), 'mission').toBeLessThanOrEqual(20);
+    expect(soTu(level.brief), 'brief').toBeLessThanOrEqual(400);
+    expect(soTu(level.teaching.primer), 'primer').toBeLessThanOrEqual(250);
+    expect(level.teaching.takeaways.length).toBeLessThanOrEqual(4);
+    /*
+     * Vị từ "đạt bằng cách không làm gì" (chú thích của chúng trong `contract.ts`):
+     * không lên bản nào thì không có sự cố dữ liệu; tắt tự sửa thì không giành nhau.
+     * Mỗi cái phải đi kèm một mục bắt buộc chặn đường lười đó.
+     */
+    const batBuoc = new Set(level.objectives.filter((muc) => muc.required).map((muc) => muc.check));
+    if (batBuoc.has('noDataIncident')) {
+      expect(batBuoc.has('badReleasePromotedAtMost') || batBuoc.has('rollbackUnder'), 'noDataIncident đứng một mình').toBe(true);
+    }
+    if (batBuoc.has('selfHealFightsAtMost')) {
+      expect(batBuoc.has('driftLongestUnder'), 'selfHealFightsAtMost đứng một mình').toBe(true);
+    }
     expect(level.teaching.cheatsheet.length).toBeGreaterThan(0);
   });
 });
@@ -194,6 +224,35 @@ describe.runIf(coLevel)('AC-G — hai lời giải chạy qua engine + bộ mô 
         cd: which === 'initial' ? null : level.cd?.[which] ?? null,
       });
     expect(dauVet('solution')).not.toBe(dauVet('altSolution'));
+  });
+
+  /*
+   * Ô trên chấm `solutionWorkflow` NGUYÊN BẢN — thứ người chơi không bao giờ gửi.
+   * Người chơi gửi YAML, và YAML không chở `requires`/`produces`/thời lượng; tầng
+   * ghép bù chúng từ catalogue. Vị từ CD (`promotedArtifactUnchanged`,
+   * `environmentGuardedByApproval`) đọc đúng những trường đó, nên phải đo lại MỤC
+   * TIÊU sau vòng YAML chứ không chỉ ba trục (`hydrate.test.ts` chỉ so ba trục).
+   */
+  it.each(MOI_LEVEL)('%s — hai lời giải qua vòng YAML + tầng ghép vẫn đạt mọi mục bắt buộc', (_id, level) => {
+    const nguon = {
+      baseline: level.initialWorkflow,
+      catalogue: mergeStageCatalogue(level.initialWorkflow, level.solutionWorkflow, level.altSolutionWorkflow),
+    };
+    for (const which of ['solution', 'altSolution'] as const) {
+      const goc = workflowCua(level, which);
+      const doc = readWorkflowYaml(writeWorkflowYaml(goc).yaml);
+      if (!doc.ok) throw new Error(`${which}: ${doc.errors.map((e) => e.message).join(' | ')}`);
+      const workflow = hydrateWorkflow(
+        doc.workflow,
+        nguon,
+        level.editable,
+        overridesToReach(goc, doc.workflow, nguon, level.editable),
+      );
+      const record = evaluate(workflow, level.workload, level.evaluation);
+      expect(record.error, which).toBeNull();
+      const ctx = level.cd === undefined ? { workflow, record } : { ...cham(level, which), workflow, record };
+      expect(failingObjectiveIds(level.objectives, ctx, true), which).toEqual([]);
+    }
   });
 
   it.each(MOI_LEVEL)('%s — cả hai lời giải nằm trong ngân sách ba trục, đường găng không đứt', (_id, level) => {

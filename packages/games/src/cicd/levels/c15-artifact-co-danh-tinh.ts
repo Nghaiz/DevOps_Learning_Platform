@@ -38,7 +38,7 @@ export const LEVEL_C15: CicdLevel = {
   title: 'Artifact có danh tính',
   mission: 'Đưa đúng ảnh vừa dựng vào dev mà không còn lỗi thiếu sản phẩm.',
   brief: 'Dịch vụ tìm kiếm đã dựng được ảnh, nhưng lượt phát hành vào dev báo thiếu sản phẩm. Bảng chạy có cả bước dựng, kiểm tra và phát hành; việc ảnh xuất hiện ở một máy chưa có nghĩa máy khác đã nhận nó. Hãy làm cho cả ba commit hoàn tất và dev nhận được ảnh của chính commit đó.',
-  difficulty: 'beginner',
+  difficulty: 'basic',
   initialWorkflow: BAN_DAU,
   workload: {
     runners: [{ id: 'chung', label: 'Máy chạy chung', count: 3 }],
