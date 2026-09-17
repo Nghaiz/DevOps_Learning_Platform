@@ -1106,6 +1106,38 @@ export const STAGE_RUN_STATES = [
 
 export type StageRunState = (typeof STAGE_RUN_STATES)[number];
 
+/**
+ * Một BƯỚC bên trong một job, như renderer nhìn thấy (19.D.2.7 cấp 3).
+ *
+ * Ghép `StepSpec` (id, tên — luôn có) với `StepRecord` của lần thử đang xem
+ * (thời lượng, kết quả, cache — chỉ có khi bước đã chạy).
+ *
+ * ⚠ **Mọi bước của spec đều xuất hiện**, kể cả bước chưa chạy. `AttemptRecord.steps`
+ * NGẮN HƠN `StageSpec.steps` khi một bước `blocking` gãy giữa chừng, và một danh
+ * sách chỉ gồm các bước đã chạy sẽ làm người chơi tưởng job của họ chỉ có bấy
+ * nhiêu bước — đúng lúc họ cần thấy bước nào KHÔNG chạy được vì bước trước đỏ.
+ *
+ * ⛔ **Không mang `flakeNature`.** Trong lúc chạy, đỏ giả và đỏ thật trông giống
+ * hệt nhau — đó là điều kiện để bài C11 có nghĩa (`StepRecord.flakeNature`). Lộ
+ * nó ra tầng vẽ là để người chơi đọc được xúc xắc.
+ */
+export interface StepNodeView {
+  readonly id: StepId;
+  /** Tiếng Việt, từ `StepSpec.name`. */
+  readonly name: string;
+  /** Tick thực tế, ĐÃ trừ phần cache tiết kiệm và ĐÃ cộng biên động. `null` = chưa chạy. */
+  readonly durationTicks: number | null;
+  /** `null` = bước chưa chạy (bước trước nó đã gãy, hoặc job chưa tới lượt). */
+  readonly outcome: AttemptOutcome | null;
+  /**
+   * `null` = bước không khai cache, HOẶC chưa chạy.
+   *
+   * "Trúng" là trúng KHOÁ, không phải "đúng nội dung" — một lần trúng khoá mà
+   * nội dung đã ôi vẫn là `true` ở đây (xem `StepRecord.cacheHit`).
+   */
+  readonly cacheHit: boolean | null;
+}
+
 export interface StageNodeView {
   readonly instance: InstanceKey;
   readonly stageId: StageId;
@@ -1144,6 +1176,17 @@ export interface StageNodeView {
    * chính hình dạng đường ống, ở `scene-contract.ts`.
    */
   readonly environment: EnvironmentId | null;
+  /**
+   * Các bước bên trong job, theo ĐÚNG thứ tự khai trong `StageSpec.steps`.
+   *
+   * ⚠ THÊM 2026-09-17 (19.D.2.7). Không có nó thì cấp 3 của drill-in — bấm một
+   * job để xem các bước bên trong — **không dựng được từ view**, và tầng vẽ chỉ
+   * còn hai lựa chọn: bịa danh sách bước (dữ liệu giả trong một giao diện dạy
+   * học), hoặc mở một đường đọc `RunRecord` thứ hai song song với view.
+   *
+   * Rỗng khi stage không khai bước nào.
+   */
+  readonly steps: readonly StepNodeView[];
   /**
    * Token màu NGỮ NGHĨA, không phải mã màu. Renderer tra sang màu thật bằng
    * `getComputedStyle`, và đó là thứ giữ SSOT màu ở CSS và làm 3D tự đổi theo

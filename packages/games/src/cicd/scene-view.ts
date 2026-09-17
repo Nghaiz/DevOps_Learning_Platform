@@ -53,6 +53,8 @@ import type {
   StageNodeView,
   StageRunState,
   StageSpec,
+  StepNodeView,
+  StepRecord,
   WorkflowSpec,
 } from './contract.ts';
 import { criticalPath } from './critical-path.ts';
@@ -179,6 +181,35 @@ function ariaLabelOf(stage: StageSpec, instance: InstanceKey, state: StageRunSta
   return `${ten} — ${enc.label}${lanThu}`;
 }
 
+/**
+ * Các bước của một job: spec ghép với bản ghi của lần thử đang xem.
+ *
+ * Đi theo `stage.steps` (spec) chứ KHÔNG theo `attempt.steps` (bản ghi), và đó
+ * là điểm quyết định: bản ghi NGẮN HƠN spec khi một bước `blocking` gãy giữa
+ * chừng (`AttemptRecord.steps`). Duyệt theo bản ghi thì các bước không chạy biến
+ * mất khỏi giao diện, và người chơi tưởng job của mình chỉ có bấy nhiêu bước —
+ * đúng lúc họ cần thấy bước nào bị chặn vì bước trước đỏ.
+ */
+function stepsOf(stage: StageSpec, record: StageInstanceRecord | null, tick: number): readonly StepNodeView[] {
+  const live = record === null ? null : liveAttempt(record.attempts, tick);
+  const done = record === null ? undefined : record.attempts.filter((a) => a.finishedTick <= tick).at(-1);
+  const attempt = live ?? done ?? null;
+
+  const daChay = idDict<StepRecord>();
+  for (const s of attempt?.steps ?? []) daChay[s.id] = s;
+
+  return stage.steps.map((spec) => {
+    const ran = ownValue(daChay, spec.id);
+    return {
+      id: spec.id,
+      name: spec.name,
+      durationTicks: ran?.durationTicks ?? null,
+      outcome: ran?.outcome ?? null,
+      cacheHit: ran?.cacheHit ?? null,
+    };
+  });
+}
+
 function nodeOf(joined: Joined, tick: number): StageNodeView {
   const { stage, record } = joined;
   const state: StageRunState = record === null ? 'pending' : stateAt(record, tick);
@@ -201,6 +232,7 @@ function nodeOf(joined: Joined, tick: number): StageNodeView {
     finishedTick: finished,
     cacheHit: record === null ? null : cacheHitOf(record, tick),
     environment,
+    steps: stepsOf(stage, record, tick),
     statusToken: enc.statusToken,
     ariaLabel: ariaLabelOf(stage, joined.instance, state, attempt),
   };

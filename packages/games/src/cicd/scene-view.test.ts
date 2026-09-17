@@ -212,6 +212,70 @@ describe('buildGraphView — trạng thái', () => {
   });
 });
 
+describe('buildGraphView — các bước bên trong job (cấp 3 của drill-in)', () => {
+  it('MỌI bước của spec đều xuất hiện, kể cả bước KHÔNG chạy vì bước trước gãy', () => {
+    /*
+     * Đây là ô quan trọng nhất của `steps`. `AttemptRecord.steps` NGẮN HƠN
+     * `StageSpec.steps` khi một bước `blocking` gãy giữa chừng. Duyệt theo bản
+     * ghi thay vì theo spec thì các bước không chạy biến mất, và người chơi
+     * tưởng job của mình chỉ có bấy nhiêu bước — đúng lúc họ cần thấy bước nào
+     * bị chặn.
+     */
+    const stage = st('dung', [], {
+      steps: [step('lay-ma'), step('bien-dich'), step('dong-goi')],
+    });
+    const record = inst('dung', 'dung', {
+      attempts: [
+        attempt({
+          outcome: 'failed',
+          failedStep: 'bien-dich',
+          // Chỉ HAI bước chạy: `dong-goi` không tới lượt.
+          steps: [
+            { id: 'lay-ma', durationTicks: 2, outcome: 'passed', cacheHit: null, flakeNature: null },
+            { id: 'bien-dich', durationTicks: 4, outcome: 'failed', cacheHit: false, flakeNature: null },
+          ],
+        }),
+      ],
+    });
+
+    const node = buildGraphView({ workflow: wf([stage]), run: run([record]), yAxis: 'ci' }).nodes[0];
+
+    expect(node?.steps.map((s) => s.id)).toEqual(['lay-ma', 'bien-dich', 'dong-goi']);
+    expect(node?.steps[0]).toMatchObject({ outcome: 'passed', durationTicks: 2 });
+    expect(node?.steps[1]).toMatchObject({ outcome: 'failed', cacheHit: false });
+    // Bước chưa chạy: có mặt, nhưng mọi dữ kiện của lần chạy đều `null`.
+    expect(node?.steps[2]).toMatchObject({ id: 'dong-goi', outcome: null, durationTicks: null });
+  });
+
+  it('chưa có lượt chạy thì vẫn liệt kê đủ bước, tất cả chưa có kết quả', () => {
+    const stage = st('dung', [], { steps: [step('a'), step('b')] });
+
+    const node = buildGraphView({ workflow: wf([stage]), run: null, yAxis: 'ci' }).nodes[0];
+
+    expect(node?.steps.map((s) => s.id)).toEqual(['a', 'b']);
+    expect(node?.steps.every((s) => s.outcome === null)).toBe(true);
+  });
+
+  it('KHÔNG lộ `flakeNature` ra view — đỏ giả phải trông giống đỏ thật', () => {
+    // Điều kiện để bài C11 có nghĩa. Lộ nó ra tầng vẽ là cho người chơi đọc
+    // được xúc xắc ngay trong lúc chạy.
+    const stage = st('dung', [], { steps: [step('a')] });
+    const record = inst('dung', 'dung', {
+      attempts: [
+        attempt({
+          outcome: 'failed',
+          steps: [{ id: 'a', durationTicks: 1, outcome: 'failed', cacheHit: null, flakeNature: 'infra' }],
+        }),
+      ],
+    });
+
+    const node = buildGraphView({ workflow: wf([stage]), run: run([record]), yAxis: 'ci' }).nodes[0];
+
+    expect(JSON.stringify(node?.steps)).not.toContain('infra');
+    expect(Object.keys(node?.steps[0] ?? {})).not.toContain('flakeNature');
+  });
+});
+
 describe('buildGraphView — cạnh máy và đường găng', () => {
   it('chỗ chờ máy thành một cạnh RIÊNG, đánh dấu `resourceEdge`', () => {
     const a = inst('a', 'a', { finishedTick: 10 });
