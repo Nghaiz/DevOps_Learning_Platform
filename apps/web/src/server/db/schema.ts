@@ -257,6 +257,24 @@ export const jwks = pgTable('jwks', {
   privateKey: text('private_key').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   expiresAt: timestamp('expires_at', { withTimezone: true }),
+  /*
+   * Hai cột Better Auth 1.7 thêm vào bảng này (`plugins/jwt/schema.ts`), cả hai
+   * `required: false`.
+   *
+   * ⛔ THIẾU chúng KHÔNG phải một khe im lặng — adapter ném thẳng:
+   *
+   *     BetterAuthError: The field "alg" does not exist in the "jwks" Drizzle schema.
+   *
+   * ...nhưng chỉ khi nó phải TẠO một khoá mới. Một DB đã có sẵn dòng jwks đọc
+   * đường khác và không chạm tới cột này, nên lỗi nấp kỹ: bộ test ở máy có DB cũ
+   * xanh trọn vẹn, còn CI (DB dựng mới mỗi lượt) đỏ 51 ô. Đo 2026-09-18, PR #148.
+   *
+   * KHÔNG cần backfill: `getLatestKeyByAlg` coi dòng cũ (`alg: null`) là mang
+   * đúng thuật toán mặc định (`keyPairConfig.alg ?? 'EdDSA'`), nên khoá đã phát
+   * trước bản này vẫn dùng được.
+   */
+  alg: text('alg'),
+  crv: text('crv'),
 });
 
 /**
