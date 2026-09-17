@@ -155,14 +155,15 @@ const XTERM_FINGERPRINTS = [
 const BUDGETS = {
   // Nền chung tải trên MỌI route, nên mỗi byte thêm ở đây nhân cho 37 trang.
   //
-  // ▶ HẠ TRẦN 2026-09-18: 1_150_000 → 870_000. Sau khi P17 gỡ hai hồi quy
-  // (side-effect barrel + Zod-neo), số đo tụt còn 786_785 B (2026-09-14), tức
-  // trần cũ dư 32% — mâu thuẫn thẳng với chính chú thích "~10–15%" ngay trên
-  // đây, và một cổng dư 32% KHÔNG bắt nổi cú bump cỡ 91 KB (đúng cỡ Zod từng
-  // cộng). 870_000 cho ~10,6% headroom trên số đo hiện tại VÀ đỏ khi cú bump
-  // 91 KB kế tiếp đẩy nền chung lên 878 KB. Đây là khôi phục ý định đã ghi, đổi
-  // được nếu chủ dự án muốn khác — sửa số Ở ĐÂY kèm ngày + lý do, đừng lặng lẽ.
-  sharedBaselineBytes: 870_000,
+  // ▶ HẠ TRẦN 2026-09-18: 1_150_000 → 900_000. Trần cũ dư 32% mâu thuẫn với
+  // chính chú thích "~10–15%" ngay trên đây, và một cổng dư 32% KHÔNG bắt nổi
+  // cú bump cỡ 91 KB (đúng cỡ Zod từng cộng). Số đo THẬT của `main` lúc hạ trần
+  // là 815_524 B (build 2026-09-18, sau khi #148 gộp sáu bump + #146/#147 cộng
+  // ~29 KB so với mốc 786 785 của CI 2026-09-14). 900_000 cho ~10,4% headroom
+  // trên số đo thật VÀ vẫn đỏ khi cú bump 91 KB kế tiếp đẩy nền lên ~906 KB.
+  // Khôi phục ý định đã ghi; đổi được nếu chủ dự án muốn khác — sửa số Ở ĐÂY
+  // kèm ngày + lý do, đừng lặng lẽ.
+  sharedBaselineBytes: 900_000,
   // Trần thô "không route nào nổ". Route nặng nhất hôm nay dùng 89% trần này.
   routeBytes: 1_850_000,
   // Chunk xterm béo lên cũng là hồi quy thật, kể cả khi nó vẫn ở đúng 4 route.

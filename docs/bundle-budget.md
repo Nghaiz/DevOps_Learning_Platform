@@ -114,15 +114,21 @@ Nguồn: CI run `34809642334` trên `main@6f19cbe` (job TypeScript → `bundle:c
 **Không trần nào bị sửa ở lượt này**, và đó là điều đúng: cổng đỏ vì một hồi quy
 thật, và cách đóng nó là gỡ hồi quy chứ không nới trần (`pinned-baseline-test-companion`).
 
-### Hạ trần 2026-09-18 — 1 150 000 → 870 000 (đóng khoản nợ ⚠ ở dưới)
+### Hạ trần 2026-09-18 — 1 150 000 → 900 000 (đóng khoản nợ ⚠ ở dưới)
 
 Khoản nợ "trần dư 32%" ghi ⚠ ở cuối mục dưới nay đã đóng. Trần nền chung hạ từ
-`1 150 000` xuống **`870 000`** ([`scripts/check-bundle-budget.mjs`](../scripts/check-bundle-budget.mjs)
-hằng `BUDGETS.sharedBaselineBytes`). Với số đo hiện tại 786 785 B:
+`1 150 000` xuống **`900 000`** ([`scripts/check-bundle-budget.mjs`](../scripts/check-bundle-budget.mjs)
+hằng `BUDGETS.sharedBaselineBytes`).
 
-- headroom còn **~10,6%** — đúng khoảng "~10–15%" mà chú thích của chính hằng đó đặt ra,
+⚠ Số đo THẬT lúc hạ trần **không** phải 786 785 B của bảng trên (đó là CI
+`34809642334` trên `main@6f19cbe`, 2026-09-14). Đo lại bằng `pnpm bundle:check`
+trên `main` ngày 2026-09-18 ra **815 524 B** — nền chung đã lên ~29 KB do #148
+gộp sáu bump dependency + #146/#147 gộp sau mốc đó. Trần được calibrate theo số
+815 524 này, không theo số cũ:
+
+- headroom còn **~10,4%** — đúng khoảng "~10–15%" mà chú thích của chính hằng đó đặt ra,
   thay cho 32% đã trôi khỏi ý định gốc;
-- một cú bump cỡ **91 KB** (đúng cỡ `zod` từng cộng) đẩy nền chung lên ~878 KB **> 870 000**
+- một cú bump cỡ **91 KB** (đúng cỡ `zod` từng cộng) đẩy nền chung lên ~906 KB **> 900 000**
   ⇒ cổng ĐỎ, tức khôi phục đúng khả năng bắt-hồi-quy mà mục ⚠ lo mất.
 
 Hai trần còn lại giữ nguyên (`routeBytes 1 850 000`, `xtermChunkBytes 620 000`) — route
