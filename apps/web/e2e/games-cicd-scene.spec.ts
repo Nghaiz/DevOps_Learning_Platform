@@ -35,7 +35,7 @@ import { CI_LEVELS, buildGraphView } from '@devops-platform/games';
 
 import { expect, test } from './fixtures/api';
 import { openScreen, settle } from './fixtures/nav';
-import { traceRequests } from './games-harness';
+import { THREE_MARKERS, findMarkers, scanAxe, traceRequests, traceScripts } from './games-harness';
 
 /**
  * C13, không phải C12.
@@ -60,6 +60,23 @@ async function thuHetLopPhu(page: Page): Promise<void> {
   await page.getByTestId('cicd-field').click({ position: { x: 5, y: 5 } });
   await page.keyboard.press('0');
   await settle(page);
+}
+
+const THEMES = ['light', 'dark'] as const;
+
+async function datTheme(page: Page, theme: (typeof THEMES)[number]): Promise<void> {
+  await page.emulateMedia({ colorScheme: theme });
+}
+
+/**
+ * Đối chứng cho chính phép đổi theme: thiếu nó thì một app lờ đi media query sẽ
+ * làm lượt "theme tối" quét lại đúng theme sáng mà vẫn xanh.
+ */
+async function khangDinhTheme(page: Page, theme: (typeof THEMES)[number]): Promise<void> {
+  const coDark = await page.evaluate(() => document.documentElement.classList.contains('dark'));
+  expect(coDark, `<html> phải ${theme === 'dark' ? 'CÓ' : 'KHÔNG có'} class dark`).toBe(
+    theme === 'dark',
+  );
 }
 
 async function doiCheDo(page: Page, che: '2D' | '3D'): Promise<void> {
@@ -206,6 +223,70 @@ test.describe('Game CI/CD — §19.D tầng hình ảnh', () => {
      */
     expect(hop.width / khung.width, 'chiều rộng sân / khung nhìn').toBeGreaterThan(0.95);
     expect(hop.height / khung.height, 'chiều cao sân / khung nhìn').toBeGreaterThan(0.8);
+  });
+
+  for (const theme of THEMES) {
+    test(`AC-D5 — axe 0 vi phạm ở CHẾ ĐỘ 3D (theme ${theme}) @games-cicd-scene`, async ({
+      page,
+    }, testInfo) => {
+      /*
+       * Ô axe của `games-cicd.spec.ts` chỉ quét chế độ 2D. Cảnh 3D có một cây DOM
+       * KHÁC HẲN — canvas, lớp nhãn, nút xoay camera, vùng `aria-live` — nên nó
+       * không được quét lần nào cho tới ô này.
+       */
+      const level = manQuatRa();
+      await datTheme(page, theme);
+      await openScreen(page, duongDanMan(level.id), 'user');
+      await settle(page);
+      await khangDinhTheme(page, theme);
+
+      await doiCheDo(page, '3D');
+      await expect(page.getByTestId('cicd-scene-3d')).toBeVisible();
+
+      await scanAxe(page, testInfo, `cicd-canh-3d-${theme}`);
+    });
+  }
+
+  test('AC-D9 — route không-3D KHÔNG kéo three, bật 3D thì CÓ @games-cicd-scene', async ({
+    page,
+  }, testInfo) => {
+    const level = manQuatRa();
+
+    const scripts = traceScripts(page);
+    await openScreen(page, duongDanMan(level.id), 'user');
+    await settle(page);
+    await expect(page.getByTestId('cicd-scene-2d')).toBeVisible();
+
+    const truoc = [...scripts.urls()];
+    const oDuong2d = await findMarkers(page, truoc, THREE_MARKERS);
+    await testInfo.attach('scripts-che-do-2d', {
+      body: JSON.stringify({ scanned: oDuong2d.scanned, bytes: oDuong2d.bytes, hits: oDuong2d.hits }, null, 2),
+      contentType: 'application/json',
+    });
+
+    expect(
+      oDuong2d.hits,
+      'chế độ 2D không được kéo ~631KB engine 3D — P17 đã một lần rò qua đúng một barrel (44f8e39)',
+    ).toEqual([]);
+    expect(oDuong2d.scanned, 'phải có script để quét, nếu không phép đo rỗng').toBeGreaterThan(0);
+
+    /*
+     * ⛔ ĐỐI CHỨNG DƯƠNG. Không có vế này thì ô trên xanh kể cả khi phép dò dấu
+     * hỏng hoàn toàn (sai dấu, sai đường tải, `next/dynamic` không bao giờ nạp) —
+     * "không tìm thấy three" và "không tìm được gì cả" đọc ra giống hệt nhau.
+     */
+    await doiCheDo(page, '3D');
+    await expect(page.getByTestId('cicd-scene-3d')).toBeVisible();
+
+    const them = scripts.urls().filter((u) => !truoc.includes(u));
+    expect(them, 'bật 3D phải nạp thêm chunk mới').not.toEqual([]);
+    const oDuong3d = await findMarkers(page, them, THREE_MARKERS);
+    expect(
+      oDuong3d.hits.length,
+      'bật 3D thì three PHẢI xuất hiện — nếu không, phép dò ở trên không chứng minh gì',
+    ).toBeGreaterThan(0);
+
+    scripts.stop();
   });
 
   test.describe('AC-D10 — giảm chuyển động', () => {
