@@ -1106,6 +1106,38 @@ export const STAGE_RUN_STATES = [
 
 export type StageRunState = (typeof STAGE_RUN_STATES)[number];
 
+/**
+ * Một BƯỚC bên trong một job, như renderer nhìn thấy (19.D.2.7 cấp 3).
+ *
+ * Ghép `StepSpec` (id, tên — luôn có) với `StepRecord` của lần thử đang xem
+ * (thời lượng, kết quả, cache — chỉ có khi bước đã chạy).
+ *
+ * ⚠ **Mọi bước của spec đều xuất hiện**, kể cả bước chưa chạy. `AttemptRecord.steps`
+ * NGẮN HƠN `StageSpec.steps` khi một bước `blocking` gãy giữa chừng, và một danh
+ * sách chỉ gồm các bước đã chạy sẽ làm người chơi tưởng job của họ chỉ có bấy
+ * nhiêu bước — đúng lúc họ cần thấy bước nào KHÔNG chạy được vì bước trước đỏ.
+ *
+ * ⛔ **Không mang `flakeNature`.** Trong lúc chạy, đỏ giả và đỏ thật trông giống
+ * hệt nhau — đó là điều kiện để bài C11 có nghĩa (`StepRecord.flakeNature`). Lộ
+ * nó ra tầng vẽ là để người chơi đọc được xúc xắc.
+ */
+export interface StepNodeView {
+  readonly id: StepId;
+  /** Tiếng Việt, từ `StepSpec.name`. */
+  readonly name: string;
+  /** Tick thực tế, ĐÃ trừ phần cache tiết kiệm và ĐÃ cộng biên động. `null` = chưa chạy. */
+  readonly durationTicks: number | null;
+  /** `null` = bước chưa chạy (bước trước nó đã gãy, hoặc job chưa tới lượt). */
+  readonly outcome: AttemptOutcome | null;
+  /**
+   * `null` = bước không khai cache, HOẶC chưa chạy.
+   *
+   * "Trúng" là trúng KHOÁ, không phải "đúng nội dung" — một lần trúng khoá mà
+   * nội dung đã ôi vẫn là `true` ở đây (xem `StepRecord.cacheHit`).
+   */
+  readonly cacheHit: boolean | null;
+}
+
 export interface StageNodeView {
   readonly instance: InstanceKey;
   readonly stageId: StageId;
@@ -1145,6 +1177,17 @@ export interface StageNodeView {
    */
   readonly environment: EnvironmentId | null;
   /**
+   * Các bước bên trong job, theo ĐÚNG thứ tự khai trong `StageSpec.steps`.
+   *
+   * ⚠ THÊM 2026-09-17 (19.D.2.7). Không có nó thì cấp 3 của drill-in — bấm một
+   * job để xem các bước bên trong — **không dựng được từ view**, và tầng vẽ chỉ
+   * còn hai lựa chọn: bịa danh sách bước (dữ liệu giả trong một giao diện dạy
+   * học), hoặc mở một đường đọc `RunRecord` thứ hai song song với view.
+   *
+   * Rỗng khi stage không khai bước nào.
+   */
+  readonly steps: readonly StepNodeView[];
+  /**
    * Token màu NGỮ NGHĨA, không phải mã màu. Renderer tra sang màu thật bằng
    * `getComputedStyle`, và đó là thứ giữ SSOT màu ở CSS và làm 3D tự đổi theo
    * theme sáng/tối.
@@ -1181,6 +1224,27 @@ export interface DagEdgeView {
   readonly resourceEdge: boolean;
 }
 
+/*
+ * ⛔ **KHÔNG có trường "lưu lượng" trên cạnh, và sẽ không có** (chốt 2026-09-17).
+ *
+ * `phase-19-d-exec.md` §3 mục D.2.3 ghi "mật độ chấm = lưu lượng (mượn Vizceral)".
+ * Đại lượng đó không dựng được ở đây, và lý do là một ranh giới tầng chứ không
+ * phải một trường bị quên:
+ *
+ *   `CicdView` mô tả **MỘT `RunRecord`** — một commit đi hết workflow. Trong
+ *   phạm vi một commit, mỗi cạnh phụ thuộc đi qua đúng MỘT lần. Không có gì để
+ *   mà đếm.
+ *
+ * Lưu lượng chỉ có nghĩa ở tầng `PassRecord` (mọi commit của một lượt mô phỏng),
+ * và đó cũng chính là chỗ trục điểm ② THÔNG LƯỢNG sống. Gắn một con số của cả
+ * lượt lên cạnh của một commit là trộn hai tầng: người chơi sẽ đọc "cạnh này
+ * đông" thành một tính chất của lượt chạy họ đang xem, trong khi nó là tính chất
+ * của bảng tổng.
+ *
+ * Thứ tầng vẽ dùng thay, và nó đọc được từ đúng một commit: **"có việc đang chảy
+ * qua cạnh này"** — đầu trên đã xong, đầu dưới thì chưa. Suy từ `state` của hai
+ * node, không cần trường mới.
+ */
 export interface RunnerLaneView {
   readonly runnerClass: RunnerClassId;
   readonly label: string;

@@ -311,7 +311,7 @@ chương nên người chơi phải học lại cách đọc không gian.
 |---|---|---|
 | AC-D1 | ✅ | `games-cicd-scene.spec.ts`, chạy trên C13; đối chứng nội tại `soThucThe > soStage` |
 | AC-D2 | ✅ | So hai bộ đếm mà mỗi renderer tự phát; kèm khẳng định khác 0 và không node/cạnh nào rơi vì `NaN` |
-| AC-D3 | ⚠ **một phần** | Chọn tay 2D/3D đi đúng nhánh, có đối chứng dương. **Chưa chạy `--disable-3d-apis`** — ca "máy không cấp được WebGL2" cần một project Playwright riêng, chưa dựng |
+| AC-D3 | ✅ **đủ** | Chọn tay 2D/3D đi đúng nhánh, có đối chứng dương; cộng `games-cicd-nowebgl.spec.ts` chạy với `--disable-3d-apis` và tự khẳng định cờ đã ăn trước khi đo. `--disable-gpu` KHÔNG đủ: SwiftShader vẫn cấp WebGL2 |
 | AC-D4 | ✅ | `__dlpCicdScene()`, số lệnh vẽ ghi CÙNG bậc chất lượng, kèm `nodes > 0` |
 | AC-D5 | ✅ | axe ở chế độ 3D, cả hai theme, kèm khẳng định class `dark` thật sự đổi |
 | AC-D6 | ✅ | `traceRequests`, 0 lời gọi `/api/` kể cả khi bật 3D |
@@ -320,23 +320,48 @@ chương nên người chơi phải học lại cách đọc không gian.
 | AC-D9 | ✅ | `traceScripts` + `THREE_MARKERS`; đối chứng dương: bật 3D thì `three` PHẢI xuất hiện |
 | AC-D10 | ✅ | Quét `getComputedStyle` đã phân giải + `repeatCount` của SMIL, không tin một cờ React |
 
-**Ba thứ CHƯA chứng minh được — đừng đọc thành đã kiểm:**
+### ĐÃ NHÌN BẰNG MẮT — và nó tìm ra hai lỗi mà không cổng nào bắt
 
-1. **Chưa ai nhìn hai theme bằng MẮT.** `mcp__playwright__browser_navigate` treo
-   tới hết idle timeout 1800s (cắn cả lane-2d lẫn lead). Thứ làm thay: lane-2d
-   kiểm cả 18 token đều có mặt ở `:root` VÀ `.dark` rồi đối chiếu tỉ lệ tương
-   phản với bảng đo 2026-09-14 (cặp thấp nhất 4.95) — cách đó tìm ra một lỗi đảo
-   theme thật, nhưng nó **không** thay được mắt người.
+Chụp `apps/web/e2e/scripts/shoot-cicd-scene.mjs`: 2 theme × 2 chế độ × 2 pha
+(trước/sau khi chạy). Playwright qua **CLI** chạy bình thường; chỉ
+`mcp__playwright__browser_navigate` là treo tới hết idle timeout 1800s (cắn cả
+lane-2d lẫn lead — xem memory `playwright-mcp-navigate-hangs`).
+
+| Lỗi | Vì sao mọi cổng bỏ lọt |
+|---|---|
+| **Cảnh 3D không có nền** — `alpha:false` xoá khung bằng đen mặc định của three. Theme tối trông "tạm được"; theme SÁNG thì cả trang trắng mà canvas là ô đen đặc | Không cổng nào đo màu nền của canvas |
+| **Node 3D vô hình** — fragment shader thiếu `uniform vec3 uRimColor;` và `varying float vRimAmount;` (khai ở vertex thôi là chưa đủ, fragment là đơn vị biên dịch KHÁC) ⇒ chương trình hỏng ⇒ mọi vật liệu bị vá vẽ rỗng | `frustumCulled = false` nên hình luôn được NỘP, và `info.render` đếm thứ được nộp chứ không đếm thứ HIỆN ra. `calls: 4, triangles: 864` hoàn toàn khoẻ mạnh trên một cảnh trống trơn |
+
+129 unit test, axe 0 vi phạm cả hai theme, draw call < 100, `node-count` khớp,
+`tokens:check` sạch — cộng lại nghe như bằng chứng đầy đủ. **Không cổng nào
+trong số đó hỏi "người chơi có thấy gì không".**
+
+Sau khi sửa, đã NHÌN và xác nhận: `pending` (khung rỗng), `solid` (xanh đặc),
+`notched` (đỏ khuyết góc) đều đọc được ở CẢ HAI theme; nhãn đường găng hiện
+"2m 40s" đúng định dạng giây.
+
+**Ba thứ vẫn CHƯA nhìn được — đừng đọc thành đã kiểm:**
+
+1. **Bốn hình học còn lại**: `hollow` (skipped), `ringed` (running),
+   `ringed-double` (retrying), `sunken` (queued). Ba cái sau là trạng thái GIỮA
+   CHỪNG nên không xuất hiện sau khi lượt chạy kết thúc; chúng cần một thanh tua
+   theo tick mà giao diện chưa có. `hollow` cần một level mà stage `blocking` đỏ
+   rồi còn stage phía sau — C13 có stage đỏ ở CUỐI nên không sinh ra `skipped`.
 2. **`color-contrast` của axe KHÔNG chạy trong jsdom** (không layout, không
    canvas 2D). Ô axe ở tầng e2e có chạy luật đó, nhưng chỉ trên những gì đang
    hiện — lớp phủ đang thu thì không được quét.
-3. **AC-D3 chưa có ca không-WebGL2 thật**, xem bảng trên.
+3. **Ba bậc chất lượng cho CÙNG một số lệnh vẽ** (2/2/2). Ở cảnh này bậc chỉ đổi
+   pixel ratio và số mặt khối bo góc, không đổi số lệnh vẽ, vì không vật nào đổ
+   bóng và không có hậu kỳ. Ghim theo từng bậc vẫn đúng như AC đòi, nhưng ba số
+   khác nhau sẽ là dấu hiệu có ai vừa bật bóng đổ.
 
-**Ba lỗ hổng hợp đồng đã ghi, KHÔNG vá trong 19.D:** `StageNodeView` không mang
-`steps` (chặn cấp 3 của D.2.7 — cấp 3 hiện nằm ở inspector của HUD, không trong
-SVG); `CicdGraphView` không mang `tickSeconds` (nhãn đường găng nói "tick", không
-nói giây); `DagEdgeView` không có đại lượng lưu lượng nào (D.2.3 "mật độ chấm =
-lưu lượng" thay bằng "có việc đang chảy qua cạnh": đầu trên xong, đầu dưới chưa).
+**Ba lỗ hổng hợp đồng — ĐÃ ĐÓNG 2026-09-17**, mỗi cái một kiểu khác nhau:
+
+| # | Lỗ hổng | Kết luận |
+|---|---|---|
+| 1 | `StageNodeView` không mang `steps` | **Vá thật.** Thêm `StepNodeView[]` vào view; cấp 3 của D.2.7 nay vẽ bước thật trong SVG. Mọi bước của spec đều liệt kê, kể cả bước KHÔNG chạy vì bước trước gãy — vẽ bằng `·` chứ không `✕`, vì "không tới lượt" và "đỏ" dẫn người chơi đi sửa hai chỗ khác nhau. Không mang `flakeNature` (đỏ giả phải giống đỏ thật — điều kiện của bài C11), có ô test ghim |
+| 2 | `CicdGraphView` không mang `tickSeconds` | **KHÔNG phải lỗ hổng.** `SECONDS_PER_TICK` là hằng của hợp đồng và đã export ở barrel từ trước chặng này (`index.ts:623`). Nhìn vào view để kết luận một hằng không tồn tại là nhìn nhầm chỗ: view chở DỮ LIỆU của một lượt chạy, hằng quy đổi đơn vị thì giống nhau ở mọi lượt. Nhãn nay đọc ra giây, giữ tick trong ngoặc cho người cân bằng level |
+| 3 | `DagEdgeView` không có lưu lượng | **Đóng bằng lý lẽ, sẽ không thêm.** `CicdView` mô tả MỘT `RunRecord` — trong phạm vi một commit, mỗi cạnh đi qua đúng một lần, không có gì để đếm. Lưu lượng chỉ có nghĩa ở tầng `PassRecord`, cũng là chỗ trục ② THÔNG LƯỢNG sống. Gắn một con số của cả lượt lên cạnh của một commit là trộn hai tầng. Tầng vẽ dùng "có việc đang chảy qua cạnh" thay — suy từ `state` hai đầu, không cần trường mới |
 
 ## 5. Chia lane
 

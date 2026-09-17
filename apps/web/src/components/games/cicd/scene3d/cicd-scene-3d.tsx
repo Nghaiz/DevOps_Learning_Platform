@@ -41,7 +41,7 @@ import {
   type ReactElement,
 } from 'react';
 import * as THREE from 'three';
-import { Canvas } from '@react-three/fiber';
+import { Canvas, useThree } from '@react-three/fiber';
 
 import {
   CICD_SCENE_TESTIDS,
@@ -237,6 +237,7 @@ export function CicdScene3d(props: CicdScene3dProps): ReactElement {
         role="img"
         aria-label={props.label ?? 'Đồ thị đường ống CI/CD, chế độ 3D'}
       >
+        <SceneBackground color={colors.background} />
         <SceneLighting tier={tier} />
         <CameraRig3d
           bounds={props.placement.bounds}
@@ -321,6 +322,42 @@ export function CicdScene3d(props: CicdScene3dProps): ReactElement {
  * cùng một tinh thần: cảnh này phải chạy được khi không có mạng, vì bài học chạy
  * trong sandbox không internet. Ba đèn thường là đủ cho khối hộp phẳng mặt.
  */
+/**
+ * Nền của cảnh = nền của TRANG.
+ *
+ * ⚠ **THÊM 2026-09-17 sau khi nhìn ảnh chụp thật.** Không có component này,
+ * `<Canvas gl={{ alpha: false }}>` xoá khung bằng màu mặc định của three: ĐEN.
+ * Ở theme tối trông "tạm được" nên nó sống sót mọi cổng; ở theme SÁNG thì cả
+ * trang nền trắng còn khung cảnh là một ô đen đặc giữa màn hình.
+ *
+ * Và nó không chỉ xấu. Node ở trạng thái `pending` — trạng thái của MỌI job
+ * trước lượt chạy đầu, tức thứ người chơi thấy khi vừa mở màn — vẽ bằng khung 12
+ * thanh mảnh màu `status-locked`. Trên nền đen, khung đó **không nhìn thấy**:
+ * ảnh chụp chỉ còn nhãn chữ và vài đường cạnh, trong khi `data-cicd-node-count`
+ * vẫn báo đủ 6 node và mọi ô nghiệm thu vẫn xanh.
+ *
+ * ⛔ Đây là lý do "đã đo bằng máy" không thay được "đã nhìn bằng mắt": axe đo
+ * tương phản của CHỮ, `tokens:check` đo màu có đến từ token, bộ đếm đo số node
+ * DỰNG ra — không phép đo nào trong số đó hỏi "người chơi có thấy gì không".
+ *
+ * Tự xin một khung khi màu đổi: `frameloop="demand"` nên đổi theme mà không
+ * `invalidate()` thì nền cũ nằm nguyên tới lần vẽ sau.
+ */
+function SceneBackground({ color }: { readonly color: THREE.Color }): null {
+  const scene = useThree((state) => state.scene);
+  const invalidate = useThree((state) => state.invalidate);
+
+  useEffect(() => {
+    scene.background = color;
+    invalidate();
+    return () => {
+      scene.background = null;
+    };
+  }, [scene, color, invalidate]);
+
+  return null;
+}
+
 function SceneLighting({ tier }: { readonly tier: QualityTier }): ReactElement {
   const features = TIER_FEATURES[tier];
   return (

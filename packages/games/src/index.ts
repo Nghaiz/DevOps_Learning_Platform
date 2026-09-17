@@ -616,6 +616,8 @@ export type {
   StageNodeView,
   StageRunState,
   StageSpec,
+  StepNodeView,
+  StepRecord,
   StepSpec,
   WorkflowSpec,
   WorkloadSpec,

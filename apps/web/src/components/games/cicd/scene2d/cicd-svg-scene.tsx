@@ -86,6 +86,7 @@ import {
   criticalCount,
   criticalHasResourceWait,
   envBands,
+  formatRunTime,
   isNavKey,
   navigateFrom,
   runTotalTicks,
@@ -93,7 +94,7 @@ import {
   sceneViewBox,
 } from './cicd-scene-geometry';
 import { CicdSceneEdge } from './cicd-scene-edge';
-import { CicdSceneNode } from './cicd-scene-node';
+import { CicdSceneNode, clip } from './cicd-scene-node';
 import { useSceneViewport } from './use-scene-viewport';
 
 /** Job nằm trên đường găng = job là một đầu của ít nhất một cạnh găng. */
@@ -228,7 +229,7 @@ export function CicdSvgScene(props: CicdSceneProps): ReactElement {
   const description = [
     `Đồ thị có ${nodes.length} job và ${edges.length} liên kết.`,
     criticalEdgeCount > 0
-      ? `Đường găng gồm ${criticalEdgeCount} đoạn${totalTicks === null ? '' : `, lượt chạy hết ${totalTicks} tick`}.`
+      ? `Đường găng gồm ${criticalEdgeCount} đoạn${totalTicks === null ? '' : `, lượt chạy hết ${formatRunTime(totalTicks)}`}.`
       : 'Lượt chạy chưa có đường găng nào được tính.',
     criticalWaitsOnMachine
       ? 'Đường găng đi qua một đoạn chờ máy chạy: muốn nhanh hơn thì thêm máy, sửa đồ thị không đổi được gì.'
@@ -401,8 +402,7 @@ export function CicdSvgScene(props: CicdSceneProps): ReactElement {
  * qua một đoạn **chờ máy**, nó nói tiếp rằng thứ phải sửa là số máy — nếu không
  * người chơi sẽ đi sửa đồ thị và không hiểu vì sao thời gian đứng yên.
  *
- * ⚠ Đơn vị là TICK. `CicdGraphView` không mang `tickSeconds`, nên đổi ra giây ở
- * đây là bịa một hệ số (đã ghi đề xuất trong báo cáo lane).
+ * Đơn vị đọc ra là GIÂY (kèm tick trong ngoặc) qua `formatRunTime()`.
  */
 function CriticalBadge(props: {
   readonly box: { readonly x: number; readonly y: number; readonly width: number };
@@ -426,7 +426,7 @@ function CriticalBadge(props: {
       />
       <text x={x + 16} y={y + 30} fontSize={16} fontWeight={700} fill={cssVar(CRITICAL_TEXT_TOKEN)}>
         Đường găng · {props.segments} đoạn
-        {props.totalTicks === null ? '' : ` · lượt chạy hết ${props.totalTicks} tick`}
+        {props.totalTicks === null ? '' : ` · lượt chạy hết ${formatRunTime(props.totalTicks)}`}
       </text>
       {props.machineWait && (
         <text x={x + 16} y={y + 56} fontSize={12.5} fill={cssVar(CRITICAL_TEXT_TOKEN)}>
@@ -459,15 +459,13 @@ function KeyLegend(props: {
  * Cấp 3 của drill-in (D.2.7) — chi tiết bên trong một job.
  *
  * ⚠ **Kế hoạch ghi "workflow → job → step", và CẤP STEP KHÔNG CÓ DỮ LIỆU.**
- * `CicdGraphView` là `Pick<CicdView, 'nodes' | 'edges' | 'yAxis'>`, và
- * `StageNodeView` không mang danh sách bước nào (không `steps`, không
- * `stepCount`). Bịa ra một danh sách bước ở tầng vẽ là dựng dữ liệu giả trong
- * một giao diện dạy học.
+ * ⚠ **SỬA 2026-09-17.** Bản đầu chỉ hiện các mốc tick, kèm ghi chú rằng
+ * `StageNodeView` không mang danh sách bước nào nên "bịa ra một danh sách bước ở
+ * tầng vẽ là dựng dữ liệu giả trong một giao diện dạy học" — đúng, và đó là lý
+ * do `steps` nay đã được thêm vào hợp đồng thay vì bịa ở đây.
  *
- * Nên cấp 3 ở đây là thứ hợp đồng THẬT SỰ có về bên trong một job: các mốc
- * tick, số lần thử, và cache có trúng không — đúng ba thứ quyết định vì sao job
- * này dài bằng chừng đó. Đề xuất thêm `steps` vào `StageNodeView` đã ghi trong
- * báo cáo lane.
+ * Mọi bước của spec đều liệt kê, KỂ CẢ bước không chạy vì bước trước gãy: đó
+ * chính là thứ người chơi cần thấy khi job của họ đỏ.
  */
 function JobDetail(props: {
   readonly placed: CicdPlacedNode;
@@ -479,21 +477,34 @@ function JobDetail(props: {
   const x = cx + NODE_W / 2 + 24;
   const y = cy - NODE_H / 2;
 
-  const rows: readonly string[] = [
+  const moc: readonly string[] = [
     `sẵn sàng: ${node.readyTick ?? '—'}`,
     `bắt đầu: ${node.startedTick ?? '—'}`,
     `kết thúc: ${node.finishedTick ?? '—'}`,
     `lần thử: ${node.attempt + 1}`,
-    `cache: ${node.cacheHit === null ? 'không dùng' : node.cacheHit ? 'trúng' : 'trượt'}`,
     node.environment === null ? 'không phát hành' : `môi trường: ${node.environment}`,
   ];
+
+  /*
+   * Bước CHƯA CHẠY đọc ra là `·`, không phải `✕`. Hai thứ khác nhau hẳn: `✕` là
+   * "bước này đỏ", còn `·` là "bước này không tới lượt vì bước trước đã gãy" —
+   * và người chơi đi sửa hai chỗ khác nhau tuỳ vào việc họ đọc được cái nào.
+   */
+  const buoc: readonly string[] = node.steps.map((b) => {
+    const dau = b.outcome === null ? '·' : b.outcome === 'passed' ? '✓' : b.outcome === 'failed' ? '✕' : '⊘';
+    const thoiLuong = b.durationTicks === null ? '' : ` ${String(b.durationTicks)}t`;
+    const cache = b.cacheHit === null ? '' : b.cacheHit ? ' ⚡' : ' ○';
+    return `${dau} ${clip(b.name, 20)}${thoiLuong}${cache}`;
+  });
+
+  const rows: readonly string[] = buoc.length === 0 ? moc : [...moc, '', ...buoc];
 
   return (
     <g data-cicd-detail={placed.id} aria-hidden="true">
       <rect
         x={x}
         y={y}
-        width={224}
+        width={244}
         height={26 + rows.length * 20}
         rx={12}
         fill={cssVar(CARD_TOKEN)}

@@ -51,6 +51,7 @@ export function stage(
     finishedTick: null,
     cacheHit: null,
     environment: null,
+    steps: [],
     statusToken: 'status-locked',
     ariaLabel: `${stageId}, chưa chạy`,
     ...over,

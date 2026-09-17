@@ -23,6 +23,7 @@ import {
   sceneViewBox,
   waitTicks,
   type Px,
+  formatRunTime,
 } from './cicd-scene-geometry';
 import { cdView, ciView } from './scene-fixtures';
 
@@ -313,5 +314,23 @@ describe('bàn phím', () => {
         }
       }
     }
+  });
+});
+
+describe('formatRunTime — đọc ra giây, giữ tick trong ngoặc', () => {
+  it('đổi tick sang giây bằng hằng của hợp đồng, không bằng một hệ số bịa', () => {
+    // SECONDS_PER_TICK = 10. Bản đầu để nguyên "N tick" vì tưởng CicdGraphView
+    // phải mang tickSeconds — hằng đó đã export ở barrel từ trước chặng này.
+    expect(formatRunTime(5)).toBe('50 giây (5 tick)');
+  });
+
+  it('quá 60 giây thì đọc thành phút — 9 tick đã là 90 giây', () => {
+    expect(formatRunTime(9)).toBe('1 phút 30 giây (9 tick)');
+    expect(formatRunTime(30)).toBe('5 phút 0 giây (30 tick)');
+    expect(formatRunTime(37)).toBe('6 phút 10 giây (37 tick)');
+  });
+
+  it('giữ tick trong ngoặc — người cân bằng level chỉnh bằng tick, không bằng giây', () => {
+    expect(formatRunTime(1)).toContain('(1 tick)');
   });
 });

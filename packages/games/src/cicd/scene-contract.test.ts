@@ -25,6 +25,7 @@ function vnode(instance: string, them: Partial<StageNodeView> = {}): StageNodeVi
     finishedTick: 10,
     cacheHit: null,
     environment: null,
+    steps: [],
     statusToken: 'success',
     ariaLabel: `${instance} — đã xong`,
     ...them,
