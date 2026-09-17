@@ -101,9 +101,22 @@ describe('schema Postgres', () => {
   // TRƯỚC, nên gác bằng test chứ không bằng lời hứa trong doc.
   it('jwks có expires_at, và nó NULLABLE', () => {
     const byName = Object.fromEntries(getTableConfig(jwks).columns.map((c) => [c.name, c]));
-    expect(Object.keys(byName).sort()).toEqual(
-      ['id', 'public_key', 'private_key', 'created_at', 'expires_at'].sort(),
-    );
+    /*
+     * PHỦ, không phải BẰNG — đổi 2026-09-18 và đây là một nới lỏng CÓ CHỦ Ý.
+     *
+     * Bản cũ khẳng định danh sách cột ĐÚNG BẰNG năm cái. Nhưng bảng này do Better
+     * Auth sở hữu, nên mỗi lần nó thêm field là ô này đỏ — và đỏ vì một lý do
+     * KHÔNG phải lý do nó sinh ra (1.7 thêm `alg` + `crv`, hai cột tuỳ chọn hoàn
+     * toàn hợp lệ). Một ô đỏ vì lý do sai là một ô người ta học cách sửa số cho
+     * qua, và lần sau nó không còn gác gì.
+     *
+     * Câu "bảng có ĐỦ cột Better Auth cần" nay có ô riêng và hỏi thẳng chính thư
+     * viện: `better-auth-schema.test.ts`. Ô này giữ đúng phần của nó — R5, thu
+     * hồi khoá — nên nó chỉ đòi `expires_at` có mặt và NULLABLE.
+     */
+    for (const cot of ['id', 'public_key', 'private_key', 'created_at', 'expires_at']) {
+      expect(Object.keys(byName), `jwks thiếu cột ${cot}`).toContain(cot);
+    }
     // notNull=false có chủ ý: khoá sinh ra trước khi bật rotation không có hạn.
     expect(byName['expires_at']?.notNull).toBe(false);
   });
