@@ -61,6 +61,45 @@ import type {
   StageNodeView,
 } from '@devops-platform/games';
 
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ * MÓC ĐO CHO E2E — pin ở đây, không để mỗi lane tự đặt tên
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Ba ô nghiệm thu đo bằng DOM và không ô nào đo được nếu ba lane đặt ba kiểu
+ * tên: AC-D1 (số node vẽ ra = số THỰC THỂ), AC-D3 (đường 2D dùng được, có đối
+ * chứng dương), AC-D7 (sân chơi toàn màn hình).
+ *
+ * ⛔ Đây là hợp đồng, không phải gợi ý. Lane nào đổi tên là ô e2e của lead đỏ,
+ * hoặc tệ hơn: nó tìm 0 phần tử rồi ô đó XANH vì đếm 0 === 0.
+ */
+export const CICD_SCENE_TESTIDS = {
+  /** Cảnh 2D — phần tử `<svg>` gốc. */
+  scene2d: 'cicd-scene-2d',
+  /** Cảnh 3D — phần tử bọc canvas. */
+  scene3d: 'cicd-scene-3d',
+  /** Sân chơi (vùng chứa cảnh). AC-D7 đo `boundingBox()` của ĐÚNG phần tử này. */
+  field: 'cicd-field',
+  /** Bảng ba trục. AC 19.E.4: ba số hiện CÙNG LÚC, không sau nút. */
+  axesPanel: 'cicd-axes',
+} as const;
+
+/**
+ * Thuộc tính `data-*` mà mỗi node/cạnh phải mang, ở CẢ HAI renderer.
+ *
+ * Node: `data-cicd-node` = `InstanceKey`, cộng `data-cicd-state` = `StageRunState`.
+ * Cạnh: `data-cicd-edge` = khoá `from->to`, cộng `data-cicd-critical` = `"true"`
+ * khi cạnh nằm trên đường găng.
+ *
+ * Dùng `InstanceKey` chứ KHÔNG `stageId`: một level có `fanOut` sinh nhiều thực
+ * thể cùng `stageId`, và một bộ đếm theo `stageId` sẽ đếm 1 ở chỗ đáng lẽ phải
+ * là 3 — đúng con bug mà AC-D1 tồn tại để bắt.
+ */
+export const CICD_NODE_ATTR = 'data-cicd-node';
+export const CICD_NODE_STATE_ATTR = 'data-cicd-state';
+export const CICD_EDGE_ATTR = 'data-cicd-edge';
+export const CICD_EDGE_CRITICAL_ATTR = 'data-cicd-critical';
+
 /** Khoá một cạnh trong cảnh: `from->to`. */
 export type CicdSceneEdgeKey = string;
 
