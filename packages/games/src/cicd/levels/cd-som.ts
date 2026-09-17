@@ -8,5 +8,6 @@
 import type { CicdLevel } from '../contract.ts';
 import { LEVEL_C15 } from './c15-artifact-co-danh-tinh.ts';
 import { LEVEL_C16 } from './c16-thang-hang-dung-dung-lai.ts';
+import { LEVEL_C17 } from './c17-cong-duyet-prod.ts';
 
-export const CD_LEVELS_SOM: readonly CicdLevel[] = [LEVEL_C15, LEVEL_C16];
+export const CD_LEVELS_SOM: readonly CicdLevel[] = [LEVEL_C15, LEVEL_C16, LEVEL_C17];
