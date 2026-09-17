@@ -468,6 +468,18 @@ export { K8S_UNSEEDED_REPLAY_SEED } from './k8s/problem-plugin.ts';
 export { GIT_UNSEEDED_REPLAY_SEED } from './git/problem-plugin.ts';
 export { CICD_UNSEEDED_REPLAY_SEED } from './cicd/problem-plugin.ts';
 
+/**
+ * Bộ chấm CI/CD, xuất thẳng cho adapter PHÁT LẠI phía máy chủ
+ * (`apps/web/src/server/problems/replay.ts`) — 19.J.
+ *
+ * ⚠ Đường CHẤM đã gọi nó gián tiếp qua `gradeProblemRun` → bảng plugin. Đường
+ * XÁC MINH cần chính hàm đó, và phải là CHÍNH nó chứ không phải một bản diễn
+ * giải thứ hai của cùng nhật ký: hai bản sẽ trôi, và chỗ trôi là "máy chủ chấm
+ * ra một verdict, máy chủ xác minh ra một verdict khác" — người giải đúng bị từ
+ * chối và không lệnh nào nói vì sao.
+ */
+export { gradeCicdProblem } from './cicd/problem-plugin.ts';
+
 /*
  * Hình dạng đề bài CI/CD — 19.J. Trang soạn bài (`app/author/problems/`) và màn
  * làm bài (`components/games/cicd/cicd-problem.tsx`) đều dựng đúng bộ này, nên
@@ -652,6 +664,22 @@ export type {
   WorkloadSpec,
 } from './cicd/contract.ts';
 export { DEFAULT_EVALUATION_PASSES, RELEASE_STRATEGIES, SECONDS_PER_TICK, STAGE_KINDS } from './cicd/contract.ts';
+
+/**
+ * `EDITABLE_PARTS` — mở ra ở 19.J.3, và nó ĐÍNH CHÍNH một chú thích cũ.
+ *
+ * `components/games/cicd/cicd-run.ts` ghi (đo 2026-09-16) rằng barrel này không
+ * xuất `EDITABLE_PARTS`, nên nó suy kiểu gián tiếp qua `CicdLevel['editable']`.
+ * Cách suy kiểu đó vẫn đúng và vẫn nên giữ — nhưng màn LÀM BÀI cần chính GIÁ TRỊ,
+ * không chỉ cái kiểu: `cicdOjLevel` phải khai `editable` đúng bằng tập mà
+ * `gradeCicdProblem` truyền cho `hydrateWorkflow`. Hai bên lệch nhau thì người
+ * làm gõ được thứ máy chủ lặng lẽ bỏ qua, và verdict không giải thích được.
+ *
+ * Xuất giá trị là cách duy nhất giữ chúng khớp; chép bảy chuỗi literal sang tầng
+ * web sẽ tạo bản thứ hai của một tập đóng, và bản đó trôi trong im lặng.
+ */
+export { EDITABLE_PARTS } from './cicd/contract.ts';
+export type { EditablePart } from './cicd/contract.ts';
 
 export { CD_LEVELS, CI_LEVELS, CICD_LEVELS } from './cicd/levels/index.ts';
 

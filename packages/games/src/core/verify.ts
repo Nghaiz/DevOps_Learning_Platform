@@ -200,16 +200,71 @@ export const COMMAND_KINDS: readonly GameActionKind[] = [
    * "chờ xem" không phải một hành động. Xem `GitGameAction`.
    */
   'command',
+  /*
+   * `'evaluate'` — action nộp-để-chấm của game CI/CD, thêm ở 19.J.
+   *
+   * ⛔ THIẾU NÓ Ở ĐÂY LÀ MỘT LỖI CÂM, và nó đã thật sự tồn tại cho tới đợt này:
+   * `ACTION_KINDS` suy ra từ danh sách này, nên một `kind` vắng mặt làm
+   * `logShapeError` từ chối nhật ký với lý do "kind lạ" — tức MỌI lượt nộp bài
+   * CI/CD đều `log-hong`, và thông điệp đổ lỗi cho nhật ký của người nộp thay vì
+   * chỉ ra một mảnh nền tảng còn thiếu. Không ô nào đỏ trước 19.J vì chưa có
+   * đường nào dựng được một nhật ký CI/CD.
+   *
+   * Nó là MỘT LỆNH theo đúng nghĩa danh sách này định nghĩa, cùng lý lẽ với
+   * `'command'` của Git: ở game CI/CD, "sửa YAML rồi bấm chạy" là toàn bộ tương
+   * tác của người chơi. Để nó ngoài `COMMAND_KINDS` thì `commandsUsed` bằng 0 ở
+   * mọi lượt chơi CI/CD, và `movesUsed` trong phép tính điểm mất đúng đại lượng
+   * nó đo.
+   */
+  'evaluate',
 ];
 
 /**
  * MỌI `kind` hợp lệ. Phải VÉT CẠN `GameActionKind` — một kind thiếu ở đây làm
  * `logShapeError` từ chối một nhật ký lành với lý do "kind lạ".
  *
- * Hôm nay: 5 kind lệnh K8s + `'command'` của Git (đều ở `COMMAND_KINDS`) + hai
- * kind không-phải-lệnh dùng chung là `'hint'` và `'wait'`.
+ * Hôm nay: 5 kind lệnh K8s + `'command'` của Git + `'evaluate'` của CI/CD (cả
+ * bảy ở `COMMAND_KINDS`) + hai kind không-phải-lệnh dùng chung là `'hint'` và
+ * `'wait'`.
  */
 const ACTION_KINDS: readonly GameActionKind[] = [...COMMAND_KINDS, 'hint', 'wait'];
+
+/**
+ * Cổng VÉT CẠN, cưỡng chế lúc BIÊN DỊCH — 19.J.
+ *
+ * ⛔ Câu "phải vét cạn" ở khối trên là một lời nhắc, và một lời nhắc không phải
+ * một cổng: `'evaluate'` của game CI/CD vắng mặt khỏi `ACTION_KINDS` từ lúc
+ * `CicdGameAction` ra đời cho tới 19.J, và không gì đỏ trong suốt quãng đó.
+ * Không ô test nào bắt được, vì `readonly GameActionKind[]` nhận một mảng THIẾU
+ * mà vẫn đúng kiểu — mảng con của một union vẫn là mảng của union đó.
+ *
+ * Bảng dưới đây thì không: `Record<GameActionKind, true>` đòi ĐỦ khoá, nên thêm
+ * một `kind` mới vào bất kỳ game nào mà quên hai danh sách trên là một lỗi
+ * `tsc`, ngay tại file này, kèm tên khoá còn thiếu.
+ *
+ * ⚠ Giá trị `true`/`false` ở đây nói `kind` đó có phải MỘT LỆNH không, và nó là
+ * SSOT của cả hai danh sách — hai ô test dưới ghim rằng `COMMAND_KINDS` và
+ * `ACTION_KINDS` đọc đúng bảng này. Đừng để chúng trôi thành ba nguồn.
+ */
+const LA_LENH: Readonly<Record<GameActionKind, boolean>> = {
+  apply: true,
+  delete: true,
+  scale: true,
+  edit: true,
+  kubectl: true,
+  command: true,
+  evaluate: true,
+  hint: false,
+  wait: false,
+};
+
+/** Mọi `kind` bảng trên biết, để test đối chiếu hai danh sách ở trên với nó. */
+export const ALL_ACTION_KINDS: readonly GameActionKind[] = Object.keys(LA_LENH) as GameActionKind[];
+
+/** `kind` nào là lệnh, theo bảng vét cạn. Xem `LA_LENH`. */
+export const COMMAND_ACTION_KINDS: readonly GameActionKind[] = ALL_ACTION_KINDS.filter(
+  (kind) => LA_LENH[kind],
+);
 
 /** Những con số suy ra ĐƯỢC từ chính nhật ký, nên không cần tin lời khai. */
 export interface RunTally {

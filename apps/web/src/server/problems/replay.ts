@@ -1,6 +1,8 @@
 import {
   ALL_KINDS,
+  CICD_UNSEEDED_REPLAY_SEED,
   createGitSession,
+  gradeCicdProblem,
   createSession,
   scoreProblemRun,
   sessionReplayEngine,
@@ -10,6 +12,8 @@ import {
   type GitLevel,
   type GitObjective,
   type GitPredicateName,
+  type CicdGameAction,
+  type CicdProblemSpec,
   type K8sSession,
   type ClusterSpec,
   type GameId,
@@ -19,7 +23,6 @@ import {
   type RunLog,
   type RunResult,
   type RunTally,
-  type SessionStatus,
   type VerifyResult,
   type WorldSpec,
 } from '@devops-platform/games';
@@ -167,7 +170,7 @@ export function problemAsLevel(problem: StoredProblem): Level {
 export function problemScoreRun(
   problem: StoredProblem,
   revealedHintIds: readonly string[],
-): (status: SessionStatus, tally: RunTally) => number {
+): (status: { readonly objectivesMet: readonly string[] }, tally: RunTally) => number {
   return (status, tally) =>
     scoreProblemRun({
       objectivesMet: new Set(status.objectivesMet).size,
@@ -376,6 +379,132 @@ export function gitProblemReplayEngine(
   };
 }
 
+// ── Đường CI/CD ─────────────────────────────────────────────────────────────
+
+/**
+ * Trạng thái phát lại của game CI/CD: **chính chuỗi action, chưa diễn giải**.
+ *
+ * ⛔ Đây KHÔNG phải một chỗ lười. Hai game trước tích luỹ một thế giới qua từng
+ * lệnh, nên `reduce` của chúng phải chạy engine từng bước. Game này thì mỗi lượt
+ * nộp là một bản YAML ĐỘC LẬP — bản sau THAY bản trước, không áp lên nó — và
+ * `gradeCicdProblem` đã khai điều đó thành luật: nó chấm hành động `evaluate`
+ * CUỐI CÙNG và bỏ qua phần còn lại.
+ *
+ * Nên một `reduce` chạy engine từng bước ở đây sẽ mô phỏng N-1 lượt mà không ai
+ * đọc kết quả, và tệ hơn: nó tạo ra một bản diễn giải THỨ HAI của cùng một nhật
+ * ký, cạnh bản của `gradeCicdProblem`. Hai bản sẽ trôi, và chỗ trôi là "máy chủ
+ * chấm ra một verdict, máy chủ xác minh ra một verdict khác" — người giải đúng
+ * bị từ chối, và không lệnh nào nói vì sao.
+ */
+interface CicdReplayState {
+  readonly levelId: string;
+  readonly actions: readonly CicdGameAction[];
+}
+
+/**
+ * Adapter phát lại của game CI/CD — 19.J.
+ *
+ * ⛔ KHE ĐÃ ĐÓNG, và nó từng CÂM. Trước đợt này `verifyProblemRun` không có
+ * nhánh `'cicd'`, nên mọi lượt nộp bài CI/CD ném `UnsupportedReplayGameError` →
+ * 500. Chú thích ở `verifyProblemRun` hứa rằng một ô test *"khẳng định mọi
+ * `GameId` có plugin chấm thì cũng phải có adapter phát lại"* sẽ bắt được điều
+ * đó — ô đó KHÔNG TỒN TẠI (kiểm 2026-09-17: chỉ có một ô ném trên `'pipeline'`,
+ * một game không có plugin). `cicd-replay.test.ts` là ô thật, và nó suy từ
+ * `PROBLEM_PLUGINS` chứ không chép tay danh sách game.
+ *
+ * `objectivesMet` gọi THẲNG `gradeCicdProblem` — cùng hàm mà `gradeProblemRun`
+ * gọi ở đường chấm. Một bản diễn giải thứ hai là chỗ hai đường trôi khỏi nhau.
+ */
+export function cicdProblemReplayEngine(
+  problem: StoredProblem,
+  revealedHintIds: readonly string[],
+): ReplayEngine<CicdReplayState> {
+  const scoreRun = problemScoreRun(problem, revealedHintIds);
+  return {
+    init: (levelId, seed) => {
+      /*
+       * Bài OJ không đứng sau level nào, nên `levelId` của nhật ký PHẢI là mã
+       * bài. Lệch ⇒ ném để thành `phat-lai-loi` (lỗi dữ liệu), chứ không âm thầm
+       * chấm một nhật ký thuộc bài khác.
+       */
+      if (levelId !== problem.code) {
+        throw new Error(`nhật ký thuộc bài "${levelId}" nhưng được phát lại trên "${problem.code}"`);
+      }
+      /*
+       * `seed` KHÔNG đi vào phép mô phỏng — engine CI/CD lấy hạt giống từ
+       * `evaluation.baseSeed` của đề. Nhưng nó vẫn phải ĐÚNG, vì `verifyRun` so
+       * `log.seed` với `claimed.seed` và một client gửi số khác đang khai một
+       * lượt chơi khác lượt nó vừa chơi.
+       */
+      if (seed !== CICD_UNSEEDED_REPLAY_SEED) {
+        throw new Error(
+          `bài CI/CD không sinh đề theo seed, nên nhật ký phải mang seed ${String(CICD_UNSEEDED_REPLAY_SEED)}, nhận ${String(seed)}`,
+        );
+      }
+      return { levelId, actions: [] };
+    },
+    reduce: (state, action) => {
+      /*
+       * Thu hẹp CÓ KIỂM, đúng lối `k8s/replay-engine.ts`: một `as` trần sẽ đẩy
+       * action của game khác vào đây, nơi nó nằm im trong mảng và làm phép chấm
+       * lệch — `verifyRun` khi đó báo `khong-khop`, tức đổ lỗi cho người chơi vì
+       * một lỗi ghép engine của ta. Ném thì thành `phat-lai-loi`, đúng ô "lỗi
+       * của ta hoặc của dữ liệu".
+       */
+      if (action.gameId !== 'cicd') {
+        throw new Error(`nhật ký của game "${action.gameId}" không phát lại được trên engine CI/CD`);
+      }
+      /*
+       * Vẫn cần `as` sau phép kiểm, và vì đúng lý do mà bản K8s đã ghi: `core/`
+       * chỉ biết dạng MỞ (`CicdActionShape` với `CicdOverridesLike` /
+       * `CicdCdPoliciesLike` — xem `core/run-log.ts`), còn `gradeCicdProblem` đòi
+       * dạng ĐÓNG. Kiểm lại hình dạng `overrides.cache` ở đây là chép hợp đồng
+       * sang chỗ thứ hai; và không cần — một giá trị cache bịa ra không tra ra
+       * khuôn nào trong `hydrate.ts`, nên bước ghép bỏ qua nó và phát lại lệch
+       * đúng như nó phải lệch.
+       */
+      return { ...state, actions: [...state.actions, action as CicdGameAction] };
+    },
+    objectivesMet: (state) => passedCuaTrangThai(state).passed,
+    /*
+     * `movesUsed` đọc `tally.commandsUsed`, và `'evaluate'` nằm trong
+     * `COMMAND_KINDS` (`core/verify.ts`) — tức mỗi lần bấm "Nộp bài" là một nước
+     * đi. Đó là định nghĩa đúng ở game này: sửa YAML rồi chạy là toàn bộ tương
+     * tác của người chơi.
+     */
+    score: (state, tally) => scoreRun({ objectivesMet: passedCuaTrangThai(state).passed }, tally),
+  };
+
+  /**
+   * Chấm MỘT LẦN cho mỗi trạng thái cuối, nhớ lại cho lần hỏi thứ hai.
+   *
+   * `verifyRun` hỏi `objectivesMet` rồi hỏi `score` trên cùng một trạng thái, và
+   * nó phát lại HAI lượt để bắt engine không tất định — tức bốn lời gọi cho một
+   * lượt nộp. Mỗi lời gọi chạy trọn `evaluation.passes` lượt mô phỏng CI cộng ba
+   * bộ mô phỏng CD, nên đây là tiết kiệm THẬT, không phải tối ưu sớm.
+   *
+   * ⚠ `WeakMap` khoá theo THAM CHIẾU trạng thái, và điều đó đúng ở đây vì
+   * `reduce` trả một object MỚI mỗi lần: hai trạng thái khác nhau không bao giờ
+   * chung khoá. Nó cũng không làm hỏng phép kiểm tất định — hai lượt phát lại
+   * dựng hai chuỗi object riêng, nên mỗi lượt vẫn chấm thật một lần.
+   */
+  function passedCuaTrangThai(state: CicdReplayState): { readonly passed: readonly string[] } {
+    const daCo = nhoKetQua.get(state);
+    if (daCo !== undefined) return daCo;
+    const ket = gradeCicdProblem({
+      initialState: problem.initialState as CicdProblemSpec,
+      actions: state.actions,
+      testcases: problem.testcases,
+      seed: CICD_UNSEEDED_REPLAY_SEED,
+    });
+    const gon = { passed: ket.passed };
+    nhoKetQua.set(state, gon);
+    return gon;
+  }
+}
+
+const nhoKetQua = new WeakMap<object, { readonly passed: readonly string[] }>();
+
 // ── Cửa chung ───────────────────────────────────────────────────────────────
 
 /**
@@ -431,6 +560,8 @@ export function verifyProblemRun(
       return verifyRun(log, claimed, problemReplayEngine(problem, revealedHintIds));
     case 'git':
       return verifyRun(log, claimed, gitProblemReplayEngine(problem, revealedHintIds));
+    case 'cicd':
+      return verifyRun(log, claimed, cicdProblemReplayEngine(problem, revealedHintIds));
     default:
       throw new UnsupportedReplayGameError(problem.gameId);
   }

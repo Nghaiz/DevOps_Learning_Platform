@@ -1,12 +1,28 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { useCallback, useState, type ReactElement } from 'react';
-import { Button } from '@devops-platform/ui';
 import { CICD_LEVELS } from '@devops-platform/games';
 
 import { CicdCampaign } from './cicd-campaign';
 import { CicdSandbox } from './cicd-sandbox';
+
+/**
+ * Màn làm bài OJ, nạp ĐỘNG — 19.J.3.1.
+ *
+ * ⛔ Đừng đổi thành một `import` tĩnh. File kia tự cấp `TrpcQueryProvider`, và
+ * `app/games/layout.tsx` CỐ Ý không cấp nó để giữ ô "0 lời gọi backend trong lúc
+ * chơi" (AC-2, AC-D6 — đo bằng network trace). Một import tĩnh kéo trọn tầng
+ * mạng vào bundle của mọi người chơi level, kể cả người không mở bài OJ nào.
+ *
+ * `ssr: false` vì màn này chỉ có nghĩa sau khi đã gọi được máy chủ từ trình
+ * duyệt; dựng sẵn nó ở máy chủ chỉ đổi lấy một khung trống trong HTML đầu tiên.
+ */
+const CicdProblemScreen = dynamic(
+  async () => (await import('./cicd-problem')).CicdProblemScreen,
+  { ssr: false },
+);
 
 /**
  * Màn chơi của **Xưởng đường ống CI/CD** — 19.H, vỏ client của `/games/cicd`.
@@ -56,12 +72,19 @@ export function CicdGame({ initialProblemCode }: CicdGameProps): ReactElement {
   const router = useRouter();
   const [sandbox, setSandbox] = useState(false);
   /*
-   * Mã bài là STATE chứ không đọc thẳng prop, vì màn dưới có một nút thoát khỏi
-   * chế độ đó. Đọc thẳng prop thì nút ấy không làm được gì: prop không đổi, nên
-   * lần render sau vẫn rơi vào đúng nhánh vừa muốn rời — một nút chết mà không
-   * lỗi nào báo.
+   * ⛔ ĐỌC THẲNG PROP từ 19.J — trước đó nó là STATE, và lý do đã biến mất.
+   *
+   * Bản cũ giữ state vì màn "Chế độ làm bài chưa mở" có một nút *"Xem danh sách
+   * màn"*, tức một đường RỜI chế độ làm bài mà không rời URL. Màn làm bài thật
+   * không có nút đó: thoát khỏi một bài là `window.location.assign` sang
+   * `/problems/<mã>` (xem `cicd-problem.tsx`), tức một lần điều hướng thật.
+   *
+   * Giữ state sau khi nút kia biến mất là giữ một `setProblemCode` không ai gọi
+   * — `eslint` bắt được đúng chỗ đó, và nó đúng: một state chỉ đọc mà không bao
+   * giờ ghi là một prop được chép lại, cộng thêm một cơ hội để hai giá trị lệch
+   * nhau khi `?problem=` đổi mà component không remount.
    */
-  const [problemCode, setProblemCode] = useState<string | null>(initialProblemCode);
+  const problemCode = initialProblemCode;
 
   /*
    * Chọn một màn = ĐIỀU HƯỚNG, không phải đổi state.
@@ -82,35 +105,18 @@ export function CicdGame({ initialProblemCode }: CicdGameProps): ReactElement {
 
   if (problemCode !== null) {
     /*
-     * ⚠ KHÔNG đổ người dùng vào danh sách màn ở nhánh này.
+     * ✅ MỞ Ở 19.J. Trước đợt này nhánh này trả một màn "Chế độ làm bài chưa mở",
+     * vì `CicdGameAction.evaluate` chỉ chở YAML — bảng núm retries/cache và bảng
+     * chính sách CD không có đường tới bộ chấm, nên một lượt nộp sẽ được phát lại
+     * thành một lượt chơi KHÁC lượt người ta vừa chơi. 19.J.1 đóng khe đó (action
+     * chở đủ ba mảnh) và đây là nửa còn lại.
      *
-     * Bộ chấm phía máy chủ ĐÃ có (`cicd/problem-plugin.ts`), nhưng màn này chưa
-     * dựng `RunLog` và chưa nộp. Còn một câu phải quyết trước khi mở: nhật ký chỉ
-     * chở YAML, nên retries/cache của bảng núm không tới được bộ chấm — xem
-     * phase-19.md §0b "Đợt 3". Cho tới lúc đó, đường đúng là nói thẳng rằng địa
-     * chỉ này chưa mở, kèm mã bài để người dùng biết mình không gõ nhầm. Chuyển
-     * hướng lặng sang danh sách màn sẽ đọc ra thành "mã bài của tôi sai", và họ
-     * sẽ đi sửa một thứ không hỏng.
+     * ⛔ `next/dynamic` chứ không `import` tĩnh, và đó là điều kiện để AC-2 /
+     * AC-D6 còn đứng: `cicd-problem.tsx` tự cấp `TrpcQueryProvider`, nên một
+     * import tĩnh kéo trọn tầng mạng tRPC vào bundle của MỌI người chơi level —
+     * kể cả người không bao giờ mở một bài OJ nào.
      */
-    return (
-      <div className="flex flex-col gap-3">
-        <h1 className="text-xl font-semibold text-foreground">Chế độ làm bài chưa mở</h1>
-        <p className="text-sm text-muted-foreground">
-          Bài <span className="font-mono">{problemCode}</span> tồn tại, nhưng đấu trường
-          CI/CD chưa nhận nộp bài. {CICD_LEVELS.length} màn của chiến dịch thì chơi được ngay.
-        </p>
-        <div>
-          <Button
-            variant="outline"
-            onClick={() => {
-              setProblemCode(null);
-            }}
-          >
-            Xem danh sách màn
-          </Button>
-        </div>
-      </div>
-    );
+    return <CicdProblemScreen code={problemCode} />;
   }
   if (sandbox) {
     return (

@@ -16,6 +16,9 @@ import { describe, expect, it } from 'vitest';
 import type { RunLog } from './run-log.ts';
 import type { RunResult } from './types.ts';
 import {
+  ALL_ACTION_KINDS,
+  COMMAND_ACTION_KINDS,
+  COMMAND_KINDS,
   checkDeterminism,
   isVerified,
   tallyLog,
@@ -395,3 +398,64 @@ describe('nhãn cho người dùng', () => {
     for (const status of ALL_STATUSES) expect(verifyLabel(status).length).toBeGreaterThan(0);
   });
 });
+
+// ── 19.J — hai danh sách `kind` phải khớp bảng vét cạn ──────────────────────
+
+describe('danh sách action kind không được thiếu game nào', () => {
+  /*
+   * ⛔ Ô này tồn tại vì một lỗi CÂM đã sống thật: `'evaluate'` của game CI/CD
+   * vắng khỏi `ACTION_KINDS` từ lúc `CicdGameAction` ra đời tới 19.J, và hậu quả
+   * là `logShapeError` sẽ từ chối MỌI nhật ký CI/CD với lý do "kind lạ" — một
+   * thông điệp đổ lỗi cho người nộp về một mảnh nền tảng còn thiếu.
+   *
+   * Không gì bắt được nó: `readonly GameActionKind[]` nhận một mảng THIẾU mà vẫn
+   * đúng kiểu. Cổng thật là bảng `LA_LENH` (`Record<GameActionKind, boolean>`,
+   * đỏ ở `tsc` khi thiếu khoá); hai ô dưới chỉ khẳng định hai danh sách kia đọc
+   * đúng bảng đó thay vì trôi thành nguồn thứ hai.
+   */
+  it('`COMMAND_KINDS` khớp đúng phần "là lệnh" của bảng vét cạn', () => {
+    expect([...COMMAND_KINDS].sort()).toEqual([...COMMAND_ACTION_KINDS].sort());
+  });
+
+  it('mọi kind của bảng vét cạn đều là kind HỢP LỆ với `logShapeError`', () => {
+    /*
+     * Đối chứng ĐỘNG, không phải một danh sách chép tay: với mỗi `kind` trong
+     * bảng, dựng một nhật ký một action và khẳng định nó KHÔNG bị từ chối vì
+     * "kind lạ". Một kind mới thêm vào bảng mà quên `ACTION_KINDS` sẽ đỏ ngay ở
+     * đây, kèm đúng tên nó.
+     */
+    for (const kind of ALL_ACTION_KINDS) {
+      const log = {
+        gameId: 'k8s' as const,
+        levelId: 'l1',
+        seed: 1,
+        actions: [{ gameId: 'k8s', tick: 0, kind }],
+      } as unknown as RunLog;
+      const ket = verifyRun(log, claimKindProbe(), deterministicEngine);
+      expect(ket.detail ?? '', kind).not.toContain('kind lạ');
+    }
+  });
+});
+
+/**
+ * Lời khai cho ô dò `kind` ở trên.
+ *
+ * Nội dung cố ý KHÔNG khớp phép phát lại — ô đó chỉ hỏi một câu: nhật ký có bị
+ * từ chối vì "kind lạ" không. Mọi lý do trượt khác (`khong-khop`, điểm lệch) là
+ * câu trả lời HỢP LỆ cho câu hỏi đó, nên một lời khai tối thiểu là đủ và trung
+ * thực hơn một lời khai dựng công phu để trông như đã đạt.
+ */
+function claimKindProbe(): RunResult {
+  return {
+    gameId: 'k8s',
+    levelId: 'l1',
+    seed: 1,
+    startedAt: 0,
+    finishedAt: 1,
+    objectivesMet: [],
+    objectivesTotal: 0,
+    commandsUsed: 0,
+    hintsUsed: 0,
+    score: 0,
+  };
+}
