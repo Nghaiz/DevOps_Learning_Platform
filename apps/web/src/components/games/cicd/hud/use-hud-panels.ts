@@ -71,14 +71,23 @@ export type CicdChapter = 'ci' | 'cd';
  *
  * `inspector` đóng vì chưa chọn job nào thì nó rỗng; nó tự mở khi người chơi
  * chọn một node. `result` đóng vì chưa chạy lượt nào.
+ *
+ * ⚠ **`tools` mở sẵn ở chương CD, đóng ở chương CI** — theo chương, không phải
+ * một hằng. Bảng núm CD nằm trong `tools`, và ở chương CD nó KHÔNG phải công cụ
+ * phụ: cùng một YAML lời giải, đổi đường phục hồi thì mới đạt — tức bảng núm là
+ * thứ quyết định kết quả. Đóng nó mặc định là giấu đúng phần người chơi phải
+ * dùng, và họ sẽ gõ lại YAML nhiều lượt mà không hiểu vì sao vẫn trượt.
+ *
+ * Ở chương CI thì `tools` chỉ có bảng ghi đè (retries, cache) nên đóng là đúng —
+ * sân trống là mặc định, theo quyết định #3.
  */
-export function defaultPanelState(): CicdPanelState {
+export function defaultPanelState(chapter: CicdChapter): CicdPanelState {
   return {
     editor: true,
     mission: true,
     inspector: false,
     result: false,
-    tools: false,
+    tools: chapter === 'cd',
     learn: false,
     minimap: true,
   };
@@ -97,7 +106,7 @@ export function panelStorageSuffix(chapter: CicdChapter): string {
  */
 export function readPanelState(chapter: CicdChapter): CicdPanelState {
   const raw = readHudValue(panelStorageSuffix(chapter));
-  const base = defaultPanelState();
+  const base = defaultPanelState(chapter);
   if (raw === null) return base;
 
   let parsed: unknown;
@@ -133,7 +142,7 @@ export interface HudPanels {
 }
 
 export function useHudPanels(chapter: CicdChapter): HudPanels {
-  const [state, setState] = useState<CicdPanelState>(defaultPanelState);
+  const [state, setState] = useState<CicdPanelState>(() => defaultPanelState(chapter));
 
   useEffect(() => {
     setState(readPanelState(chapter));
@@ -183,10 +192,10 @@ export function useHudPanels(chapter: CicdChapter): HudPanels {
   );
 
   const closeAll = useCallback(() => {
-    const next: Record<CicdPanelId, boolean> = { ...defaultPanelState() };
+    const next: Record<CicdPanelId, boolean> = { ...defaultPanelState(chapter) };
     for (const id of CICD_PANEL_IDS) next[id] = false;
     apply(next);
-  }, [apply]);
+  }, [apply, chapter]);
 
   const allClosed = useMemo(() => CICD_PANEL_IDS.every((id) => !state[id]), [state]);
 

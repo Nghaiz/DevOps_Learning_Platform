@@ -26,16 +26,26 @@ afterEach(() => {
 
 describe('trạng thái lớp phủ', () => {
   it('mặc định mở ô soạn và đề bài, đóng bảng chưa có nội dung', () => {
-    const state = defaultPanelState();
+    const state = defaultPanelState('ci');
     expect(state.editor).toBe(true);
     expect(state.mission).toBe(true);
     // Chưa chọn job nào và chưa chạy lượt nào ⇒ hai bảng này rỗng.
     expect(state.inspector).toBe(false);
     expect(state.result).toBe(false);
+    // Chương CI: bảng núm chỉ có phần ghi đè, không phải thứ quyết định kết quả.
+    expect(state.tools).toBe(false);
+  });
+
+  it('chương CD mở sẵn bảng núm — nó QUYẾT ĐỊNH kết quả, không phải công cụ phụ', () => {
+    // Cùng một YAML lời giải, đổi đường phục hồi thì mới đạt. Đóng mặc định là
+    // giấu đúng thứ người chơi phải dùng, và họ sẽ gõ lại YAML nhiều lượt mà
+    // không hiểu vì sao vẫn trượt.
+    expect(defaultPanelState('cd').tools).toBe(true);
+    expect(defaultPanelState('ci').tools).toBe(false);
   });
 
   it('nhớ theo chương: ghi ở CI không đổi được bố cục của CD', () => {
-    writePanelState('ci', { ...defaultPanelState(), editor: false });
+    writePanelState('ci', { ...defaultPanelState('ci'), editor: false });
 
     expect(readPanelState('ci').editor).toBe(false);
     expect(readPanelState('cd').editor).toBe(true);
@@ -57,11 +67,11 @@ describe('trạng thái lớp phủ', () => {
 
   it('bản ghi hỏng thì rơi về mặc định thay vì ném', () => {
     localStorage.setItem(cicdHudStorageKey(panelStorageSuffix('cd')), 'khong-phai-json');
-    expect(readPanelState('cd')).toEqual(defaultPanelState());
+    expect(readPanelState('cd')).toEqual(defaultPanelState('cd'));
   });
 
   it('mọi bảng đều có mặt trong danh sách công tắc', () => {
     // Bảng nào vắng ở đây là bảng không có công tắc nào bật/tắt được nó.
-    expect(new Set(CICD_PANEL_IDS)).toEqual(new Set(Object.keys(defaultPanelState())));
+    expect(new Set(CICD_PANEL_IDS)).toEqual(new Set(Object.keys(defaultPanelState('ci'))));
   });
 });
