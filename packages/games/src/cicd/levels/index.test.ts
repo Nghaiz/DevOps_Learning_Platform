@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CI_LEVELS, CI_LEVELS_MUON, CI_LEVELS_SOM } from './index.ts';
+import { CD_LEVELS, CD_LEVELS_MUON, CD_LEVELS_SOM, CI_LEVELS, CI_LEVELS_MUON, CI_LEVELS_SOM, CICD_LEVELS } from './index.ts';
 
 /**
  * Ô gác phép GỘP, không gác nội dung level.
@@ -72,5 +72,27 @@ describe('gộp chương CI', () => {
     const viTriC08 = CI_LEVELS.findIndex((level) => level.id.includes('c08'));
     expect(viTriC07).toBeGreaterThanOrEqual(0);
     expect(viTriC08).toBe(viTriC07 + 1);
+  });
+});
+
+/**
+ * Gộp chương CD và gộp cả game. Ô ghim SỐ LƯỢNG (7 + 7 = 14, tổng 28) được lead
+ * thêm khi gộp hai lane — trước đó hai nửa còn rỗng và ô ghim sẽ đỏ vì một lý do
+ * đã biết. Các vế dưới đây đúng ở mọi thời điểm.
+ */
+describe('gộp chương CD và cả game', () => {
+  it('chứa đủ cả hai nửa CD, nửa đầu trước nửa sau', () => {
+    expect(CD_LEVELS).toEqual([...CD_LEVELS_SOM, ...CD_LEVELS_MUON]);
+  });
+
+  it('cả game = CI rồi CD, id duy nhất trên toàn bộ', () => {
+    expect(CICD_LEVELS).toEqual([...CI_LEVELS, ...CD_LEVELS]);
+    const ids = CICD_LEVELS.map((level) => level.id);
+    expect(new Set(ids).size, `trùng id: ${ids.join(', ')}`).toBe(ids.length);
+  });
+
+  it('mọi level CD thuộc chương cd, và KHÔNG level CI nào mang khối `cd`', () => {
+    for (const level of CD_LEVELS) expect(level.chapter, level.id).toBe('cd');
+    for (const level of CI_LEVELS) expect(level.cd, level.id).toBeUndefined();
   });
 });

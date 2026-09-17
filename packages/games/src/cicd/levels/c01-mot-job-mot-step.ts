@@ -188,7 +188,7 @@ chạy. Các stage sau cần mã đó, nên chúng phải đợi nó.`,
       'Bỏ `dependsOn` vì "stage viết sau thì chạy sau". Thứ tự trong danh sách chỉ để người đọc; bộ xếp lịch không đọc nó.',
     ],
   },
-  theoryId: null,
+  theoryId: '01-duong-ong-la-do-thi',
   solutionWorkflow: {
     name: 'Hai stage, việc cài gói nằm trong bước',
     stages: [

@@ -331,7 +331,7 @@ sách.`,
       'Bỏ `quet-bao-mat` đi cho nhanh — lead time đẹp ngay, và bạn vừa gỡ một cổng bảo mật để đổi lấy ba mươi giây.',
     ],
   },
-  theoryId: null,
+  theoryId: '11-ba-truc-diem',
   solutionWorkflow: {
     name: 'Ba nhánh kiểm tra chạy song song',
     stages: [

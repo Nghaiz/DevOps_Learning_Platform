@@ -1,11 +1,12 @@
 import type { Metadata } from 'next';
 import { t } from '@devops-platform/copy';
-import { CI_LEVELS } from '@devops-platform/games';
+import { CICD_LEVELS } from '@devops-platform/games';
 
 // Đường dẫn TƯƠNG ĐỐI, không phải `@/components/...`: repo này không khai
 // `paths` ở tsconfig nào và không đặt alias webpack, nên dạng `@/` sẽ đỏ ở cả
 // typecheck lẫn `next build`.
 import { CicdGame } from '../../../components/games/cicd/cicd-game';
+import { loadCicdTheory } from '../../../server/games/cicd-theory';
 
 export const metadata: Metadata = {
   title: t('catalog.meta-title.games-cicd'),
@@ -15,9 +16,9 @@ export const metadata: Metadata = {
 /**
  * `/games/cicd` — vỏ route của Xưởng đường ống CI/CD (19.H).
  *
- * Server Component làm đúng MỘT việc ngoài `metadata`: đọc hai tham số truy vấn
- * và chuyển xuống. Không nạp gì từ đĩa, khác `/games/git` — game CI/CD không có
- * tập bài lý thuyết ngoài `level.teaching`, thứ đã nằm sẵn trong `CI_LEVELS`.
+ * Server Component làm hai việc ngoài `metadata`: đọc hai tham số truy vấn, và
+ * nạp bài lý thuyết từ đĩa (19.I) — ở server, như `/games/git`, để lúc chơi không
+ * có lời gọi backend nào.
  *
  * Không gác auth — game chạy hoàn toàn trong trình duyệt, nên `/games` KHÔNG có
  * trong `PROTECTED_PATHS` của `proxy.ts`.
@@ -35,14 +36,14 @@ export default async function CicdGamePage({
   /*
    * `?level=` lọc qua CHÍNH tập màn, không qua một danh sách id chép tay: game
    * Git có `GIT_LEVEL_IDS` để lọc mà không kéo dữ liệu màn vào, còn `packages/games`
-   * KHÔNG xuất một hằng tương ứng cho CI/CD. Nên phép lọc đọc thẳng `CI_LEVELS`.
+   * KHÔNG xuất một hằng tương ứng cho CI/CD. Nên phép lọc đọc thẳng `CICD_LEVELS`.
    * Cái giá bằng 0 ở đây: `CicdGame` ngay dưới cũng import đúng hằng ấy, nên nó
    * đã nằm trong bundle của route này rồi.
    */
   const raw = params.level;
   const requested = typeof raw === 'string' && raw.length > 0 ? raw : null;
   const initialLevelId =
-    requested !== null && CI_LEVELS.some((l) => l.id === requested) ? requested : null;
+    requested !== null && CICD_LEVELS.some((l) => l.id === requested) ? requested : null;
 
   /*
    * `?problem=` — chế độ làm bài OJ. KHÔNG lọc qua danh sách nào, khác hẳn
@@ -65,11 +66,14 @@ export default async function CicdGamePage({
   const initialProblemCode =
     typeof rawProblem === 'string' && rawProblem.length > 0 ? rawProblem : null;
 
+  const theory = loadCicdTheory();
+
   return (
     <CicdGame
       key={initialProblemCode ?? initialLevelId ?? 'campaign'}
       initialLevelId={initialLevelId}
       initialProblemCode={initialProblemCode}
+      theory={theory}
     />
   );
 }

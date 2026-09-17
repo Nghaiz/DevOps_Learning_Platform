@@ -258,7 +258,7 @@ lặp lại được, và bạn so được hai lời giải trên cùng một t
       'Xoá bớt bộ kiểm thử cho nhanh. Ba trục sẽ đẹp lên ngay, và `tong-hop` sẽ đỏ ngay — đó là lý do nó có mặt.',
     ],
   },
-  theoryId: null,
+  theoryId: '02-song-song-can-may-chay',
   solutionWorkflow: {
     name: 'Mười bộ độc lập, để bộ xếp lịch tự nhét',
     stages: [

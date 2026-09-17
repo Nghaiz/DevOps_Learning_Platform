@@ -15,8 +15,8 @@ tại: nội dung tương tác mà chi phí vận hành bằng không.
 |---|---|---|---|
 | Cứu hộ cluster Kubernetes | `k8s` | **Đã hiện thực** (P14 đợt 1): 30+ level, chaos, sandbox, challenges | hợp đồng ở `packages/games/src/k8s/contract.ts` |
 | Phòng thí nghiệm Git | `git` | **Đã hiện thực** (P17 engine + 2D, **P17b** 3D): 32 level, engine git tự viết, **hai renderer ngang hàng** — SVG 2D (mặc định) và cảnh 3D three.js | [`git.md`](git.md) |
-| Đường ống CI/CD | `cicd` | Thiết kế, chưa code | [`../../plans/reports/2026-09-11-brainstorm-git-cicd-games.md`](../../plans/reports/2026-09-11-brainstorm-git-cicd-games.md) §4 |
-| Đường ống (bản cũ) | `pipeline` | Tài liệu tham khảo, **không hiện thực** | [`pipeline.md`](pipeline.md) |
+| Đường ống CI/CD | `cicd` | **Đã có engine CI/CD và web chương CI (14 level).** 19.G đang bổ sung C15–C28; chưa tích hợp CD vào web, chưa nghiệm thu AC-G. <!-- updated 260917 --> | [`cicd.md`](cicd.md) (kiến trúc, 28 level, ba trục) · [`phase-19.md`](../../plans/devops-learning-platform/phase-19.md) §0b, §19.G <!-- updated 260917 --> |
+| Đường ống (bản cũ) | `pipeline` | Tài liệu **tham khảo** cho game `cicd`, **không phải đặc tả**, không hiện thực <!-- updated 260917 --> | [`pipeline.md`](pipeline.md) |
 | Mê cung mạng | `netpol` | Thiết kế, chưa code | [`netpol.md`](netpol.md) |
 | Lò rèn Image | `dockerfile` | Thiết kế, chưa code | [`dockerfile.md`](dockerfile.md) |
 

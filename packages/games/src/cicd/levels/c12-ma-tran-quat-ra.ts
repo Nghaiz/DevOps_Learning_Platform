@@ -223,7 +223,7 @@ yên, và đó là một trong những chỗ ba trục tách nhau rõ nhất tro
       'Nghĩ quạt ra làm giảm runner-phút — tổng công việc không đổi, chỉ thời gian chờ đổi.',
     ],
   },
-  theoryId: null,
+  theoryId: '09-ma-tran',
   solutionWorkflow: {
     name: 'Một stage, một ma trận ba giá trị',
     stages: [

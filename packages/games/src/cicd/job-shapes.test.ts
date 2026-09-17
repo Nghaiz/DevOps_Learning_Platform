@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { CicdLevel, WorkflowSpec } from './contract.ts';
 import { checkJobShapes } from './job-shapes.ts';
-import { CI_LEVELS } from './levels/index.ts';
+import { CI_LEVELS, CICD_LEVELS } from './levels/index.ts';
 import { readWorkflowYaml } from './yaml-read.ts';
 import { writeWorkflowYaml } from './yaml-write.ts';
 
@@ -26,15 +26,15 @@ function kiem(level: CicdLevel, wf: WorkflowSpec) {
   return checkJobShapes(quaYaml(wf), knownOf(level), level.initialWorkflow, level.editable);
 }
 
-describe('khuôn job — mọi workflow đã khai của 14 level đều khớp', () => {
-  it.each(CI_LEVELS.map((level) => ({ level })))('$level.id', ({ level }) => {
+describe('khuôn job — mọi workflow đã khai của 28 level đều khớp', () => {
+  it.each(CICD_LEVELS.map((level) => ({ level })))('$level.id', ({ level }) => {
     for (const wf of knownOf(level)) {
       expect(kiem(level, wf), wf.name).toEqual([]);
     }
   });
 });
 
-const CO_KHOI_DAU = CI_LEVELS.filter((level) => level.initialWorkflow.stages.length > 0);
+const CO_KHOI_DAU = CICD_LEVELS.filter((level) => level.initialWorkflow.stages.length > 0);
 
 describe('khuôn job — hai đường lách bị chặn trên mọi level có workflow khởi đầu', () => {
   it.each(CO_KHOI_DAU.map((level) => ({ level })))('$level.id — đổi tên mọi bước', ({ level }) => {
@@ -95,7 +95,7 @@ describe('khuôn job — từng luật', () => {
 });
 
 describe('khuôn tập job — bỏ nguyên job kiểm thử không còn thắng được', () => {
-  const choSuaStages = CI_LEVELS.filter((l) => l.editable.includes('stages'));
+  const choSuaStages = CICD_LEVELS.filter((l) => l.editable.includes('stages'));
 
   it.each(choSuaStages.map((level) => ({ level })))('$level.id — bỏ từng job không tạo sản phẩm của mọi workflow đã khai', ({ level }) => {
     let daThu = 0;

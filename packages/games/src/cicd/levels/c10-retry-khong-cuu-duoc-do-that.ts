@@ -252,7 +252,7 @@ trước không. Nếu câu trả lời là "không có gì", thử lại chỉ 
       'Giữ `retries: 3` sau khi đã thêm cạnh — vô hại hôm nay, và là một quả mìn cho ngày stage đó đỏ vì lý do khác.',
     ],
   },
-  theoryId: null,
+  theoryId: '08-retry-va-loi-that',
   solutionWorkflow: {
     name: 'Nối thẳng, đóng gói chạy song song',
     stages: [

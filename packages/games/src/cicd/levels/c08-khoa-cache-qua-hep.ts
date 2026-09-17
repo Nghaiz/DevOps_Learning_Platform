@@ -258,7 +258,7 @@ thiếu trong khoá. Đó là lý do nó sống sót lâu — nó trông như m�
       'Tin vào bảng tỷ lệ trúng cache — ở đúng level này con số đó thưởng cho bản hỏng.',
     ],
   },
-  theoryId: null,
+  theoryId: '06-khoa-cache-rong-va-hep',
   solutionWorkflow: {
     name: 'Khoá nhắc đủ hai đầu vào',
     stages: [

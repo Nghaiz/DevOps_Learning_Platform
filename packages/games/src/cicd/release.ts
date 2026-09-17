@@ -180,7 +180,7 @@ function validateStrategyParams(params: StrategyParams, scenario: ReleaseScenari
 // ═══════════════════════════════════════════════════════════ một lượt thay
 
 /** Bản xấu ⇔ tỷ lệ lỗi thật của ứng viên CAO HƠN bản đang chạy. Không vùng xám. */
-function isBadCandidate(scenario: ReleaseScenario): boolean {
+export function isBadCandidate(scenario: ReleaseScenario): boolean {
   return scenario.candidateErrorRate > scenario.baselineErrorRate;
 }
 

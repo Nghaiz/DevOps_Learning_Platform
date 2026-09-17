@@ -256,7 +256,7 @@ Sau khi sửa, tỷ lệ xanh của bạn sẽ tụt. Con số mới đó mới 
       'Coi tỷ lệ xanh tụt đi là dấu hiệu mình sửa sai — nó là dấu hiệu bạn vừa thôi làm tròn số.',
     ],
   },
-  theoryId: null,
+  theoryId: '08-retry-va-loi-that',
   solutionWorkflow: {
     name: 'Thôi thử lại stage kiểm thử',
     stages: [

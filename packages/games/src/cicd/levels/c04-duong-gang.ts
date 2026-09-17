@@ -258,7 +258,7 @@ gian, không phải tiết kiệm tài nguyên — hai trục khác nhau, hiển
       'Đọc bảng ba trục để đoán stage nào đáng sửa. Bảng chỉ nói mỗi stage mất bao lâu, không nói cái nào quyết định thời điểm kết thúc — chỉ đường găng nói điều đó.',
     ],
   },
-  theoryId: null,
+  theoryId: '03-duong-gang',
   solutionWorkflow: {
     name: 'Cắt cạnh: ba việc kiểm tra chạy song song',
     stages: [

@@ -503,3 +503,78 @@ export type CdSimulators = {
   readonly simulateGitOps: (policy: GitOpsPolicy, scenario: GitOpsScenario) => GitOpsRecord;
   readonly renderMaskedLog: (policy: MaskingPolicy, scenario: MaskingScenario) => MaskingRecord;
 };
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 5. LEVEL CHƯƠNG CD — 19.G
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// BA QUYẾT ĐỊNH ĐÃ CHỐT (chủ dự án, 2026-09-17, trước khi viết level nào):
+//
+// **5.1 Một khối `CicdLevel.cd` tuỳ chọn.** 14 level CI không đổi dòng nào. Kịch
+//      bản là SỰ THẬT của level; ba bộ chính sách (`initial`/`solution`/
+//      `altSolution`) đi CẶP với ba workflow sẵn có của `CicdLevel`, không thay
+//      chúng. Một lời giải của level CD = (`solutionWorkflow`, `cd.solution`).
+//
+// **5.2 Kịch bản phát hành là MẢNG.** C21 (đọc mét-ric canary) cần CẢ bản ứng
+//      viên tốt lẫn xấu trong cùng một level: chỉ có bản xấu thì "luôn hủy" thắng,
+//      chỉ có bản tốt thì "không bao giờ hủy" thắng. Cùng MỘT chính sách chạy trên
+//      MỌI kịch bản, và vị từ cộng dồn qua tất cả — đúng như đời thật, nơi một
+//      ngưỡng canary được đặt một lần rồi gặp cả bản tốt lẫn bản xấu.
+//
+// **5.3 Level khoá theo từng trường.** `editable` liệt kê đúng phần chính sách
+//      người chơi được đổi; phần còn lại lấy từ `initial` BẤT KỂ bảng điều khiển
+//      gửi gì (`mergeCdPolicies`). Không khoá thì C18/C19/C20 sụp thành "chọn
+//      blue-green cho mọi bài" — ba level dạy ba chiến lược thành một level.
+
+/**
+ * Phần chính sách người chơi được đổi. Hạt theo NÚM, không theo từng số: canary
+ * là một cụm bốn tham số đi cùng nhau (C21 dạy cỡ mẫu = weight × số khoảng đo,
+ * nên khoá riêng một trong hai là dạy nửa bài).
+ */
+export const CD_POLICY_PARTS = [
+  'release.strategy',
+  'release.rolling',
+  'release.canary',
+  'release.onBadRelease',
+  'gitops.reconcileEvery',
+  'gitops.selfHeal',
+  'gitops.ignoreFields',
+  'masking.masked',
+] as const;
+
+export type CdPolicyPart = (typeof CD_POLICY_PARTS)[number];
+
+/**
+ * Chính sách CD của MỘT lời giải. Mỗi khối có mặt ⇔ level khai kịch bản tương
+ * ứng — `levels/cd-levels.test.ts` ghim cả hai chiều, cho cả ba bộ.
+ */
+export interface CicdCdPolicies {
+  readonly release?: ReleasePolicy;
+  readonly gitops?: GitOpsPolicy;
+  readonly masking?: MaskingPolicy;
+}
+
+export interface CicdLevelCd {
+  readonly release?: {
+    /**
+     * ≥ 1. Kịch bản thứ `i` chạy với `baseSeed = evaluation.baseSeed + i` — khác
+     * hạt giống để nhiễu của bản tốt và bản xấu KHÔNG trùng nhau từng lượt, vì
+     * nhiễu trùng nhau làm hai kịch bản trông tách bạch hơn thực tế.
+     */
+    readonly scenarios: readonly ReleaseScenario[];
+    readonly evaluation: ReleaseEvaluationSpec;
+  };
+  readonly gitops?: { readonly scenario: GitOpsScenario };
+  readonly masking?: { readonly scenario: MaskingScenario };
+  /** Rỗng = người chơi chỉ QUAN SÁT kịch bản (level dạy bằng workflow). */
+  readonly editable: readonly CdPolicyPart[];
+  readonly initial: CicdCdPolicies;
+  /**
+   * ⛔ Phải ĐI TỚI ĐƯỢC bằng bảng điều khiển: mọi trường không nằm trong
+   * `editable` bằng đúng `initial`. Bài học đợt 3 (S2): lời giải nạp thẳng thứ
+   * giao diện không phát ra được thì ô "lời giải thắng" xanh mà không đo đường
+   * người chơi đi.
+   */
+  readonly solution: CicdCdPolicies;
+  readonly altSolution: CicdCdPolicies;
+}

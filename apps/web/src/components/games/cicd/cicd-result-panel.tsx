@@ -13,6 +13,7 @@ import {
   formatSeconds,
   type CicdRunOutcome,
 } from './cicd-run';
+import { CicdCdMetrics } from './cicd-cd-metrics';
 
 /**
  * Bảng kết quả một lượt chấm — 19.E.2 (chẩn đoán) và 19.E.4 (ba trục).
@@ -159,6 +160,22 @@ export function CicdResultPanel({
     );
   }
 
+  if (outcome.kind === 'cd-error') {
+    return (
+      <section className="flex flex-col gap-3" aria-label="Kết quả lượt chạy">
+        <div className="flex items-center gap-3">
+          <Badge variant="status-todo" icon={null}>
+            <CircleX aria-hidden className="size-3" />
+            Chính sách CD không hợp lệ
+          </Badge>
+        </div>
+        <p role="alert" className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-foreground">
+          {`Bộ mô phỏng “${outcome.simulator}” từ chối giá trị trên bảng núm CD: ${outcome.message}`}
+        </p>
+      </section>
+    );
+  }
+
   const { axes, summary } = outcome;
 
   return (
@@ -242,6 +259,8 @@ export function CicdResultPanel({
           cần ≥ {formatPercent(thresholds.minGreenRate)} · {summary.greenPasses}/{summary.totalPasses} lượt mô phỏng xanh
         </span>
       </div>
+
+      {outcome.cd === null ? null : <CicdCdMetrics records={outcome.cd} />}
 
       {objectives.length > 0 ? (
         <ObjectiveList

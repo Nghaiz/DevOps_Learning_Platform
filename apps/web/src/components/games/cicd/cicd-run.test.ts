@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+  CD_LEVELS,
   CI_LEVELS,
   mergeStageCatalogue,
   overridesToReach,
   readWorkflowYaml,
   writeWorkflowYaml,
+  type CicdCdPolicies,
   type CicdLevel,
   type WorkflowSpec,
 } from '@devops-platform/games';
@@ -47,8 +49,9 @@ function overridesCua(level: CicdLevel, spec: WorkflowSpec) {
   return overridesToReach(spec, yaml.workflow, nguonCua(level)(), level.editable);
 }
 
-function chay(level: CicdLevel, spec: WorkflowSpec): CicdRunOutcome {
+function chay(level: CicdLevel, spec: WorkflowSpec, cd?: CicdCdPolicies): CicdRunOutcome {
   return runWorkflow({
+    ...(cd === undefined || level.cd === undefined ? {} : { cd: { level: level.cd, edited: cd } }),
     yaml: writeWorkflowYaml(spec).yaml,
     sourcesFor: nguonCua(level),
     knownFor: () => daKhai(level),
@@ -276,4 +279,51 @@ describe('runWorkflow — ba đường lách của review PR #141 KHÔNG thắng
       }
     },
   );
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Chương CD (19.G) — đường màn chơi thật: YAML + bảng núm CD
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('runWorkflow — chương CD: hai lời giải thắng qua ô soạn + bảng núm CD', () => {
+  const ca = CD_LEVELS.flatMap((level) => [
+    { level, nhan: 'lời giải', wf: level.solutionWorkflow, cd: level.cd?.solution },
+    { level, nhan: 'lời giải thay thế', wf: level.altSolutionWorkflow, cd: level.cd?.altSolution },
+  ]);
+
+  it.each(ca)('$level.id — $nhan', ({ level, wf, cd }) => {
+    const ket = chay(level, wf, cd);
+    if (ket.kind !== 'scored') throw new Error(`Đáng lẽ chấm được, nhưng ra "${ket.kind}"`);
+    expect(ket.failingRequired).toEqual([]);
+    expect(ket.won).toBe(true);
+    expect(ket.cd === null).toBe(level.cd === undefined);
+  });
+
+  it.each(CD_LEVELS.map((level) => ({ level })))('$level.id — trạng thái mở màn CHƯA thắng', ({ level }) => {
+    const ket = chay(level, level.initialWorkflow, level.cd?.initial);
+    expect(ket.kind === 'scored' && ket.won).toBe(false);
+  });
+
+  /*
+   * ĐỐI CHỨNG: màn chơi quên chuyển `cd` vào `runWorkflow` thì vị từ CD đọc bản
+   * ghi vắng và trả false — lời giải đúng phải THUA. Không có ô này, một màn chơi
+   * đánh rơi bảng núm CD vẫn làm mọi level chỉ-workflow xanh và không ai thấy.
+   */
+  it.each(CD_LEVELS.filter((l) => l.cd !== undefined).map((level) => ({ level })))(
+    '$level.id — bỏ `cd` khỏi lượt chạy ⇒ lời giải KHÔNG thắng',
+    ({ level }) => {
+      const ket = chay(level, level.solutionWorkflow);
+      expect(ket.kind === 'scored' && ket.won).toBe(false);
+    },
+  );
+
+  it('chính sách ngoài miền ⇒ nhánh "cd-error" nói ra bộ mô phỏng, không ra "chưa đạt"', () => {
+    const level = CD_LEVELS.find((l) => l.cd?.editable.includes('release.canary') && l.cd.initial.release?.canary);
+    if (level?.cd?.initial.release?.canary === undefined) throw new Error('không có level nào mở núm canary');
+    const release = level.cd.initial.release;
+    const hong: CicdCdPolicies = { ...level.cd.initial, release: { ...release, canary: { ...release.canary!, weightPercent: 0 } } };
+    const ket = chay(level, level.solutionWorkflow, hong);
+    expect(ket.kind).toBe('cd-error');
+    expect(ket.kind === 'cd-error' && ket.simulator).toBe('release');
+  });
 });

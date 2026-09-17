@@ -1,9 +1,9 @@
 /**
- * Chương CI — 14 level, gộp từ hai nửa.
+ * Danh mục CI/CD — mỗi chương gộp từ hai nửa, CI trước CD.
  *
  * ## Vì sao file này do LEAD viết, không lane nào
  *
- * Hai lane viết C01–C07 và C08–C14 song song trong cùng một worktree. Một file
+ * Hai lane viết mỗi nửa chương trong worktree riêng. Một file
  * gộp mà cả hai cùng ghi là đúng cái bẫy `packages/copy/src/registry.ts` đã ghi
  * thành văn trong chính nó: hai lượt ghi thì lượt sau ĐÈ lượt trước, không dấu
  * xung đột, không lỗi biên dịch, và bảy level biến mất trong im lặng cho tới khi
@@ -25,9 +25,22 @@
 import type { CicdLevel } from '../contract.ts';
 import { CI_LEVELS_SOM } from './ci-som.ts';
 import { CI_LEVELS_MUON } from './ci-muon.ts';
+import { CD_LEVELS_SOM } from './cd-som.ts';
+import { CD_LEVELS_MUON } from './cd-muon.ts';
 
 export { CI_LEVELS_SOM } from './ci-som.ts';
 export { CI_LEVELS_MUON } from './ci-muon.ts';
+export { CD_LEVELS_SOM } from './cd-som.ts';
+export { CD_LEVELS_MUON } from './cd-muon.ts';
 
 /** Cả chương CI, theo thứ tự chơi. */
 export const CI_LEVELS: readonly CicdLevel[] = [...CI_LEVELS_SOM, ...CI_LEVELS_MUON];
+
+/** Cả chương CD (19.G), theo thứ tự chơi. Hai nửa do hai lane viết, cùng luật gộp như chương CI. */
+export const CD_LEVELS: readonly CicdLevel[] = [...CD_LEVELS_SOM, ...CD_LEVELS_MUON];
+
+/**
+ * Cả game, CI trước CD. Màn chơi và danh mục đọc cái NÀY — đọc `CI_LEVELS` ở tầng
+ * giao diện là giấu chương CD mà không lỗi nào báo.
+ */
+export const CICD_LEVELS: readonly CicdLevel[] = [...CI_LEVELS, ...CD_LEVELS];

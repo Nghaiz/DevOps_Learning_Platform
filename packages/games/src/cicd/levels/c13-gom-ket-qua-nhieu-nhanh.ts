@@ -247,7 +247,7 @@ cần; đó là cách bắt một cạnh thiếu tự khai báo.`,
       'Thêm cổng tổng hợp ở mọi chỗ cho "đẹp đồ thị" — mỗi cổng là một stage thật, tốn một chỗ máy chạy và một tick lead time.',
     ],
   },
-  theoryId: null,
+  theoryId: '10-gom-ket-qua-nhieu-nhanh',
   solutionWorkflow: {
     name: 'Cổng tổng hợp tường minh',
     stages: [

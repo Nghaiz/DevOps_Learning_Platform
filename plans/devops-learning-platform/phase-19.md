@@ -34,12 +34,12 @@
 | 19.C.1/C.2/C.3 cầu nối YAML | **XONG** | PR #139 (`0c41efd`, `f457fe8`) |
 | 19.C.5/C.6 khoá tên stage + cổng lõi-trung-lập | **XONG** | PR #139 (`cbc7bac`), `scripts/check-cicd-vendor-neutral.mjs` |
 | 19.C.4 lỗi ngữ nghĩa | **XONG** | đợt 2 — xem hộp cảnh báo ở §19.C |
-| 19.D tầng 3D | chưa bắt đầu | — |
+| 19.D tầng 3D | chưa bắt đầu | Plan exec: [`phase-19-d-exec.md`](phase-19-d-exec.md) (2026-09-17) — gồm CẢ cảnh 2D, vì hôm nay game CI/CD chưa vẽ đồ thị ở chế độ nào |
 | 19.E giao diện soạn YAML | **XONG (E.1–E.5)** | đợt 2 — kèm tầng ghép `cicd/hydrate.ts`, thứ plan không dự liệu |
 | 19.F chương CI, 14 level | **XONG** | PR #139 (`e0f4ed9`, `824ee8b`, `2d8fce5`) |
-| 19.G chương CD | chưa bắt đầu | — |
+| 19.G chương CD | **XONG, đã nghiệm thu AC-G** | 14 level C15–C28 (2 lane) + lượt nghiệm thu `eeda563`, nối web `c2c3043`; xem [báo cáo nghiệm thu](reports/2026-09-17-p19-g-i-acceptance.md) |
 | 19.H sandbox + tích hợp | **XONG phần web** | route, ô danh mục, sandbox, plugin OJ, ô Playwright AC-H. Đợt 3 vá bộ chấm OJ chấm bản CHƯA GHÉP |
-| 19.I lý thuyết + tài liệu | chưa bắt đầu | `content/games/cicd/` và `docs/games/cicd.md` chưa tồn tại |
+| 19.I lý thuyết + tài liệu | **XONG** | `64bd191` — 21 bài phủ 28 level, `docs/games/cicd.md`; AC-I đo trên image `runner` theo file cụ thể |
 
 **Đợt 2 đóng xong 19.C.4 + 19.E + 19.H.** 14 level của 19.F nay chơi được ở `/games/cicd`, và
 bài OJ cho `gameId: 'cicd'` soạn được qua `/author/problems`.
@@ -125,9 +125,9 @@ chia job khác được chấm thì phải KHAI nó thành một workflow của 
 
 | # | Việc | Vì sao chưa làm |
 |---|---|---|
-| 1 | `CicdGameAction.evaluate` chỉ chở YAML ⇒ retries/cache không tới được bộ chấm OJ | Câu hỏi thiết kế, phải quyết TRƯỚC ngày mở chế độ làm bài CI/CD (`cicd-game.tsx` vẫn hiện "chưa mở") |
-| 2 | Bài OJ không chở kịch bản phát hành/GitOps/log | Tám vị từ CD bị trừ khỏi tập khai; mở lại khi `CicdProblemSpec` chở kịch bản |
-| 3 | `CicdLevel` chưa có trường nào cho kịch bản CD | Việc của 19.G — thêm khi viết level đầu tiên dùng tới, không thêm trước |
+| 1 | `CicdGameAction.evaluate` chỉ chở YAML ⇒ retries/cache không tới được bộ chấm OJ | **Đã quyết 2026-09-17** — đổi hẳn hình dạng action; plan exec [`phase-19-j-exec.md`](phase-19-j-exec.md) |
+| 2 | Bài OJ không chở kịch bản phát hành/GitOps/log | **Đã quyết 2026-09-17** — mở, `CicdProblemSpec` chở khối `cd`; xem [`phase-19-j-exec.md`](phase-19-j-exec.md) §2.2 |
+| ~~3~~ | ~~`CicdLevel` chưa có trường nào cho kịch bản CD~~ | **XONG** — `CicdLevel.cd` đã có từ 19.G (`cd-contract.ts` §5) |
 
 ### Cách chạy lượt e2e của màn này
 
@@ -338,6 +338,18 @@ của cả 14 level chạy được và cho AC.
 - **C27 hotfix lúc 2 giờ sáng** — bỏ qua bước nào thì trả giá gì. Level có áp lực thời gian.
 
 **AC-G:** như AC-F, cho 14 level chương CD.
+
+**Lượt triển khai 2026-09-17:** thực hiện nội dung C15–C28 theo
+[`phase-19-g-lanes.md`](phase-19-g-lanes.md), chia 2 lane C15–C21 và C22–C28. Hợp đồng engine
+được giữ nguyên; nếu một level cần mở rộng hợp đồng thì ghi nhận riêng, không tự sửa.
+Lượt viết không chạy test (theo yêu cầu chủ dự án lúc đó); lượt nghiệm thu cùng ngày chạy đủ và
+**AC-G đạt** — xem [`reports/2026-09-17-p19-g-i-acceptance.md`](reports/2026-09-17-p19-g-i-acceptance.md).
+Chốt 2026-09-17 (chủ dự án): level có commit bị từ chối duyệt có chủ ý (C17, C27) được đặt
+`minGreenRate: 0`, vì `score.ts` đếm LƯỢT xanh; ô test chỉ miễn trừ đúng những level đó.
+
+**Tích hợp web: XONG** (`c2c3043`). Danh mục, route và màn chơi đọc `CICD_LEVELS`; bảng núm CD
+chỉ hiện núm trong `cd.editable`; `runWorkflow` chạy ba bộ mô phỏng sau engine và có nhánh
+`cd-error` riêng. Cheatsheet `cd-panel` đã render từ đợt 3.
 
 ### 19.H — Sandbox + tích hợp (M, ~2 ngày)
 

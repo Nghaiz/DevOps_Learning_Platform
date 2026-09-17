@@ -609,9 +609,9 @@ export type {
   WorkflowSpec,
   WorkloadSpec,
 } from './cicd/contract.ts';
-export { DEFAULT_EVALUATION_PASSES, SECONDS_PER_TICK, STAGE_KINDS } from './cicd/contract.ts';
+export { DEFAULT_EVALUATION_PASSES, RELEASE_STRATEGIES, SECONDS_PER_TICK, STAGE_KINDS } from './cicd/contract.ts';
 
-export { CI_LEVELS } from './cicd/levels/index.ts';
+export { CD_LEVELS, CI_LEVELS, CICD_LEVELS } from './cicd/levels/index.ts';
 
 export { evaluate, validateWorkflow } from './cicd/engine.ts';
 
@@ -660,6 +660,9 @@ export { failingObjectiveIds } from './cicd/predicates.ts';
 export type {
   BadReleaseResponse,
   CanaryIntervalRecord,
+  CdPolicyPart,
+  CicdCdPolicies,
+  CicdLevelCd,
   CanaryPolicy,
   DriftRecord,
   GitOpsActor,
@@ -685,6 +688,7 @@ export type {
 } from './cicd/cd-contract.ts';
 export {
   BAD_RELEASE_RESPONSES,
+  CD_POLICY_PARTS,
   GITOPS_ACTORS,
   MIGRATION_KINDS,
   RELEASE_OUTCOMES,
@@ -694,6 +698,7 @@ export {
   badReleasePromotedCount,
   dataIncidentCount,
   goodReleaseAbortedCount,
+  isBadCandidate,
   rollbackSeconds,
   simulateRelease,
 } from './cicd/release.ts';
@@ -705,5 +710,7 @@ export {
   undetectedDriftCount,
 } from './cicd/gitops.ts';
 export { leakCount, leakedSecrets, renderMaskedLog, transformSecret } from './cicd/masking.ts';
+export type { CdSimulatorName, LevelCdRun } from './cicd/cd-run.ts';
+export { mergeCdPolicies, runLevelCd } from './cicd/cd-run.ts';
 export type { ArtifactId, DeploymentView } from './cicd/artifacts.ts';
 export { artifactIdOf, deploymentsOf } from './cicd/artifacts.ts';

@@ -1,7 +1,8 @@
-import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { GIT_THEORY_IDS, validateTheoryDocs, type TheoryDoc } from '@devops-platform/games';
+import { GIT_THEORY_IDS, type TheoryDoc } from '@devops-platform/games';
+
+import { loadTheoryDocs } from './theory-docs';
 
 /**
  * Bộ nạp bài lý thuyết của game Git — **chạy ở SERVER, đúng một lần mỗi lần tải
@@ -30,83 +31,6 @@ export function gitTheoryDir(): string {
   return THEORY_DIR;
 }
 
-interface RawDoc {
-  readonly frontmatter: Record<string, unknown>;
-  readonly body: string;
-}
-
-/**
- * Bộ đọc frontmatter tối giản, đủ cho đúng năm khoá của khuôn bài lý thuyết.
- *
- * ⛔ CỐ Ý không thêm một thư viện YAML. `packages/games` đã có một bộ đọc YAML
- * cho manifest Kubernetes, và bộ đó hiểu cấu trúc lồng nhau mà frontmatter ở
- * đây không bao giờ dùng. Hai bộ đọc cho hai mục đích khác nhau thì rõ hơn một
- * bộ đọc tổng quát bị gọi ở hai chỗ với hai kỳ vọng khác nhau.
- *
- * ⚠ CRLF: repo này có tiền sử một parser nuốt sạch nội dung vì `\r` dính vào
- * cuối mỗi dòng và không ai thấy gì đỏ. Bỏ `\r` ngay ở bước tách dòng.
- */
-function parseFrontmatter(text: string): RawDoc | null {
-  const normalized = text.replace(/\r\n?/g, '\n');
-  if (!normalized.startsWith('---\n')) return null;
-  const end = normalized.indexOf('\n---\n', 4);
-  if (end === -1) return null;
-
-  const head = normalized.slice(4, end);
-  const body = normalized.slice(end + 5).trim();
-
-  const frontmatter: Record<string, unknown> = {};
-  let listKey: string | null = null;
-  const list: string[] = [];
-
-  for (const line of head.split('\n')) {
-    if (line.trim() === '') continue;
-    if (line.startsWith('  - ') || line.startsWith('- ')) {
-      list.push(line.replace(/^\s*-\s*/, '').trim());
-      continue;
-    }
-    if (listKey !== null) {
-      frontmatter[listKey] = [...list];
-      list.length = 0;
-      listKey = null;
-    }
-    const colon = line.indexOf(':');
-    if (colon === -1) continue;
-    const key = line.slice(0, colon).trim();
-    const value = line.slice(colon + 1).trim();
-    if (value === '') {
-      listKey = key;
-      continue;
-    }
-    frontmatter[key] = /^\d+$/.test(value) ? Number.parseInt(value, 10) : value;
-  }
-  if (listKey !== null) frontmatter[listKey] = [...list];
-
-  return { frontmatter, body };
-}
-
-function toTheoryDoc(raw: RawDoc): TheoryDoc | null {
-  const { frontmatter, body } = raw;
-  const id = frontmatter['id'];
-  const title = frontmatter['title'];
-  const readMinutes = frontmatter['readMinutes'];
-  const usedByLevels = frontmatter['usedByLevels'];
-  if (typeof id !== 'string' || typeof title !== 'string') return null;
-  if (typeof readMinutes !== 'number') return null;
-  if (!Array.isArray(usedByLevels)) return null;
-
-  return {
-    frontmatter: {
-      id,
-      title,
-      gameId: 'git',
-      readMinutes,
-      usedByLevels: usedByLevels.filter((x): x is string => typeof x === 'string'),
-    },
-    body,
-  };
-}
-
 /**
  * Đọc cả 32 bài từ đĩa.
  *
@@ -116,26 +40,7 @@ function toTheoryDoc(raw: RawDoc): TheoryDoc | null {
  * Kiểu lỗi im lặng đó là thứ `validateTheoryDocs` sinh ra để chặn.
  */
 export function loadGitTheory(levelIds: readonly string[]): readonly TheoryDoc[] {
-  const files = readdirSync(THEORY_DIR)
-    .filter((f) => f.endsWith('.md'))
-    .sort();
-
-  const docs: TheoryDoc[] = [];
-  for (const file of files) {
-    const raw = parseFrontmatter(readFileSync(join(THEORY_DIR, file), 'utf8'));
-    if (raw === null) continue;
-    const doc = toTheoryDoc(raw);
-    if (doc !== null) docs.push(doc);
-  }
-
-  const issues = validateTheoryDocs(docs, levelIds);
-  if (issues.length > 0) {
-    const lines = issues.map((i) => `  [${i.code}] ${i.message}`).join('\n');
-    throw new Error(
-      `Nội dung bài lý thuyết game Git không hợp lệ (${String(issues.length)} lỗi):\n${lines}`,
-    );
-  }
-  return docs;
+  return loadTheoryDocs(THEORY_DIR, 'git', levelIds, 'game Git');
 }
 
 /** Danh sách id bài mong đợi, để test khẳng định đĩa khớp hợp đồng. */
