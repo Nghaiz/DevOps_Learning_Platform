@@ -1,11 +1,11 @@
 'use client';
 
-import { useMemo, useState, type ReactElement } from 'react';
+import { useRouter } from 'next/navigation';
+import { useCallback, useState, type ReactElement } from 'react';
 import { Button } from '@devops-platform/ui';
-import { CICD_LEVELS, type TheoryDoc } from '@devops-platform/games';
+import { CICD_LEVELS } from '@devops-platform/games';
 
 import { CicdCampaign } from './cicd-campaign';
-import { CicdLevelScreen } from './cicd-level-screen';
 import { CicdSandbox } from './cicd-sandbox';
 
 /**
@@ -16,8 +16,17 @@ import { CicdSandbox } from './cicd-sandbox';
  *
  *   1. `?problem=` — địa chỉ cụ thể người dùng vừa bấm, thắng mọi đường vào khác.
  *   2. bàn thử tự do
- *   3. chưa chọn màn ⇒ danh sách
- *   4. còn lại ⇒ màn chơi
+ *   3. còn lại ⇒ danh sách màn
+ *
+ * ⚠ **MÀN CHƠI KHÔNG CÒN Ở ĐÂY** (19.D). Nó có route riêng,
+ * `/games/cicd/<levelId>` — xem `cicd-level-route.tsx`. Trước đây `levelId` là
+ * React state, nên bấm một màn từ danh sách KHÔNG đổi URL: cùng một
+ * `/games/cicd` phục vụ cả trang danh mục lẫn màn chơi, và vỏ ứng dụng —
+ * vốn quyết định immersive bằng `pathname` — không có cách nào phân biệt hai
+ * trạng thái đó. Sân chơi vì thế không bao giờ toàn màn hình được (AC-D7).
+ *
+ * ⛔ Đừng đưa `levelId` trở lại thành state ở đây. Nó sẽ chạy, sẽ không lỗi, và
+ * sẽ âm thầm lấy lại 224px sidebar của sân chơi.
  *
  * ⛔ **0 lời gọi backend trong lúc chơi.** `app/games/layout.tsx` CỐ Ý không cấp
  * `TrpcQueryProvider`, nên bất kỳ import nào kéo theo client tRPC ở đây sẽ nổ
@@ -25,8 +34,6 @@ import { CicdSandbox } from './cicd-sandbox';
  */
 
 export interface CicdGameProps {
-  /** Màn mở sẵn từ `?level=`. `null` ⇒ hiện danh sách. */
-  readonly initialLevelId: string | null;
   /**
    * Mã bài từ `?problem=`. `null` ⇒ không ở chế độ làm bài.
    *
@@ -35,12 +42,18 @@ export interface CicdGameProps {
    * đang ở chế độ nào.
    */
   readonly initialProblemCode: string | null;
-  /** Bài lý thuyết của cả game, đọc ở server. Xem `server/games/cicd-theory.ts`. */
-  readonly theory: readonly TheoryDoc[];
 }
 
-export function CicdGame({ initialLevelId, initialProblemCode, theory }: CicdGameProps): ReactElement {
-  const [levelId, setLevelId] = useState<string | null>(initialLevelId);
+/*
+ * ⚠ `theory` đã BỎ khỏi props (19.D), và đó không phải dọn dẹp tuỳ hứng.
+ *
+ * Bài lý thuyết chỉ có một chỗ đọc: màn chơi. Màn chơi nay sống ở
+ * `/games/cicd/<levelId>`, và route đó tự gọi `loadCicdTheory()`. Giữ prop ở
+ * đây thì trang DANH MỤC phải đọc toàn bộ bài lý thuyết từ đĩa cho một thứ nó
+ * không bao giờ dùng tới.
+ */
+export function CicdGame({ initialProblemCode }: CicdGameProps): ReactElement {
+  const router = useRouter();
   const [sandbox, setSandbox] = useState(false);
   /*
    * Mã bài là STATE chứ không đọc thẳng prop, vì màn dưới có một nút thoát khỏi
@@ -51,11 +64,21 @@ export function CicdGame({ initialLevelId, initialProblemCode, theory }: CicdGam
   const [problemCode, setProblemCode] = useState<string | null>(initialProblemCode);
 
   /*
-   * `CICD_LEVELS`, không `CI_LEVELS`: đọc nửa CI ở tầng giao diện là giấu cả
-   * chương CD mà không lỗi nào báo (chú thích ở `levels/index.ts`).
+   * Chọn một màn = ĐIỀU HƯỚNG, không phải đổi state.
+   *
+   * `router.push` chứ không `<Link>` vì `CicdCampaign` nhận một callback
+   * `onPick(id)` và không biết gì về route — giữ nó như vậy để danh sách màn còn
+   * dùng lại được ở chỗ khác. Lọc qua `CICD_LEVELS` trước khi đẩy: một id lạ
+   * lọt ra sẽ thành 404, và 404 do chính giao diện tự tạo thì khó lần hơn nhiều
+   * so với việc không đi đâu cả.
    */
-  const index = useMemo(() => CICD_LEVELS.findIndex((l) => l.id === levelId), [levelId]);
-  const level = index >= 0 ? CICD_LEVELS[index] : undefined;
+  const onPick = useCallback(
+    (id: string) => {
+      if (!CICD_LEVELS.some((l) => l.id === id)) return;
+      router.push(`/games/cicd/${id}`);
+    },
+    [router],
+  );
 
   if (problemCode !== null) {
     /*
@@ -98,26 +121,11 @@ export function CicdGame({ initialLevelId, initialProblemCode, theory }: CicdGam
       />
     );
   }
-  if (level === undefined) {
-    return (
-      <CicdCampaign
-        onPick={setLevelId}
-        onSandbox={() => {
-          setSandbox(true);
-        }}
-      />
-    );
-  }
-
-  const next = CICD_LEVELS[index + 1];
   return (
-    <CicdLevelScreen
-      key={level.id}
-      level={level}
-      theory={theory.find((doc) => doc.frontmatter.id === level.theoryId) ?? null}
-      {...(next === undefined ? {} : { onNext: () => setLevelId(next.id) })}
-      onExit={() => {
-        setLevelId(null);
+    <CicdCampaign
+      onPick={onPick}
+      onSandbox={() => {
+        setSandbox(true);
       }}
     />
   );
