@@ -200,6 +200,50 @@ test.describe('Game CI/CD — §19.E/§19.H', { tag: '@games-cicd' }, () => {
     await expect(page.getByTestId('cicd-axis-lead')).toHaveCount(0);
   });
 
+  test('#8 — đường ống rỗng nói một câu, KHÔNG hiện ba con số 0', async ({ page }) => {
+    await moManChoi(page);
+    // c01 khởi đầu không có job nào: bấm ngay là đúng tình huống đã đo được.
+    await page.getByRole('button', { name: 'Chạy thử' }).click();
+    await expect(vungKetQua(page).getByTestId('cicd-empty')).toBeVisible();
+    await expect(page.getByTestId('cicd-axis-lead')).toHaveCount(0);
+
+    // Đối chứng: cùng màn, có job thì ba trục HIỆN — ô trên không xanh vì trục bị giấu vĩnh viễn.
+    await oSoan(page).fill(YAML_LOI_GIAI);
+    await page.getByRole('button', { name: 'Chạy thử' }).click();
+    await expect(page.getByTestId('cicd-axis-lead')).toBeVisible();
+    await expect(vungKetQua(page).getByTestId('cicd-empty')).toHaveCount(0);
+  });
+
+  test('#6 — mẩu chèn nằm DƯỚI dòng con trỏ, và focus quay về ô soạn', async ({ page }) => {
+    await moManChoi(page);
+    const o = oSoan(page);
+    await o.fill('jobs:\n  clone:\n    steps: []\n');
+    // Đặt con trỏ cuối dòng 2 bằng bàn phím, rồi Tab sang nút — đường của người dùng bàn phím.
+    await o.focus();
+    await o.evaluate((el: HTMLTextAreaElement) => {
+      el.setSelectionRange('jobs:\n  clone:'.length, 'jobs:\n  clone:'.length);
+    });
+    await page.getByRole('group', { name: 'Chèn nhanh' }).getByRole('button', { name: 'Cạnh phụ thuộc' }).click();
+
+    const van = await o.inputValue();
+    expect(van.startsWith('jobs:\n  clone:\n    needs:\n')).toBe(true);
+    expect(van.endsWith('    steps: []\n')).toBe(true);
+    await expect(o).toBeFocused();
+  });
+
+  test('#3 — bảng tra nhanh hiện ra, và mục YAML của nó đọc được khi dán vào ô soạn', async ({ page }) => {
+    await moManChoi(page);
+    const bang = page.getByRole('region', { name: 'Tra nhanh' });
+    await expect(bang).toBeVisible();
+
+    const khoi = bang.locator('pre');
+    // Đối chứng dương: c01 dạy cú pháp, nên phải có ít nhất một khối YAML để dán.
+    expect(await khoi.count()).toBeGreaterThan(0);
+    await oSoan(page).fill((await khoi.first().textContent()) ?? '');
+    await page.getByRole('button', { name: 'Chạy thử' }).click();
+    await expect(vungKetQua(page).getByText('Không quét được YAML')).toHaveCount(0);
+  });
+
   test('AC-2/AC-H — 0 lời gọi backend trong suốt một lượt chơi', async ({ page }, testInfo) => {
     const trace = traceRequests(page);
     await moManChoi(page);
@@ -212,13 +256,15 @@ test.describe('Game CI/CD — §19.E/§19.H', { tag: '@games-cicd' }, () => {
     await page.getByRole('button', { name: 'Chạy thử' }).click();
     await page.waitForTimeout(300);
 
+    /*
+     * ⛔ Không bọc trong `if (count > 0)`. Bản trước bọc, và vùng chèn khi đó là
+     * một `<section aria-label>` — vai `region`, không phải `group` — nên
+     * `count()` luôn 0 và lượt chèn KHÔNG BAO GIỜ chạy, trong khi ô vẫn xanh.
+     */
     const chenNhanh = page.getByRole('group', { name: 'Chèn nhanh' });
-    if ((await chenNhanh.count()) > 0) {
-      const nut = chenNhanh.getByRole('button').first();
-      if ((await nut.count()) > 0) {
-        await nut.click();
-      }
-    }
+    const truocKhiChen = await oSoan(page).inputValue();
+    await chenNhanh.getByRole('button').first().click();
+    await expect(oSoan(page)).not.toHaveValue(truocKhiChen);
     await page.getByRole('button', { name: 'Chạy thử' }).click();
     await page.waitForTimeout(500);
 
@@ -258,9 +304,20 @@ test.describe('Game CI/CD — §19.E/§19.H', { tag: '@games-cicd' }, () => {
     await moManChoi(page);
     await scanAxe(page, testInfo, 'cicd-man-choi');
 
-    // Quét lại SAU khi có kết quả: bảng ba trục, danh sách mục tiêu và khối
-    // `role="alert"` chỉ tồn tại ở trạng thái này, nên lượt quét trước không
-    // nhìn thấy chúng.
+    /*
+     * Quét lại ở HAI trạng thái kết quả, vì mỗi trạng thái dựng phần tử riêng.
+     *
+     * ⚠ Bản trước bấm "Chạy thử" ngay trên c01 (khởi đầu không job nào) rồi chờ
+     * thẻ trục — tức ô a11y này xanh NHỜ đúng lỗi #8 (ba con số 0 cho đường ống
+     * rỗng). Sửa #8 làm nó đỏ, và đó là tín hiệu đúng: ô này chưa bao giờ quét
+     * một kết quả thật.
+     */
+    await page.getByRole('button', { name: 'Chạy thử' }).click();
+    await expect(vungKetQua(page).getByTestId('cicd-empty')).toBeVisible();
+    await scanAxe(page, testInfo, 'cicd-duong-ong-rong');
+
+    // Bảng ba trục, danh sách mục tiêu và bảng tra nhanh chỉ có khi đã chấm thật.
+    await oSoan(page).fill(YAML_LOI_GIAI);
     await page.getByRole('button', { name: 'Chạy thử' }).click();
     await expect(page.getByTestId('cicd-axis-lead')).toBeVisible();
     await scanAxe(page, testInfo, 'cicd-co-ket-qua');

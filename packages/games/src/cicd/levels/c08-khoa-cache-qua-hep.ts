@@ -228,16 +228,22 @@ thiếu trong khoá. Đó là lý do nó sống sót lâu — nó trông như m�
 đó dẫn đường.`,
     cheatsheet: [
       {
-        snippet: 'keyParts: [...]',
-        explain: 'Danh sách đầu vào mà khoá cache băm vào — đây là thứ bạn sửa được ở level này.',
+        where: 'panel',
+        control: 'cache',
+        label: 'Cache → Khoá cache gồm những đầu vào nào',
+        explain: 'Khoá phải nhắc mọi đầu vào mà thư viện đã dựng phụ thuộc. Bỏ sót "Cấu hình biên dịch" (đổi mỗi 2 commit) thì khoá vẫn trùng trong khi nội dung đã ôi, và đường ống đỏ ở một bước chẳng ai đụng vào.',
       },
       {
-        snippet: 'savesTicks: 7',
-        explain: 'Số tick tiết kiệm được khi vừa trúng khoá vừa đúng nội dung; trúng mà ôi thì không tiết kiệm gì.',
+        where: 'panel',
+        control: 'cache',
+        label: 'Cache → Biên dịch → Khôi phục thư viện đã dựng',
+        explain: 'Tắt cache ở bước này cũng là một lời giải: không bao giờ lấy nhầm bản ôi, chỉ chậm hơn ở những commit lẽ ra trúng.',
       },
       {
-        snippet: 'changesEvery: 2',
-        explain: 'Đầu vào này đổi mỗi 2 commit — nhịp đổi khác nhau là thứ làm khoá hẹp lộ ra.',
+        where: 'panel',
+        control: 'cache',
+        label: 'Cache',
+        explain: 'Bạn chỉ bật/tắt cache và chọn đầu vào tạo khoá; số tick tiết kiệm và thứ làm nội dung ôi là dữ liệu của level. Trúng mà ôi thì không tiết kiệm gì, nên tỷ lệ trúng cao ở level này đang thưởng cho bản hỏng.',
       },
     ],
     takeaways: [

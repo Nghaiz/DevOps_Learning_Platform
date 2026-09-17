@@ -1,3 +1,4 @@
+import { cheatsheetExample } from '../cheatsheet-example.ts';
 import type { CicdLevel } from '../contract.ts';
 
 /**
@@ -186,16 +187,26 @@ Và dù chọn tầng nào, hãy đặt một hạn cho nó. Một việc "tạm
 năm là một việc đã ngừng kiểm tra từ ba năm trước.`,
     cheatsheet: [
       {
-        snippet: 'blocking: false',
-        explain: 'Đặt ở stage: stage đỏ nhưng lượt chạy vẫn xanh và stage sau vẫn chạy. Chú ý nghĩa đảo — `false` mới là "đi tiếp".',
+        where: 'yaml',
+        example: cheatsheetExample('linux', [
+          { id: 'kiem-tra-tich-hop', nonBlocking: true, steps: ['goi-dich-vu'] },
+        ]),
+        explain: 'Đặt ở stage: stage vẫn ĐỎ trong bảng nhưng lượt chạy không đỏ theo và stage sau vẫn chạy. Chú ý nghĩa: `true` là đi tiếp; vắng khoá hoặc `false` là chặn.',
       },
       {
-        snippet: 'steps: [{ blocking: false }]',
-        explain: 'Đặt ở bước: bước đỏ nhưng stage đi tiếp và kết thúc xanh. Các bước sau nó vẫn chạy.',
+        where: 'yaml',
+        example: cheatsheetExample('linux', [
+          { id: 'kiem-tra-tich-hop', steps: [{ id: 'goi-dich-vu', nonBlocking: true }] },
+        ]),
+        explain: 'Đặt ở bước: bước đỏ nhưng stage đi tiếp và kết thúc XANH. Gọn mắt hơn, nên cũng dễ quên hơn rằng phép kiểm đó đã ngừng kiểm.',
       },
       {
-        snippet: 'dependsOn: [kiem-tra-tich-hop]',
-        explain: 'Stage sau chỉ đợi stage trước XONG, không đợi nó XANH — nên một stage không chặn vẫn mở khoá được stage sau.',
+        where: 'yaml',
+        example: cheatsheetExample('linux', [
+          { id: 'kiem-tra-tich-hop', nonBlocking: true, steps: ['goi-dich-vu'] },
+          { id: 'dong-goi', dependsOn: ['kiem-tra-tich-hop'], steps: ['dong-goi-ban'] },
+        ]),
+        explain: '`dong-goi` vẫn đợi `kiem-tra-tich-hop` chạy XONG. Không chặn nghĩa là xong mà đỏ cũng mở khoá được stage sau, chứ không phải bỏ luôn việc chờ.',
       },
     ],
     takeaways: [

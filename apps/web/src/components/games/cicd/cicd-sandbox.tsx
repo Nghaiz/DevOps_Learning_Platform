@@ -1,14 +1,16 @@
 'use client';
 
-import { useState, type ReactElement } from 'react';
+import { useMemo, useRef, useState, type ReactElement } from 'react';
 import { Button } from '@devops-platform/ui';
-import { CI_LEVELS, type CicdPlayerOverrides } from '@devops-platform/games';
+import { CI_LEVELS, readWorkflowYaml, type CicdPlayerOverrides, type WorkflowSpec } from '@devops-platform/games';
 
 import { YamlEditor } from '../shared/yaml-editor';
 import { CicdOverridesPanel } from './cicd-overrides-panel';
 import { CicdResultPanel } from './cicd-result-panel';
 import { runWorkflow, type CicdEditableParts, type CicdRunOutcome } from './cicd-run';
-import { appendSnippet, cicdSnippets } from './cicd-snippets';
+import { CicdSnippetBar } from './cicd-snippet-bar';
+
+const WORKFLOW_RONG: WorkflowSpec = { name: '', stages: [] };
 
 /**
  * Bàn thử tự do — workflow trắng, chạy bao nhiêu lượt cũng được, không mục tiêu.
@@ -39,12 +41,12 @@ import { appendSnippet, cicdSnippets } from './cicd-snippets';
 const SAN_DO = CI_LEVELS[0];
 
 /**
- * Moi phan ma BAT KY man nao cho sua — suy tu du lieu man, khong chep tay.
+ * Mọi phần mà BẤT KỲ màn nào cho sửa — suy từ dữ liệu màn, không chép tay.
  *
- * `packages/games` khong xuat `EDITABLE_PARTS`, va mot ban chep tay bay chuoi o
- * day se dung hom nay roi trôi khoi ban goc trong im lang: them mot phan moi vao
- * hop dong thi ban thu hai khong biet, va ban thu va o soan van nhan mot nut ma
- * `hydrateWorkflow` lang le bo qua.
+ * `packages/games` không xuất `EDITABLE_PARTS`, và một bản chép tay bảy chuỗi ở
+ * đây sẽ đúng hôm nay rồi trôi khỏi bản gốc trong im lặng: thêm một phần mới vào
+ * hợp đồng thì bản thứ hai không biết, và bàn thử vẫn hiện một núm mà
+ * `hydrateWorkflow` lặng lẽ bỏ qua.
  */
 const MOI_PHAN_SUA_DUOC: CicdEditableParts = [
   ...new Set(CI_LEVELS.flatMap((level) => level.editable)),
@@ -70,6 +72,18 @@ export function CicdSandbox({ onExit }: CicdSandboxProps): ReactElement {
   const [overrides, setOverrides] = useState<CicdPlayerOverrides>({});
   const [outcome, setOutcome] = useState<CicdRunOutcome | null>(null);
   const [runs, setRuns] = useState(0);
+  const editorRef = useRef<HTMLTextAreaElement | null>(null);
+
+  /*
+   * Bảng núm dùng ĐÚNG nguồn mà lượt chạy dùng: chính workflow vừa đọc (xem đầu
+   * file). Bản trước đưa bảng núm `initialWorkflow` của màn đầu — một workflow
+   * RỖNG — trong khi lượt chạy ghép từ YAML, nên danh sách núm và thứ được chấm
+   * nói về hai workflow khác nhau.
+   */
+  const current = useMemo(() => {
+    const doc = readWorkflowYaml(yaml);
+    return doc.ok ? doc.workflow : WORKFLOW_RONG;
+  }, [yaml]);
 
   if (SAN_DO === undefined) {
     /*
@@ -89,12 +103,10 @@ export function CicdSandbox({ onExit }: CicdSandboxProps): ReactElement {
     );
   }
 
-  const snippets = cicdSnippets(SAN_DO.workload.runners.map((pool) => pool.id));
-
   /*
-   * Tap RONG chu khong `undefined` khi chua co loi: `exactOptionalPropertyTypes`
-   * cam truyen `undefined` tuong minh vao mot prop tuy chon, va mot tap rong noi
-   * dung y nghia can noi — khong dong nao bi to.
+   * Tập RỖNG chứ không `undefined` khi chưa có lỗi: `exactOptionalPropertyTypes`
+   * cấm truyền `undefined` tường minh vào một prop tuỳ chọn, và một tập rỗng nói
+   * đúng ý nghĩa cần nói — không dòng nào bị tô.
    */
   const errorLines: ReadonlySet<number> =
     outcome?.kind === 'parse-error'
@@ -148,27 +160,19 @@ export function CicdSandbox({ onExit }: CicdSandboxProps): ReactElement {
               ariaLabel="Workflow YAML của bàn thử tự do"
               errorLines={errorLines}
               showLineNumbers
+              textareaRef={editorRef}
             />
           </div>
-          <div className="flex flex-wrap gap-2">
-            {snippets.map((snippet) => (
-              <Button
-                key={snippet.id}
-                variant="outline"
-                size="sm"
-                title={snippet.explain}
-                onClick={() => {
-                  setYaml((truoc) => appendSnippet(truoc, snippet.yaml));
-                }}
-              >
-                {snippet.label}
-              </Button>
-            ))}
-          </div>
+          <CicdSnippetBar
+            runnerClassIds={SAN_DO.workload.runners.map((pool) => pool.id)}
+            editorRef={editorRef}
+            value={yaml}
+            onInsert={setYaml}
+          />
           <CicdOverridesPanel
             editable={MOI_PHAN_SUA_DUOC}
-            baseline={SAN_DO.initialWorkflow}
-            catalogue={SAN_DO.initialWorkflow}
+            current={current}
+            sources={{ baseline: current, catalogue: current }}
             workload={SAN_DO.workload}
             overrides={overrides}
             onChange={setOverrides}

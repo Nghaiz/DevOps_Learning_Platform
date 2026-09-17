@@ -44,13 +44,13 @@ import {
 export type CicdHydrateSourcesFor = (parsed: WorkflowSpec) => CicdHydrateSources;
 
 /**
- * `readonly EditablePart[]`, lay GIAN TIEP qua `CicdLevel`.
+ * `readonly EditablePart[]`, lấy GIÁN TIẾP qua `CicdLevel`.
  *
- * `packages/games` xuat `CicdLevel` nhung KHONG xuat `EditablePart` lan
- * `EDITABLE_PARTS` (kiem 2026-09-16 tren `packages/games/src/index.ts`). Chep
- * lai bay chuoi literal o day se tao mot ban thu hai cua mot tap dong — va ban
- * do se trôi khoi ban goc trong im lang, vi khong gi doi chieu hai ben.
- * Suy tu chinh kieu cua level thi khong the lech.
+ * `packages/games` xuất `CicdLevel` nhưng KHÔNG xuất `EditablePart` lẫn
+ * `EDITABLE_PARTS` (kiểm 2026-09-16 trên `packages/games/src/index.ts`). Chép
+ * lại bảy chuỗi literal ở đây sẽ tạo một bản thứ hai của một tập đóng — và bản
+ * đó sẽ trôi khỏi bản gốc trong im lặng, vì không gì đối chiếu hai bên.
+ * Suy từ chính kiểu của level thì không thể lệch.
  */
 export type CicdEditableParts = CicdLevel['editable'];
 
@@ -67,6 +67,15 @@ export interface CicdRunInput {
 export type CicdRunOutcome =
   /** YAML không quét được. `errors` đã sắp theo (dòng, cột) và có ≥ 1 phần tử. */
   | { readonly kind: 'parse-error'; readonly errors: readonly YamlDiagnostic[] }
+  /**
+   * Quét được, ghép xong, và KHÔNG CÓ JOB NÀO.
+   *
+   * Nhánh riêng chứ không để engine chạy: engine chạy một đồ thị rỗng rất vui vẻ
+   * và trả `0 giây / 0 runner-phút` — đọc ra thành "cực nhanh, chẳng tốn gì",
+   * đúng hình dạng nói dối mà nhánh `engine-error` đã cấm. Đo được 2026-09-16 ở
+   * c01 (bắt đầu từ số không), bấm "Chạy thử" ngay khi chưa gõ gì.
+   */
+  | { readonly kind: 'empty' }
   /**
    * Quét được nhưng KHÔNG chạy được: chu trình, phụ thuộc trỏ vào hư không, hoặc
    * một job đòi hạng máy mà workload không cấp. `error` có thể `null` trong một
@@ -109,6 +118,10 @@ export function runWorkflow(input: CicdRunInput): CicdRunOutcome {
     input.editable,
     input.overrides,
   );
+
+  if (workflow.stages.length === 0) {
+    return { kind: 'empty' };
+  }
 
   const record = evaluate(workflow, input.workload, input.evaluation);
   const axes = scoreAxes(record, workflow);

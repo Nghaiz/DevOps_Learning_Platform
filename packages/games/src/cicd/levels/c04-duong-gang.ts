@@ -1,3 +1,4 @@
+import { cheatsheetExample } from '../cheatsheet-example.ts';
 import type { CicdLevel } from '../contract.ts';
 
 /**
@@ -217,16 +218,32 @@ hai lời giải của level này đều đốt đúng 32 tick máy mỗi commit
 gian, không phải tiết kiệm tài nguyên — hai trục khác nhau, hiển thị cạnh nhau.`,
     cheatsheet: [
       {
-        snippet: 'dependsOn: [cai-dat]',
-        explain: 'Gỡ một mắt xích khỏi chuỗi: stage chỉ đợi đúng thứ nó cần, không đợi thứ nằm trước nó trong danh sách.',
+        where: 'yaml',
+        example: cheatsheetExample('linux', [
+          { id: 'cai-dat', steps: ['cai-goi'] },
+          { id: 'lint', kind: 'lint', dependsOn: ['cai-dat'], steps: ['soi-ma'] },
+          { id: 'quet', dependsOn: ['cai-dat'], steps: ['quet-ma'] },
+        ]),
+        explain: 'Gỡ một mắt xích khỏi chuỗi: stage chỉ đợi đúng thứ nó cần là bản build của `cai-dat`, không đợi thứ nằm trước nó trong danh sách.',
       },
       {
-        snippet: 'dependsOn: [lint, kiem-tra, quet]',
-        explain: 'Hợp lưu: stage này đợi cả ba nhánh. Nó sẵn sàng đúng lúc nhánh XONG MUỘN NHẤT kết thúc.',
+        where: 'yaml',
+        example: cheatsheetExample('linux', [
+          { id: 'lint', kind: 'lint', steps: ['soi-ma'] },
+          { id: 'kiem-tra', steps: ['chay-test'] },
+          { id: 'quet', steps: ['quet-ma'] },
+          { id: 'dong-goi', dependsOn: ['lint', 'kiem-tra', 'quet'], steps: ['dong-goi-ban'] },
+        ]),
+        explain: 'Hợp lưu: `dong-goi` đợi cả ba nhánh, nên nó sẵn sàng đúng lúc nhánh XONG MUỘN NHẤT kết thúc — nhánh đó mới là mắt xích trên đường găng.',
       },
       {
-        snippet: 'steps:',
-        explain: 'Chẻ một stage dài thành hai stage mỗi cái ít bước hơn — hai nửa mới chạy song song được, vì máy được cấp cho stage chứ không cho bước.',
+        where: 'yaml',
+        example: cheatsheetExample('linux', [
+          { id: 'lint', kind: 'lint', steps: ['soi-ma'] },
+          { id: 'kiem-tra-a', dependsOn: ['lint'], steps: ['chay-test-a'] },
+          { id: 'kiem-tra-b', dependsOn: ['lint'], steps: ['chay-test-b'] },
+        ]),
+        explain: 'Chẻ stage dài nhất thành hai stage, mỗi stage nửa bộ test. Hai nửa chạy song song được vì máy cấp cho stage, không cấp cho bước.',
       },
     ],
     takeaways: [

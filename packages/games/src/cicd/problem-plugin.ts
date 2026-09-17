@@ -45,13 +45,13 @@
  *    cổng §18.G.3 cho kỳ thi `per-student` chạy trong khi mọi sinh viên nhận
  *    cùng một đề — đúng lời nói dối mà `core/problem-plugin.ts` cấm.
  *
- * 4. **Vị từ chưa hiện thực bị chặn ở `predicateNames`, không chỉ ở `grade`.**
- *    `CICD_PREDICATES` có hai nhánh NÉM (`promotedArtifactUnchanged`,
- *    `rollbackUnder`) chờ chương CD. Khai chúng trong `predicateNames` là mời
- *    người soạn chọn một tên mà mọi lượt nộp sẽ `CE` — một bài không ai giải
- *    được, không ai biết vì sao. Tập khai là tập ĐÃ TRỪ, suy ra từ dữ liệu
- *    (`UNIMPLEMENTED_CICD_PREDICATES`), nên ngày 19.B lên và danh sách đó rỗng
- *    đi thì hai vị từ tự vào tập khai mà không ai phải nhớ sửa file này.
+ * 4. **Vị từ không chấm được ở OJ bị chặn ở `predicateNames`, không chỉ ở `grade`.**
+ *    Khai một tên mà mọi lượt nộp sẽ `CE` là mời người soạn dựng một bài không ai
+ *    giải được, không ai biết vì sao. Tập khai là tập ĐÃ TRỪ, suy ra từ dữ liệu,
+ *    của hai danh sách: `UNIMPLEMENTED_CICD_PREDICATES` (rỗng từ 19.B) và
+ *    `CD_SIMULATION_PREDICATES` — vị từ đọc bản ghi mô phỏng phát hành / GitOps /
+ *    log, thứ bộ ba của bài OJ không chở. Hai vị từ CD đọc bản ghi ĐƯỜNG ỐNG
+ *    (`promotedArtifactUnchanged`, `environmentGuardedByApproval`) thì khai được.
  */
 
 import type { AuthorField, GameProblemPlugin } from '../core/problem-plugin.ts';
@@ -66,10 +66,12 @@ import type {
   WorkflowSpec,
   WorkloadSpec,
 } from './contract.ts';
-import { CICD_PREDICATE_NAMES, DEFAULT_EVALUATION_PASSES } from './contract.ts';
+import { CICD_PREDICATE_NAMES, DEFAULT_EVALUATION_PASSES, EDITABLE_PARTS } from './contract.ts';
 import { evaluate } from './engine.ts';
+import { hydrateWorkflow } from './hydrate.ts';
 import type { CicdScoringContext } from './predicates.ts';
 import {
+  CD_SIMULATION_PREDICATES,
   UNIMPLEMENTED_CICD_PREDICATES,
   checkObjective,
   validateObjectiveArgs,
@@ -195,9 +197,15 @@ function specBanDau(): CicdProblemSpec {
  *
  * `problem-plugin.test.ts` ghim CẢ HAI chiều: tập này cộng tập chưa-hiện-thực
  * phủ đúng bảng `CICD_PREDICATES`, VÀ tập này không chứa tên nào chưa hiện thực.
+ *
+ * ⚠ Trừ thêm `CD_SIMULATION_PREDICATES` (19.B): chúng CHẤM ĐƯỢC, nhưng đọc bản ghi
+ * của bộ mô phỏng phát hành / GitOps / log, mà bộ ba của bài OJ không chở kịch bản
+ * nào. Khai chúng là mời một bài mọi lượt nộp đều trượt.
  */
 export const CICD_IMPLEMENTED_PREDICATE_NAMES: readonly CicdPredicateName[] =
-  CICD_PREDICATE_NAMES.filter((name) => !UNIMPLEMENTED_CICD_PREDICATES.includes(name));
+  CICD_PREDICATE_NAMES.filter(
+    (name) => !UNIMPLEMENTED_CICD_PREDICATES.includes(name) && !CD_SIMULATION_PREDICATES.includes(name),
+  );
 
 // ── Form soạn `initialState` ────────────────────────────────────────────────
 
@@ -342,6 +350,7 @@ export function gradeCicdProblem(input: {
 
   const known: readonly string[] = CICD_PREDICATE_NAMES;
   const chuaHienThuc: readonly string[] = UNIMPLEMENTED_CICD_PREDICATES;
+  const canMoPhong: readonly string[] = CD_SIMULATION_PREDICATES;
   for (const testcase of testcases) {
     if (!known.includes(testcase.check)) {
       return compileError(`testcase "${testcase.id}" gọi vị từ không tồn tại: "${testcase.check}"`);
@@ -357,6 +366,12 @@ export function gradeCicdProblem(input: {
       return compileError(
         `testcase "${testcase.id}" gọi vị từ "${testcase.check}" — tên này chưa có hiện thực ` +
           '(chương CD chưa lên), nên không bài nào chấm bằng nó được',
+      );
+    }
+    if (canMoPhong.includes(testcase.check)) {
+      return compileError(
+        `testcase "${testcase.id}" gọi vị từ "${testcase.check}" — vị từ này đọc bản ghi mô phỏng ` +
+          'phát hành / GitOps / log của chương CD, mà bài OJ chưa chở kịch bản nào, nên không chấm được',
       );
     }
     const loiThamSo = validateObjectiveArgs(asObjective(testcase));
@@ -404,8 +419,22 @@ export function gradeCicdProblem(input: {
        * mô hình này không có chỗ chứa; một workflow thật luôn mang vài khoá như
        * vậy. Coi chúng là lỗi sẽ từ chối đúng những bản YAML sát đời thật nhất
        * — tức là từ chối thứ game tồn tại để dạy.
+       *
+       * ⛔ GHÉP trước khi chấm. YAML không chở `durationTicks`/`flake`/`cache`,
+       * nên `doc.workflow` là một đường ống dài 0 giây. Bản đầu chấm thẳng nó:
+       * đo 2026-09-16, nộp YAML lời giải c01 ⇒ `leadTimeUnder 1 giây` ra AC.
+       *
+       * Bài OJ không có level, nên `initialState.workflow` đóng cả hai vai —
+       * đúng lối bàn thử của 19.H — và mọi phần mở: bài không khai `editable`.
+       * `retries`/`cache` KHÔNG vào được đây vì `CicdGameAction.evaluate` chỉ chở
+       * YAML; bản nộp nhận giá trị của bài. Đó là câu còn mở, ghi ở phase-19.md
+       * §0b "Đợt 3", phải quyết trước ngày mở chế độ làm bài CI/CD.
        */
-      workflow = doc.workflow;
+      workflow = hydrateWorkflow(
+        doc.workflow,
+        { baseline: initialState.workflow, catalogue: initialState.workflow },
+        EDITABLE_PARTS,
+      );
     }
 
     ctx = {

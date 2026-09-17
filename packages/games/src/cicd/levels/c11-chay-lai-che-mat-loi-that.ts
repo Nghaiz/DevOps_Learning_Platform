@@ -1,3 +1,4 @@
+import { cheatsheetExample } from '../cheatsheet-example.ts';
 import type { CicdLevel } from '../contract.ts';
 
 /**
@@ -228,16 +229,19 @@ một cái đồng hồ đã bị tháo pin.
 Sau khi sửa, tỷ lệ xanh của bạn sẽ tụt. Con số mới đó mới là con số thật.`,
     cheatsheet: [
       {
-        snippet: "flake: { nature: 'latent-defect' }",
-        explain: 'Bước này đỏ vì một lỗi THẬT chỉ lộ đôi lúc; thử lại che nó đi chứ không sửa nó.',
+        where: 'panel',
+        control: 'retries',
+        label: 'Chạy lại khi hỏng',
+        explain: 'Một con số áp cho cả stage: bước dựng môi trường đỏ vì hạ tầng (thử lại là đúng), còn bước khẳng định đua luồng đỏ vì một lỗi THẬT chỉ lộ đôi lúc — thử lại xoá luôn bằng chứng của nó.',
       },
       {
-        snippet: "flake: { nature: 'infra' }",
-        explain: 'Bước này đỏ vì hạ tầng; đây là loại duy nhất mà thử lại là câu trả lời đúng.',
-      },
-      {
-        snippet: 'retries: 0',
-        explain: 'Không thử lại: một lần đỏ là một lần đỏ, và nó hiện ra trong tỷ lệ xanh.',
+        where: 'yaml',
+        example: cheatsheetExample('chung', [
+          { id: 'bien-dich', steps: ['bien-dich-ma'] },
+          { id: 'kiem-thu-tich-hop', dependsOn: ['bien-dich'], steps: ['dung-moi-truong'] },
+          { id: 'khang-dinh-dua-luong', dependsOn: ['kiem-thu-tich-hop'], steps: ['khang-dinh-dua-luong'] },
+        ]),
+        explain: 'Tách hai bước thành hai stage thì mỗi stage có số lần thử lại riêng: thử lại việc dựng môi trường, để 0 cho stage bắt lỗi thật. Tỷ lệ xanh sẽ tụt — con số mới đó mới là con số thật.',
       },
     ],
     takeaways: [

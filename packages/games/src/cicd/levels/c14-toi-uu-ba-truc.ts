@@ -1,3 +1,4 @@
+import { cheatsheetExample } from '../cheatsheet-example.ts';
 import type { CicdLevel } from '../contract.ts';
 
 /**
@@ -293,16 +294,29 @@ Level này không nói bạn phải đi đường nào. Nó chỉ đưa ba con s
 sách.`,
     cheatsheet: [
       {
-        snippet: 'dependsOn: []',
-        explain: 'Không cạnh nào: stage chạy ngay từ đầu, song song với mọi thứ khác.',
+        where: 'yaml',
+        example: cheatsheetExample('chung', [
+          { id: 'clone', kind: 'clone', steps: ['tai-ma-nguon'] },
+          { id: 'soat-ma', dependsOn: ['clone'], steps: ['soat-phong-cach'] },
+          { id: 'quet-bao-mat', dependsOn: ['clone'], steps: ['quet-tinh'] },
+        ]),
+        explain: 'Tách nhánh: soát mã và quét bảo mật chỉ cần mã nguồn nên chỉ đợi `clone`. Lead time giảm, runner-phút không bớt một tick nào — cùng bấy nhiêu việc, chỉ khác lúc làm.',
       },
       {
-        snippet: 'cache: { keyParts, invalidatedBy, savesTicks }',
-        explain: 'Hai danh sách phải khớp nhau; khi trúng và đúng, bước bớt đi `savesTicks` tick.',
+        where: 'yaml',
+        example: cheatsheetExample('chung', [
+          { id: 'kiem-thu', steps: ['chay-kiem-thu'] },
+          { id: 'soat-ma', steps: ['soat-phong-cach'] },
+          { id: 'quet-bao-mat', steps: ['quet-tinh'] },
+          { id: 'dong-goi', dependsOn: ['kiem-thu', 'soat-ma', 'quet-bao-mat'], steps: ['dong-goi-anh'] },
+        ]),
+        explain: 'Gom nhiều nhánh: `dong-goi` chờ mọi stage trong danh sách xong, nên nhánh chậm nhất quyết định lúc đóng gói.',
       },
       {
-        snippet: 'dependsOn: [a, b]',
-        explain: 'Gom nhiều nhánh: stage chờ tất cả các nhánh được liệt kê xong.',
+        where: 'panel',
+        control: 'cache',
+        label: 'Cache → Dựng thư viện phụ thuộc → Dựng thư viện phụ thuộc',
+        explain: 'Đầu vào "Khoá phụ thuộc" đổi mỗi 3 commit mà thư viện đang dựng lại ở mọi commit. Bật cache ở đây hạ cả lead time lẫn runner-phút; bạn chọn đầu vào của khoá, còn số tick tiết kiệm là dữ liệu của level.',
       },
     ],
     takeaways: [

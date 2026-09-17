@@ -25,12 +25,12 @@
 
 ---
 
-## 0b. Tiến độ (cập nhật 2026-09-16)
+## 0b. Tiến độ (cập nhật 2026-09-17)
 
 | Chuỗi | Trạng thái | Bằng chứng |
 |---|---|---|
 | 19.A engine CI | **XONG** | PR #139, gộp vào `main` ở `1ef856a` |
-| 19.B engine CD | chưa bắt đầu | — |
+| 19.B engine CD | **XONG** | đợt 3 — `cd-contract.ts`, `artifacts.ts`, `release.ts`, `gitops.ts`, `masking.ts`; AC-B ba vế có test. Chưa level nào dùng (19.G) |
 | 19.C.1/C.2/C.3 cầu nối YAML | **XONG** | PR #139 (`0c41efd`, `f457fe8`) |
 | 19.C.5/C.6 khoá tên stage + cổng lõi-trung-lập | **XONG** | PR #139 (`cbc7bac`), `scripts/check-cicd-vendor-neutral.mjs` |
 | 19.C.4 lỗi ngữ nghĩa | **XONG** | đợt 2 — xem hộp cảnh báo ở §19.C |
@@ -38,7 +38,7 @@
 | 19.E giao diện soạn YAML | **XONG (E.1–E.5)** | đợt 2 — kèm tầng ghép `cicd/hydrate.ts`, thứ plan không dự liệu |
 | 19.F chương CI, 14 level | **XONG** | PR #139 (`e0f4ed9`, `824ee8b`, `2d8fce5`) |
 | 19.G chương CD | chưa bắt đầu | — |
-| 19.H sandbox + tích hợp | **XONG phần web** | route, ô danh mục, sandbox, plugin OJ. Còn thiếu ô Playwright đo AC-H |
+| 19.H sandbox + tích hợp | **XONG phần web** | route, ô danh mục, sandbox, plugin OJ, ô Playwright AC-H. Đợt 3 vá bộ chấm OJ chấm bản CHƯA GHÉP |
 | 19.I lý thuyết + tài liệu | chưa bắt đầu | `content/games/cicd/` và `docs/games/cicd.md` chưa tồn tại |
 
 **Đợt 2 đóng xong 19.C.4 + 19.E + 19.H.** 14 level của 19.F nay chơi được ở `/games/cicd`, và
@@ -50,12 +50,64 @@ bài OJ cho `gameId: 'cicd'` soạn được qua `/author/problems`.
 |---|---|---|
 | ~~1~~ | ~~Ô Playwright cho AC-H và AC-6~~ | **XONG** — `apps/web/e2e/games-cicd.spec.ts`, 5 ô, đã vào `e2e:ci` |
 | ~~2~~ | ~~Chưa chạy trong trình duyệt thật~~ | **XONG** — 5/5 xanh trên Chromium thật, hai lượt độc lập |
-| 3 | Rà cheatsheet của cả 14 level | Xem §19.E.bis mục 2 — mới biết c01 sai, chưa quét 13 level còn lại |
-| 4 | Ô cache dùng `invalidatedBy` = `keyParts` | Cách hiểu của người dựng màn, engine giữ hai trường RIÊNG. C07/C08 dạy đúng chỗ khác nhau giữa chúng nên có thể cần tách |
-| 5 | Ô retries chỉ liệt kê stage của `initialWorkflow` | Job người chơi tự thêm trong YAML không có ô chỉnh retries |
-| 6 | Mẩu chèn nhanh nối vào CUỐI văn bản, không vào vị trí con trỏ | `YamlEditor` chưa mở ref ra ngoài |
-| 7 | Chú thích trong 4 file của màn chơi mất dấu tiếng Việt | Do một lượt vá bằng script. Chỉ ảnh hưởng khả năng đọc |
-| 8 | Đường ống RỖNG vẫn hiện ba con số 0 thay vì một câu | Phát hiện lúc viết ô e2e: mở c01 (khởi đầu không stage nào) rồi bấm "Chạy thử" ngay cho `0 giây / 0 runner-phút`, đọc ra thành "cực nhanh, chẳng tốn gì". Cùng hình dạng mà chính `cicd-result-panel.tsx` đã cấm cho nhánh `engine-error`. Chưa sửa vì nó là câu hỏi thiết kế, không phải lỗi mã |
+| ~~3~~ | ~~Rà cheatsheet của cả 14 level~~ | **XONG** đợt 3 — xem "Đợt 3 — kết quả" |
+| ~~4~~ | ~~Ô cache dùng `invalidatedBy` = `keyParts`~~ | **XONG** đợt 3 |
+| ~~5~~ | ~~Ô retries chỉ liệt kê stage của `initialWorkflow`~~ | **XONG** đợt 3 |
+| ~~6~~ | ~~Mẩu chèn nhanh nối vào CUỐI văn bản~~ | **XONG** đợt 3 |
+| ~~7~~ | ~~Chú thích mất dấu tiếng Việt~~ | **XONG** đợt 3 — 3 file, không phải 4 |
+| ~~8~~ | ~~Đường ống RỖNG hiện ba con số 0~~ | **XONG** đợt 3 — chủ dự án chốt: một câu thay ba số |
+
+### Đợt 3 — phạm vi và phát hiện lúc scout (2026-09-16)
+
+**Phạm vi chốt (chủ dự án):** dọn nợ đợt 2 (#3–#8) rồi dựng 19.B. #8 chốt: đường ống rỗng hiện
+một câu thay cho ba con số.
+
+Scout đo ra việc để lại **lớn hơn bảng trên nói**, ở bốn chỗ:
+
+| # | Phát hiện | Đo bằng |
+|---|---|---|
+| S1 | `teaching.cheatsheet` **không được màn nào render**. Sửa nội dung một mình không đổi gì người chơi thấy | grep `apps/web`: chỉ một chú thích nhắc tới nó |
+| S2 | Ô "lời giải đi qua ô soạn và vẫn thắng" (`cicd-run.test.ts`) nạp `CacheSpec` ĐẦY ĐỦ của lời giải — thứ bảng điều khiển không bao giờ phát ra được. Xanh mà không đo đường người chơi đi | probe: C06 (cả hai lời giải), C09 alt, C14 alt KHÔNG dựng được bằng bảng điều khiển |
+| S3 | Bảng điều khiển đặt `invalidatedBy = keyParts` — đúng thứ hợp đồng cấm tên ("C08 không bao giờ kích hoạt được"); `hydrate` còn nhận nguyên `invalidatedBy`/`savesTicks` từ client | đọc `cicd-overrides-panel.tsx:156,196`, `hydrate.ts:160` |
+| S4 | **Bộ chấm OJ chấm workflow CHƯA GHÉP**: nộp YAML lời giải c01 ⇒ `leadTimeUnder 1 giây` ra **AC**; cùng workflow không qua YAML ⇒ WA | probe `gradeCicdProblem`, có đối chứng âm. Tiềm ẩn vì chế độ làm bài CI/CD chưa mở |
+
+Thêm: C06 khai hai sự thật khác nhau cho CÙNG một bước (`tai-goi` tiết kiệm 8 ở lời giải A, 5 ở
+lời giải B); một stage người chơi tự thêm mà trùng id stage của lời giải thì tự nhận cache của
+lời giải; #7 là 3 file chứ không phải 4.
+
+**Mô hình cache chốt cho đợt này** (theo đúng hợp đồng, không đổi hợp đồng): mỗi bước có
+**một** khuôn cache là sự thật của level (`id`, `invalidatedBy`, `savesTicks`), lấy từ bất kỳ
+workflow nào của level và ba bản phải khớp nhau; **bật hay tắt mặc định** chỉ theo bước ở bản
+chuẩn; người chơi chỉ sửa bật/tắt và `keyParts`.
+
+⛔ Còn MỞ, không làm đợt này: `CicdGameAction.evaluate` chỉ chở YAML, nên retries/cache của bảng
+điều khiển không vào được nhật ký phát lại. Ngày mở chế độ làm bài CI/CD phải quyết điểm này
+trước, nếu không bài OJ về cache/retries không giải được.
+
+### Đợt 3 — kết quả (2026-09-17)
+
+| Việc | Commit | Ghi chú |
+|---|---|---|
+| #4 #5 núm cache/retries thành hàm thuần dùng chung | `c6c7183` | `cicd/controls.ts`; người chơi chỉ chọn `keyParts`; C06 một khuôn cache mỗi bước |
+| #3 cheatsheet — ô gác đỏ trước | `848d8d2` | |
+| #6 #7 #8, S1 render cheatsheet, S4 bộ chấm OJ ghép bản nộp | `d3387f8` | e2e gỡ một lượt chèn chưa từng chạy |
+| #3 nội dung 14 level | `63a4677` | lane |
+| #3 sửa lại: ví dụ là `WorkflowSpec` trung lập | `62f8d21` | bản chuỗi YAML làm cổng lõi-trung-lập đỏ 68 chỗ — vitest/tsc/eslint KHÔNG chạy cổng đó |
+| 19.B hợp đồng | `024777b` | bốn quyết định chủ dự án |
+| 19.B.1–B.3 kẻ cấp, danh tính artifact, cổng duyệt | `33c7b23` | AC-B vế 1 |
+| 19.B.9 che bí mật | `a85b4ed` | lane |
+| 19.B.7–B.8 GitOps | `babe265` | lane, AC-B vế 3 |
+| 19.B.4–B.6 phát hành | `138ee1d` | lane, AC-B vế 2 |
+| Nhiễu canary: Irwin–Hall thay Box–Muller | `225e7f8` | `Math.log`/`Math.cos` được phép lệch giữa engine JS ⇒ Node và Safari có thể ra hai verdict |
+| Nối CD vào bộ chấm, tám vị từ | `f63d84c` | `CD_SIMULATION_PREDICATES` không khai được ở OJ |
+
+**Việc để lại của đợt 3:**
+
+| # | Việc | Vì sao chưa làm |
+|---|---|---|
+| 1 | `CicdGameAction.evaluate` chỉ chở YAML ⇒ retries/cache không tới được bộ chấm OJ | Câu hỏi thiết kế, phải quyết TRƯỚC ngày mở chế độ làm bài CI/CD (`cicd-game.tsx` vẫn hiện "chưa mở") |
+| 2 | Bài OJ không chở kịch bản phát hành/GitOps/log | Tám vị từ CD bị trừ khỏi tập khai; mở lại khi `CicdProblemSpec` chở kịch bản |
+| 3 | `CicdLevel` chưa có trường nào cho kịch bản CD | Việc của 19.G — thêm khi viết level đầu tiên dùng tới, không thêm trước |
 
 ### Cách chạy lượt e2e của màn này
 
@@ -126,6 +178,14 @@ chúng không suy ra được từ nhau.
 | B.7 | GitOps: reconcile loop **chạy theo chu kỳ**, nên drift sống được một lúc | 4h |
 | B.8 | Self-heal bật/tắt + exclusion list | 3h |
 | B.9 | Secret masking + chỗ nó rò ra | 3h |
+
+> **Chốt 2026-09-17 (chủ dự án), trước khi viết dòng nào.** Hợp đồng:
+> `packages/games/src/cicd/cd-contract.ts`.
+> 1. Đường ống + ba bộ mô phỏng thuần: B.1–B.3 vào `engine.ts` (ai cấp sản phẩm cho ai, cổng
+>    phê duyệt); B.4–B.6 `release.ts`; B.7–B.8 `gitops.ts`; B.9 `masking.ts`.
+> 2. Chương CD đếm bằng **giây nguyên** — tick 10 giây không viết được "blue-green lùi dưới 5 giây".
+> 3. Rebuild **luôn** ra danh tính khác: băm(commit, sản phẩm, stage đã dựng).
+> 4. Nhiễu canary **theo số request** (xấp xỉ nhị thức) — weight nhỏ thì nhiễu lớn, bài C21 là cỡ mẫu.
 
 **AC-B:** rebuild rồi promote ⇒ engine báo artifact khác danh tính · ba chiến lược cho ba thời
 gian lùi khác nhau, có test khẳng định thứ tự (blue-green < canary < rolling) · drift tồn tại

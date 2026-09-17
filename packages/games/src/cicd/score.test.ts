@@ -76,6 +76,7 @@ function instance(
     ],
     blockedBy: { kind: 'none' },
     runnerTicks: durationTicks,
+    suppliers: [],
   };
 }
 
@@ -115,6 +116,7 @@ function retried(stageId: StageId, startedTick: number, durationTicks: number): 
     ],
     blockedBy: { kind: 'none' },
     runnerTicks: durationTicks * 2,
+    suppliers: [],
   };
 }
 

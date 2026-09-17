@@ -592,6 +592,7 @@ export type {
   AttemptOutcome,
   AttemptRecord,
   CacheSpec,
+  CicdCheatSheetEntry,
   CicdLevel,
   CicdObjective,
   CicdThresholds,
@@ -636,7 +637,9 @@ export { writeWorkflowYaml } from './cicd/yaml-write.ts';
  * không chở được chín trường của hợp đồng, và bộ đọc áp mặc định trung tính cho
  * tất cả. Lý lẽ đầy đủ + phép đo ở đầu `cicd/hydrate.ts`.
  */
-export type { CicdHydrateSources, CicdPlayerOverrides } from './cicd/hydrate.ts';
+export type { CicdCacheChoice, CicdHydrateSources, CicdPlayerOverrides } from './cicd/hydrate.ts';
+export type { CicdCacheControl, CicdRetryControl } from './cicd/controls.ts';
+export { cacheControls, overridesToReach, retryControls } from './cicd/controls.ts';
 export { cacheOverrideKey, hydrateWorkflow, mergeStageCatalogue } from './cicd/hydrate.ts';
 
 /*
@@ -644,5 +647,60 @@ export { cacheOverrideKey, hydrateWorkflow, mergeStageCatalogue } from './cicd/h
  * `evaluate()` không trả kết quả mục tiêu, nên không có hàm này thì màn chơi
  * không kết luận được đạt hay trượt.
  */
-export type { CicdScoringContext } from './cicd/predicates.ts';
+export type { CicdCdRecords, CicdScoringContext } from './cicd/predicates.ts';
 export { failingObjectiveIds } from './cicd/predicates.ts';
+
+/*
+ * Chương CD (19.B). Ba bộ mô phỏng thuần + phép chiếu của chúng, và danh tính
+ * artifact trên bản ghi đường ống. Hợp đồng: `cicd/cd-contract.ts`.
+ */
+export type {
+  BadReleaseResponse,
+  CanaryIntervalRecord,
+  CanaryPolicy,
+  DriftRecord,
+  GitOpsActor,
+  GitOpsChange,
+  GitOpsPolicy,
+  GitOpsRecord,
+  GitOpsScenario,
+  LogLineTemplate,
+  MaskingPolicy,
+  MaskingRecord,
+  MaskingScenario,
+  MigrationKind,
+  ReleaseEvaluationSpec,
+  ReleaseOutcome,
+  ReleasePassRecord,
+  ReleasePolicy,
+  ReleaseRecord,
+  ReleaseScenario,
+  RollingPolicy,
+  SecretForm,
+  SecretLeak,
+  SecretSpec,
+} from './cicd/cd-contract.ts';
+export {
+  BAD_RELEASE_RESPONSES,
+  GITOPS_ACTORS,
+  MIGRATION_KINDS,
+  RELEASE_OUTCOMES,
+  SECRET_FORMS,
+} from './cicd/cd-contract.ts';
+export {
+  badReleasePromotedCount,
+  dataIncidentCount,
+  goodReleaseAbortedCount,
+  rollbackSeconds,
+  simulateRelease,
+} from './cicd/release.ts';
+export {
+  driftSeconds,
+  longestDriftSeconds,
+  selfHealFights,
+  simulateGitOps,
+  undetectedDriftCount,
+} from './cicd/gitops.ts';
+export { leakCount, leakedSecrets, renderMaskedLog, transformSecret } from './cicd/masking.ts';
+export type { ArtifactId, DeploymentView } from './cicd/artifacts.ts';
+export { artifactIdOf, deploymentsOf } from './cicd/artifacts.ts';
