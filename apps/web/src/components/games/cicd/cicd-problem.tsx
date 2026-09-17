@@ -201,14 +201,39 @@ function CicdProblemBody({ code }: { readonly code: string }): ReactElement {
            * `levelId` là MÃ BÀI: bài OJ không đứng sau một level nào, và mã bài
            * là định danh duy nhất có thật ở đây.
            */
+          /*
+           * ⛔ GỢI Ý PHẢI CÓ MẶT TRONG NHẬT KÝ. Bỏ chúng ra là một lỗi ĐÃ ĐO
+           * (review PR #146): `verifyRun` so `claimed.hintsUsed` với
+           * `tallyLog(log).hintsUsed`, mà `tallyLog` chỉ đếm action `hint`. Một
+           * nhật ký không có action nào ⇒ máy chủ đếm 0, client khai 1 ⇒
+           * `khong-khop` ⇒ `CE` cho một bài giải ĐÚNG. Cả hai bài seed đều có
+           * gợi ý, nên đường hỏng này nằm trên dữ liệu thật.
+           *
+           * CHỈ pha `ready` — gợi ý xin HỎNG thì máy chủ không ghi gì, nên đưa
+           * nó vào nhật ký là tự khai một lượt mở không tồn tại.
+           *
+           * Thứ tự: gợi ý TRƯỚC, `evaluate` SAU, và `tick` tăng dần —
+           * `logShapeError` từ chối một nhật ký có `tick` lùi.
+           */
+          const goiYDaMo = [...hints.reveals.entries()]
+            .filter(([, reveal]) => reveal.phase === 'ready')
+            .map(([index]) => index)
+            .sort((a, b) => a - b);
+
           const runLog = {
             gameId: 'cicd' as const,
             levelId: problem.code,
             seed: CICD_SEED_PHAT_LAI,
             actions: [
+              ...goiYDaMo.map((index, thuTu) => ({
+                gameId: 'cicd' as const,
+                tick: thuTu,
+                kind: 'hint' as const,
+                index,
+              })),
               {
                 gameId: 'cicd' as const,
-                tick: 0,
+                tick: goiYDaMo.length,
                 kind: 'evaluate' as const,
                 source: nop.yaml,
                 overrides: nop.overrides,
@@ -234,7 +259,6 @@ function CicdProblemBody({ code }: { readonly code: string }): ReactElement {
                * đây là tiếng vọng, và `verifyRun` biết như vậy.
                */
               objectivesMet: thu.passed,
-              hintsUsed: hints.reveals.size,
               startedAt: startedAtRef.current,
               finishedAt: Date.now(),
             }),

@@ -468,3 +468,54 @@ describe('biên ghi — vị từ chương CD đòi kịch bản', () => {
     expect(ket.error.issues.some((i) => i.message.includes('cd.release'))).toBe(true);
   });
 });
+
+describe('biên ghi — cổng CD đòi CẢ kịch bản lẫn chính sách khởi điểm', () => {
+  /*
+   * Sửa sau review PR #146. Bản đầu của cổng chỉ hỏi về KỊCH BẢN, nên một đề có
+   * `cd.release.scenarios` mà `cd.initial` rỗng vẫn lưu được — và
+   * `mergeCdPolicies` sẽ bỏ hẳn bộ mô phỏng đó, `runLevelCd` không ghi bản ghi
+   * nào, và vị từ CD trả `false` ở MỌI lượt nộp. Im lặng, vĩnh viễn.
+   */
+  const VI_TU_CD = [
+    { id: 'o1', label: 'Lùi nhanh', check: 'rollbackUnder', visible: true, args: { seconds: 120 } },
+  ];
+
+  it('có kịch bản nhưng `cd.initial` THIẾU chính sách ⇒ từ chối', () => {
+    const ket = problemBodySchema.safeParse({
+      ...CICD_BODY,
+      initialState: { ...CICD_SPEC, cd: { ...CD_RELEASE, initial: {} } },
+      objectives: VI_TU_CD,
+    });
+    expect(ket.success).toBe(false);
+    if (ket.success) return;
+    expect(ket.error.issues.some((i) => i.message.includes('cd.initial.release'))).toBe(true);
+  });
+
+  /*
+   * `null` thoả mọi phép so với `undefined` nhưng KHÔNG phải một khối kịch bản;
+   * nó đi tiếp tới `cd-run.ts` rồi ném ở một phép destructure nằm ngoài `try`.
+   */
+  it('`cd.release: null` KHÔNG được coi là có khối ⇒ từ chối', () => {
+    const ket = problemBodySchema.safeParse({
+      ...CICD_BODY,
+      initialState: { ...CICD_SPEC, cd: { ...CD_RELEASE, release: null } },
+      objectives: VI_TU_CD,
+    });
+    expect(ket.success).toBe(false);
+    if (ket.success) return;
+    expect(ket.error.issues.some((i) => i.message.includes('cd.release'))).toBe(true);
+  });
+
+  /*
+   * ĐỐI CHỨNG DƯƠNG cho cả hai ô trên: khối ĐỦ thì vẫn lưu được. Thiếu nó, hai
+   * ô kia vẫn xanh trên một cổng từ chối mọi bài CD.
+   */
+  it('đủ cả kịch bản lẫn chính sách ⇒ LƯU ĐƯỢC', () => {
+    const ket = problemBodySchema.safeParse({
+      ...CICD_BODY,
+      initialState: { ...CICD_SPEC, cd: CD_RELEASE },
+      objectives: VI_TU_CD,
+    });
+    expect(ket.success, JSON.stringify(ket.success ? [] : ket.error.issues)).toBe(true);
+  });
+});

@@ -478,13 +478,24 @@ describe('bài không chấm được thì nói ra', () => {
     expect(ket.verdict).toBe('WA');
   });
 
-  it('vị từ cần bản ghi mô phỏng CD ⇒ `CE` nói rõ là thiếu kịch bản', () => {
+  it('vị từ CD trên đề KHÔNG có khối `cd` ⇒ `CE` gọi tên đúng khối còn thiếu', () => {
     expect(CD_SIMULATION_PREDICATES.length).toBeGreaterThan(0);
     for (const name of CD_SIMULATION_PREDICATES) {
       const ket = cham({ initialState: BAI, testcases: [tc('cd', name, { seconds: 10, max: 0, field: 'x' })] });
       expect(ket.verdict, name).toBe('CE');
       expect(ket.failedReason, name).toContain(name);
-      expect(ket.failedReason, name).toContain('kịch bản');
+      /*
+       * ⚠ Ghim TÊN KHỐI (`cd.release` / `cd.gitops` / `cd.masking`), không ghim
+       * một chữ trong câu văn. Bản trước đòi chuỗi `'kịch bản'` và đỏ ngay khi
+       * thông điệp được viết lại cho chính xác hơn (review PR #146) — một ô gác
+       * cách DIỄN ĐẠT thay vì gác THÔNG TIN thì mọi lần sửa câu chữ đều là một ô
+       * đỏ giả.
+       *
+       * Tên khối là thứ người soạn cần: nó nói thẳng phải thêm gì vào đâu.
+       */
+      const can = CD_PREDICATE_NEEDS[name];
+      expect(can, `${name} phải có mặt trong CD_PREDICATE_NEEDS`).toBeDefined();
+      expect(ket.failedReason, name).toContain(`cd.${String(can)}`);
     }
   });
 

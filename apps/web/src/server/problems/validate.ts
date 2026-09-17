@@ -316,18 +316,42 @@ function refineCicdCd(
    * khối cd.release" — trung thực, vì với bộ chấm nó cũng vắng mặt như vậy.
    */
   const cd = nhuObject(nhuObject(body.initialState)['cd']);
+  const initial = nhuObject(cd['initial']);
 
   body.objectives.forEach((objective, index) => {
     const can = CD_PREDICATE_NEEDS[objective.check as keyof typeof CD_PREDICATE_NEEDS];
-    if (can === undefined || cd[can] !== undefined) {
-      return;
-    }
+    if (can === undefined) return;
+
+    /*
+     * ⛔ HAI KHỐI, không phải một — và vế thứ hai là một lỗi ĐÃ ĐO (review PR
+     * #146). Bản đầu chỉ hỏi `cd[can] !== undefined`, tức chỉ hỏi về KỊCH BẢN.
+     *
+     * Chấm một vị từ CD cần thêm CHÍNH SÁCH khởi điểm: `mergeCdPolicies`
+     * (`cd-run.ts`) bỏ hẳn một bộ mô phỏng khi `cd.initial` thiếu khối tương
+     * ứng, và `runLevelCd` chỉ ghi bản ghi khi CẢ HAI có mặt. Không bản ghi thì
+     * mọi vị từ CD trả `false` — im lặng, vĩnh viễn, kể cả với lời giải đúng.
+     * Đó đúng là hình dạng "bài không ai giải được" mà cổng này sinh ra để chặn,
+     * chỉ khác chỗ thiếu.
+     *
+     * `isPlainObject` chứ không `!== undefined`: `null` thoả phép so với
+     * `undefined` nhưng KHÔNG phải một khối kịch bản, và nó đi tiếp tới
+     * `cd-run.ts` rồi ném ở một phép destructure nằm NGOÀI khối `try` — lượt
+     * chấm thành `CE` kèm một câu lỗi JS thô. Một mảng cũng vậy.
+     */
+    const thieu: string | null = !isPlainObject(cd[can])
+      ? `cd.${can}`
+      : !isPlainObject(initial[can])
+        ? `cd.initial.${can}`
+        : null;
+    if (thieu === null) return;
+
     ctx.addIssue({
       code: 'custom',
       path: ['objectives', index, 'check'],
       message:
         `Vị từ "${objective.check}" đọc bản ghi của bộ mô phỏng "${can}", nhưng đề chưa khai ` +
-        `khối "cd.${can}". Thêm kịch bản đó vào ô "Chương CD", hoặc chấm bằng một vị từ khác.`,
+        `khối "${thieu}". Thiếu kịch bản thì không có gì để mô phỏng; thiếu chính sách khởi ` +
+        `điểm thì bộ mô phỏng không chạy, và vị từ sẽ trượt ở MỌI lượt nộp.`,
     });
   });
 }

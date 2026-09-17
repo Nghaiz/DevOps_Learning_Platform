@@ -217,11 +217,10 @@ export function cicdOjClaim(input: {
   /** Nhật ký ĐÚNG lượt đang nộp. Số nước đi đếm TỪ NÓ, không gõ tay. */
   readonly log: RunLog;
   readonly objectivesMet: readonly string[];
-  readonly hintsUsed: number;
   readonly startedAt: number;
   readonly finishedAt: number;
 }): RunResult {
-  const { problem, log, objectivesMet, hintsUsed, startedAt, finishedAt } = input;
+  const { problem, log, objectivesMet, startedAt, finishedAt } = input;
   /*
    * ⛔ ĐẾM, không gõ. `verifyRun` so `claimed.commandsUsed` với `tallyLog(log)`
    * phía máy chủ và trả `khong-khop` khi lệch — tức người nộp bị từ chối vì một
@@ -232,10 +231,25 @@ export function cicdOjClaim(input: {
    * `tallyLog` là CHÍNH hàm máy chủ gọi, nên hai bên không thể lệch định nghĩa.
    */
   const tally = tallyLog(log);
-  const revealedHintIds = problem.hints
-    .filter((hint) => hint.revealed)
-    .map((hint) => hint.id)
-    .sort();
+  /*
+   * ⛔ HỢP của HAI nguồn, không phải một. Đây là một lỗi ĐÃ ĐO (review PR #146),
+   * và cả hai vế đều cần:
+   *
+   *  - `hint.revealed` tới từ `problems.byCode`, tức trạng thái ở MÁY CHỦ lúc MỞ
+   *    bài. Nó chở gợi ý mở ở phiên TRƯỚC, nhưng KHÔNG chở gợi ý vừa mở phiên
+   *    này: `useHintReveal` không `invalidate` query đó, nên giá trị còn cũ.
+   *  - Nhật ký chở đúng phần còn thiếu — những gợi ý mở TRONG lượt này.
+   *
+   * Máy chủ hợp đúng hai nguồn đó (`submit.ts` § `revealedIds`), nên chỉ lấy một
+   * vế ở client là khai một số điểm KHÁC số máy chủ tính ⇒ `khong-khop` ⇒ `CE`
+   * cho một bài giải ĐÚNG. Bản đầu chỉ đọc `hint.revealed`.
+   */
+  const revealedHintIds = [
+    ...new Set([
+      ...problem.hints.filter((hint) => hint.revealed).map((hint) => hint.id),
+      ...idGoiYTrongNhatKy(problem, log),
+    ]),
+  ].sort();
   return {
     /*
      * Khai TƯỜNG MINH. `submitProblem` chốt cả `log.gameId` lẫn `claimed.gameId`
@@ -249,7 +263,22 @@ export function cicdOjClaim(input: {
     objectivesMet,
     objectivesTotal: problem.testcases.length,
     commandsUsed: tally.commandsUsed,
-    hintsUsed,
+    /*
+     * ⛔ ĐẾM TỪ NHẬT KÝ, y như `commandsUsed`. Bản đầu khai
+     * `hints.reveals.size` — trạng thái React của màn hình — và nó SAI ở hai
+     * chiều cùng lúc:
+     *
+     *  1. Nhật ký không chở action `hint` nào, nên `tallyLog` phía máy chủ đếm
+     *     0 trong khi client khai 1 ⇒ `khong-khop` ⇒ `CE` cho một lượt giải
+     *     ĐÚNG. Cả hai bài seed đều có một gợi ý, nên lỗi này sống trên dữ liệu
+     *     thật: mở gợi ý rồi nộp là trượt.
+     *  2. `reveals` giữ cả pha `pending` và `error`, nên một lượt xin gợi ý
+     *     HỎNG (máy chủ không ghi gì) vẫn làm `.size` tăng.
+     *
+     * Nay `cicd-problem.tsx` ghi action `hint` vào nhật ký cho mỗi gợi ý mở
+     * THÀNH CÔNG, và con số dưới đây đọc từ chính nhật ký đó.
+     */
+    hintsUsed: tally.hintsUsed,
     score: scoreProblemRun({
       /*
        * Khử trùng bằng `Set`: `ProblemScoreInput` đòi id KHÁC NHAU, và phía máy
@@ -274,6 +303,28 @@ export function cicdOjClaim(input: {
       revealedHintIds,
     }),
   };
+}
+
+/**
+ * Id gợi ý mà chính NHẬT KÝ khai là đã mở.
+ *
+ * Action `hint` mang `index` chứ không mang id (id là một trường suy ra được ở
+ * đó), nên phải tra ngược qua `problem.hints`. Index ngoài phạm vi thì BỎ QUA:
+ * một nhật ký thuộc bản đề CŨ hơn không được làm cả lượt nộp nổ — `verifyRun`
+ * sẽ tự bắt nó ở chỗ điểm không khớp.
+ *
+ * Bản sao của `idGoiYTrongNhatKy` ở `games/git/problem-level.ts`, và bản sao này
+ * CÓ CHỦ Ý: hàm kia đóng trên `GitOjProblem`. Chỗ đúng lâu dài là một hàm dùng
+ * chung nhận `readonly { id }[]`, cùng món nợ với `doKhoLevelMatThongTin`.
+ */
+function idGoiYTrongNhatKy(problem: CicdOjProblem, log: RunLog): readonly string[] {
+  const ids: string[] = [];
+  for (const action of log.actions) {
+    if (action.kind !== 'hint') continue;
+    const hint = problem.hints[action.index];
+    if (hint !== undefined) ids.push(hint.id);
+  }
+  return ids;
 }
 
 /** Bài OJ → `CicdLevel` mà `CicdLevelScreen` dựng được màn chơi từ đó. */

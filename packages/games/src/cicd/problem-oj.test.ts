@@ -263,3 +263,42 @@ describe('AC-J8 — không lách được bằng khuôn job', () => {
     expect(ket.failedCode).toBeNull();
   });
 });
+
+// ── Cổng CD đòi CẢ hai khối (sửa sau review PR #146) ────────────────────────
+
+describe('cổng vị từ CD — kịch bản VÀ chính sách khởi điểm', () => {
+  /*
+   * Bản đầu chỉ hỏi về KỊCH BẢN. Một đề có `cd.release.scenarios` mà `cd.initial`
+   * rỗng lọt qua, rồi `mergeCdPolicies` bỏ hẳn bộ mô phỏng đó (`cd-run.ts` chỉ
+   * dựng khối khi `initial` có nó), `runLevelCd` không ghi bản ghi nào, và
+   * `releaseOf` trả `null` ⇒ vị từ `false` ở MỌI lượt nộp. Bài không giải được,
+   * không gì đỏ.
+   */
+  it('thiếu `cd.initial.release` ⇒ `CE` nói rõ khối nào thiếu', () => {
+    const goc = baiCanary();
+    const thieuChinhSach: CicdProblemSpec = {
+      ...goc,
+      ...(goc.cd === undefined ? {} : { cd: { ...goc.cd, initial: {} } }),
+    };
+    const ket = cham({ initialState: thieuChinhSach, testcases: [LUI_DUOI_HAI_PHUT] });
+    expect(ket.verdict).toBe('CE');
+    expect(ket.failedReason).toContain('cd.initial.release');
+  });
+
+  /*
+   * `null` thoả `!== undefined` nhưng ném ở `cd-run.ts` tại một phép destructure
+   * ngoài khối `try` — lượt chấm khi đó vẫn thành `CE`, nhưng kèm một câu lỗi JS
+   * thô thay vì một câu nói ra đề thiếu gì.
+   */
+  it('`cd.release: null` ⇒ `CE` đọc được, không phải một lỗi JS thô', () => {
+    const goc = baiCanary();
+    const hong = {
+      ...goc,
+      cd: { ...goc.cd, release: null },
+    } as unknown as CicdProblemSpec;
+    const ket = cham({ initialState: hong, testcases: [LUI_DUOI_HAI_PHUT] });
+    expect(ket.verdict).toBe('CE');
+    expect(ket.failedReason).toContain('cd.release');
+    expect(ket.failedReason).not.toContain('Cannot destructure');
+  });
+});

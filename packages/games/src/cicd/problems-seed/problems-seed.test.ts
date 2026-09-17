@@ -114,9 +114,13 @@ describe('CICD-0001 — hai job không cần đợi nhau', () => {
 
   it('lời giải qua đúng cửa YAML ⇒ AC', () => {
     /*
-     * Lời giải: `dong-goi` đổi từ `needs: kiem-tra` sang `needs: clone`. Tập job
+     * Lời giải: `dong-goi` đổi `dependsOn` từ `kiem-tra` sang `clone`. Tập job
      * và dãy bước GIỮ NGUYÊN — khuôn job sẽ từ chối chấm nếu đổi, và đó là điều
      * đề bài nói thẳng với người làm.
+     *
+     * ⚠ Từ vựng MIỀN (`dependsOn`), không phải khoá của nhà cung cấp: cổng
+     * `check-cicd-vendor-neutral.mjs` quét CẢ chú thích trong `cicd/`, và bản
+     * đầu của dòng này viết khoá YAML nên CI đỏ (run 35242910274).
      */
     const goc = workflowBanDau(seed);
     const loiGiai: WorkflowSpec = {
@@ -178,8 +182,14 @@ describe('CICD-0002 — bản phát hành xấu', () => {
         canary: { weightPercent: 50, intervalSeconds: 5, intervals: 3, maxErrorRateDelta: 0.9 },
       },
     };
-    expect(cham(seed, [nop(workflowBanDau(seed), ngoaiPhamVi)])).toEqual(
-      cham(seed, [nop(workflowBanDau(seed), null)]),
-    );
+    const guiNgoai = cham(seed, [nop(workflowBanDau(seed), ngoaiPhamVi)]);
+    expect(guiNgoai).toEqual(cham(seed, [nop(workflowBanDau(seed), null)]));
+    /*
+     * ⛔ Và phải GHIM verdict. `toEqual` một mình xanh khi cả hai vế là `CE` —
+     * tức xanh trên một đề soạn hỏng, không đo được gì về phép khoá chính sách
+     * (review PR #146). `WA` là câu trả lời của `cd.initial` (vá-đi-tới, quá hai
+     * phút), đúng thứ phải thấy khi chính sách gửi lên bị bỏ.
+     */
+    expect(guiNgoai.verdict, guiNgoai.failedReason ?? '').toBe('WA');
   });
 });

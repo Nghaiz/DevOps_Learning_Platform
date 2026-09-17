@@ -4,11 +4,14 @@ import {
   PROBLEM_PLUGINS,
   isVerified,
   scoreProblemRun,
+  writeWorkflowYaml,
   type GameId,
   type RunLog,
   type RunResult,
+  type WorkflowSpec,
 } from '@devops-platform/games';
 
+import { cicdOjClaim, type CicdOjProblem } from '../../components/games/cicd/cicd-oj-level';
 import type { StoredProblem } from './dto';
 import { UnsupportedReplayGameError, verifyProblemRun } from './replay';
 
@@ -234,6 +237,140 @@ describe('phát lại một lượt nộp CI/CD', () => {
     } as unknown as Partial<StoredProblem>);
     const log = { ...nhatKy(''), actions: [] } as unknown as RunLog;
     const ket = verifyProblemRun(bai, log, loiKhai(['co-clone'], 1, 0), []);
+    /*
+     * ⛔ Khẳng định XÁC MINH ĐƯỢC trước, rồi mới nói về tính tất định. Bản đầu
+     * chỉ có dòng `not.toBe('engine-khong-tat-dinh')` — mà một `CE` cũng tất
+     * định hoàn hảo, nên ô sẽ xanh rực rỡ trên một đường CD hỏng hoàn toàn
+     * (review PR #146). Ô song sinh ở `packages/games` đã ghi đúng bài học này.
+     */
+    expect(isVerified(ket), `${ket.status}: ${ket.detail ?? ''}`).toBe(true);
     expect(ket.status).not.toBe('engine-khong-tat-dinh');
+  });
+});
+
+// ── Hợp đồng client ↔ máy chủ, đo trên CHÍNH hàm client dựng lời khai ───────
+
+/**
+ * ⛔ Ô này là HỒI QUY cho một lỗi ĐÃ SỐNG TRÊN DỮ LIỆU THẬT (review PR #146).
+ *
+ * Bản đầu của `cicd-problem.tsx` không ghi action `hint` vào nhật ký, nhưng khai
+ * `hintsUsed` từ state React. `verifyRun` so `claimed.hintsUsed` với
+ * `tallyLog(log).hintsUsed`, và `tallyLog` CHỈ đếm action `hint` — nên máy chủ
+ * đếm 0 còn client khai 1 ⇒ `khong-khop` ⇒ **`CE` cho một bài giải ĐÚNG**. Cả
+ * hai bài trong `CICD_PROBLEMS_SEED` đều có một gợi ý, nên đường hỏng này nằm
+ * trên đề đang chạy chứ không phải trên lý thuyết.
+ *
+ * Vì sao nó lọt qua mọi ô cũ: KHÔNG ô nào mở gợi ý. `problem-oj.test.ts` gọi
+ * thẳng bộ chấm (không đi qua `verifyRun`), `cicd-replay.test.ts` dựng lời khai
+ * bằng tay, và ô e2e không bấm nút gợi ý. Ba phép đo, cùng một điểm mù.
+ *
+ * Nên ô này gọi CHÍNH `cicdOjClaim` — hàm client thật — thay vì dựng một lời
+ * khai bằng tay. Một lời khai dựng tay ở đây sẽ đo lại giả định của người viết
+ * test, đúng thứ vừa làm lỗi này sống sót.
+ */
+describe('lời khai do client dựng phải qua được phép xác minh', () => {
+  const HINTS = [{ id: 'h1', text: 'gợi ý', penaltyPoints: 20 }];
+
+  function baiCoGoiY(): StoredProblem {
+    return baiCicd({ hints: HINTS } as unknown as Partial<StoredProblem>);
+  }
+
+  /** Bài ở hình dạng client thấy: gợi ý CHƯA mở theo máy chủ lúc mở bài. */
+  function baiPhiaClient(): CicdOjProblem {
+    return {
+      code: 'CICD-0001',
+      title: 'Đường ống đầu tiên',
+      statement: 'Sửa đường ống.',
+      difficulty: 'easy',
+      initialState: PROBLEM_PLUGINS['cicd']?.initialSpec(),
+      testcases: [{ id: 'co-clone', label: 'Có job clone', visible: true }],
+      hints: [{ id: 'h1', penaltyPoints: 20, revealed: false, text: null }],
+    };
+  }
+
+  /** Nhật ký y hệt `cicd-problem.tsx` dựng: gợi ý trước, `evaluate` sau. */
+  function nhatKyCoGoiY(soGoiY: number): RunLog {
+    const goiY = Array.from({ length: soGoiY }, (_, i) => ({
+      gameId: 'cicd',
+      tick: i,
+      kind: 'hint',
+      index: i,
+    }));
+    return {
+      gameId: 'cicd',
+      levelId: 'CICD-0001',
+      seed: CICD_UNSEEDED_REPLAY_SEED,
+      actions: [
+        ...goiY,
+        {
+          gameId: 'cicd',
+          tick: soGoiY,
+          kind: 'evaluate',
+          /*
+           * YAML THẬT của workflow ban đầu, không phải chuỗi rỗng. Bản đầu của
+           * ô này gửi `''`: bộ đọc không dựng được job nào, phát lại ra
+           * `passed: []`, và ô đỏ ở `objectivesMet` — một lý do KHÔNG liên quan
+           * tới `hintsUsed`, thứ nó định đo. Đo được 2026-09-17.
+           */
+          source: writeWorkflowYaml(
+            (PROBLEM_PLUGINS['cicd']?.initialSpec() as { workflow: WorkflowSpec }).workflow,
+          ).yaml,
+          overrides: {},
+          cd: null,
+        },
+      ],
+    } as unknown as RunLog;
+  }
+
+  it('KHÔNG mở gợi ý ⇒ xác minh được', () => {
+    const log = nhatKyCoGoiY(0);
+    const claimed = cicdOjClaim({
+      problem: baiPhiaClient(),
+      log,
+      objectivesMet: ['co-clone'],
+      startedAt: 0,
+      finishedAt: 1000,
+    });
+    const ket = verifyProblemRun(baiCoGoiY(), log, claimed, []);
+    expect(isVerified(ket), `${ket.status}: ${ket.detail ?? ''}`).toBe(true);
+  });
+
+  /*
+   * Ô CHÍNH. `revealedHintIds` truyền vào `verifyProblemRun` là thứ máy chủ tính
+   * — hợp của bảng `problem_hint_reveals` và id suy từ nhật ký (`submit.ts`).
+   * Ở đây gợi ý vừa mở TRONG lượt này, nên nó tới từ nhật ký.
+   */
+  it('CÓ mở gợi ý ⇒ vẫn xác minh được (hồi quy #146)', () => {
+    const log = nhatKyCoGoiY(1);
+    const claimed = cicdOjClaim({
+      problem: baiPhiaClient(),
+      log,
+      objectivesMet: ['co-clone'],
+      startedAt: 0,
+      finishedAt: 1000,
+    });
+    expect(claimed.hintsUsed, 'lời khai phải đếm gợi ý TỪ NHẬT KÝ').toBe(1);
+
+    const ket = verifyProblemRun(baiCoGoiY(), log, claimed, ['h1']);
+    expect(isVerified(ket), `${ket.status}: ${ket.detail ?? ''}`).toBe(true);
+  });
+
+  /*
+   * ĐỐI CHỨNG ÂM: đúng hình dạng lời khai của bản HỎNG — nhật ký không chở gợi
+   * ý nhưng lời khai nói có một. Phải KHÔNG xác minh được. Thiếu ô này, hai ô
+   * trên vẫn xanh trên một `verifyRun` bỏ qua `hintsUsed` hoàn toàn.
+   */
+  it('nhật ký không chở gợi ý mà lời khai nói có ⇒ bị từ chối', () => {
+    const log = nhatKyCoGoiY(0);
+    const that = cicdOjClaim({
+      problem: baiPhiaClient(),
+      log,
+      objectivesMet: ['co-clone'],
+      startedAt: 0,
+      finishedAt: 1000,
+    });
+    const doi = { ...that, hintsUsed: 1 };
+    const ket = verifyProblemRun(baiCoGoiY(), log, doi, []);
+    expect(isVerified(ket)).toBe(false);
   });
 });

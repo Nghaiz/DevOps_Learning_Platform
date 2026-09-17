@@ -321,6 +321,18 @@ function compileError(
   return { verdict: 'CE', passed: [], total: 0, failedReason: reason, failedCode: code };
 }
 
+/**
+ * Một khối `cd` CÓ THẬT — object thường, không `null`, không mảng.
+ *
+ * ⚠ `!== undefined` là phép so SAI ở đây: `initialState` tới qua `gradeProblemRun`
+ * ở kiểu `unknown` rồi bị ép (hợp đồng nói thẳng rằng phép ép đó không kiểm được
+ * gì), nên `cd.release: null` lọt qua mọi phép so với `undefined` rồi ném ở
+ * `cd-run.ts` tại một phép destructure nằm NGOÀI khối `try` của nó.
+ */
+function laKhoi(value: unknown): boolean {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 /** Xem chú thích cùng tên ở `git/problem-plugin.ts` — `catch` nhận `unknown`. */
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -434,12 +446,29 @@ export function gradeCicdProblem(input: {
      * "bài này soạn hỏng". Hai chẩn đoán đó dẫn tới hai hành động trái ngược.
      */
     const canKhoi = CD_PREDICATE_NEEDS[testcase.check as CicdPredicateName];
-    if (canKhoi !== undefined && initialState.cd?.[canKhoi] === undefined) {
-      return compileError(
-        `testcase "${testcase.id}" gọi vị từ "${testcase.check}" — vị từ này đọc bản ghi của bộ mô ` +
-          `phỏng "${canKhoi}", mà bài không khai khối "cd.${canKhoi}". Thêm kịch bản đó vào đề, ` +
-          'hoặc chấm bằng một vị từ khác',
-      );
+    if (canKhoi !== undefined) {
+      /*
+       * ⛔ HAI khối, không phải một (sửa sau review PR #146). Kịch bản cho bộ mô
+       * phỏng biết chạy CÁI GÌ; `cd.initial` cho nó biết chạy VỚI chính sách
+       * nào. `mergeCdPolicies` bỏ hẳn một bộ khi `initial` thiếu khối tương ứng,
+       * và `runLevelCd` chỉ ghi bản ghi khi cả hai có mặt — thiếu một vế thì vị
+       * từ trả `false` ở MỌI lượt nộp, im lặng.
+       *
+       * `laKhoi` chứ không `!== undefined`: `null` thoả phép so đó nhưng ném ở
+       * `cd-run.ts` tại một phép destructure ngoài khối `try`.
+       */
+      const thieu = !laKhoi(initialState.cd?.[canKhoi])
+        ? `cd.${canKhoi}`
+        : !laKhoi(initialState.cd?.initial[canKhoi])
+          ? `cd.initial.${canKhoi}`
+          : null;
+      if (thieu !== null) {
+        return compileError(
+          `testcase "${testcase.id}" gọi vị từ "${testcase.check}" — vị từ này đọc bản ghi của bộ ` +
+            `mô phỏng "${canKhoi}", mà bài không khai khối "${thieu}". Thêm khối đó vào đề, hoặc ` +
+            'chấm bằng một vị từ khác',
+        );
+      }
     }
     const loiThamSo = validateObjectiveArgs(asObjective(testcase));
     if (loiThamSo !== null) {
