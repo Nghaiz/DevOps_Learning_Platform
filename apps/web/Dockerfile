@@ -123,6 +123,11 @@ COPY apps/web/src/server/db apps/web/src/server/db
 RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
            /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
 
+# Vá libssl3 + libcrypto3 (CVE-2026-14456) — migrator cũng là image CHẠY trong
+# cụm (Helm migrate Job) và nối Postgres qua TLS, nên cùng bề mặt như `runner`.
+# Lý lẽ đầy đủ ở stage `runner` bên dưới. Đóng nợ P16 §6.6.4 #1.
+RUN apk upgrade --no-cache libssl3 libcrypto3
+
 WORKDIR /repo/apps/web
 # drizzle-kit tự giữ bảng `__drizzle_migrations`, nên chạy lại là no-op — Job
 # này an toàn khi Helm retry hoặc khi upgrade lại cùng một version.
@@ -154,6 +159,18 @@ ENV HOSTNAME=0.0.0.0
 # Next lên bản mới (Dependabot sẽ đề xuất).
 RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
            /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
+
+# Vá libssl3 + libcrypto3 lên bản đã fix (2026-09-18, đóng nợ P16 §6.6.4 #1).
+#
+# `node:24-alpine` (alpine 3.24.1) đóng sẵn `libssl3-3.5.7-r0` + `libcrypto3-
+# 3.5.7-r0` — mang CVE-2026-14456 (2 HIGH, DoS trong QUIC server). Image này
+# chạy Next.js KHÔNG có QUIC nên gần như không khai thác được, và cổng Trivy
+# cố ý chặn ở CRITICAL chứ không HIGH — nhưng khác nhóm HIGH do `next` ghim
+# (không tự vá được), cái này ĐÃ CÓ bản vá `3.5.8-r0` trong repo alpine 3.24,
+# nên vá được thì vá. `--no-cache` để không để lại chỉ mục apk (cùng kỷ luật
+# cắt-bề-mặt với hai RUN quanh nó). Base là tag DI ĐỘNG nên một ngày nào đó nó
+# tự lên 3.5.8; dòng này chỉ bảo đảm không phụ thuộc thời điểm đó.
+RUN apk upgrade --no-cache libssl3 libcrypto3
 
 # `shellcheck` — NĂNG LỰC, không phải tiện nghi. Ngoại lệ CÓ CHỦ Ý với chính
 # sách cắt-bề-mặt ở khối trên; đọc cả hai cùng nhau.
