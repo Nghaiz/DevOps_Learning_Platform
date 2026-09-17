@@ -648,7 +648,21 @@ function CicdOjBar({
     <section
       aria-label="Nộp bài"
       data-testid="cicd-oj-bar"
-      className="pointer-events-auto absolute right-3 bottom-3 flex max-w-sm flex-col gap-2 rounded-lg border border-border bg-card/95 p-3 shadow-lg"
+      /*
+       * ⛔ BOTTOM-CENTER, và vị trí này là kết quả của một phép đo chứ không phải
+       * một lựa chọn thẩm mỹ.
+       *
+       * Bản đầu đặt ở `right-3 bottom-3` và nút nộp KHÔNG BẤM ĐƯỢC: cột bảng bên
+       * phải là `absolute inset-y-3 right-3 … overflow-y-auto`, tức nó phủ TRỌN
+       * chiều cao mép phải và nuốt mọi cú bấm xuống dưới. Playwright bắt được
+       * ("subtree intercepts pointer events"); mắt thì không, vì thanh vẫn hiện
+       * ra đầy đủ và trông hoàn toàn bình thường.
+       *
+       * `z-30` nâng trên lớp phủ (`z-20`) để một bảng mở rộng không che lại nút.
+       * Mép trái ở giữa chiều cao là ngăn kéo ô soạn, mép trên giữa là bảng ba
+       * trục — nên đáy-giữa là vùng còn trống thật sự.
+       */
+      className="pointer-events-auto absolute bottom-3 left-1/2 z-30 flex max-w-sm -translate-x-1/2 flex-col gap-2 rounded-lg border border-border bg-card/95 p-3 shadow-lg"
     >
       <div className="flex items-center gap-2">
         <Button

@@ -125,9 +125,41 @@ chia job khác được chấm thì phải KHAI nó thành một workflow của 
 
 | # | Việc | Vì sao chưa làm |
 |---|---|---|
-| 1 | `CicdGameAction.evaluate` chỉ chở YAML ⇒ retries/cache không tới được bộ chấm OJ | **Đã quyết 2026-09-17** — đổi hẳn hình dạng action; plan exec [`phase-19-j-exec.md`](phase-19-j-exec.md) |
-| 2 | Bài OJ không chở kịch bản phát hành/GitOps/log | **Đã quyết 2026-09-17** — mở, `CicdProblemSpec` chở khối `cd`; xem [`phase-19-j-exec.md`](phase-19-j-exec.md) §2.2 |
+| ~~1~~ | ~~`CicdGameAction.evaluate` chỉ chở YAML ⇒ retries/cache không tới được bộ chấm OJ~~ | **XONG 19.J** — action chở ba mảnh (`source` + `overrides` + `cd`); dạng mở `CicdActionShape` ở `core/run-log.ts`, dạng đóng ở `cicd/action.ts` |
+| ~~2~~ | ~~Bài OJ không chở kịch bản phát hành/GitOps/log~~ | **XONG 19.J** — `CicdProblemSpec.cd`, và tám vị từ CD mở theo từng bài qua `CD_PREDICATE_NEEDS` |
 | ~~3~~ | ~~`CicdLevel` chưa có trường nào cho kịch bản CD~~ | **XONG** — `CicdLevel.cd` đã có từ 19.G (`cd-contract.ts` §5) |
+
+### 19.J — kết quả (2026-09-17)
+
+Chế độ làm bài OJ của game CI/CD đã mở. Bảy trong tám ô AC có phép đo chạy được:
+
+| Ô | Đo bằng | Trạng thái |
+|---|---|---|
+| AC-J1 | `games-cicd-problem.spec.ts` — mở đề, nộp sai ra WA, sửa YAML, nộp lại ra AC | **XANH** (trình duyệt thật) |
+| AC-J2 | `problem-oj.test.ts` — cùng YAML, hai bộ `overrides` ra hai verdict | **XANH** |
+| AC-J3 | `problem-oj.test.ts` + ô e2e bảng núm CD | **XANH** |
+| AC-J4 | `problem-oj.test.ts` — chính sách ngoài `editable` cho verdict y hệt khi không gửi | **XANH** |
+| AC-J5 | `problem-oj-determinism.{test,jsdom.test}.ts` — 200 lượt, hai môi trường, CHUNG một thân | **XANH** |
+| AC-J6 | `validate.test.ts` — khai vị từ CD thiếu kịch bản ⇒ từ chối, kèm đối chứng dương | **XANH** |
+| AC-J7 | `games-cicd-problem.spec.ts` — `/games/cicd` không `?problem=` ⇒ 0 lời gọi backend | **XANH** |
+| AC-J8 | `problem-oj.test.ts` — đổi tên bước / bỏ job ⇒ WA | **XANH** |
+
+**Hai khe nền tảng phải vá cùng lượt, cả hai KHÔNG có trong plan exec** — và cả hai hỏng CÂM:
+
+1. `'evaluate'` vắng khỏi `ACTION_KINDS` (`core/verify.ts`) từ lúc `CicdGameAction` ra đời ⇒ mọi
+   nhật ký CI/CD bị `logShapeError` đọc thành "kind lạ". Không ô nào đỏ vì chưa có đường nào dựng
+   được một nhật ký CI/CD. Vá bằng bảng `Record<GameActionKind, boolean>` — cổng vét cạn lúc BIÊN
+   DỊCH, vì `readonly GameActionKind[]` nhận một mảng THIẾU mà vẫn đúng kiểu.
+2. `verifyProblemRun` không có nhánh `'cicd'` ⇒ mọi lượt nộp ném `UnsupportedReplayGameError` → 500.
+   Chú thích tại chỗ viện dẫn một ô `verify-game-split.test.ts` "khẳng định mọi GameId có plugin
+   chấm cũng phải có adapter phát lại"; **file đó không tồn tại**. `cicd-replay.test.ts` là ô thật.
+
+**Việc để lại của 19.J:**
+
+| # | Việc | Vì sao chưa làm |
+|---|---|---|
+| 1 | Ô e2e SOẠN một bài CI/CD qua `/author/problems` | `problems.create` là `authorProcedure`; vai trò đầu tiên chỉ đặt được bằng `promote-role.sh` (kubectl), thứ không chạy trong CI. Ô e2e hiện mở đề từ `CICD_PROBLEMS_SEED`. Đường soạn đề thuộc suite `@flow` |
+| 2 | `doKhoLevelMatThongTin` nay có BA bản sao | Bản thứ ba thêm ở `cicd-oj-level.ts`. Chỗ đúng là `packages/games/src/core/` cạnh `problemVerdictOf`; không đi vào phép chấm nên chưa chặn gì |
 
 ### Cách chạy lượt e2e của màn này
 
