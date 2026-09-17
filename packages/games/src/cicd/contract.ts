@@ -90,6 +90,7 @@
 
 import type { Difficulty } from '../core/types.ts';
 import type { CicdGameAction, RunLog } from '../core/run-log.ts';
+import type { CdPolicyPart, CicdLevelCd } from './cd-contract.ts';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 1. ĐỊNH DANH VÀ ĐƠN VỊ ĐO
@@ -1402,6 +1403,16 @@ export type CicdCheatSheetEntry =
       /** Tên núm đúng như bảng điều khiển gọi, để người chơi tìm ra nó. */
       readonly label: string;
       readonly explain: string;
+    }
+  /**
+   * 19.G — núm chính sách CD (phát hành / đối soát / che bí mật). `control` phải
+   * nằm trong `CicdLevel.cd.editable` của level khai nó, cùng lý do như `'panel'`.
+   */
+  | {
+      readonly where: 'cd-panel';
+      readonly control: CdPolicyPart;
+      readonly label: string;
+      readonly explain: string;
     };
 
 /**
@@ -1488,6 +1499,12 @@ export interface CicdLevel {
    * khoá cache vs bỏ cache hẳn, hay thêm máy vs tách nhánh song song).
    */
   readonly altSolutionWorkflow: WorkflowSpec;
+  /**
+   * 19.G — kịch bản + chính sách chương CD. Vắng ở mọi level chương CI. Có mặt
+   * KHÔNG bắt buộc ở level CD: C15–C17 dạy bằng workflow (danh tính artifact,
+   * thăng hạng, cổng duyệt) và không cần bộ mô phỏng nào. Xem `cd-contract.ts` §5.
+   */
+  readonly cd?: CicdLevelCd;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

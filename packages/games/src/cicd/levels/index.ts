@@ -25,9 +25,22 @@
 import type { CicdLevel } from '../contract.ts';
 import { CI_LEVELS_SOM } from './ci-som.ts';
 import { CI_LEVELS_MUON } from './ci-muon.ts';
+import { CD_LEVELS_SOM } from './cd-som.ts';
+import { CD_LEVELS_MUON } from './cd-muon.ts';
 
 export { CI_LEVELS_SOM } from './ci-som.ts';
 export { CI_LEVELS_MUON } from './ci-muon.ts';
+export { CD_LEVELS_SOM } from './cd-som.ts';
+export { CD_LEVELS_MUON } from './cd-muon.ts';
 
 /** Cả chương CI, theo thứ tự chơi. */
 export const CI_LEVELS: readonly CicdLevel[] = [...CI_LEVELS_SOM, ...CI_LEVELS_MUON];
+
+/** Cả chương CD (19.G), theo thứ tự chơi. Hai nửa do hai lane viết, cùng luật gộp như chương CI. */
+export const CD_LEVELS: readonly CicdLevel[] = [...CD_LEVELS_SOM, ...CD_LEVELS_MUON];
+
+/**
+ * Cả game, CI trước CD. Màn chơi và danh mục đọc cái NÀY — đọc `CI_LEVELS` ở tầng
+ * giao diện là giấu chương CD mà không lỗi nào báo.
+ */
+export const CICD_LEVELS: readonly CicdLevel[] = [...CI_LEVELS, ...CD_LEVELS];

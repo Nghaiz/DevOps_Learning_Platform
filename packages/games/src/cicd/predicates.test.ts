@@ -265,7 +265,7 @@ const BLUE_GREEN: ReleasePolicy = { strategy: 'blue-green', onBadRelease: 'rollb
 const ROLLING: ReleasePolicy = { strategy: 'rolling', rolling: { batchSize: 1 }, onBadRelease: 'rollback' };
 
 function voiPhatHanh(policy: ReleasePolicy, scenario: ReleaseScenario, passes = 4): CicdScoringContext {
-  return { ...chay(WF_NOI_TIEP), cd: { release: { record: simulateRelease(policy, scenario, { baseSeed: 11, passes }), scenario } } };
+  return { ...chay(WF_NOI_TIEP), cd: { release: [{ record: simulateRelease(policy, scenario, { baseSeed: 11, passes }), scenario }] } };
 }
 
 const GITOPS: GitOpsScenario = {
@@ -597,6 +597,69 @@ describe('xoá đối tượng đi KHÔNG thoả được mục tiêu', () => {
 
   it('`rollbackUnder` — bản TỐT không bao giờ bị rút thì không có gì để đo ⇒ false', () => {
     expect(CICD_PREDICATES.rollbackUnder(voiPhatHanh(BLUE_GREEN, { ...REL, candidateErrorRate: 0 }), { seconds: 1_000_000 })).toBe(false);
+  });
+
+  // ── 19.G §5.2: nhiều kịch bản phát hành, cùng một chính sách ──
+
+  function haiKichBan(policy: ReleasePolicy): CicdScoringContext {
+    const tot: ReleaseScenario = { ...REL, candidateErrorRate: 0 };
+    const eval4 = { baseSeed: 11, passes: 4 };
+    return {
+      ...CTX_NOI_TIEP,
+      cd: {
+        release: [
+          { record: simulateRelease(policy, REL, eval4), scenario: REL },
+          { record: simulateRelease(policy, tot, eval4), scenario: tot },
+        ],
+      },
+    };
+  }
+
+  it('bản tốt + bản xấu: "không bao giờ hủy" giữ bản tốt nhưng lọt bản xấu — hai vị từ tách được', () => {
+    const khongHuy = haiKichBan({ ...CANARY, canary: { ...CANARY.canary!, maxErrorRateDelta: 1 } });
+    expect(CICD_PREDICATES.goodReleaseAbortedAtMost(khongHuy, { max: 0 })).toBe(true);
+    expect(CICD_PREDICATES.badReleasePromotedAtMost(khongHuy, { max: 0 })).toBe(false);
+
+    const vuaDu = haiKichBan(CANARY);
+    expect(CICD_PREDICATES.goodReleaseAbortedAtMost(vuaDu, { max: 0 })).toBe(true);
+    expect(CICD_PREDICATES.badReleasePromotedAtMost(vuaDu, { max: 0 })).toBe(true);
+  });
+
+  it('cộng dồn qua kịch bản: 4 lượt bản xấu lọt ở MỖI kịch bản xấu ⇒ tổng 8, không phải 4', () => {
+    const khongHuy = { ...CANARY, canary: { ...CANARY.canary!, maxErrorRateDelta: 1 } };
+    const eval4 = { baseSeed: 11, passes: 4 };
+    const ctx: CicdScoringContext = {
+      ...CTX_NOI_TIEP,
+      cd: {
+        release: [
+          { record: simulateRelease(khongHuy, REL, eval4), scenario: REL },
+          { record: simulateRelease(khongHuy, REL, { ...eval4, baseSeed: 12 }), scenario: REL },
+        ],
+      },
+    };
+    expect(CICD_PREDICATES.badReleasePromotedAtMost(ctx, { max: 7 })).toBe(false);
+    expect(CICD_PREDICATES.badReleasePromotedAtMost(ctx, { max: 8 })).toBe(true);
+  });
+
+  it('mảng kịch bản RỖNG đọc như vắng ⇒ false, không phải "0 lượt lọt"', () => {
+    const ctx: CicdScoringContext = { ...CTX_NOI_TIEP, cd: { release: [] } };
+    expect(CICD_PREDICATES.badReleasePromotedAtMost(ctx, { max: 0 })).toBe(false);
+    expect(CICD_PREDICATES.noDataIncident(ctx, {})).toBe(false);
+  });
+
+  it('MỘT kịch bản mang lỗi ⇒ cả khối không chấm, dù kịch bản kia chạy được', () => {
+    const eval4 = { baseSeed: 11, passes: 4 };
+    const thieuThamSo: ReleasePolicy = { strategy: 'canary', onBadRelease: 'rollback' };
+    const ctx: CicdScoringContext = {
+      ...CTX_NOI_TIEP,
+      cd: {
+        release: [
+          { record: simulateRelease(BLUE_GREEN, REL, eval4), scenario: REL },
+          { record: simulateRelease(thieuThamSo, REL, eval4), scenario: REL },
+        ],
+      },
+    };
+    expect(CICD_PREDICATES.rollbackUnder(ctx, { seconds: 1_000_000 })).toBe(false);
   });
 
   // ── Review PR #141: bốn cách đạt mà không thật sự canh / thăng hạng ──

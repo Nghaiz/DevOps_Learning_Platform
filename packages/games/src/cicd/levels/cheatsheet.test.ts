@@ -4,7 +4,7 @@ import { cheatsheetExample } from '../cheatsheet-example.ts';
 import type { CicdCheatSheetEntry, CicdLevel, WorkflowSpec } from '../contract.ts';
 import { readWorkflowYaml } from '../yaml-read.ts';
 import { writeWorkflowYaml } from '../yaml-write.ts';
-import { CI_LEVELS } from './index.ts';
+import { CI_LEVELS, CICD_LEVELS } from './index.ts';
 
 /**
  * Ô gác `teaching.cheatsheet`: mỗi mục phải DÙNG ĐƯỢC ở đúng chỗ nó chỉ tới.
@@ -20,6 +20,11 @@ import { CI_LEVELS } from './index.ts';
 
 /** `null` = mục dùng được; chuỗi = vì sao không. */
 function loiCua(entry: CicdCheatSheetEntry, level: CicdLevel): string | null {
+  if (entry.where === 'cd-panel') {
+    return (level.cd?.editable ?? []).includes(entry.control)
+      ? null
+      : `chỉ tới núm CD "${entry.control}" nhưng level không cho sửa phần đó`;
+  }
   if (entry.where === 'panel') {
     return level.editable.includes(entry.control)
       ? null
@@ -46,7 +51,7 @@ function loiCua(entry: CicdCheatSheetEntry, level: CicdLevel): string | null {
 }
 
 describe('cheatsheet — mọi mục dùng được ở đúng chỗ nó chỉ tới', () => {
-  it.each(CI_LEVELS.map((level) => ({ level })))('$level.id', ({ level }) => {
+  it.each(CICD_LEVELS.map((level) => ({ level })))('$level.id', ({ level }) => {
     expect(level.teaching.cheatsheet.length).toBeGreaterThan(0);
     const loi = level.teaching.cheatsheet.flatMap((entry, i) => {
       const ly = loiCua(entry, level);
@@ -73,6 +78,10 @@ describe('cheatsheet — đối chứng: ô gác ĐỎ đúng ở những dạng
 
   it('hạng máy level không có bị bắt', () => {
     expect(loiCua(yaml(cheatsheetExample('khong-co-hang-nay', [{ id: 'a', steps: ['b'] }])), level)).toMatch(/hạng máy/u);
+  });
+
+  it('núm CD mà level không mở bị bắt — kể cả level không có khối `cd`', () => {
+    expect(loiCua({ where: 'cd-panel', control: 'release.canary', label: 'x', explain: 'x' }, level)).not.toBeNull();
   });
 
   it('núm mà level không hiện bị bắt', () => {

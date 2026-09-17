@@ -110,7 +110,11 @@ export interface CicdScoringContext {
 }
 
 export interface CicdCdRecords {
-  readonly release?: { readonly record: ReleaseRecord; readonly scenario: ReleaseScenario };
+  /**
+   * MẢNG, một mục mỗi kịch bản (`cd-contract.ts` §5.2): cùng một chính sách chạy
+   * trên bản tốt lẫn bản xấu. Vị từ cộng dồn qua mọi mục. Mảng rỗng đọc như vắng.
+   */
+  readonly release?: readonly { readonly record: ReleaseRecord; readonly scenario: ReleaseScenario }[];
   readonly gitops?: { readonly record: GitOpsRecord; readonly scenario: GitOpsScenario };
   readonly masking?: { readonly record: MaskingRecord };
 }
@@ -728,16 +732,25 @@ const environmentGuardedByApproval: CicdPredicate = (ctx, args) => {
 // Phép chiếu trả `null` khi bản ghi lỗi (chính sách thiếu tham số): `null` ⇒
 // `false`, vì "không lọt bản xấu nào" không được đạt nhờ một chính sách không chạy.
 
-function releaseOf(ctx: CicdScoringContext) {
+type ReleaseRun = NonNullable<CicdCdRecords['release']>[number];
+
+/**
+ * `null` khi vắng, rỗng, hoặc BẤT KỲ kịch bản nào mang lỗi: một chính sách chạy
+ * được trên bản tốt mà hỏng trên bản xấu không được chấm nửa vời trên phần còn lại.
+ */
+function releaseOf(ctx: CicdScoringContext): readonly ReleaseRun[] | null {
   const release = ctx.cd?.release;
-  return release === undefined || release.record.error !== null ? null : release;
+  if (release === undefined || release.length === 0) return null;
+  return release.some((run) => run.record.error !== null) ? null : release;
 }
 
 const rollbackUnder: CicdPredicate = (ctx, args) => {
   const seconds = argNumber(args, 'seconds');
   const release = releaseOf(ctx);
   if (seconds === null || release === null) return false;
-  const lui = release.record.passes.map(rollbackSeconds).filter((v): v is number => v !== null);
+  const lui = release
+    .flatMap((run) => run.record.passes.map(rollbackSeconds))
+    .filter((v): v is number => v !== null);
   // Luật 4: không lượt nào rút thì không có gì để đo — không thoả.
   return lui.length > 0 && lui.every((v) => v < seconds);
 };
@@ -747,26 +760,52 @@ function countAtMost(count: number | null, args: CicdPredicateArgs): boolean {
   return max !== null && count !== null && count <= max;
 }
 
-const badReleasePromotedAtMost: CicdPredicate = (ctx, args) => {
-  const release = releaseOf(ctx);
-  return release !== null && countAtMost(badReleasePromotedCount(release.record, release.scenario), args);
-};
+/** Cộng một phép chiếu qua mọi kịch bản. Phép chiếu trả `null` ở đâu ⇒ `null`. */
+function sumOver(
+  release: readonly ReleaseRun[] | null,
+  count: (run: ReleaseRun) => number | null,
+): number | null {
+  if (release === null) return null;
+  let total = 0;
+  for (const run of release) {
+    const value = count(run);
+    if (value === null) return null;
+    total += value;
+  }
+  return total;
+}
 
-const goodReleaseAbortedAtMost: CicdPredicate = (ctx, args) => {
-  const release = releaseOf(ctx);
-  return release !== null && countAtMost(goodReleaseAbortedCount(release.record, release.scenario), args);
-};
+const badReleasePromotedAtMost: CicdPredicate = (ctx, args) =>
+  countAtMost(
+    sumOver(releaseOf(ctx), (run) => badReleasePromotedCount(run.record, run.scenario)),
+    args,
+  );
+
+const goodReleaseAbortedAtMost: CicdPredicate = (ctx, args) =>
+  countAtMost(
+    sumOver(releaseOf(ctx), (run) => goodReleaseAbortedCount(run.record, run.scenario)),
+    args,
+  );
+
+function everyPass(release: readonly ReleaseRun[]) {
+  return release.flatMap((run) => run.record.passes);
+}
 
 const noDataIncident: CicdPredicate = (ctx) => {
   const release = releaseOf(ctx);
-  return release !== null && release.record.passes.length > 0 && dataIncidentCount(release.record) === 0;
+  return (
+    release !== null &&
+    everyPass(release).length > 0 &&
+    sumOver(release, (run) => dataIncidentCount(run.record)) === 0
+  );
 };
 
 const peakInstancesAtMost: CicdPredicate = (ctx, args) => {
   const max = argNumber(args, 'max');
   const release = releaseOf(ctx);
-  if (max === null || release === null || release.record.passes.length === 0) return false;
-  return release.record.passes.every((pass) => pass.peakInstances <= max);
+  if (max === null || release === null) return false;
+  const passes = everyPass(release);
+  return passes.length > 0 && passes.every((pass) => pass.peakInstances <= max);
 };
 
 /**
