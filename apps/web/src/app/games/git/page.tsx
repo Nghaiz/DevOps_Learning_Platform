@@ -44,7 +44,38 @@ export default async function GitGamePage({
       ? requested
       : null;
 
+  /*
+   * `?problem=` — chế độ làm bài OJ. KHÔNG lọc qua một danh sách nào, khác hẳn
+   * `?level=` ngay trên: tập level là một hằng biên dịch nên lọc được tại đây, còn
+   * tập bài sống trong DB và đi kèm một tầm nhìn theo người xem (bài `draft` không
+   * hiện với người học, kể cả khi biết URL). Mã sai rơi xuống `problems.byCode` và
+   * nhận `NOT_FOUND` ở đúng chỗ cổng tầm nhìn đang đứng.
+   *
+   * ⚠ DÒNG ĐỌC THAM SỐ NGAY DƯỚI LÀ THỨ MỘT Ô GÁC ĐI TÌM BẰNG CÁCH ĐỌC FILE NÀY.
+   *
+   * `arena-preview.test.ts` mở chính `page.tsx` của mọi route được khai trong
+   * `problemPreviewHref` và đòi thấy phép đọc tham số đó — không gì trong `tsc` kiểm
+   * được một lời khai như vậy.
+   *
+   * ⛔ Vì ô đó dò bằng CHUỖI trên toàn văn bản file, đừng viết lại tên tham số ở
+   * dạng nguyên văn trong bất kỳ chú thích nào ở đây: một chú thích nhắc tên là đủ để
+   * ô gác XANH VĨNH VIỄN kể cả sau khi ai đó gỡ mất phép đọc thật. Đo được
+   * 2026-09-15: đối chứng dương đầu tiên KHÔNG đỏ, và thứ giữ nó xanh là đúng một
+   * chú thích vừa viết ở đây.
+   */
+  const rawProblem = params.problem;
+  const initialProblemCode =
+    typeof rawProblem === 'string' && rawProblem.length > 0 ? rawProblem : null;
+
   const theory = loadGitTheory(GIT_LEVEL_IDS);
 
-  return <GitGame theory={theory} initialLevelId={initialLevelId} />;
+  return (
+    <GitGame
+      key={`${initialProblemCode ?? initialLevelId ?? 'campaign'}-${params.mode === 'builder' ? 'builder' : 'play'}`}
+      theory={theory}
+      initialLevelId={initialLevelId}
+      initialProblemCode={initialProblemCode}
+      initialBuilderOpen={params.mode === 'builder'}
+    />
+  );
 }

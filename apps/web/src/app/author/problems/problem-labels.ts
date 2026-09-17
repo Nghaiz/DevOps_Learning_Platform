@@ -1,6 +1,11 @@
 import type { StaticTextKey } from '@devops-platform/copy';
 import type { BadgeVariant } from '@devops-platform/ui';
-import type { ProblemDifficulty, ProblemState } from '@devops-platform/games';
+import {
+  PROBLEM_TOPIC_LABELS,
+  type ProblemDifficulty,
+  type ProblemState,
+  type ProblemTopicId,
+} from '@devops-platform/games';
 
 /**
  * Nhãn và màu cho hai enum của bài OJ.
@@ -66,4 +71,52 @@ export type StateFilter = (typeof STATE_FILTERS)[number];
  */
 export function filterLabelKey(filter: StateFilter): StaticTextKey {
   return filter === 'all' ? 'author.problem.filter-all' : STATE_KEYS[filter];
+}
+
+/**
+ * Chủ đề của một bài, ghép thành một câu cho hàng danh sách.
+ *
+ * ## Vì sao tra có phòng hờ
+ *
+ * §18.A đổi `topics` từ union đóng chín chủ đề K8s sang `ProblemTopicId`
+ * (= `string`): tập đóng chuyển xuống từng plugin, nên `PROBLEM_TOPIC_LABELS`
+ * vẫn đúng mà không còn ĐỦ. Tra hụt trả `undefined`, và `join(', ')` biến nó
+ * thành chuỗi `"undefined"` in thẳng ra màn hình — hỏng nhìn thấy được nhưng
+ * không lỗi, không test nào đỏ. Hiện chính id (`branching`) thì xấu hơn nhãn
+ * thật và vẫn đọc được.
+ *
+ * ⛔ KHÔNG vá bằng `as ProblemTopic`: lời khai sai, và nó không ngăn được
+ * `undefined` lúc chạy — chỉ làm trình biên dịch thôi nói.
+ *
+ * ## Vì sao KHÔNG tra qua plugin, dù trang soạn bài có sẵn đường đó
+ *
+ * `pluginViewFor(gameId).topics` cho nhãn đúng cho mọi game, nhưng nó đọc
+ * `PROBLEM_PLUGINS`, và bảng đó `import` cả hai plugin ⇒ cả hai engine.
+ * `/author/problems` (trang danh sách) hôm nay KHÔNG cõng cây đó —
+ * `problem-list-client.tsx` không chạm `game-plugin-view.ts` — nên thêm vào là
+ * kéo nguyên khối engine vào một route chỉ để in vài chữ. Đó đúng hình dạng
+ * PR #124 đã đo và phải gỡ. Trang SOẠN (`[code]`, `new`) thì khác: nó đã trả
+ * cái giá đó cho biểu mẫu, nên ở đó tra qua plugin là đúng.
+ *
+ * ⚠ Sinh đôi có chủ ý với `topicLabel` ở
+ * `app/(session)/problems/problem-labels.ts`. Hai bản KHÔNG gộp được hôm nay:
+ * chỗ gộp đúng là một module dùng chung dưới `src/components/`, nằm ngoài đường
+ * sở hữu của lane này; còn nhập chéo nhóm route thì gần như không có tiền lệ
+ * trong repo và sẽ kéo bảng nhãn của trang danh mục (dựng bằng `renderCopy` ở
+ * tầng module) vào bundle trang soạn bài. Đã báo lead.
+ */
+/*
+ * ⚠ Biến trung gian này KHÔNG thừa, đừng nội tuyến nó lại.
+ *
+ * `PROBLEM_TOPIC_LABELS` khai `Record<ProblemTopic, string>` — chín khoá cố
+ * định. Tra thẳng nó bằng một khoá `string` là TS7053 ("không index được"), vì
+ * kiểu mapped chỉ được cấp index signature ngầm khi ĐEM GÁN sang một kiểu có
+ * index signature, chứ không phải khi bị index tại chỗ. Gán một lần ở đây là
+ * phép nới rộng duy nhất, và nó an toàn theo đúng nghĩa: mọi khoá thật của bảng
+ * vẫn trả đúng nhãn, chỉ khoá lạ mới rơi xuống nhánh `?? topic`.
+ */
+const TOPIC_LABELS: Readonly<Record<string, string>> = PROBLEM_TOPIC_LABELS;
+
+export function joinTopicLabels(topics: readonly ProblemTopicId[]): string {
+  return topics.map((topic) => TOPIC_LABELS[topic] ?? topic).join(', ');
 }

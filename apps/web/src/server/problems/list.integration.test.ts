@@ -1,12 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { TRPCError } from '@trpc/server';
 import { inArray } from 'drizzle-orm';
-import type { ProblemListOptions, ProblemWithStats } from '@devops-platform/games';
+import type { ProblemListOptions } from '@devops-platform/games';
 import { createDatabase } from '../db/client';
 import { problemHintReveals, problems, problemSubmissions, users } from '../db/schema';
 import type { AuthedUser } from '../trpc/init';
 import { getProblemForViewer } from './get';
-import { listProblems } from './list';
+import { listProblems, type AuthorProblemWithStats } from './list';
 import { problemStats } from './stats';
 import { problemVisibilityFor } from './visibility';
 
@@ -44,6 +44,15 @@ const CLUSTER = {
   resources: [],
 };
 
+/**
+ * Hình dạng dòng TRƯỚC 18.B — có `required`, KHÔNG có `visible`.
+ *
+ * ⚠ Cố ý giữ nguyên, đừng "cập nhật" sang hình dạng `Testcase`. Mọi dòng đang
+ * nằm trong bảng thật đều trông như thế này, và ô này là chỗ duy nhất trong bộ
+ * test chạy cả đường truy vấn danh sách TRÊN dữ liệu cũ — tức nó gác luôn cái
+ * mặc định `visible: true` của `problemTestcases` ở quy mô một trang, không chỉ
+ * ở mức một hàm. Dựng dữ liệu mới ở đây là bỏ mất phép gác đó mà không ai thấy.
+ */
 const OBJECTIVES = [
   { id: 'o1', label: 'Xong', check: 'resource-exists', args: { kind: 'Pod' }, required: true },
 ];
@@ -91,7 +100,11 @@ function row(code: string, over: Record<string, unknown>) {
     state: 'published' as const,
     authorId: AUTHOR.id,
     ...over,
-  } as typeof problems.$inferInsert;
+    // `unknown` ở giữa là BẮT BUỘC chứ không phải thói quen: cột `objectives` nay
+    // khai `Testcase[]`, còn `OBJECTIVES` cố ý là hình dạng cũ (xem khối trên),
+    // và hai hình dạng đó không so sánh được nên `as` một nhịp bị TS từ chối.
+    // Phép ép mô tả đúng thứ đi xuống jsonb — nó không giấu một field sai.
+  } as unknown as typeof problems.$inferInsert;
 }
 
 function sub(problemCode: string, userId: string, solved: boolean, score: number) {
@@ -117,12 +130,26 @@ async function cleanup(): Promise<void> {
 async function walkAllPages(
   viewer: AuthedUser,
   options: Omit<ProblemListOptions, 'cursor'>,
-): Promise<readonly ProblemWithStats[]> {
-  const collected: ProblemWithStats[] = [];
+): Promise<readonly AuthorProblemWithStats[]> {
+  const collected: AuthorProblemWithStats[] = [];
   let cursor: string | null = null;
-  // Trần vòng lặp: một keyset hỏng theo chiều "không tiến" sẽ lặp vô hạn, và một
-  // test treo đọc ra như một test chậm.
-  for (let page = 0; page < 20; page += 1) {
+  /*
+   * Trần vòng lặp: một keyset hỏng theo chiều "không tiến" sẽ lặp vô hạn, và một
+   * test treo đọc ra như một test chậm.
+   *
+   * ⛔ Suy TỪ SỐ DÒNG THẬT, không phải một hằng. Bản đầu ghi cứng `20`, và với
+   * `limit: 1` điều đó có nghĩa là ô này chỉ sống khi DB cục bộ có ≤ 20 bài nhìn
+   * thấy được. Nó đỏ thật ngày 2026-09-18 sau hai lượt `@flow` soạn bài (mỗi
+   * lượt thêm một bài `published`) — *"phân trang không kết thúc sau 20 trang"*,
+   * một câu đọc ra như "keyset hỏng" trong khi keyset hoàn toàn lành. Máy dùng
+   * chung thì bài chỉ có thêm, nên hằng đó chắc chắn sẽ sai lần nữa.
+   *
+   * `+ 2` là biên an toàn cho trang cuối rỗng và cho một dòng chen vào giữa lượt
+   * đi; vẫn hữu hạn nên vế "không tiến" vẫn bị bắt.
+   */
+  const tong = await db.$count(problems);
+  const tranTrang = Math.ceil(tong / Math.max(1, options.limit ?? 20)) + 2;
+  for (let page = 0; page < tranTrang; page += 1) {
     const result = await listProblems(db, {
       visibility: problemVisibilityFor(viewer),
       viewerId: viewer.id,
@@ -134,15 +161,15 @@ async function walkAllPages(
     }
     cursor = result.nextCursor;
   }
-  throw new Error('phân trang không kết thúc sau 20 trang');
+  throw new Error(`phân trang không kết thúc sau ${String(tranTrang)} trang (${String(tong)} bài trong DB)`);
 }
 
-function codesOf(items: readonly ProblemWithStats[]): readonly string[] {
+function codesOf(items: readonly AuthorProblemWithStats[]): readonly string[] {
   return items.map((item) => item.problem.code);
 }
 
 /** Chỉ giữ những mã của bộ dữ liệu này — repo có thể đã có bài seed thật. */
-function mine(items: readonly ProblemWithStats[]): readonly string[] {
+function mine(items: readonly AuthorProblemWithStats[]): readonly string[] {
   return codesOf(items).filter((code) => (CODES as readonly string[]).includes(code));
 }
 

@@ -145,7 +145,7 @@ test.describe('Game Git — mù màu trên ảnh chụp thật', { tag: '@games-
      */
     await openScreen(page, GIT_PATH, 'user');
     await settle(page);
-    await page.getByRole('button', { name: 'Mở sandbox' }).click();
+    await page.getByRole('button', { name: 'Sandbox & Builder' }).click();
     await settle(page);
 
     const command = page.getByLabel('$');

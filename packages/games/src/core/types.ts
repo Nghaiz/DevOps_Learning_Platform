@@ -28,10 +28,24 @@
  * là thiết kế lại từ đầu và rộng hơn CI thuần (có CD, môi trường, rollback,
  * GitOps). Hai id khác nhau vì hai game khác nhau, không phải vì đặt tên lại.
  */
-export type GameId = 'k8s' | 'pipeline' | 'netpol' | 'dockerfile' | 'git' | 'cicd';
+export const GAME_IDS = ['k8s', 'pipeline', 'netpol', 'dockerfile', 'git', 'cicd'] as const;
 
-/** Cùng thang với `--difficulty-*` của hệ thiết kế — đừng đặt thang thứ hai. */
-export type Difficulty = 'basic' | 'intermediate' | 'advanced';
+export type GameId = (typeof GAME_IDS)[number];
+
+/**
+ * Cùng thang với `--difficulty-*` của hệ thiết kế — đừng đặt thang thứ hai.
+ *
+ * ⚠ BA bậc, và nó cố ý KHÁC bốn bậc `PROBLEM_DIFFICULTIES` (`core/problem.ts`).
+ * Đừng ánh xạ ngầm giữa hai thang; chỗ nào cần đi từ thang này sang thang kia
+ * thì khai một bảng tường minh và nói ra phần mất mát.
+ *
+ * Danh sách runtime đi kèm kiểu (đúng lối `GAME_IDS`/`GameId` ngay trên) vì
+ * `level-draft.ts` phải kiểm một giá trị đọc từ JSON người dùng dán vào — một
+ * danh sách chép tay ở đó là một bản sao sẽ lệch.
+ */
+export const DIFFICULTIES = ['basic', 'intermediate', 'advanced'] as const;
+
+export type Difficulty = (typeof DIFFICULTIES)[number];
 
 /**
  * Kết quả MỘT lượt chơi.

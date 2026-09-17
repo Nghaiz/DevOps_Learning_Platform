@@ -3,7 +3,7 @@ import {
   type ProblemDifficulty,
   type ProblemOrderKey,
   type ProblemStats,
-  type ProblemTopic,
+  type ProblemTopicId,
   type ProblemViewerStatus,
 } from '@devops-platform/games';
 
@@ -190,16 +190,85 @@ export function formatMoment(iso: string): string {
 }
 
 /**
+ * Nhãn của MỘT chủ đề, tra có phòng hờ — §18.A, và đây là chỗ phải đọc kỹ.
+ *
+ * ## Vì sao phép tra không còn toàn phần
+ *
+ * `ProblemBase.topics` đổi từ union đóng chín chủ đề K8s sang
+ * `ProblemTopicId = string`: tập đóng không biến mất, nó **chuyển chỗ** xuống
+ * từng plugin (`GameProblemPlugin.topics`), nên không còn MỘT bảng nào phủ hết
+ * chủ đề của mọi game. `PROBLEM_TOPIC_LABELS` vẫn đúng — nó chỉ không còn đủ.
+ *
+ * ⛔ KHÔNG vá bằng `as ProblemTopic`. Đó là một lời khai sai, và nó không đỏ ở
+ * đâu cả: một bài Git mang chủ đề `branching` sẽ tra ra `undefined`, React vẽ
+ * `undefined` thành CHỖ TRỐNG, nên màn hình hiện một `Badge` rỗng mà không lỗi,
+ * không log, không test nào đỏ. Hỏng im lặng là hình dạng tệ nhất ở đây.
+ *
+ * ## Vì sao KHÔNG tra qua plugin của `gameId`, dù đó là phép tra ĐÚNG
+ *
+ * `problemPluginMeta(gameId).topics` cho nhãn chính xác cho mọi game, và
+ * `author/problems/game-plugin-view.ts` đã đi đường đó. Nhưng nó kéo theo một
+ * cái giá mà trang soạn bài trả được còn trang danh mục thì không:
+ * `problemPluginMeta` đọc `PROBLEM_PLUGINS`, bảng đó `import`
+ * `K8S_PROBLEM_PLUGIN` + `GIT_PROBLEM_PLUGIN`, và hai plugin đó `import`
+ * `createSession` / `createGitSession` — tức **cả hai engine**.
+ *
+ * Đây không phải lo xa. PR #124 (2026-09-14) đo được đúng hình dạng đó: một
+ * chunk 369.938 B chứa engine git nằm ở 7/38 route, và **5 trong 7 là route
+ * `problems`** — chính hai trang dùng hàm này. Nó đẩy `/games/k8s/page` vượt
+ * trần `bundle:check`. Tra qua plugin ở đây là mời nguyên khối đó quay lại, lần
+ * này có chủ ý.
+ *
+ * ⚠ Và không cổng nào trong phép đo của lane này thấy được: `tsc`, `eslint`,
+ * `vitest` đều mù với chuyện bundle — chỉ `bundle:check` thấy, mà nó chỉ chạy
+ * SAU `next build`. Một lựa chọn "đúng hơn" ở đây sẽ xanh hết mọi ô rồi làm đỏ
+ * một cổng mà lane này không chạy tới.
+ *
+ * ## ── MÓN NỢ NÀY ĐÃ ĐÓNG 2026-09-15 (§18.D) ──
+ *
+ * Đường thoát đã mở, đúng theo phương án một trong hai phương án ghi ở đây:
+ * `packages/games` tách `git/problem-topics.ts` (mảng thuần, không chạm engine),
+ * dựng `problem-topic-labels.ts` tra theo `gameId` từ DỮ LIỆU LÁ, và mở
+ * `problemTopicLabels` ra barrel. Hai chỗ gọi — `problems-table.tsx` và
+ * `[code]/problem-overview.tsx` — nay truyền bảng theo `problem.gameId` thay
+ * cho `PROBLEM_TOPIC_LABELS` cố định.
+ *
+ * Ràng buộc bundle ở trên KHÔNG mất, nó chỉ chuyển thành một ô gác: vì chính
+ * `tsc`/`eslint`/`vitest` mù với bundle, `packages/games/src/problem-topic-labels.test.ts`
+ * đi theo đồ thị nhập tương đối và đỏ nếu đồ thị chạm bất kỳ module engine nào.
+ * Đối chứng dương đã chạy: nối `problem-topic-labels.ts` qua
+ * `git/problem-plugin.ts` làm ô đó đỏ và gọi đúng tên `git/problem-plugin.ts` +
+ * `git/engine.ts`.
+ *
+ * ⚠ Lời khai cũ ở đây — *"`PERSISTABLE_GAMES` nói mọi bài trong DB đều là K8s,
+ * nên mọi chủ đề đều tra ra nhãn thật"* — đã HẾT ĐÚNG từ migration 0015. Hằng
+ * đó cũng đã xoá. Giữ lại câu này thay vì xoá đè, vì một chú thích không nói
+ * mình từng sai ở đâu là một chú thích người sau vẫn tin.
+ *
+ * ## Vẫn còn hở: THANH LỌC chủ đề
+ *
+ * `problems-toolbar.tsx` còn liệt kê đúng chín chủ đề K8s (`PROBLEM_TOPICS`),
+ * nên một bài Git hiện nhãn đúng trong bảng nhưng KHÔNG lọc theo chủ đề được.
+ * Đó là một quyết định giao diện chứ không phải một phép tra: gộp cả mười bảy
+ * chủ đề vào một danh sách phẳng đổi hẳn trải nghiệm lọc, và thanh lọc có lẽ
+ * nên theo game đang chọn. Chưa làm, và chưa hỏi.
+ */
+export function topicLabel(topic: ProblemTopicId, labels: Readonly<Record<string, string>>): string {
+  return labels[topic] ?? topic;
+}
+
+/**
  * Danh sách chủ đề của một bài, ghép thành một câu cho ô bảng hẹp.
  *
  * Dấu phẩy là DẤU NỐI, không phải chữ biên tập, nên nó không vào bản đồ thông
- * điệp. Chữ của từng chủ đề tới từ `PROBLEM_TOPIC_LABELS` của `packages/games`.
+ * điệp. Chữ của từng chủ đề đi qua `topicLabel` — một phép tra, một chỗ, nên ô
+ * bảng và `Badge` của trang chi tiết không thể lệch nhau về cách xử chủ đề lạ.
  */
 export function joinTopics(
-  topics: readonly ProblemTopic[],
-  labels: Readonly<Record<ProblemTopic, string>>,
+  topics: readonly ProblemTopicId[],
+  labels: Readonly<Record<string, string>>,
 ): string {
-  return topics.map((topic) => labels[topic]).join(', ');
+  return topics.map((topic) => topicLabel(topic, labels)).join(', ');
 }
 
 /**

@@ -230,7 +230,7 @@ export function scanThree(
   // Vế thứ hai của cổng: một miễn trừ không còn khớp gì là một dòng không ai dám
   // dọn. Thiếu vế này thì bảng ngoại lệ chỉ lớn lên.
   for (const prefix of Object.keys(intentionalThree)) {
-    if (!usedExemptions.has(prefix) && Object.keys(surface).some((k) => k.startsWith(`${prefix}.`))) {
+    if (!usedExemptions.has(prefix) && Object.keys(surface).some((k) => isDescendantKey(k, prefix))) {
       out.push({
         key: prefix,
         kind: 'stale-intentional-three',
@@ -255,7 +255,54 @@ function countBulletLines(value: string): number {
   return value.split('\n').filter((line) => /^\s*(?:-|•) /.test(line)).length;
 }
 
-/** Gom khoá theo tiền tố bỏ phân đoạn cuối. `a.b.c` thuộc nhóm `a.b`. */
+/**
+ * Hai dấu phân cách khoá, và hai bộ phận của cổng dùng chúng KHÁC NHAU một cách
+ * có chủ ý.
+ *
+ * `groupBySiblingPrefix` chỉ cắt ở dấu chấm (lý do ở khối chú thích của nó).
+ * Phép kiểm "miễn trừ này còn trỏ vào đâu không" thì phải nhận CẢ HAI, vì người
+ * viết bảng miễn trừ đọc `catalog.problem.verdict` là cha của
+ * `catalog.problem.verdict-ac`, và họ đọc đúng. Chỉ nhận dấu chấm thì một dòng
+ * miễn trừ chết nằm lại mà không cổng nào nói ra, đo được ở 18.C.
+ */
+const KEY_SEPARATORS: ReadonlySet<string> = new Set(['.', '-']);
+
+/** `a.b` là cha của `a.b.c` VÀ của `a.b-c`. `a.bc` thì không. */
+function isDescendantKey(key: string, prefix: string): boolean {
+  return (
+    key.length > prefix.length + 1 &&
+    key.startsWith(prefix) &&
+    KEY_SEPARATORS.has(key[prefix.length] as string)
+  );
+}
+
+/**
+ * Gom khoá theo tiền tố bỏ phân đoạn cuối. `a.b.c` thuộc nhóm `a.b`.
+ *
+ * CẮT Ở DẤU CHẤM, KHÔNG CẮT Ở GẠCH NỐI, và đó là một lựa chọn đã đo chứ không
+ * phải một chỗ bỏ sót. Hệ quả của nó là điểm mù ghi trong
+ * `prefix-grouping-gate-blind-to-flat-names`: một nhóm ba đặt tên PHẲNG
+ * (`x.verdict-ac`) rơi vào nhóm cha đông thành viên và đi qua cổng vô hình.
+ * Thứ đang bịt chỗ đó là một quy ước đặt tên, ghi ở đầu bảng miễn trừ của
+ * `surfaces/shell.ts` và `surfaces/me.ts`: nhóm ba THẬT thì đặt LỒNG
+ * (`x.verdict.ac`) để cổng nhìn thấy.
+ *
+ * Vì sao không cắt luôn ở gạch nối, đo ngày 2026-09-15 trên cả 11 surface:
+ *
+ * - Cắt ở dấu phân cách CUỐI CÙNG (chấm hoặc gạch) thì `error.authz.not-owner`
+ *   rơi vào nhóm `error.authz.not`, nên SÁU nhóm ba đang được gác biến mất
+ *   (`error.authz`, `me.labs.status`, `catalog.status`, `catalog.error-hint`,
+ *   `admin.health.metric`, `me.terminal-theme`) và sáu dòng miễn trừ viết công
+ *   phu cho chúng thành ôi. Đó là MẤT vùng phủ, không phải thêm.
+ * - Giữ nhóm theo dấu chấm rồi bóc THÊM một tầng gạch nối thì không mất nhóm
+ *   nào, nhưng sinh 27 nhóm ba mới phải khai lý do, và phần lớn không phải một
+ *   phân loại ba mà là ba VAI TRÒ văn bản của cùng một khối
+ *   (`admin.users.search` = label, placeholder, submit). Một bảng miễn trừ 27
+ *   dòng như vậy đúng là nghĩa địa mà vế chống-ôi sinh ra để chặn.
+ *
+ * Đổi độ mịn ở đây là một quyết định về chính sách chứ không phải một bản vá,
+ * nên nó nằm ngoài lượt sửa này. Hai con số trên để lượt sau khỏi đo lại.
+ */
 export function groupBySiblingPrefix(keys: readonly string[]): ReadonlyMap<string, string[]> {
   const groups = new Map<string, string[]>();
   for (const key of keys) {

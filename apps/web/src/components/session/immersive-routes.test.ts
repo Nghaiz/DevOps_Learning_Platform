@@ -73,6 +73,34 @@ describe('16.D.1 — trình học immersive, trang danh mục thì KHÔNG', () =
   });
 });
 
+describe('19.D — màn chơi CI/CD immersive, danh mục thì KHÔNG', () => {
+  it('màn chơi một level chạy immersive', () => {
+    // AC-D7 đo chiều rộng > 95% viewport. Không immersive thì `.practice-shell`
+    // chừa 224px sidebar, tức ~82.5% ở 1280px — ô đó đỏ vì VỎ TRANG chứ không
+    // vì bố cục màn chơi.
+    expect(isImmersiveRoute('/games/cicd/c13-gom-ket-qua-nhieu-nhanh')).toBe(true);
+  });
+
+  it('⛔ trang danh mục giữ nguyên thanh điều hướng', () => {
+    // `CicdCampaign` KHÔNG có nút thoát nào — nó dựa hoàn toàn vào thanh điều
+    // hướng của vỏ để rời `/games/cicd`. Đọc trang này thành immersive là nhốt
+    // người dùng ở đó với đúng nút Back của trình duyệt.
+    expect(isImmersiveRoute('/games/cicd')).toBe(false);
+    expect(isImmersiveRoute('/games/cicd/')).toBe(false);
+  });
+
+  it('không nuốt một route anh em cùng tiền tố', () => {
+    expect(isImmersiveRoute('/games/cicd-nang-cao')).toBe(false);
+  });
+
+  it('game Git KHÔNG immersive — nó chưa được dựng lại', () => {
+    // Ghim CHỦ Ý: chủ dự án sẽ đập đi xây lại tầng giao diện game Git, và lúc
+    // đó dòng này phải đổi. Để trống thì không ai biết nó là một lựa chọn hay
+    // một chỗ bị bỏ quên.
+    expect(isImmersiveRoute('/games/git')).toBe(false);
+  });
+});
+
 describe('phần còn lại của ứng dụng KHÔNG immersive', () => {
   it('đối chứng âm — vỏ đầy đủ ở mọi route khác', () => {
     /*

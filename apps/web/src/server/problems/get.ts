@@ -1,11 +1,11 @@
 import { TRPCError } from '@trpc/server';
 import { and, eq } from 'drizzle-orm';
-import type { ProblemWithStats } from '@devops-platform/games';
+import type { ProblemViewerStatus } from '@devops-platform/games';
 import type { Database } from '../db/client';
 import { problems } from '../db/schema';
 import { toProblemDTO } from './dto';
 import { revealedHintsForOne } from './reveals';
-import { toAuthorProblem, toSolverProblem } from './solver';
+import { toAuthorProblem, toSolverProblem, type SolverProblemWithStats } from './solver';
 import { problemStats, viewerStatusFor } from './stats';
 import { canReadHintText, visibleProblemWhere, type ProblemVisibility } from './visibility';
 
@@ -26,7 +26,7 @@ export async function getProblemForViewer(
   visibility: ProblemVisibility,
   viewerId: string,
   code: string,
-): Promise<ProblemWithStats> {
+): Promise<SolverProblemWithStats> {
   const rows = await db
     .select()
     .from(problems)
@@ -51,9 +51,25 @@ export async function getProblemForViewer(
     // trên một tham số `redact: boolean` là chỗ mà lần "đơn giản hoá" sau sẽ gộp
     // nhầm.
     problem: canReadHintText(visibility, row.authorId)
-      ? toAuthorProblem(problem)
-      : toSolverProblem(problem, revealed),
+      // `revealed` vẫn đi qua BẢNG kể cả ở nhánh này — tác giả đọc được `text`
+      // mà chưa trả điểm, và phép tính điểm đọc cờ kia. Xem `toAuthorProblem`.
+      ? toAuthorProblem(problem, revealed)
+      // §18.B.4 — nhãn testcase ẩn chỉ mở SAU KHI NỘP, và "đã nộp" đọc từ
+      // `viewerStatus` mà máy chủ vừa gộp ra từ bảng `problem_submissions`.
+      // KHÔNG có đường nào cho client tự khai điều này.
+      : toSolverProblem(problem, revealed, hasSubmitted(viewerStatus)),
     stats,
     viewerStatus,
   };
+}
+
+/**
+ * Người này đã nộp bài lần nào chưa — §18.B.4.
+ *
+ * `attempted` cũng tính, không chỉ `solved`: hợp đồng nói nhãn testcase ẩn mở
+ * *"sau khi nộp"*, không phải *"sau khi giải được"*. Bắt phải giải xong mới cho
+ * xem nhãn là giữ kín đúng thứ người đang trượt cần để biết mình trượt ở đâu.
+ */
+function hasSubmitted(viewerStatus: ProblemViewerStatus | null): boolean {
+  return viewerStatus === 'solved' || viewerStatus === 'attempted';
 }

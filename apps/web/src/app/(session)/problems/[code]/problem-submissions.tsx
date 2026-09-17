@@ -3,6 +3,7 @@ import { Badge, ErrorState, Skeleton, Table, TableBody, TableCell, TableHead, Ta
 import { renderCopy, t } from '@devops-platform/copy';
 import type { ProblemSubmission } from '@devops-platform/games';
 import { formatDuration, formatMoment } from '../problem-labels';
+import { submissionVerdictLabel } from './submission-verdict';
 
 /**
  * Lịch sử nộp bài CỦA CHÍNH NGƯỜI ĐANG XEM.
@@ -47,6 +48,14 @@ export function ProblemSubmissions(props: {
               <TableRow>
                 <TableHead scope="col">{t('catalog.problem.subs-col-at')}</TableHead>
                 <TableHead scope="col">{t('catalog.problem.subs-col-result')}</TableHead>
+                {/*
+                  Verdict là cột RIÊNG, không phải một cách tô màu khác cho cột
+                  "Kết quả" bên cạnh. Hai cột đếm hai thứ: `solved` đếm theo các
+                  mục tiêu BẮT BUỘC, còn verdict đếm theo MỌI testcase. Ở bài có
+                  mục tiêu thưởng, hai số lệch nhau một cách hợp lệ, nên gộp
+                  chúng lại là vứt đi một trong hai sự thật.
+                */}
+                <TableHead scope="col">{t('catalog.problem.subs-col-verdict')}</TableHead>
                 <TableHead scope="col">{t('catalog.problem.subs-col-score')}</TableHead>
                 <TableHead scope="col">{t('catalog.problem.subs-col-duration')}</TableHead>
                 <TableHead scope="col">{t('catalog.problem.subs-col-moves')}</TableHead>
@@ -63,6 +72,14 @@ export function ProblemSubmissions(props: {
                     <Badge variant={submission.solved ? 'status-done' : 'status-todo'}>
                       {submission.solved ? t('catalog.problem.subs-solved') : t('catalog.problem.subs-failed')}
                     </Badge>
+                  </TableCell>
+                  {/*
+                    Nhãn dựng ở `submissionVerdictLabel`, không suy ở JSX. Chỗ
+                    đó cũng là nơi `total === 0` được dịch thành một câu KHÁC
+                    `CE`, và lý do nằm nguyên trong chú thích của nó.
+                  */}
+                  <TableCell className="text-sm tabular-nums text-foreground">
+                    {submissionVerdictLabel(submission)}
                   </TableCell>
                   <TableCell className="tabular-nums">{submission.score}</TableCell>
                   <TableCell className="tabular-nums">

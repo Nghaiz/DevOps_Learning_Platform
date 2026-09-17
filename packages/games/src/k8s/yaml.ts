@@ -1,315 +1,21 @@
 /**
- * Bộ phân tích YAML TỐI THIỂU cho manifest Kubernetes, cộng phép chuyển manifest
- * → `ResourceSpec` phẳng.
+ * Adapter Kubernetes trên bộ quét YAML dùng chung, cộng phép chuyển manifest →
+ * `ResourceSpec` phẳng.
  *
- * ## Vì sao tự viết thay vì kéo một thư viện
- *
- * `js-yaml` là 40 KB gzip vào bundle của một trang game, để phân tích một tập
- * con mà manifest K8s chỉ dùng đúng một góc. Nặng hơn: nó nhận cả anchor, alias,
- * merge key và tag tuỳ biến — những thứ một người học Kubernetes không cần, và
- * mỗi thứ là một hình dạng đầu vào phải nghĩ tới. Tập con dưới đây là thứ *mọi*
- * ví dụ trong tài liệu Kubernetes dùng, và không hơn.
- *
- * ## Nhận cái gì
- *
- * Map theo thụt lề · dãy `- ` · vô hướng (chuỗi, số, `true`/`false`, `null`) ·
- * chuỗi trong nháy đơn/kép · chú thích `#` · tách tài liệu `---` · tập hợp rỗng
- * dạng dòng (`{}` và `[]` — `podSelector: {}` của NetworkPolicy cần nó, và đó là
- * cách viết một policy default-deny).
- *
- * ## KHÔNG nhận, và báo lỗi rõ ràng
- *
- * Tab thụt lề · anchor/alias · chuỗi nhiều dòng (`|`, `>`) · flow map/list có
- * nội dung. Báo lỗi tiếng Việt kèm SỐ DÒNG. Im lặng bỏ qua một dòng không hiểu
- * là cách một manifest "được nhận" rồi tạo ra một object thiếu field, và người
- * chơi sẽ đi tìm lỗi ở mô phỏng.
+ * Phần QUÉT — thụt lề, dãy, vô hướng, nháy, chú thích, `---`, và mọi lỗi từ
+ * chối — đã chuyển sang `core/yaml.ts` khi game thứ hai cũng cần đọc YAML. Ở
+ * lại đây đúng phần biết Kubernetes: `resolveKind`, `isNamespaced`, và phép làm
+ * phẳng manifest bên dưới. Lý lẽ "vì sao không kéo `js-yaml`" nằm ở đầu file
+ * `core/yaml.ts` và vẫn nguyên giá trị.
  */
 
 import type { ResourceKind } from './contract.ts';
 import { isNamespaced, resolveKind } from './resources.ts';
+import { parseYaml } from '../core/yaml.ts';
+import type { YamlValue } from '../core/yaml.ts';
 
-export type YamlValue = string | number | boolean | null | YamlValue[] | { [key: string]: YamlValue };
-
-export type YamlResult =
-  | { readonly ok: true; readonly documents: readonly YamlValue[] }
-  | { readonly ok: false; readonly error: string; readonly line: number };
-
-interface Line {
-  readonly indent: number;
-  readonly text: string;
-  readonly number: number;
-}
-
-class YamlError extends Error {
-  constructor(
-    message: string,
-    readonly line: number,
-  ) {
-    super(message);
-  }
-}
-
-export function parseYaml(source: string): YamlResult {
-  try {
-    const documents: YamlValue[] = [];
-    for (const block of splitDocuments(source)) {
-      const lines = readLines(block.text, block.offset);
-      documents.push(lines.length === 0 ? null : parseBlock(lines, 0, lines[0]?.indent ?? 0).value);
-    }
-    return { ok: true, documents: documents.filter((doc) => doc !== null) };
-  } catch (error) {
-    if (error instanceof YamlError) {
-      return { ok: false, error: error.message, line: error.line };
-    }
-    return { ok: false, error: 'Không đọc được YAML.', line: 0 };
-  }
-}
-
-function splitDocuments(source: string): readonly { text: string; offset: number }[] {
-  const out: { text: string; offset: number }[] = [];
-  let current: string[] = [];
-  let offset = 0;
-  let index = 0;
-  // `\r` bị cắt ở đây chứ không ở chỗ khác: một file YAML dán từ Windows có CRLF,
-  // và `\r` sót lại sẽ nằm im trong giá trị chuỗi rồi làm mọi phép so tên tài
-  // nguyên trượt — hỏng lặng lẽ, đúng loại lỗi repo đã trả giá một lần.
-  for (const raw of source.replace(/\r\n?/g, '\n').split('\n')) {
-    index += 1;
-    if (raw.trim() === '---') {
-      out.push({ text: current.join('\n'), offset });
-      current = [];
-      offset = index;
-      continue;
-    }
-    current.push(raw);
-  }
-  out.push({ text: current.join('\n'), offset });
-  return out;
-}
-
-function readLines(text: string, offset: number): readonly Line[] {
-  const out: Line[] = [];
-  let number = offset;
-  for (const raw of text.split('\n')) {
-    number += 1;
-    if (raw.includes('\t')) {
-      throw new YamlError('YAML không cho phép dùng tab để thụt lề — hãy dùng dấu cách.', number);
-    }
-    const withoutComment = stripComment(raw);
-    if (withoutComment.trim() === '') {
-      continue;
-    }
-    out.push({
-      indent: withoutComment.length - withoutComment.trimStart().length,
-      text: withoutComment.trim(),
-      number,
-    });
-  }
-  return out;
-}
-
-/** `#` chỉ mở chú thích khi nằm NGOÀI nháy — `image: nginx#1` không phải chú thích. */
-function stripComment(raw: string): string {
-  let quote: string | null = null;
-  for (let i = 0; i < raw.length; i += 1) {
-    const char = raw[i];
-    if (quote !== null) {
-      if (char === quote) {
-        quote = null;
-      }
-      continue;
-    }
-    if (char === '"' || char === "'") {
-      quote = char;
-      continue;
-    }
-    if (char === '#' && (i === 0 || raw[i - 1] === ' ')) {
-      return raw.slice(0, i);
-    }
-  }
-  return raw;
-}
-
-// ── Phân tích ───────────────────────────────────────────────────────────────
-
-interface Parsed {
-  readonly value: YamlValue;
-  readonly next: number;
-}
-
-function parseBlock(lines: readonly Line[], start: number, indent: number): Parsed {
-  const first = lines[start];
-  if (first === undefined) {
-    return { value: null, next: start };
-  }
-  return first.text.startsWith('- ') || first.text === '-'
-    ? parseSequence(lines, start, indent)
-    : parseMapping(lines, start, indent);
-}
-
-function parseSequence(lines: readonly Line[], start: number, indent: number): Parsed {
-  const items: YamlValue[] = [];
-  let cursor = start;
-  while (cursor < lines.length) {
-    const line = lines[cursor];
-    if (line === undefined || line.indent < indent) {
-      break;
-    }
-    if (line.indent > indent || !(line.text.startsWith('- ') || line.text === '-')) {
-      throw new YamlError(`Dòng ${line.number}: thụt lề không khớp với dãy đang mở.`, line.number);
-    }
-    const inline = line.text === '-' ? '' : line.text.slice(2).trim();
-    cursor += 1;
-    if (inline === '') {
-      const parsed = parseBlock(lines, cursor, lines[cursor]?.indent ?? indent + 2);
-      items.push(parsed.value);
-      cursor = parsed.next;
-      continue;
-    }
-    // `- name: web` mở một map NGAY TRÊN cùng dòng với gạch đầu dòng. Các dòng
-    // sau của map đó thụt sâu hơn gạch đầu dòng chứ không thụt theo `name`, nên
-    // phải ghép dòng ảo này với phần còn lại chứ không đọc nó như một vô hướng.
-    if (isMappingEntry(inline)) {
-      const virtual: Line = { indent: indent + 2, text: inline, number: line.number };
-      const rest = collectDeeper(lines, cursor, indent);
-      const parsed = parseMapping([virtual, ...rest.lines], 0, indent + 2);
-      items.push(parsed.value);
-      cursor = rest.next;
-      continue;
-    }
-    items.push(parseScalar(inline, line.number));
-  }
-  return { value: items, next: cursor };
-}
-
-function collectDeeper(
-  lines: readonly Line[],
-  start: number,
-  indent: number,
-): { lines: readonly Line[]; next: number } {
-  const out: Line[] = [];
-  let cursor = start;
-  while (cursor < lines.length) {
-    const line = lines[cursor];
-    if (line === undefined || line.indent <= indent) {
-      break;
-    }
-    out.push(line);
-    cursor += 1;
-  }
-  return { lines: out, next: cursor };
-}
-
-function parseMapping(lines: readonly Line[], start: number, indent: number): Parsed {
-  const map: Record<string, YamlValue> = {};
-  let cursor = start;
-  while (cursor < lines.length) {
-    const line = lines[cursor];
-    if (line === undefined || line.indent < indent) {
-      break;
-    }
-    if (line.indent > indent) {
-      throw new YamlError(`Dòng ${line.number}: thụt lề sâu hơn mức của map đang mở.`, line.number);
-    }
-    const split = splitKey(line.text);
-    if (split === null) {
-      throw new YamlError(
-        `Dòng ${line.number}: không phải cặp "khoá: giá trị" — YAML của manifest cần dấu hai chấm.`,
-        line.number,
-      );
-    }
-    cursor += 1;
-    if (split.value === '') {
-      const child = lines[cursor];
-      if (child === undefined || child.indent <= indent) {
-        map[split.key] = null;
-        continue;
-      }
-      const parsed = parseBlock(lines, cursor, child.indent);
-      map[split.key] = parsed.value;
-      cursor = parsed.next;
-      continue;
-    }
-    map[split.key] = parseScalar(split.value, line.number);
-  }
-  return { value: map, next: cursor };
-}
-
-function isMappingEntry(text: string): boolean {
-  return splitKey(text) !== null;
-}
-
-/** Tách ở dấu `:` đầu tiên NGOÀI nháy — `image: "a:b"` có khoá `image`. */
-function splitKey(text: string): { key: string; value: string } | null {
-  let quote: string | null = null;
-  for (let i = 0; i < text.length; i += 1) {
-    const char = text[i];
-    if (quote !== null) {
-      if (char === quote) {
-        quote = null;
-      }
-      continue;
-    }
-    if (char === '"' || char === "'") {
-      quote = char;
-      continue;
-    }
-    if (char === ':' && (i + 1 === text.length || text[i + 1] === ' ')) {
-      return { key: unquote(text.slice(0, i).trim()), value: text.slice(i + 1).trim() };
-    }
-  }
-  return null;
-}
-
-function unquote(text: string): string {
-  const first = text[0];
-  if ((first === '"' || first === "'") && text.length >= 2 && text.endsWith(first)) {
-    return text.slice(1, -1);
-  }
-  return text;
-}
-
-function parseScalar(text: string, line: number): YamlValue {
-  if (text === '{}') {
-    return {};
-  }
-  if (text === '[]') {
-    return [];
-  }
-  if (text.startsWith('|') || text.startsWith('>')) {
-    throw new YamlError(
-      `Dòng ${line}: chuỗi nhiều dòng (| và >) chưa được hỗ trợ trong game.`,
-      line,
-    );
-  }
-  if (text.startsWith('&') || text.startsWith('*')) {
-    throw new YamlError(`Dòng ${line}: anchor/alias của YAML chưa được hỗ trợ trong game.`, line);
-  }
-  if (text.startsWith('[') || text.startsWith('{')) {
-    throw new YamlError(
-      `Dòng ${line}: chỉ nhận [] và {} rỗng ở dạng dòng; hãy viết danh sách bằng gạch đầu dòng.`,
-      line,
-    );
-  }
-  const first = text[0];
-  if (first === '"' || first === "'") {
-    return unquote(text);
-  }
-  if (text === 'true' || text === 'false') {
-    return text === 'true';
-  }
-  if (text === 'null' || text === '~') {
-    return null;
-  }
-  // ⚠ CHỈ nhận số ở dạng thập phân thuần. `1.27` là số, nhưng `1.27-alpine` thì
-  // không — `Number.parseFloat` sẽ trả 1.27 và nuốt mất phần `-alpine`, biến một
-  // tag image hợp lệ thành một con số. Đó là lỗi im lặng: pod tạo ra được, chỉ là
-  // dùng sai image.
-  if (/^-?\d+(\.\d+)?$/.test(text)) {
-    return Number.parseFloat(text);
-  }
-  return text;
-}
+export { parseYaml };
+export type { YamlResult, YamlValue } from '../core/yaml.ts';
 
 // ── Manifest → ResourceSpec phẳng ───────────────────────────────────────────
 
@@ -344,11 +50,17 @@ export function parseManifests(source: string, defaultNamespace = 'default'): Ma
   if (!parsed.ok) {
     return { ok: false, error: parsed.error };
   }
-  if (parsed.documents.length === 0) {
+  // Bộ quét dùng chung trả về MỘT phần tử cho mỗi tài liệu ngăn bởi `---`, kể cả
+  // tài liệu rỗng (là `null`). Ở đây tài liệu rỗng không phải manifest nào cả —
+  // `---` thừa ở đầu hay cuối file là chuyện thường — nên lọc trước khi hỏi
+  // "có manifest nào không", chứ không để một file rỗng đi tiếp rồi báo sai là
+  // "phải là một map ở cấp cao nhất".
+  const documents = parsed.documents.filter((document) => document !== null);
+  if (documents.length === 0) {
     return { ok: false, error: 'YAML rỗng — không có manifest nào để áp.' };
   }
   const manifests: Manifest[] = [];
-  for (const document of parsed.documents) {
+  for (const document of documents) {
     const record = asYamlMap(document);
     if (record === null) {
       return { ok: false, error: 'Manifest phải là một map ở cấp cao nhất.' };

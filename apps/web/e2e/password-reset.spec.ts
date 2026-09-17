@@ -16,7 +16,7 @@ test('password reset — request email, consume code, revoke old session and sig
   /*
     ⚠ Ô này TỰ TẮT khi thiếu `E2E_MAILPIT_URL`, and no CI job sets that variable
     (`grep E2E_MAILPIT_URL .github/workflows/ci.yml` → 0 hits; the web job runs
-    `e2e:a11y` only). So this suite has never run in CI: it is a LOCAL gate, and
+    `e2e:ci` only — named `e2e:a11y` before 2026-09-15). So this suite has never run in CI: it is a LOCAL gate, and
     a silently-skipped test reads exactly like a passing one in a summary line.
 
     Stated here rather than fixed, because giving CI a Mailpit sink plus a real

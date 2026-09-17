@@ -2,8 +2,9 @@ import { errText, t } from '@devops-platform/copy';
 import type { FieldIssue } from './cluster-form';
 import { clusterToSpec } from './cluster-to-spec';
 import type { ProblemFormState } from './problem-form';
+import { pluginViewFor } from './game-plugin-view';
 import { toProblemDraft } from './problem-draft';
-import { PREDICATE_SPECS, isPredicateName } from './predicate-spec';
+import { genericArgs, isPredicateOfGame, k8sSpec, missingGenericArgs } from './predicate-catalog';
 import { SLUG_PATTERN, STATEMENT_WORD_LIMIT, countWords, toSlug } from './text-tools';
 
 /**
@@ -80,14 +81,25 @@ export function publishIssues(form: ProblemFormState): readonly FieldIssue[] {
     });
   }
 
-  const cluster = clusterToSpec(form.cluster);
-  if (!cluster.ok) {
-    issues.push(...cluster.issues);
-  } else if (cluster.value.nodes.length === 0) {
-    issues.push({
-      path: 'nodes',
-      message: errText('problem.problem-validate-cum-phai-co-it-nhat-mot-node'),
-    });
+  /*
+   * Phép kiểm cụm chỉ chạy cho game dùng biểu mẫu cụm viết tay.
+   *
+   * `form.cluster` luôn tồn tại (nó được GIỮ NGUYÊN khi đổi game, xem
+   * `formWithGame`), nên chạy vô điều kiện sẽ báo "cụm phải có ít nhất một node"
+   * trên một bài Git — một lỗi trỏ vào một tab không hiện ra, tức người soạn
+   * không có đường nào sửa. Trạng thái ban đầu của game khác được kiểm ở
+   * `toProblemDraft` (qua `specFromText`) và ở biên ghi.
+   */
+  if (pluginViewFor(form.gameId)?.specEditor === 'cluster') {
+    const cluster = clusterToSpec(form.cluster);
+    if (!cluster.ok) {
+      issues.push(...cluster.issues);
+    } else if (cluster.value.nodes.length === 0) {
+      issues.push({
+        path: 'nodes',
+        message: errText('problem.problem-validate-cum-phai-co-it-nhat-mot-node'),
+      });
+    }
   }
 
   issues.push(...objectiveIssues(form));
@@ -118,14 +130,21 @@ function objectiveIssues(form: ProblemFormState): readonly FieldIssue[] {
     });
     return issues;
   }
-  if (!form.objectives.some((objective) => objective.required)) {
-    issues.push({
-      path: 'objectives',
-      message: errText(
-        'problem.problem-validate-can-it-nhat-mot-muc-tieu-bat-buoc-bai-chi-toan-muc-tieu-thuong-thi-qua-ngay',
-      ),
-    });
-  }
+  /*
+   * ⛔ ĐÃ GỠ 2026-09-15 — phép kiểm `some(o => o.required)`, và chiều của thay
+   * đổi là NỚI chứ không phải dọn dẹp.
+   *
+   * Hai cổng đang nói hai điều khác nhau về cùng một bài, ghi trong plan §0.4:
+   * `publish-gate.ts` (máy chủ) đã nới về `objectives.length === 0` từ 18.B theo
+   * quyết định #20 (*"một testcase thì luôn chặn"*), trong khi file này còn đòi
+   * ít nhất một mục tiêu BẮT BUỘC. Client chặt hơn server thì không mất an
+   * toàn, nhưng nó đang chặn một bài mà máy chủ sẵn sàng xuất bản — và kể từ
+   * §18.D.2 thì `ObjectiveFormState` không còn `required` để mà đếm, nên phép
+   * kiểm này không chỉ lệch mà còn không biểu diễn được.
+   *
+   * Vế "bài phải có ít nhất một mục tiêu" nằm ngay phía trên và KHÔNG mất — đó
+   * đúng là câu mà cổng máy chủ hỏi.
+   */
 
   const seen = new Set<string>();
   form.objectives.forEach((objective, index) => {
@@ -153,10 +172,18 @@ function objectiveIssues(form: ProblemFormState): readonly FieldIssue[] {
       });
       return;
     }
-    if (!isPredicateName(objective.check)) {
-      // Chỉ tới được đây với bài NHẬP từ JSON hoặc bài cũ trong DB: ô chọn không
-      // cho gõ tay. Vẫn phải kiểm, vì một vị từ ngoài bảng làm bài KHÔNG BAO GIỜ
-      // qua được, và lỗi đó chỉ lộ ra khi đã có người ngồi làm.
+    /*
+     * ⛔ Hỏi theo GAME đang soạn — P20. Trước đợt này dòng dưới gọi
+     * `isPredicateName`, tức bảng của RIÊNG K8s, nên MỌI vị từ của Git và CI/CD
+     * rơi vào nhánh "không có trong bảng tra". Đo 2026-09-17: một bài CI/CD nhập
+     * từ JSON với `check: 'rollbackUnder'` không lưu được.
+     *
+     * Vẫn phải kiểm, và vì đúng lý do cũ: ô chọn không cho gõ tay, nên chỉ bài
+     * NHẬP từ JSON hoặc bài cũ trong DB mới tới được đây — mà một vị từ ngoài
+     * bảng của game làm bài KHÔNG BAO GIỜ qua được, và lỗi đó chỉ lộ ra khi đã
+     * có người ngồi làm.
+     */
+    if (!isPredicateOfGame(form.gameId, objective.check)) {
       issues.push({
         path: `${path}.check`,
         message: errText(
@@ -167,7 +194,21 @@ function objectiveIssues(form: ProblemFormState): readonly FieldIssue[] {
       return;
     }
 
-    const spec = PREDICATE_SPECS[objective.check];
+    const spec = k8sSpec(form.gameId, objective.check);
+    if (spec === null) {
+      /*
+       * Game khác K8s: bảng CHUNG của hợp đồng plugin. Nhãn lỗi hiện TÊN tham số
+       * trần vì đó là định danh của engine và nó không dịch.
+       */
+      for (const ten of missingGenericArgs(genericArgs(form.gameId, objective.check), objective.args)) {
+        issues.push({
+          path: `${path}.args.${ten}`,
+          message: errText('problem.problem-validate-thieu-tham-so-bat-buoc', { argspecLabel: ten }),
+        });
+      }
+      return;
+    }
+
     for (const argSpec of spec.args) {
       if (argSpec.required && (objective.args[argSpec.key] ?? '').trim() === '') {
         issues.push({

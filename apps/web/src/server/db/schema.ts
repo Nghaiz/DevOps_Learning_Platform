@@ -17,13 +17,13 @@ import {
   CONTENT_STATES,
 } from '@devops-platform/shared-types/authoring';
 import {
+  GAME_IDS,
   PROBLEM_DIFFICULTIES,
+  PROBLEM_FAILURE_CODES,
   PROBLEM_STATES,
-  PROBLEM_TOPICS,
-  type ClusterSpec,
-  type Objective,
   type ProblemHint,
   type ResourceKind,
+  type Testcase,
 } from '@devops-platform/games';
 import { LEARNING_PATH_STATES, PATH_ITEM_KINDS } from '@devops-platform/shared-types/path';
 import { QUIZ_QUESTION_KINDS, QUIZ_STATES } from '@devops-platform/shared-types/quiz';
@@ -257,6 +257,24 @@ export const jwks = pgTable('jwks', {
   privateKey: text('private_key').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   expiresAt: timestamp('expires_at', { withTimezone: true }),
+  /*
+   * Hai cột Better Auth 1.7 thêm vào bảng này (`plugins/jwt/schema.ts`), cả hai
+   * `required: false`.
+   *
+   * ⛔ THIẾU chúng KHÔNG phải một khe im lặng — adapter ném thẳng:
+   *
+   *     BetterAuthError: The field "alg" does not exist in the "jwks" Drizzle schema.
+   *
+   * ...nhưng chỉ khi nó phải TẠO một khoá mới. Một DB đã có sẵn dòng jwks đọc
+   * đường khác và không chạm tới cột này, nên lỗi nấp kỹ: bộ test ở máy có DB cũ
+   * xanh trọn vẹn, còn CI (DB dựng mới mỗi lượt) đỏ 51 ô. Đo 2026-09-18, PR #148.
+   *
+   * KHÔNG cần backfill: `getLatestKeyByAlg` coi dòng cũ (`alg: null`) là mang
+   * đúng thuật toán mặc định (`keyPairConfig.alg ?? 'EdDSA'`), nên khoá đã phát
+   * trước bản này vẫn dùng được.
+   */
+  alg: text('alg'),
+  crv: text('crv'),
 });
 
 /**
@@ -1202,6 +1220,31 @@ export const problems = pgTable(
      * không cần một chỉ mục thứ hai cho nó.
      */
     code: text('code').primaryKey(),
+    /**
+     * Game nào chấm bài này — §18.A, cột thêm ở migration 0015.
+     *
+     * ## Vì sao cột này tới MUỘN, và vì sao muộn là một lỗi chứ không phải thứ tự
+     *
+     * 18.A đã tổng quát `Problem` ở tầng miền (`core/problem.ts` khai `gameId`)
+     * và ở tầng giao diện (`/author/problems` đổi biểu mẫu theo plugin), nhưng
+     * **kho lưu thì không đi theo**. Hệ quả đo được ngày 2026-09-15: một bài Git
+     * soạn xong qua giao diện mới không có chỗ nào để lưu, vì mọi cột ở đây đều
+     * mang hình dạng K8s. "OJ đa-game" đúng ở hai tầng trên và sai ở tầng dưới
+     * cùng — tức là chưa đúng.
+     *
+     * ## `'k8s'` là mặc định ĐÚNG NGHĨA cho dòng cũ
+     *
+     * Không phải chỗ giữ chỗ: mọi dòng viết trước 0015 thật sự LÀ bài K8s —
+     * `initial_state` của chúng là `ClusterSpec`, `topics` của chúng nằm trong
+     * `PROBLEM_TOPICS` của K8s. Backfill bằng một hằng khác sẽ là bịa.
+     *
+     * ⚠ Tập giá trị là toàn bộ `GAME_IDS`, KHÔNG phải tập game đã có plugin
+     * chấm. Một bài `draft` của game chưa có engine là hợp lệ và nên lưu được;
+     * thứ phải chặn là **xuất bản** nó, và chỗ chặn là `publish-gate.ts` —
+     * `submit.ts` ném `INTERNAL_SERVER_ERROR` nếu một bài `published` thuộc game
+     * không có plugin, nên cổng xuất bản là thứ giữ cho nhánh đó không tới được.
+     */
+    gameId: text('game_id', { enum: GAME_IDS }).notNull().default('k8s'),
     /** Nằm trong URL, sinh từ tiêu đề, ĐỔI ĐƯỢC. Duy nhất riêng, xem index dưới. */
     slug: text('slug').notNull(),
     title: text('title').notNull(),
@@ -1228,23 +1271,93 @@ export const problems = pgTable(
      * gác, nhưng gác ở biên GHI bằng chính `PROBLEM_TOPICS` (SSOT của hợp đồng)
      * chứ không bằng một bản sao thứ hai của danh sách nằm trong DB.
      *
-     * Kiểu TypeScript vẫn hẹp nhờ `{ enum: PROBLEM_TOPICS }`: cột ra kiểu
-     * `ProblemTopic[]`, không phải `string[]`.
+     * ⚠ `{ enum: PROBLEM_TOPICS }` ĐÃ GỠ ở 0015, và đây là chỗ dễ đọc nhầm nhất
+     * trong cả khối này. `PROBLEM_TOPICS` là tập chủ đề **của riêng K8s**; từ
+     * 18.A mỗi plugin mang tập chủ đề riêng (`GIT_PROBLEM_TOPICS`, …) và hợp
+     * đồng đã nới `ProblemTopicId = string`. Giữ enum cũ ở đây nghĩa là một bài
+     * Git hợp lệ bị TypeScript từ chối ngay tại chỗ ghi.
+     *
+     * Việc gác tập đóng KHÔNG mất đi, nó chỉ đổi chỗ đúng hơn: biên ghi hỏi
+     * plugin của `game_id` xem chủ đề có thuộc tập của game đó không. Một danh
+     * sách hợp nhất mọi game nằm ở tầng DB sẽ nhận `git-rebase` cho một bài K8s
+     * — hẹp về kiểu mà rộng về nghĩa, tức là sai.
      */
-    topics: text('topics', { enum: PROBLEM_TOPICS }).array().notNull(),
+    topics: text('topics').array().notNull(),
     /** Phân loại tự do, đã chuẩn hoá thường + gạch nối. Rỗng là hợp lệ. */
     tags: text('tags').array().notNull(),
     /** `null` = không giới hạn giờ — không phải bài nào cũng nên chạy đua. */
     timeLimitSec: integer('time_limit_sec'),
-    /** `ClusterSpec` — đọc nguyên khối để dựng phiên mô phỏng, không lọc theo phần tử. */
-    initialState: jsonb('initial_state').$type<ClusterSpec>().notNull(),
-    objectives: jsonb('objectives').$type<Objective[]>().notNull(),
+    /**
+     * Trạng thái đầu của thế giới — `ClusterSpec` với K8s, `WorldSpec` với Git.
+     * Đọc nguyên khối để dựng phiên mô phỏng, không lọc theo phần tử.
+     *
+     * ⛔ `$type<unknown>()` là CHỦ Ý, không phải chỗ chưa làm xong. Hợp đồng
+     * `ProblemBase<Spec>` nói rõ vì sao `Spec` là tham số kiểu chứ không phải
+     * một union: kiểu đúng của cột này phụ thuộc `game_id` của CHÍNH DÒNG ĐÓ,
+     * và TypeScript không diễn đạt được ràng buộc liên-cột. Một union
+     * `ClusterSpec | WorldSpec` trông hẹp hơn mà không hẹp thật — nó vẫn cho
+     * `ClusterSpec` lọt vào một dòng `game_id = 'git'`, chỉ là im lặng hơn.
+     *
+     * Chỗ hẹp lại là `gradeProblemRun`, vốn đã nhận `initialState: unknown` và
+     * ép kiểu SAU khi tra plugin theo `gameId` (`problem-plugins.ts`). Đó là
+     * điểm duy nhất trong hệ biết đủ hai vế để nói kiểu nào đúng.
+     */
+    initialState: jsonb('initial_state').$type<unknown>().notNull(),
+    /**
+     * Trạng thái ĐÍCH, với bài chấm bằng cách so hình dạng (`graphShapeMatches`
+     * của Git). `null` với phần lớn bài. Cùng lý lẽ `unknown` như trên.
+     */
+    targetState: jsonb('target_state').$type<unknown>(),
+    /**
+     * Testcase của bài. Tên cột giữ nguyên `objectives` **có chủ ý**: quyết định
+     * #20 của thiết kế nói thẳng *"Objective = testcase"*, nên cái tên không nói
+     * dối về nội dung, và đổi tên cột là một migration dữ liệu không mua thêm
+     * điều gì.
+     *
+     * ⚠ `$type<Testcase[]>` mô tả đúng các lượt GHI MỚI kể từ §18.D.1 nửa sau
+     * (2026-09-15): `problemBodyShape` nay đòi `visible` trên từng testcase và
+     * không nhận `required`, nên biên ghi không còn phải ép kiểu.
+     *
+     * Khối này đã SAI hai lần theo hai hướng ngược nhau trong cùng một ngày —
+     * ghi lại vì đó là cái bẫy của một chú thích mô tả trạng thái đang chuyển:
+     * bản đầu khai quá (nói lượt ghi mới đã đúng hình dạng khi đường ghi còn đẻ
+     * ra `Objective`), bản sửa lại khai thiếu (nói `crud.ts` còn phải ép kiểu
+     * sau khi phép ép đã được gỡ). Chú thích trỏ sang file khác thì ôi theo file
+     * khác — đọc `crud.ts` trước khi tin câu này.
+     *
+     * Dòng viết trước 18.B vẫn mang `required` và không mang `visible`. Nên
+     * ĐỪNG đọc cột này trực tiếp — `problems/testcases.ts` (`problemTestcases`)
+     * là biên đọc, nó nhận `readonly unknown[]` đúng vì lý do đó và mặc định
+     * `visible: true` cho dòng cũ.
+     */
+    objectives: jsonb('objectives').$type<Testcase[]>().notNull(),
     /** `null` = cho dùng mọi loại tài nguyên. Một mảng đủ 26 loại KHÔNG tương đương. */
     allowedResources: jsonb('allowed_resources').$type<ResourceKind[]>(),
     /** `ProblemHint[]` — gợi ý CÓ GIÁ, nên mỗi cái cần `id` và `penaltyPoints`. */
     hints: jsonb('hints').$type<ProblemHint[]>().notNull(),
     /** `null` = không chấm theo số nước đi; `computeScore` đọc 0 đúng nghĩa đó. */
     parMoves: integer('par_moves'),
+    /**
+     * Bài này có sinh được đề theo seed không — §18.D.6, cột thêm ở 0015.
+     *
+     * ## Mặc định `false`, và chiều mặc định là phần quan trọng
+     *
+     * `false` là hướng AN TOÀN, không phải hướng tiện. Cờ này gác một thứ có
+     * hậu quả thật: §18.G.3 cấm đưa bài `seedable: false` vào kỳ thi dùng
+     * `per-student`, vì mỗi sinh viên sẽ nhận một đề **khác độ khó** mà không ai
+     * biết. Mặc định `true` cho hàng trăm dòng cũ là tuyên bố chúng sinh đề được
+     * — một lời khai chưa ai kiểm — và cái giá của việc sai là một kỳ thi không
+     * công bằng, phát hiện ra sau khi đã chấm.
+     *
+     * Sai theo chiều `false` thì cái giá là một bài không được chọn vào đề thi
+     * cho tới khi tác giả bật cờ. Ồn ào, sửa được, không ai mất điểm.
+     *
+     * ⚠ Cột này MỘT MÌNH không đóng được §18.G. Nó gác lúc SOẠN ĐỀ. Còn cổng thứ
+     * hai gác lúc NỘP — `submit.ts` hiện nhận `log.seed` vô điều kiện, nên
+     * người nộp tự chọn được thế giới đầu của mình. Hai cổng, hai thời điểm; xem
+     * `phase-18.md` §18.G khối "CỔNG SEED".
+     */
+    seedable: boolean('seedable').notNull().default(false),
     state: problemState('state').notNull().default('draft'),
     /**
      * `null` với bài seed trong repo — chúng không có tài khoản tác giả.
@@ -1343,6 +1456,73 @@ export const problemSubmissions = pgTable(
     movesUsed: integer('moves_used').notNull(),
     /** Id gợi ý đã mở, đọc ra từ các action `hint` trong nhật ký. */
     hintsRevealed: text('hints_revealed').array().notNull(),
+    /**
+     * Id các testcase ĐÃ QUA của lượt này — mô hình testcase (§18.B.2).
+     *
+     * ID CHỨ KHÔNG PHẢI CHỈ SỐ, và hợp đồng `core/problem.ts` § `Submission`
+     * nói thẳng vì sao: *"chỉ số vỡ khi tác giả đổi thứ tự."* Một mảng `[0,1,3]`
+     * lưu hôm nay sẽ trỏ sang ba testcase khác ngay lần đầu người soạn kéo một
+     * dòng lên trên, và không có gì đỏ để báo.
+     *
+     * Máy chủ tự chấm bằng `gradeProblemRun` (phát lại nhật ký), không đọc lời
+     * khai của client — `server/problems/submit.ts`.
+     *
+     * Rỗng ở lượt `CE`: hợp đồng `GradeResult` bắt *"`CE` mang `passed` rỗng"*.
+     */
+    passed: text('passed').array().notNull().default([]),
+    /**
+     * Số testcase của bài TẠI THỜI ĐIỂM NỘP.
+     *
+     * ⚠ KHÔNG vi phạm quy ước No Derived Fields (`rules/code-conventions.md`),
+     * và lý do phải nằm ngay đây vì vế suy-ra-được hay nấp cạnh vế hợp lệ: số
+     * này **không** suy được từ bài lúc đọc ra, vì bài có thể đã bị sửa SAU lượt
+     * nộp. Nó là một **sự thật lịch sử** — "lúc nộp, bài có bấy nhiêu testcase".
+     * Không chốt lại tại thời điểm nộp thì một lượt `WA (4/5)` hôm nay sẽ tự đọc
+     * thành `WA (4/7)` sau khi tác giả thêm hai case, và cả lịch sử làm bài của
+     * mọi người lặng lẽ đổi nghĩa. `core/problem.ts` § `Submission` ghi cùng một
+     * điều cho `passed`.
+     *
+     * ⛔ Cặp `(passed, total)` KHÔNG được bổ sung một cột điểm-theo-testcase:
+     * điểm là `passed.length / total`, tính ở chỗ dùng. Cột `score` bên trên là
+     * của mô hình cũ (0..1000 theo gợi ý và số nước) — một đại lượng KHÁC, đừng
+     * gộp hai thứ.
+     *
+     * `0` ở dòng cũ (trước 18.C) là đúng nghĩa chứ không phải chỗ giữ chỗ:
+     * `problemVerdictOf(_, 0)` trả `CE`, và một lượt nộp ghi trước khi có bộ
+     * chấm testcase thật sự **không chấm được** theo mô hình này.
+     */
+    total: integer('total').notNull().default(0),
+    /**
+     * VÌ SAO lượt này không chấm được. `null` khi nó chấm được bình thường.
+     *
+     * ## Cột này tồn tại vì hai cột trên KHÔNG phân biệt nổi hai ca
+     *
+     * Nợ ghi ở `phase-18.md` §0.3a, đo lại ngày 2026-09-15. Đường đẻ ra nó là
+     * `submit.ts` nhánh `engine-khong-tat-dinh`:
+     *
+     * ```ts
+     * if (status === 'engine-khong-tat-dinh') return gradeOf(status, [], testcases.length);
+     * ```
+     *
+     * Nó ghi `passed = []` với `total = <số testcase>`, tức `total > 0`. Đọc lại
+     * bằng `problemVerdictOf(0, 5)` ra `WA`, nên lịch sử hiện `WA (0/5)` cho một
+     * lượt mà máy chủ đã kết luận là KHÔNG chấm được.
+     *
+     * ⛔ Và không sửa được bằng cách suy từ `passed.length === 0`: một `WA (0/5)`
+     * THẬT — người làm chạy được nhưng không qua case nào — có dữ liệu giống hệt.
+     * Hai nguyên nhân, một biểu hiện; cột thứ ba là đường ra duy nhất.
+     *
+     * Cột lưu MÃ (`PROBLEM_FAILURE_CODES`) chứ không lưu câu tiếng Việt: câu chữ
+     * viết cho người đọc và sẽ được sửa, còn mã thì không đổi trong im lặng.
+     * `problemFailureMessage` dựng lại câu từ mã, nên lịch sử hiện đúng câu mà
+     * lượt nộp đã hiện.
+     *
+     * ⚠ `null` mang HAI nghĩa và chỗ đọc phải xử cả hai: lượt chấm được bình
+     * thường, **và** dòng ghi trước 0015 (cột chưa tồn tại). Phân biệt bằng
+     * `total`: `total > 0` + `null` là `WA`/`AC` thật; `total === 0` + `null` là
+     * dòng cũ chưa chấm theo testcase.
+     */
+    failCode: text('fail_code', { enum: PROBLEM_FAILURE_CODES }),
     /** `precision: 3` — cùng lý do keyset đã ghi ở `problems.created_at`. */
     submittedAt: timestamp('submitted_at', { withTimezone: true, precision: 3 }).notNull().defaultNow(),
   },
@@ -1409,3 +1589,269 @@ export type NewProblemHintRevealRow = typeof problemHintReveals.$inferInsert;
 
 export type ProblemSubmissionRow = typeof problemSubmissions.$inferSelect;
 export type NewProblemSubmissionRow = typeof problemSubmissions.$inferInsert;
+
+/**
+ * Lớp học (18.F).
+ *
+ * ## Chủ lớp là một CỘT, không phải một dòng thành viên
+ *
+ * `class_members` chứa ĐÚNG sinh viên. Chủ lớp nằm ở `classes.owner_id`, trỏ
+ * tới một tài khoản `admin`. Hai lý do, và cái thứ hai mới là cái nặng:
+ *
+ *  · Một bảng thành viên mang cả chủ lẫn học viên cần thêm một cột `role` để
+ *    phân biệt, mà cột đó chỉ có một giá trị thật (`student`) ở mọi dòng còn
+ *    lại. Một cột chỉ mang một giá trị không mang tin gì.
+ *  · Nó làm câu hỏi "ai được xem bảng điểm lớp này" có HAI nguồn trả lời
+ *    (`owner_id` và một dòng `class_members.role = 'teacher'`), và hai nguồn
+ *    thì sớm muộn lệch nhau. Ở đây câu hỏi đó có một nguồn duy nhất.
+ *
+ * ## ⛔ Những cột đã CÂN NHẮC RỒI BỎ vì suy ra được
+ *
+ * Repo đã bác đúng khuôn này bốn lần (`problems` không có `solver_count`,
+ * `attempt_count`, `acceptance_rate`; `sessions_audit` không có `status`), nên
+ * danh sách này là để lần thứ năm không phải tranh luận lại:
+ *
+ * | Cột bị bỏ | Tính từ đâu |
+ * |---|---|
+ * | `classes.member_count` | `count(*)` trên `class_members` |
+ * | `classes.average_score` | gộp `problem_submissions` theo tập thành viên |
+ * | `classes.owner_name` / `owner_email` | join `users` |
+ * | `class_members.role` | hằng số; chủ lớp đã là `classes.owner_id` |
+ * | `class_members.solved_count` / `last_submitted_at` | gộp `problem_submissions` |
+ *
+ * Cả năm đều là cùng một cái bẫy: rẻ lúc ghi, rồi phải giữ đồng bộ bằng trigger
+ * hoặc cron mãi mãi, và chúng sẽ lệch. `server/classes/scoreboard.ts` tính
+ * chúng tại chỗ dùng.
+ *
+ * ## Vai trò: KHÔNG có `teacher`
+ *
+ * Chủ dự án chốt 2026-09-11: giảng viên dùng lại `admin`. Cái giá đã được ghi
+ * rõ trong `plans/devops-learning-platform/phase-18.md` §2 (một giảng viên được
+ * cấp `admin` có TOÀN QUYỀN hệ thống). Đây là đánh đổi có chủ ý ở quy mô một
+ * lớp NCKH, không phải sơ suất. Đừng "sửa" nó bằng cách thêm một vai trò thứ tư
+ * mà không đổi quyết định ở plan trước.
+ */
+export const classes = pgTable(
+  'classes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    name: text('name').notNull(),
+    /** Mô tả ngắn, không bắt buộc. `null` = người tạo không nhập gì. */
+    description: text('description'),
+    /**
+     * Chủ lớp. PHẢI là một tài khoản `admin` lúc tạo, và điều đó kiểm ở tầng
+     * ứng dụng (`adminProcedure`) chứ không ở lược đồ: Postgres không có ràng
+     * buộc "khoá ngoại tới một dòng có role = 'admin'" mà không dùng trigger,
+     * và một trigger ở đây sẽ khoá cứng một quyết định (§ Vai trò ở trên) mà
+     * plan đã nói là có thể phải tách lại về sau.
+     *
+     * ⚠ `cascade`, KHÁC tiền lệ `content_items.author_id` (NO ACTION). Lý do
+     * có thật chứ không phải sao chép nhầm: một bài học không chủ vẫn là nội
+     * dung người học đọc được, nên chặn xoá tác giả là đúng; còn một lớp không
+     * chủ thì KHÔNG ai mở được (mọi điểm cuối của lớp đứng sau `adminProcedure`
+     * và lọc theo `owner_id`), tức nó là dữ liệu không với tới được. Chuyển chủ
+     * lớp chưa có đường nào ở chặng này.
+     */
+    ownerId: text('owner_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** `precision: 3` — cùng lý do keyset đã ghi ở `problems.created_at`. */
+    createdAt: timestamp('created_at', { withTimezone: true, precision: 3 }).notNull().defaultNow(),
+  },
+  (table) => [
+    // Keyset của `classes.list`: `(created_at desc, id desc)`.
+    index('classes_created_idx').on(table.createdAt, table.id),
+    // Một chủ lớp không có hai lớp trùng tên. Bấm hai lần nút "Tạo lớp" là
+    // chuyện thường, và hai dòng trùng tên thì không ai phân biệt được lớp nào
+    // là lớp mình vừa thêm sinh viên vào.
+    uniqueIndex('classes_owner_name_key').on(table.ownerId, table.name),
+  ],
+);
+
+/**
+ * Thành viên lớp — CHỈ sinh viên. Xem chú thích của `classes`.
+ *
+ * Khoá chính GỘP `(class_id, user_id)`: "đã ở trong lớp" là một quan hệ, không
+ * phải một chuỗi sự kiện. Một `uuid` riêng sẽ cho phép hai dòng cùng nghĩa tồn
+ * tại song song, và lúc đó phép đếm sĩ số có hai câu trả lời.
+ *
+ * Cả hai khoá ngoại đều `cascade`: xoá lớp thì danh sách thành viên của nó hết
+ * nghĩa, xoá tài khoản thì tư cách thành viên cũng vậy. KHÔNG có bản ghi nào ở
+ * đây cần sống lâu hơn hai bảng gốc — khác `sessions_audit`, bảng này không
+ * phải nhật ký.
+ */
+export const classMembers = pgTable(
+  'class_members',
+  {
+    classId: uuid('class_id')
+      .notNull()
+      .references(() => classes.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    joinedAt: timestamp('joined_at', { withTimezone: true, precision: 3 }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ name: 'class_members_pk', columns: [table.classId, table.userId] }),
+    // "Những lớp mà người này đang ở trong" — khoá chính gộp mở đầu bằng
+    // `class_id` nên không phục vụ được chiều tra ngược này.
+    index('class_members_user_idx').on(table.userId),
+  ],
+);
+
+export type ClassRow = typeof classes.$inferSelect;
+export type NewClassRow = typeof classes.$inferInsert;
+export type ClassMemberRow = typeof classMembers.$inferSelect;
+export type NewClassMemberRow = typeof classMembers.$inferInsert;
+
+// ── Kỳ thi (§18.G) ──────────────────────────────────────────────────────────
+
+/**
+ * Cách sinh đề cho một kỳ thi.
+ *
+ * - `fixed` — mọi sinh viên nhận CÙNG một seed, do người ra đề chốt lúc tạo.
+ * - `per-student` — mỗi `exam_attempt` nhận một seed riêng do MÁY CHỦ cấp.
+ *
+ * ⚠ `per-student` chỉ có nghĩa với bài `seedable: true`. Cổng §18.G.3 chặn
+ * chuyện đưa bài `seedable: false` vào một kỳ thi `per-student`, và nó gác lúc
+ * SOẠN ĐỀ. Thiếu nó thì mỗi sinh viên nhận một đề khác độ khó mà không ai biết.
+ */
+export const EXAM_SEED_STRATEGIES = ['fixed', 'per-student'] as const;
+export type ExamSeedStrategy = (typeof EXAM_SEED_STRATEGIES)[number];
+export const examSeedStrategy = pgEnum('exam_seed_strategy', EXAM_SEED_STRATEGIES);
+
+/**
+ * Một kỳ thi: một lớp, một danh sách bài, một khoảng thời gian.
+ *
+ * ## ⚠ LỆCH khỏi ghi chú bàn giao của lane 18.F, và đây là lý do
+ *
+ * Báo cáo `2026-09-14-lane-18f-report.md` §6 đề nghị `exam.class_id` dùng
+ * NO ACTION, lập luận rằng *"một kỳ thi là bản ghi lịch sử"*. Lập luận đó đúng
+ * về giá trị, nhưng thi hành bằng NO ACTION ở ĐÂY đẻ ra một đường xoá hỏng:
+ * `classes.owner_id` đã là `cascade` từ 18.F, nên `DELETE` một tài khoản giảng
+ * viên sẽ cascade xuống `classes`, và lượt xoá lớp đó bị NO ACTION của bảng này
+ * CHẶN. Kết quả là xoá một người dùng thất bại với một lỗi khoá ngoại thô, ở
+ * một chỗ không ai đoán được — và nó chỉ xảy ra với những giảng viên đã ra đề.
+ *
+ * Nên cả hai khoá ngoại ở đây đều `cascade`, đi theo đúng quyết định mà 18.F đã
+ * chấp nhận tường minh (xoá giảng viên là xoá lớp và danh sách thành viên của
+ * họ).
+ *
+ * ⛔ CÁI GIÁ, nói thẳng: xoá lớp là xoá luôn điểm thi của lớp đó. Thứ bù lại
+ * KHÔNG phải một khoá ngoại mà là §18.G.7 — xuất CSV — và đó là lý do thật sự
+ * để G.7 tồn tại chứ không phải sự tiện lợi. Muốn giữ điểm thì xuất trước khi
+ * xoá. Nếu sau này cần lưu trữ thật (bảng `exam_archive`, hoặc xoá mềm) thì đây
+ * là chỗ đọc trước khi đổi.
+ *
+ * ## `problem_codes` là MẢNG, và thứ tự của nó có nghĩa
+ *
+ * Thứ tự người ra đề xếp là thứ tự sinh viên thấy. Một bảng nối
+ * `exam_problems (exam_id, code, position)` biểu diễn được đúng thứ đó và còn
+ * cho khoá ngoại tới `problems`, nhưng nó mua một bảng và một `position` phải
+ * tự giữ liên tục để đổi lấy một ràng buộc mà tầng ứng dụng đã kiểm. Với một đề
+ * vài chục bài thì mảng là câu trả lời đúng.
+ *
+ * ⚠ Hệ quả đi kèm: xoá một bài trong `problems` KHÔNG làm sạch mã của nó khỏi
+ * các đề cũ. Đường đọc phải chịu được một mã không tra ra bài.
+ */
+export const exams = pgTable(
+  'exams',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    classId: uuid('class_id')
+      .notNull()
+      .references(() => classes.id, { onDelete: 'cascade' }),
+    ownerId: text('owner_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    problemCodes: text('problem_codes').array().notNull(),
+    durationMinutes: integer('duration_minutes').notNull(),
+    seedStrategy: examSeedStrategy('seed_strategy').notNull(),
+    /**
+     * Seed dùng chung khi `seed_strategy = 'fixed'`. `null` khi `per-student`.
+     *
+     * Không gộp được vào `exam_attempts.seed`: với `fixed` thì seed phải tồn
+     * tại TRƯỚC khi có lượt làm bài đầu tiên, nếu không thì người mở trước và
+     * người mở sau nhận hai đề khác nhau mà cả hai đều tưởng mình thi chung.
+     */
+    fixedSeed: integer('fixed_seed'),
+    /** `null` = mở ngay. */
+    opensAt: timestamp('opens_at', { withTimezone: true, precision: 3 }),
+    /**
+     * `null` = không có hạn chót tuyệt đối; chỉ đồng hồ riêng của từng lượt
+     * quyết định. Khi có, hạn thật của một lượt là **cái nào tới trước** giữa
+     * `started_at + duration` và mốc này.
+     */
+    closesAt: timestamp('closes_at', { withTimezone: true, precision: 3 }),
+    createdAt: timestamp('created_at', { withTimezone: true, precision: 3 }).notNull().defaultNow(),
+  },
+  (table) => [
+    // Keyset của `exams.list`: `(created_at desc, id desc)`, cùng khuôn `classes`.
+    index('exams_created_idx').on(table.createdAt, table.id),
+    index('exams_class_idx').on(table.classId),
+  ],
+);
+
+/**
+ * Lượt làm bài của MỘT sinh viên trong MỘT kỳ thi.
+ *
+ * ## Ba thứ KHÔNG có ở đây, và mỗi thứ vì một lý do khác nhau
+ *
+ * 1. **`deadline`** — bằng `min(started_at + duration_minutes, exams.closes_at)`.
+ *    Tính ở chỗ dùng. Lưu nó là vi phạm thẳng quy ước No Derived Fields của
+ *    repo, và cái giá cụ thể: sửa `closes_at` của kỳ thi xong thì cột lưu sẵn
+ *    thành sai mà không gì báo.
+ * 2. **`auto_submitted`** — suy được: `submitted_at >= deadline`. Nộp tay LUÔN
+ *    xảy ra trước hạn (máy chủ từ chối sau hạn), còn lượt tự nộp thì đúng bằng
+ *    hạn. Hai ca không chồng nhau, nên một cột cờ ở đây chỉ là một bản sao có
+ *    thể lệch.
+ * 3. **`score`** — gộp từ `problem_submissions`. Cùng lý do đã ghi ở
+ *    `core/problem.ts` § `Submission`: điểm là `passed.length / total`.
+ *
+ * ## Còn `duration_minutes` thì CÓ, và nó KHÔNG phải trường suy ra
+ *
+ * Nó là **ảnh chụp** thời lượng của kỳ thi tại thời điểm mở lượt, giống giá lúc
+ * đặt hàng. Chốt bởi chủ dự án 2026-09-15. Đọc thẳng `exams.duration_minutes`
+ * thì một giảng viên sửa giờ giữa chừng sẽ rút ngắn đồng hồ dưới chân người
+ * đang làm bài, và ở mức rút đủ nhiều thì bài tự nộp ngay lập tức.
+ *
+ * ## `seed` do MÁY CHỦ cấp, và đó là cả điểm của cột này
+ *
+ * Ngoài kỳ thi, `Submission.seed` do người nộp mang lên — hành vi CỐ Ý của hợp
+ * đồng (xem `core/problem.ts` § `Submission.seed`). Trong kỳ thi thì tính chất
+ * đó đọc thành "người nộp tự chọn dòng sự cố của mình", nên cột này là thứ máy
+ * chủ có để SO. Cổng đối chiếu nằm ở đường nộp bài; nó chỉ gác trong phạm vi
+ * một `exam_attempt` và không đổi gì bên ngoài (chốt bởi chủ dự án 2026-09-15,
+ * phương án (b) trong plan §18.G).
+ */
+export const examAttempts = pgTable(
+  'exam_attempts',
+  {
+    examId: uuid('exam_id')
+      .notNull()
+      .references(() => exams.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    seed: integer('seed').notNull(),
+    durationMinutes: integer('duration_minutes').notNull(),
+    startedAt: timestamp('started_at', { withTimezone: true, precision: 3 }).notNull().defaultNow(),
+    /** `null` = chưa bấm nộp. KHÔNG có nghĩa là "còn giờ" — xem § deadline. */
+    submittedAt: timestamp('submitted_at', { withTimezone: true, precision: 3 }),
+  },
+  (table) => [
+    // Một người MỘT lượt cho mỗi kỳ thi. Khoá chính gộp nói ra điều đó bằng
+    // lược đồ; một `uuid` riêng sẽ cho phép hai lượt song song tồn tại, và lúc
+    // ấy "sinh viên này được mấy điểm" có hai câu trả lời.
+    primaryKey({ name: 'exam_attempts_pk', columns: [table.examId, table.userId] }),
+    // "Những kỳ thi người này đã vào" — khoá chính mở đầu bằng `exam_id` nên
+    // không phục vụ được chiều tra ngược.
+    index('exam_attempts_user_idx').on(table.userId),
+  ],
+);
+
+export type ExamRow = typeof exams.$inferSelect;
+export type NewExamRow = typeof exams.$inferInsert;
+export type ExamAttemptRow = typeof examAttempts.$inferSelect;
+export type NewExamAttemptRow = typeof examAttempts.$inferInsert;

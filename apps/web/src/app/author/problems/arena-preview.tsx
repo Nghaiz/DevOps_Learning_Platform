@@ -3,6 +3,9 @@
 import type { ReactElement } from 'react';
 import { Alert, AlertDescription, AlertTitle, Button } from '@devops-platform/ui';
 import { t } from '@devops-platform/copy';
+import type { GameId } from '@devops-platform/games';
+
+import { GAME_NAME, problemPreviewHref } from './game-plugin-view';
 
 /**
  * Mở đấu trường 3D với chính bài đang soạn, để người soạn tự thử.
@@ -41,6 +44,7 @@ import { t } from '@devops-platform/copy';
  */
 export function ArenaPreview(props: {
   readonly code: string | null;
+  readonly gameId: GameId;
   readonly hasUnsavedChanges: boolean;
 }): ReactElement {
   if (props.code === null) {
@@ -57,7 +61,34 @@ export function ArenaPreview(props: {
     );
   }
 
-  const href = `/games/k8s?problem=${encodeURIComponent(props.code)}`;
+  /*
+   * §18.D.5 — đường vào tra theo `gameId`, KHÔNG dựng bằng công thức
+   * `/games/${gameId}?problem=`. Công thức đó sai im lặng với mọi game chưa có
+   * route đọc `?problem=`: nó mở một ván bình thường, không 404 và không log,
+   * nên người soạn kết luận rằng bài của họ đã xem trước được.
+   *
+   * ⚠ Ví dụ cũ ở đây là `/games/git`, và nó đã HẾT ĐÚNG ngày 2026-09-15: route
+   * đó nay đọc `params.problem` thật. Bốn game còn lại (`pipeline`, `netpol`,
+   * `dockerfile`, `cicd`) vẫn chưa có route nào, nên lý lẽ của bảng tra vẫn
+   * nguyên — chỉ ví dụ phải đổi. Lý do đầy đủ ở `lib/problem-preview-href.ts`.
+   */
+  const href = problemPreviewHref(props.gameId, props.code);
+
+  if (href === null) {
+    return (
+      <section className="flex flex-col gap-4">
+        <h2 className="border-b border-border pb-2 text-lg font-semibold text-foreground">
+          {t('author.problem.arena.heading')}
+        </h2>
+        <Alert variant="warning">
+          <AlertTitle>{t('author.problem.arena.no-route-title')}</AlertTitle>
+          <AlertDescription>
+            {t('author.problem.arena.no-route-body', { game: GAME_NAME[props.gameId] })}
+          </AlertDescription>
+        </Alert>
+      </section>
+    );
+  }
 
   return (
     <section className="flex flex-col gap-4">

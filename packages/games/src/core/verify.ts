@@ -33,15 +33,18 @@
  * nó chỉ đọc `tick` và `kind`, nên nó đúng với mọi game — đó là toàn bộ lý do
  * ba kiểu kia chuyển lên `core/`. Kéo `K8sGameAction` vào đây là trói ngược cơ
  * chế chống gian lận về lại đúng một game.
+ *
+ * Từ 18.A thì câu trên là MỘT SỰ THẬT ĐO ĐƯỢC chứ không còn là mong muốn: file
+ * này không import gì từ `k8s/` nữa, và adapter K8s duy nhất từng ở đây
+ * (`sessionReplayEngine`) đã sang `k8s/replay-engine.ts`. Ô nghiệm thu AC-A của
+ * `plans/devops-learning-platform/phase-18.md` đo đúng điều đó — nó grep các
+ * dòng import trỏ sang một package game và phải trả rỗng.
+ *
+ * ⚠ Ô đó đo PHỤ THUỘC, không đo chính tả: nhắc tên `K8sSession` trong một câu
+ * chú thích như ngay bên dưới là hợp lệ và cố ý. Bản cũ của ô nghiệm thu grep
+ * chữ `ClusterSpec` nên tự làm mình đỏ vì văn xuôi; đừng dựng lại kiểu đo đó.
  */
 import type { GameAction, GameActionKind, RunLog } from './run-log.ts';
-import type {
-  CreateSession,
-  K8sGameAction,
-  K8sSession,
-  Level,
-  SessionStatus,
-} from '../k8s/contract.ts';
 import type { RunResult } from './types.ts';
 import { lastActionTick, stableStringify } from './integrity.ts';
 
@@ -62,6 +65,47 @@ import { lastActionTick, stableStringify } from './integrity.ts';
  * §6), nên với kiến trúc đó thì MỌI lượt chơi đều rơi vào
  * `engine-khong-tat-dinh`. Đây không phải một khả năng giả định.
  */
+/**
+ * Trần tick mà máy chủ chịu phát lại cho MỘT lượt nộp. Chốt 1.000.000.
+ *
+ * ## Vì sao cần một trần, và vì sao nó KHÔNG phải cái giá của bản vá C2
+ *
+ * `advance(state, n)` lặp `n` lần, mỗi lần duyệt mọi pod. Đo 2026-09-15 trên
+ * level rẻ nhất: **~927.000 tick/giây** — level nhiều pod còn chậm hơn nhiều.
+ * Wire khai `tick: z.number()`, và `z.number()` NHẬN `1e12` (chỉ `Infinity` và
+ * `NaN` bị chặn), nên một nhật ký bịa ra là **~12 ngày CPU cho một lượt nộp**.
+ *
+ * `phase-18-exec.md` §5.3 viết rằng bỏ ghi đè tick sẽ *"mở một đường DoS mà
+ * chính phép ghi đè đang đóng"*. Đo lại thì câu đó SAI, và nó sai theo chiều
+ * nguy hiểm hơn: phép ghi đè chỉ chạm `tick`, **không** chạm `ticks` của action
+ * `wait`, mà `reducer.apply` gọi thẳng `advance(state, action.ticks)`. Đối
+ * chứng chạy 2026-09-15 với phép ghi đè CÒN NGUYÊN: client gửi `ticks: 50000`
+ * thì mô phỏng tua đúng 50.000 tick. Tức lỗ hổng đã mở sẵn từ trước qua một cửa
+ * khác — trần này là món NỢ CŨ, không phải phí tổn của C2.
+ *
+ * ## Vì sao 1.000.000 chứ không phải 20.000 cho khớp `MAX_LOG_ACTIONS`
+ *
+ * `TICK_MS = 500`, nên trần này là **~5,8 NGÀY chơi liên tục** và ~1,1 giây CPU
+ * ở trường hợp xấu nhất. Con số đối xứng đẹp (20.000) chỉ cho ~2,8 giờ chơi, và
+ * đồng hồ `autoTick` VẪN CHẠY khi tab nằm nền — một tab để qua đêm đã ăn hàng
+ * chục nghìn tick mà người học không làm gì sai. Trần chặt quá không đọc ra là
+ * "chống DoS"; nó đọc ra là "lượt nộp của tôi bị từ chối", đúng loại lỗi khó
+ * chẩn đoán nhất.
+ *
+ * ## Đo bằng gì
+ *
+ * Bất biến: **tick của mô phỏng không bao giờ vượt trần này trong một lượt phát
+ * lại**. Nó chặn CẢ HAI cửa cùng lúc — tick tăng dần lẫn `wait.ticks` cộng dồn —
+ * vì tick đơn điệu tăng, nên tổng công việc của cả lượt phát lại bị chặn bởi
+ * đúng tick cuối cùng. Một trần đặt trên *khoảng cách mỗi bước* thì không chặn
+ * được tổng: 20.000 action, mỗi action nhảy 1e6, vẫn ra 2e10 tick.
+ *
+ * Gác ở HAI tầng, cố ý: wire (`apps/web/.../problems.ts`) từ chối sớm với một
+ * câu nói rõ con số, còn phiên (`k8s/session.ts`) chặn tại chỗ để bảo vệ mọi
+ * caller không đi qua wire — test, đường nội bộ, và route sau này.
+ */
+export const MAX_REPLAY_TICK = 1_000_000;
+
 export type VerifyStatus =
   /** Phát lại khớp hoàn toàn. Đây là trạng thái DUY NHẤT được tính điểm. */
   | 'da-xac-minh'
@@ -156,16 +200,71 @@ export const COMMAND_KINDS: readonly GameActionKind[] = [
    * "chờ xem" không phải một hành động. Xem `GitGameAction`.
    */
   'command',
+  /*
+   * `'evaluate'` — action nộp-để-chấm của game CI/CD, thêm ở 19.J.
+   *
+   * ⛔ THIẾU NÓ Ở ĐÂY LÀ MỘT LỖI CÂM, và nó đã thật sự tồn tại cho tới đợt này:
+   * `ACTION_KINDS` suy ra từ danh sách này, nên một `kind` vắng mặt làm
+   * `logShapeError` từ chối nhật ký với lý do "kind lạ" — tức MỌI lượt nộp bài
+   * CI/CD đều `log-hong`, và thông điệp đổ lỗi cho nhật ký của người nộp thay vì
+   * chỉ ra một mảnh nền tảng còn thiếu. Không ô nào đỏ trước 19.J vì chưa có
+   * đường nào dựng được một nhật ký CI/CD.
+   *
+   * Nó là MỘT LỆNH theo đúng nghĩa danh sách này định nghĩa, cùng lý lẽ với
+   * `'command'` của Git: ở game CI/CD, "sửa YAML rồi bấm chạy" là toàn bộ tương
+   * tác của người chơi. Để nó ngoài `COMMAND_KINDS` thì `commandsUsed` bằng 0 ở
+   * mọi lượt chơi CI/CD, và `movesUsed` trong phép tính điểm mất đúng đại lượng
+   * nó đo.
+   */
+  'evaluate',
 ];
 
 /**
  * MỌI `kind` hợp lệ. Phải VÉT CẠN `GameActionKind` — một kind thiếu ở đây làm
  * `logShapeError` từ chối một nhật ký lành với lý do "kind lạ".
  *
- * Hôm nay: 5 kind lệnh K8s + `'command'` của Git (đều ở `COMMAND_KINDS`) + hai
- * kind không-phải-lệnh dùng chung là `'hint'` và `'wait'`.
+ * Hôm nay: 5 kind lệnh K8s + `'command'` của Git + `'evaluate'` của CI/CD (cả
+ * bảy ở `COMMAND_KINDS`) + hai kind không-phải-lệnh dùng chung là `'hint'` và
+ * `'wait'`.
  */
 const ACTION_KINDS: readonly GameActionKind[] = [...COMMAND_KINDS, 'hint', 'wait'];
+
+/**
+ * Cổng VÉT CẠN, cưỡng chế lúc BIÊN DỊCH — 19.J.
+ *
+ * ⛔ Câu "phải vét cạn" ở khối trên là một lời nhắc, và một lời nhắc không phải
+ * một cổng: `'evaluate'` của game CI/CD vắng mặt khỏi `ACTION_KINDS` từ lúc
+ * `CicdGameAction` ra đời cho tới 19.J, và không gì đỏ trong suốt quãng đó.
+ * Không ô test nào bắt được, vì `readonly GameActionKind[]` nhận một mảng THIẾU
+ * mà vẫn đúng kiểu — mảng con của một union vẫn là mảng của union đó.
+ *
+ * Bảng dưới đây thì không: `Record<GameActionKind, true>` đòi ĐỦ khoá, nên thêm
+ * một `kind` mới vào bất kỳ game nào mà quên hai danh sách trên là một lỗi
+ * `tsc`, ngay tại file này, kèm tên khoá còn thiếu.
+ *
+ * ⚠ Giá trị `true`/`false` ở đây nói `kind` đó có phải MỘT LỆNH không, và nó là
+ * SSOT của cả hai danh sách — hai ô test dưới ghim rằng `COMMAND_KINDS` và
+ * `ACTION_KINDS` đọc đúng bảng này. Đừng để chúng trôi thành ba nguồn.
+ */
+const LA_LENH: Readonly<Record<GameActionKind, boolean>> = {
+  apply: true,
+  delete: true,
+  scale: true,
+  edit: true,
+  kubectl: true,
+  command: true,
+  evaluate: true,
+  hint: false,
+  wait: false,
+};
+
+/** Mọi `kind` bảng trên biết, để test đối chiếu hai danh sách ở trên với nó. */
+export const ALL_ACTION_KINDS: readonly GameActionKind[] = Object.keys(LA_LENH) as GameActionKind[];
+
+/** `kind` nào là lệnh, theo bảng vét cạn. Xem `LA_LENH`. */
+export const COMMAND_ACTION_KINDS: readonly GameActionKind[] = ALL_ACTION_KINDS.filter(
+  (kind) => LA_LENH[kind],
+);
 
 /** Những con số suy ra ĐƯỢC từ chính nhật ký, nên không cần tin lời khai. */
 export interface RunTally {
@@ -231,70 +330,14 @@ export interface ReplayEngine<TState> {
   dispose?(state: TState): void;
 }
 
-/**
- * Dựng `ReplayEngine` từ `CreateSession` THẬT của lane B.
- *
- * Đây là adapter mà chỗ dùng thật sẽ gọi; `ReplayEngine` bên trên vẫn là kiểu
- * generic để (a) test được bằng engine giả, kể cả engine cố tình không tất định,
- * và (b) game sau không phải là Kubernetes vẫn tái dùng được `verifyRun`.
- *
- * ⚠ `autoTick: false` là BẮT BUỘC, không phải một tuỳ chọn hiệu năng. Bật lên
- * thì mô phỏng tiến theo đồng hồ tường, và một lần phát lại trên máy chậm sẽ ra
- * kết quả khác lần phát lại trên máy nhanh — xác minh mất hết ý nghĩa và mọi
- * người chơi hợp lệ bị gắn cờ. Phát lại KHÔNG được phụ thuộc thời gian thật.
- *
- * `project` trả thẳng `getView()` (tức `ClusterView`) thay vì bốc vài field: mô
- * hình lúc chạy của lane B còn `ready` và `restartCount` là các trục riêng của
- * `phase`, và sẽ còn dày lên nữa. So trên hình chiếu đầy đủ thì phép so vẫn đúng
- * khi mô hình lớn thêm; bốc tay field thì im lặng mù dần.
+/*
+ * `sessionReplayEngine` KHÔNG còn ở đây kể từ 18.A — nó đã chuyển sang
+ * `k8s/replay-engine.ts`. Nó là adapter của ĐÚNG MỘT game: nó kéo vào năm kiểu
+ * K8s (`CreateSession`, `K8sGameAction`, `K8sSession`, `Level`,
+ * `SessionStatus`), tức là trói `core/` vào Kubernetes đúng theo cách khối chú
+ * thích đầu file cấm. Giao diện `ReplayEngine` ở trên vẫn generic và vẫn ở đây;
+ * mỗi game tự dựng hiện thực của mình trong package của nó.
  */
-export function sessionReplayEngine(
-  createSession: CreateSession,
-  level: Level,
-  scoreRun: (status: SessionStatus, tally: RunTally) => number,
-): ReplayEngine<K8sSession> {
-  return {
-    init: (levelId, seed) => {
-      // Nhật ký thuộc level khác thì phát lại vô nghĩa — ném để thành
-      // `phat-lai-loi` (lỗi của ta / của dữ liệu), chứ không âm thầm chấm sai.
-      if (levelId !== level.id) {
-        throw new Error(`nhật ký thuộc level "${levelId}" nhưng được phát lại trên "${level.id}"`);
-      }
-      return createSession({ level, seed, autoTick: false });
-    },
-    reduce: (session, action) => {
-      /*
-       * `ReplayEngine.reduce` nhận DẠNG RỘNG (mọi game), còn `K8sSession.dispatch`
-       * đòi `K8sGameAction`. Chỗ thu hẹp phải ở đây, và phải THU HẸP CÓ KIỂM —
-       * `as` trần sẽ đẩy một action của game Git vào reducer K8s, nơi nó rơi vào
-       * nhánh `default` và biến mất KHÔNG một tiếng động: phát lại ra một trạng
-       * thái thiếu, điểm lệch, và `verifyRun` báo `khong-khop` — tức là đổ lỗi
-       * cho người chơi vì một lỗi ghép engine của ta.
-       *
-       * Ném thì `verifyRun` bắt thành `phat-lai-loi`, đúng ô "lỗi của ta hoặc
-       * của dữ liệu, KHÔNG phải bằng chứng gian lận".
-       */
-      if (action.gameId !== 'k8s') {
-        throw new Error(
-          `nhật ký của game "${action.gameId}" không phát lại được trên engine K8s`,
-        );
-      }
-      /*
-       * Vẫn cần `as` sau phép kiểm: `core/` chỉ biết `target` là `ResourceRefLike`
-       * (`kind: string`), còn `dispatch` đòi `ResourceRef` (`kind: ResourceKind`).
-       * Kiểm lại `kind` ở đây là chép `resolveKind` sang chỗ thứ hai; và không cần
-       * — một `kind` bịa ra không tra ra object nào trong `reducer.ts`, nên hành
-       * động không được chấp nhận và phát lại lệch đúng như nó phải lệch.
-       */
-      session.dispatch(action as K8sGameAction);
-      return session;
-    },
-    objectivesMet: (session) => session.getStatus().objectivesMet,
-    score: (session, tally) => scoreRun(session.getStatus(), tally),
-    project: (session) => session.getView(),
-    dispose: (session) => session.dispose(),
-  };
-}
 
 interface ReplayOutcome {
   readonly objectivesMet: readonly string[];

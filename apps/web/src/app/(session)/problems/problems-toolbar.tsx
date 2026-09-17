@@ -2,14 +2,21 @@
 
 import { useId, useState, type ReactElement } from 'react';
 import { t } from '@devops-platform/copy';
-import { Label, SearchTabs, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@devops-platform/ui';
+import {
+  Label,
+  SearchTabs,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@devops-platform/ui';
 import { Button } from '@devops-platform/ui';
 import {
   PROBLEM_DIFFICULTIES,
   PROBLEM_DIFFICULTY_LABELS,
   PROBLEM_ORDER_KEYS,
-  PROBLEM_TOPICS,
-  PROBLEM_TOPIC_LABELS,
+  type GameId,
   type ProblemOrderKey,
 } from '@devops-platform/games';
 import {
@@ -18,6 +25,7 @@ import {
   PROBLEM_VIEWER_STATUSES,
   PROBLEM_VIEWER_STATUS_LABELS,
 } from './problem-labels';
+import { PROBLEM_FILTER_GAMES, gameName, topicIdsFor, topicLabelsFor } from './problem-game';
 import { FilterChecklist, TagFilter } from './problem-filter-groups';
 import type { ProblemControls } from './use-problem-controls';
 
@@ -59,7 +67,11 @@ const DIRECTIONS = ['asc', 'desc'] as const;
  * Đây là chỗ khác năm trang danh mục lần thứ hai: ở đó ô tìm là state cục bộ
  * không đụng URL nên commit theo từng phím là đúng.
  */
-export function ProblemsToolbar({ controls }: { readonly controls: ProblemControls }): ReactElement {
+export function ProblemsToolbar({
+  controls,
+}: {
+  readonly controls: ProblemControls;
+}): ReactElement {
   const orderId = useId();
   const directionId = useId();
   const committed = controls.query.filter.query ?? '';
@@ -77,6 +89,18 @@ export function ProblemsToolbar({ controls }: { readonly controls: ProblemContro
 
   return (
     <div className="flex flex-col gap-5 rounded-lg border border-border bg-card p-4 shadow-elevation-1">
+      <div className="practice-game-switch" aria-label={t('catalog.problems.game-switch-label')}>
+        {PROBLEM_FILTER_GAMES.map((gameId) => (
+          <button
+            key={gameId}
+            type="button"
+            aria-pressed={controls.query.game === gameId}
+            onClick={() => controls.setGame(gameId)}
+          >
+            {gameName(gameId)}
+          </button>
+        ))}
+      </div>
       <div className="flex flex-wrap items-end gap-4">
         <div className="flex min-w-64 flex-1 flex-col gap-2">
           <span className="text-xs font-medium text-muted-foreground">
@@ -138,40 +162,141 @@ export function ProblemsToolbar({ controls }: { readonly controls: ProblemContro
           </Select>
         </div>
 
-        <Button variant="ghost" size="sm" onClick={controls.clearFilters} disabled={!controls.hasActiveFilter}>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={controls.clearFilters}
+          disabled={!controls.hasActiveFilter}
+        >
           {t('catalog.action.clear-filter')}
         </Button>
       </div>
 
-      <div className="grid gap-5 md:grid-cols-2">
-        <FilterChecklist
-          legend={t('catalog.problems.difficulty-legend')}
-          options={PROBLEM_DIFFICULTIES}
-          labels={PROBLEM_DIFFICULTY_LABELS}
-          selected={controls.query.filter.difficulty ?? []}
-          onToggle={controls.toggleDifficulty}
-        />
-        <FilterChecklist
-          legend={t('catalog.problems.status-legend')}
-          options={PROBLEM_VIEWER_STATUSES}
-          labels={PROBLEM_VIEWER_STATUS_LABELS}
-          selected={controls.query.filter.viewerStatus ?? []}
-          onToggle={controls.toggleViewerStatus}
-        />
-        <FilterChecklist
-          legend={t('catalog.problems.topic-legend')}
-          hint={t('catalog.problems.topic-hint')}
-          options={PROBLEM_TOPICS}
-          labels={PROBLEM_TOPIC_LABELS}
-          selected={controls.query.filter.topics ?? []}
-          onToggle={controls.toggleTopic}
-        />
-        <TagFilter
-          tags={controls.query.filter.tags ?? []}
-          onAdd={controls.addTag}
-          onRemove={controls.removeTag}
-        />
-      </div>
+      <details className="practice-advanced-filters">
+        <summary>
+          {t('catalog.problems.advanced-summary')}
+          {controls.hasActiveFilter ? ` · ${t('catalog.problems.advanced-active')}` : ''}
+        </summary>
+        <div className="grid gap-5 md:grid-cols-2">
+          <FilterChecklist
+            legend={t('catalog.problems.difficulty-legend')}
+            options={PROBLEM_DIFFICULTIES}
+            labels={PROBLEM_DIFFICULTY_LABELS}
+            selected={controls.query.filter.difficulty ?? []}
+            onToggle={controls.toggleDifficulty}
+          />
+          <FilterChecklist
+            legend={t('catalog.problems.status-legend')}
+            options={PROBLEM_VIEWER_STATUSES}
+            labels={PROBLEM_VIEWER_STATUS_LABELS}
+            selected={controls.query.filter.viewerStatus ?? []}
+            onToggle={controls.toggleViewerStatus}
+          />
+          <TopicFilter controls={controls} />
+          <TagFilter
+            tags={controls.query.filter.tags ?? []}
+            onAdd={controls.addTag}
+            onRemove={controls.removeTag}
+          />
+        </div>
+      </details>
+    </div>
+  );
+}
+
+/**
+ * Khối lọc chủ đề, kèm bộ chọn GAME quyết định từ vựng của nó — §18 khối 6.
+ *
+ * ## Vì sao bộ chọn game nằm TRONG khối này, không nằm cạnh "Sắp xếp theo"
+ *
+ * Chỗ đứng là lời giải thích rẻ nhất. Đặt nó trên hàng điều khiển đầu — cạnh
+ * thứ tự và chiều sắp — sẽ đọc như một chiều lọc thứ năm ngang hàng với độ khó,
+ * và người dùng sẽ chờ bảng bài thu lại khi chọn "Git Game". Nó không làm thế:
+ * `ProblemFilter` không có trường `gameId` và schema đầu vào của `problems.list`
+ * khai `.strict()` (đo 2026-09-15 — xem `problem-game.ts`). Đặt nó ngay trên
+ * danh sách chủ đề thì quan hệ "đổi cái này thì cái kia đổi theo" tự hiện ra,
+ * và câu `game-hint` chỉ phải xác nhận điều mắt đã thấy.
+ *
+ * ## MỘT nhánh, từ 2026-09-15
+ *
+ * Bản đầu có hai nhánh vì hợp đồng `ProblemFilter.topics` còn đóng ở chín chủ đề
+ * K8s: game chở được thì ô bấm được, game chưa chở được thì chủ đề vẫn hiện
+ * nhưng KHOÁ kèm lý do. Hợp đồng nới xong thì nhánh thứ hai hết đối tượng.
+ *
+ * Lý lẽ của nhánh khoá vẫn đúng và đáng giữ lại đây phòng khi cần: khoá-kèm-lý-do
+ * đúng hơn một danh sách rỗng, vì danh sách rỗng trả lời sai câu người dùng đang
+ * hỏi — họ muốn biết game này có những chủ đề nào, và "tám chủ đề, chưa lọc
+ * được" đúng hơn "không có chủ đề nào".
+ */
+function TopicFilter({ controls }: { readonly controls: ProblemControls }): ReactElement {
+  const gameId = controls.query.game;
+
+  /*
+   * Nhánh KHOÁ đã bị GỠ 2026-09-15, cùng lượt nới `ProblemFilter.topics` sang
+   * `ProblemTopicId`. Nó tồn tại vì hợp đồng lọc còn đóng ở chín chủ đề K8s, nên
+   * chủ đề Git hiện ra được mà không gửi đi được; nay mọi game đi qua cùng một
+   * đường và không còn trạng thái thứ hai để hiện.
+   */
+  return (
+    <div className="flex flex-col gap-3">
+      <GameSelect value={gameId} onChange={controls.setGame} />
+      <FilterChecklist
+        legend={t('catalog.problems.topic-legend')}
+        hint={t('catalog.problems.topic-hint')}
+        options={topicIdsFor(gameId)}
+        labels={topicLabelsFor(gameId)}
+        selected={controls.query.filter.topics ?? []}
+        onToggle={controls.toggleTopic}
+      />
+    </div>
+  );
+}
+
+/**
+ * `Select` một lựa chọn, KHÁC hẳn bốn khối lọc còn lại vốn đều là nhiều lựa
+ * chọn. Đó là điều đúng ở đây và là lý do §"SearchTabs chạy không có tab" ở đầu
+ * file không áp dụng: từ vựng chủ đề của hai game là hai tập rời, nên "đang
+ * chọn" luôn là đúng một game — một điều khiển một-lựa-chọn nói đúng trạng thái
+ * chứ không che mất lựa chọn nào.
+ */
+function GameSelect(props: {
+  readonly value: GameId;
+  readonly onChange: (value: GameId) => void;
+}): ReactElement {
+  const id = useId();
+
+  return (
+    <div className="flex flex-col gap-2">
+      <Label htmlFor={id} className="text-xs font-medium text-muted-foreground">
+        {t('catalog.problems.game-legend')}
+      </Label>
+      <p className="text-xs text-muted-foreground">{t('catalog.problems.game-hint')}</p>
+      <Select
+        value={props.value}
+        onValueChange={(next) => {
+          /*
+            `onValueChange` của Radix trả `string`, nên phép thu hẹp phải là một
+            lượt TRA trong danh sách thật, không phải `as GameId`. Ép kiểu ở đây
+            sẽ nhận mọi chuỗi mà Radix có thể phát ra (kể cả chuỗi rỗng lúc bị
+            xoá trạng thái) và đẩy thẳng nó vào URL.
+          */
+          const picked = PROBLEM_FILTER_GAMES.find((gameId) => gameId === next);
+          if (picked !== undefined) {
+            props.onChange(picked);
+          }
+        }}
+      >
+        <SelectTrigger id={id} className="w-56">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {PROBLEM_FILTER_GAMES.map((gameId) => (
+            <SelectItem key={gameId} value={gameId}>
+              {gameName(gameId)}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   );
 }

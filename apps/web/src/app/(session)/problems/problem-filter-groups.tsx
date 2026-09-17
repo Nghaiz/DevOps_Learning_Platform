@@ -29,6 +29,20 @@ export function FilterChecklist<T extends string>(props: {
   readonly onToggle: (value: T) => void;
   /** Câu giải thích LUẬT gộp khi chọn nhiều — chủ đề là HOẶC, tag là VÀ. */
   readonly hint?: string;
+  /*
+   * `lockedReason` TỪNG ở đây và đã bị GỠ 2026-09-15.
+   *
+   * Nó khoá cả nhóm kèm lý do hiện trên màn, và nó có đúng MỘT chỗ gọi: khối
+   * chủ đề của `/problems`, cho những game mà `ProblemFilter.topics` chưa chở
+   * được. Hợp đồng nới xong thì chỗ gọi đó biến mất, và một prop không ai truyền
+   * là một nhánh không ai chạy.
+   *
+   * Nếu cần khoá lại một ngày nào đó: khoá bằng `disabled` của chính `Checkbox`,
+   * KHÔNG bằng `pointer-events` — phần tử bị `pointer-events: none` vẫn nhận
+   * focus bàn phím và vẫn đổi trạng thái bằng phím cách, tức nó chỉ khoá đúng
+   * người dùng chuột. Và khoá thì phải kèm lý do: một nhóm ô xám đi mà không nói
+   * vì sao là chế độ hỏng tệ nhất trong ba chế độ có thể.
+   */
 }): ReactElement {
   const groupId = useId();
 

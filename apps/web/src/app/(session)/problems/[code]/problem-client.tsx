@@ -2,12 +2,16 @@
 
 import type { ReactElement, ReactNode } from 'react';
 import Link from 'next/link';
+import { GitBranch, Shield } from 'lucide-react';
+import { GitWorldArt } from '../../../../components/games/git/git-world-art';
+import '../../../../components/games/git/git-odyssey.css';
 import { t } from '@devops-platform/copy';
-import { Button, EmptyState, ErrorState, Skeleton } from '@devops-platform/ui';
+import { Button, EmptyState, ErrorState, Skeleton, Tabs, TabsList, TabsTrigger, TabsContent } from '@devops-platform/ui';
 import { api } from '../../../../lib/trpc-react';
 import { describeTrpcError, trpcErrorCode } from '../../../../lib/trpc';
 import { ProblemOverview } from './problem-overview';
 import { ProblemHints } from './problem-hints';
+import { ProblemTestcases } from './problem-testcases';
 import { ProblemSubmissions } from './problem-submissions';
 
 /** Trang chi tiết chỉ hiện trang đầu lịch sử nộp — xem lý do ở `ProblemSubmissions`. */
@@ -95,8 +99,25 @@ export function ProblemClient({ code }: { readonly code: string }): ReactElement
   const { problem, stats, viewerStatus } = detail.data;
 
   return (
-    <Shell>
+    <Shell git={problem.gameId === 'git'}>
       <ProblemOverview problem={problem} stats={stats} viewerStatus={viewerStatus} />
+      <Tabs defaultValue="checks" className="practice-problem-tabs">
+        <TabsList aria-label={t('catalog.problem.tabs-label')}>
+          <TabsTrigger value="checks">{t('catalog.problem.tab-checks')}</TabsTrigger>
+          <TabsTrigger value="hints">{t('catalog.problem.tab-hints')}</TabsTrigger>
+          <TabsTrigger value="submissions">{t('catalog.problem.tab-submissions')}</TabsTrigger>
+        </TabsList>
+        <TabsContent value="checks">
+      {/*
+        §18.B.4 — danh sách testcase. Nhãn của testcase ẩn đã bị MÁY CHỦ cắt
+        trước khi tới đây (`server/problems/solver.ts`), nên component chỉ vẽ
+        thứ nó nhận được. Đặt trên phần gợi ý vì nó là một phần của ĐỀ BÀI:
+        người làm cần biết bài chấm bằng bao nhiêu testcase trước khi quyết
+        định có mua gợi ý hay không.
+      */}
+      <ProblemTestcases testcases={problem.testcases} />
+        </TabsContent>
+        <TabsContent value="hints">
       <ProblemHints
         hints={problem.hints}
         pendingHintId={reveal.isPending ? (reveal.variables?.hintId ?? null) : null}
@@ -105,6 +126,8 @@ export function ProblemClient({ code }: { readonly code: string }): ReactElement
           reveal.mutate({ code, hintId });
         }}
       />
+        </TabsContent>
+        <TabsContent value="submissions">
       <ProblemSubmissions
         items={submissions.data?.items ?? []}
         isPending={submissions.isPending}
@@ -113,6 +136,8 @@ export function ProblemClient({ code }: { readonly code: string }): ReactElement
         hasMore={submissions.data?.nextCursor != null}
         onRetry={() => void submissions.refetch()}
       />
+        </TabsContent>
+      </Tabs>
     </Shell>
   );
 }
@@ -125,6 +150,43 @@ export function ProblemClient({ code }: { readonly code: string }): ReactElement
  * landmark đó cho mọi trang, và cái thứ hai làm axe đỏ `landmark-unique` —
  * `components/session/landmark-contract.test.ts` quét tĩnh việc này.
  */
-function Shell({ children }: { readonly children: ReactNode }): ReactElement {
-  return <div className="mx-auto flex w-full max-w-4xl flex-col gap-8 px-6 py-10">{children}</div>;
+function Shell({
+  children,
+  git = false,
+}: {
+  readonly children: ReactNode;
+  readonly git?: boolean;
+}): ReactElement {
+  if (git)
+    return (
+      <div className="git-odyssey git-oj-lobby">
+        <header className="git-oj-lobby-header">
+          <div>
+            <div className="git-wordmark">
+              <span className="git-brand-icon">
+                <GitBranch size={22} />
+              </span>
+              <span>
+                {t('catalog.problem.git-brand-name')} <b>{t('catalog.problem.git-brand-suffix')}</b>
+                <small>{t('catalog.problem.git-brand-tagline')}</small>
+              </span>
+            </div>
+            <p>{t('catalog.problem.git-lead')}</p>
+            <span className="git-eyebrow">
+              <Shield size={14} /> {t('catalog.problem.git-grading-note')}
+            </span>
+          </div>
+          <GitWorldArt chapter={2} />
+        </header>
+        <div className="git-oj-lobby-body">{children}</div>
+      </div>
+    );
+  return (
+    <div className="practice-catalog practice-problem-detail">
+      <Link href="/problems" className="practice-link">
+        {t('catalog.problem.back-lobby')}
+      </Link>
+      {children}
+    </div>
+  );
 }

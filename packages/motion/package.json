@@ -8,7 +8,8 @@
     ".": "./src/index.ts",
     "./motif": "./src/motif.ts",
     "./reduced-motion": "./src/reduced-motion.ts",
-    "./provider": "./src/motion-provider.tsx"
+    "./provider": "./src/motion-provider.tsx",
+    "./react": "./src/react.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",
@@ -35,6 +36,6 @@
     "jsdom": "^30.0.1",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
     "typescript-eslint": "^8.70.0",
-    "vitest": "^4.1.11"
+    "vitest": "^5.0.0"
   }
 }

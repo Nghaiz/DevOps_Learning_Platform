@@ -1,7 +1,7 @@
 import { TRPCError } from '@trpc/server';
 import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
-import type { ProblemHintTeaser } from '@devops-platform/games';
+import { GAME_IDS, MAX_REPLAY_TICK, type ProblemHintTeaser } from '@devops-platform/games';
 import { problems } from '../../db/schema';
 import { findProblemForWrite } from '../../problems/authz';
 import {
@@ -14,13 +14,24 @@ import {
 import { findHint, toProblemDTO } from '../../problems/dto';
 import { getProblemForViewer } from '../../problems/get';
 import { codeInput, listProblemsInput, toListOptions } from '../../problems/list-input';
-import { listProblems } from '../../problems/list';
+import { listProblems, listProblemsForSolver } from '../../problems/list';
 import { recordHintReveal } from '../../problems/reveals';
 import { listMySubmissions } from '../../problems/submissions';
-import { submitProblem } from '../../problems/submit';
+import { submitProblem, tryGradeProblem } from '../../problems/submit';
+import type { Database } from '../../db/client';
+import { examSubmissionRejection } from '../../exams/attempt-seed';
+import { getAttemptFor, getExamForStudent } from '../../exams/crud';
 import { problemBodySchema, problemCodeSchema, problemUpdateSchema } from '../../problems/validate';
 import { problemVisibilityFor, visibleProblemWhere } from '../../problems/visibility';
 import { authorProcedure, createTRPCRouter, listInputSchema, protectedProcedure } from '../init';
+
+/**
+ * Trần số hành động trong một `RunLog` gửi lên — §18.C.4.
+ *
+ * Xem khối chú thích tại chỗ dùng (`submit.input.runLog.actions`) về vì sao trần
+ * nằm ở schema input chứ không nằm trong `submitProblem`, và vì sao con số này.
+ */
+const MAX_LOG_ACTIONS = 20_000;
 
 /**
  * `problems.*` — hệ bài tập kiểu OJ (P14 lane D).
@@ -48,11 +59,148 @@ import { authorProcedure, createTRPCRouter, listInputSchema, protectedProcedure 
  * đó sẽ so giá trị họ cung cấp với chính nó.
  */
 
+/**
+ * Hình dạng `runLog` gửi lên — DÙNG CHUNG cho `submit` và `tryGrade`.
+ *
+ * ⛔ Một bản thứ hai ở `tryGrade` là chỗ hai đường lệch nhau trong im lặng: chấm
+ * thử sẽ nhận một nhật ký mà đường nộp từ chối (hoặc ngược lại), và người dùng
+ * thấy "thử thì đạt, nộp thì trượt" mà không có cách nào biết vì sao. Trần
+ * `MAX_LOG_ACTIONS` và phép thừa kế `gameId` vì thế áp cho CẢ HAI ở đúng một chỗ.
+ */
+const runLogInput = z.object({
+  gameId: z.enum(GAME_IDS).default('k8s'),
+  levelId: z.string().min(1),
+  seed: z.number().int(),
+  /*
+    * Trần độ dài — §18.C.4, nửa "giới hạn độ dài `actions[]`".
+    *
+    * ⛔ Trần phải nằm ở ĐÂY, trong schema input, chứ không ở trong
+    * `submitProblem`. Một mảng mười triệu phần tử đã được phân tích,
+    * cấp phát và giữ trong bộ nhớ TRƯỚC khi bất kỳ dòng nào của
+    * `submitProblem` chạy; kiểm `actions.length` ở đó là kiểm sau khi
+    * đã trả giá. Zod từ chối ngay tại biên.
+    *
+    * Vì sao là một con số chứ không phải "đủ lớn để không ai chạm":
+    * máy chủ phát lại nhật ký HAI lần (`verifyRun` bắt engine không
+    * tất định) rồi chạy mọi vị từ, nên độ dài nhật ký nhân thẳng vào
+    * thời gian CPU của một lượt nộp. Cùng với trần nhịp 6 lượt/phút ở
+    * `submit.ts`, hai con số này chốt được trần tải của một tài khoản.
+    *
+    * 20.000 chọn theo cái nó phải cho phép: `parMoves` của bài khó
+    * nhất trong repo là hai chữ số, và một lượt chơi thật gồm lệnh +
+    * tick + gợi ý vẫn nằm trong hàng nghìn. Hai chục nghìn rộng hơn
+    * một lượt chơi thật rất xa và hẹp hơn một vòng lặp sinh dữ liệu.
+    *
+    * ⚠ Thông điệp nói ra con số. Một `400` trần trên một nhật ký dài
+    * đọc ra như "lượt chơi của tôi hỏng", và người chơi sẽ chơi lại
+    * rồi hỏng y hệt.
+    */
+  actions: z
+    .array(
+      z.looseObject({
+        // Vắng ⇒ thừa kế `runLog.gameId` ở `.transform()` dưới, KHÔNG
+        // mặc định `'k8s'`. Xem khối chú thích đầu `runLog`.
+        gameId: z.enum(GAME_IDS).optional(),
+        kind: z.string(),
+        /*
+         * `.int().nonnegative()` chứ không `z.number()` trần.
+         *
+         * `z.number()` chỉ chặn `Infinity` và `NaN` — đo 2026-09-15 — nên
+         * `-1`, `3.7` và `1e12` đều lọt. Tick của mô phỏng khởi từ 0 và
+         * tăng đúng 1 mỗi bước, nên không lượt chơi thật nào sinh ra ba
+         * hình dạng đó; nhận chúng chỉ mở cửa cho dữ liệu bịa.
+         */
+        tick: z.number().int().nonnegative(),
+      }),
+    )
+    .max(MAX_LOG_ACTIONS, {
+      message: `Nhật ký lượt chơi vượt trần ${String(MAX_LOG_ACTIONS)} hành động`,
+    })
+    /*
+     * Trần TICK — §18.C.4, nửa còn thiếu bên cạnh trần độ dài ở trên.
+     *
+     * Hai trần gác hai đại lượng khác nhau và KHÔNG thay nhau được:
+     * `MAX_LOG_ACTIONS` chặn SỐ hành động, còn `advance()` đốt CPU theo ĐỘ LỚN
+     * của tick. 20.000 action hợp lệ, mỗi cái nhảy 1e12 tick, qua được trần trên
+     * và vẫn là hàng chục ngày CPU cho một lượt nộp (đo: ~927.000 tick/giây).
+     *
+     * ⚠ Chặn ở đây là chặn SỚM, không phải chặn DUY NHẤT. `k8s/session.ts` giữ
+     * cùng bất biến ở tầng hàm để bảo vệ mọi caller không đi qua wire. Wire tồn
+     * tại vì nó trả được một câu nói ra con số thay vì một `phat-lai-loi` mơ hồ.
+     *
+     * Cận trên dùng ở đây (`max(tick) + tổng wait.ticks`) là CHẶN TRÊN của tick
+     * cuối cùng, không phải con số chính xác — tick đơn điệu tăng nên phép phát
+     * lại thật sẽ dừng ở đâu đó ≤ giá trị này. Chặt hơn thì phải mô phỏng lại
+     * chính thứ ta đang từ chối mô phỏng.
+     */
+    .superRefine((actions, ctx) => {
+      let highest = 0;
+      let waited = 0;
+      for (const action of actions) {
+        highest = Math.max(highest, action.tick);
+        if (action.kind === 'wait') {
+          /*
+           * `wait.ticks` KHÔNG được khai trong `looseObject` ở trên, nên nó tới
+           * đây dưới dạng `unknown` và phải kiểm tại chỗ. Đây là cửa thứ hai vào
+           * `advance()`, và là cửa đã mở sẵn từ trước bản vá C2: `reducer.apply`
+           * cộng thẳng `action.ticks` vào mô phỏng mà không đi qua `action.tick`.
+           * Đo 2026-09-15: `ticks: 50000` tua đúng 50.000 tick.
+           */
+          const ticks: unknown = (action as { readonly ticks?: unknown }).ticks;
+          if (typeof ticks !== 'number' || !Number.isInteger(ticks) || ticks < 0) {
+            ctx.addIssue({
+              code: 'custom',
+              message: 'Hành động `wait` phải mang `ticks` là số nguyên không âm',
+            });
+            return;
+          }
+          waited += ticks;
+        }
+      }
+      const reachable = highest + waited;
+      if (reachable > MAX_REPLAY_TICK) {
+        ctx.addIssue({
+          code: 'custom',
+          message:
+            `Nhật ký lượt chơi tua tới tick ${String(reachable)}, vượt trần ` +
+            `${String(MAX_REPLAY_TICK)} (~${String(Math.round(MAX_REPLAY_TICK / 2 / 3600))} giờ chơi liên tục)`,
+        });
+      }
+    })
+    .readonly(),
+})
+  /*
+   * Điền `gameId` thiếu cho từng action TỪ chính nhật ký chứa nó.
+   *
+   * Giữ nguyên lá chắn cho client cũ: một tab trước 17.A không gửi
+   * `gameId` ở đâu cả, nên `runLog.gameId` rơi về `'k8s'` và mọi action
+   * thừa kế `'k8s'` — đúng hành vi cũ từng bit. Cái được thêm là một
+   * client Git chỉ cần khai `gameId` MỘT lần ở gốc.
+   *
+   * ⚠ Bộ phát lại kiểm `action.gameId` trước khi đưa xuống reducer và
+   * NÉM khi lệch, nên một action thiếu trường này thành `phat-lai-loi`
+   * — một lỗi CẤU HÌNH đọc ra thành "bộ mô phỏng hỏng".
+   */
+  .transform((log) => ({
+    ...log,
+    actions: log.actions.map((action) => ({
+      ...action,
+      gameId: action.gameId ?? log.gameId,
+    })),
+  }));
+
 export const problemsRouter = createTRPCRouter({
   // ── Người học ─────────────────────────────────────────────────────────────
 
+  /**
+   * Kho bài cho người học.
+   *
+   * ⛔ `listProblemsForSolver`, KHÔNG phải `listProblems` — §18.B.4. Bản kia giữ
+   * `objectives` nguyên vẹn cho trang soạn bài; gọi nhầm nó ở đây là gửi `check`
+   * và `args` của cả hai mươi bài mỗi trang xuống trình duyệt.
+   */
   list: protectedProcedure.input(listProblemsInput).query(async ({ ctx, input }) =>
-    listProblems(ctx.db, {
+    listProblemsForSolver(ctx.db, {
       visibility: problemVisibilityFor(ctx.user),
       viewerId: ctx.user.id,
       options: toListOptions(input),
@@ -124,31 +272,45 @@ export const problemsRouter = createTRPCRouter({
            * trường này là biến mọi lượt nộp đang bay trên dây thành 400, và
            * người chơi mất lượt vừa chơi xong mà không hiểu vì sao.
            *
-           * Giá trị mặc định đúng là `'k8s'` vì đây là endpoint nộp bài OJ của
-           * game K8s — `claimed.gameId` ngay bên dưới đã chốt `z.literal('k8s')`
-           * từ trước. Một game khác sẽ có endpoint của nó, không dùng lại chỗ này.
+           * Giá trị mặc định vẫn là `'k8s'` vì mọi nhật ký THIẾU trường này đều
+           * tới từ một client trước 17.A, và hồi đó chỉ có game K8s.
            *
-           * ⚠ Mặc định ở CẢ `actions[]`, không chỉ ở gốc: `sessionReplayEngine`
-           * kiểm `action.gameId !== 'k8s'` trước khi đưa xuống reducer K8s và
-           * NÉM khi lệch, nên một action thiếu `gameId` sẽ thành `phat-lai-loi`
-           * cho mọi lượt nộp từ client cũ.
+           * ⛔ **Chú thích cũ ở đây viết "Một game khác sẽ có endpoint của nó,
+           * không dùng lại chỗ này". Câu đó KHÔNG còn đúng, và giữ nó lại sẽ dẫn
+           * người sau đi dựng một endpoint thứ hai không cần thiết.**
+           *
+           * Nó được viết khi máy chủ mới chấm được K8s. Từ 18.C, `submitProblem`
+           * tự tách đường theo `gameId` bên trong (`problemAsGitLevel` và
+           * `gitProblemReplayEngine` đứng cạnh bản K8s). Một endpoint thứ hai khi
+           * đó sẽ nhân đôi bốn thứ không liên quan gì tới game: xác thực, trần
+           * nhịp nộp, `MAX_LOG_ACTIONS`, và ba cổng của kỳ thi — rồi chúng sẽ
+           * trôi khỏi nhau ở đúng cái ai đó chỉ sửa một bên.
+           *
+           * ⚠ `actions[].gameId` KHÔNG mặc định `'k8s'` mà **thừa kế từ
+           * `runLog.gameId`** ngay dưới. Chốt cứng `'k8s'` ở đó là một cái bẫy chỉ
+           * lộ ra khi game thứ hai tới: một client Git gửi action không kèm
+           * `gameId` sẽ nhận `'k8s'`, rồi phép kiểm nhất quán bên dưới từ chối
+           * chính lượt nộp hợp lệ của nó.
            */
-          runLog: z.object({
-            gameId: z.literal('k8s').default('k8s'),
-            levelId: z.string().min(1),
-            seed: z.number().int(),
-            actions: z
-              .array(
-                z.looseObject({
-                  gameId: z.literal('k8s').default('k8s'),
-                  kind: z.string(),
-                  tick: z.number(),
-                }),
-              )
-              .readonly(),
-          }),
+          runLog: runLogInput,
+          /*
+           * §18.G — lượt nộp TRONG một kỳ thi mang theo `examId`.
+           *
+           * `.optional()`, và đó là điều kiện để nó không phá gì: mọi lượt nộp
+           * ngoài kỳ thi (toàn bộ lưu lượng hôm nay) đi qua đây không đổi một
+           * dòng nào. Chỉ khi trường này có mặt thì ba cổng của kỳ thi mới chạy.
+           *
+           * ⚠ Nó KHÔNG phải một lời khai đáng tin: ai cũng gửi lên được một
+           * `examId` bất kỳ. Thứ làm nó an toàn là `getExamForStudent` lọc theo
+           * tư cách thành viên lớp, và `getAttemptFor` lọc theo `ctx.user.id` —
+           * một `examId` của lớp khác trả NOT_FOUND. Nói cách khác, trường này
+           * chọn LUẬT áp dụng, không cấp quyền nào.
+           */
+          examId: z.string().uuid().optional(),
           claimed: z.object({
-            gameId: z.literal('k8s'),
+            // Không `.default()` ở đây, khác `runLog.gameId`: `claimed` do client
+            // dựng TƯỜNG MINH ở mỗi lượt nộp, không có bản cũ nào thiếu nó.
+            gameId: z.enum(GAME_IDS),
             levelId: z.string().min(1),
             seed: z.number().int(),
             startedAt: z.number().int(),
@@ -175,6 +337,31 @@ export const problemsRouter = createTRPCRouter({
       if (row === undefined) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Không có bài đó' });
       }
+      /*
+       * ⚠ Chú thích cũ ở đây ghi rằng cổng theo `gameId` "đã báo lead" và chưa
+       * có. Đo lại 2026-09-15: nó CÓ, ở `problems/submit.ts` — một bài không
+       * phải K8s nhận `INTERNAL_SERVER_ERROR` với câu gọi đúng tên game. Giữ
+       * câu này thay vì xoá đè, vì một dòng "chưa làm" còn lại trên một việc đã
+       * làm sẽ khiến người sau đi làm lần thứ hai.
+       */
+      /*
+       * ⚠ Phép kiểm *"`gameId` của nhật ký và của lời khai phải khớp `gameId` của
+       * CHÍNH BÀI"* KHÔNG nằm ở đây — nó ở `submitProblem` (`problems/submit.ts`).
+       *
+       * Nó sinh ra CÙNG LÚC với việc nới ba `z.literal('k8s')` ở trên, không phải
+       * sau đó: trước khi nới, schema chỉ nhận đúng một giá trị nên không có gì
+       * để lệch. Nới mà không kèm nó là mở một lỗ trong cùng một lượt sửa — hai
+       * nguồn trả lời cùng một câu hỏi (`verifyProblemRun` tra engine theo
+       * `problem.gameId`, `gradeSubmission` tra plugin theo `log.gameId`), nên
+       * một nhật ký khai `'k8s'` nộp vào bài Git sẽ phát lại trên engine Git rồi
+       * **chấm bằng plugin K8s**.
+       *
+       * Đặt ở tầng hàm chứ không tầng router vì `submitProblem` có caller khác
+       * ngoài đường HTTP này. Một bản sao ở đây sẽ là cổng thứ hai cho cùng một
+       * luật, và hai bản của một luật thì trôi khỏi nhau ở đúng cái ai đó chỉ sửa
+       * một bên.
+       */
+      await assertExamRules(ctx, input, row.code);
       return submitProblem(
         ctx.db,
         toProblemDTO(row),
@@ -182,6 +369,45 @@ export const problemsRouter = createTRPCRouter({
         input.runLog as never,
         input.claimed as never,
       );
+    }),
+
+  /**
+   * Chấm THỬ một lượt chơi — không ghi gì, không tính là một lượt nộp.
+   *
+   * Vì sao nó tồn tại (và vì sao hai đường kia bị loại) nằm ở khối chú thích của
+   * `tryGradeProblem` trong `problems/submit.ts`. Tóm tắt: `toTestcaseTeasers`
+   * cắt `check`/`args` của mọi testcase nên client **không tự chấm được**, và
+   * không có đường này thì mọi lượt chơi ĐÚNG của người học trả về `CE`.
+   *
+   * ⛔ Là MUTATION chứ không phải query, dù nó không ghi một dòng nào. Hai lý do,
+   * cả hai đều cơ học chứ không phải quy ước REST:
+   *
+   *  1. Nó tiêu một suất của trần nhịp dùng chung với `submit`. Một query bị mọi
+   *     tầng cache (React Query, prefetch của Next) chạy lại tuỳ ý, và mỗi lượt
+   *     chạy lại đó ăn một suất người dùng không hề tiêu.
+   *  2. Nhật ký là một mảng tới 20.000 phần tử. Query của tRPC đi bằng `GET` với
+   *     input trong URL, và một nhật ký thật sẽ vượt trần độ dài URL của proxy
+   *     trước khi tới được máy chủ.
+   *
+   * ⚠ KHÔNG nhận `examId`. Trong một kỳ thi, "thử xem đạt chưa" là một câu hỏi
+   * khác hẳn và nó phải đi qua ba cổng của kỳ thi (`assertExamRules`) chứ không
+   * đi vòng — mở nó ở đây là mở một đường chấm không bị đồng hồ thi ràng buộc.
+   */
+  tryGrade: protectedProcedure
+    .input(z.object({ code: problemCodeSchema, runLog: runLogInput }).strict())
+    .mutation(async ({ ctx, input }) => {
+      // `published` bắt buộc, cùng lý do và cùng mệnh đề với `submit`: một bài
+      // nháp chấm thử được nghĩa là nội dung chưa ra mắt đã rò qua kết quả chấm.
+      const rows = await ctx.db
+        .select()
+        .from(problems)
+        .where(and(eq(problems.code, input.code), eq(problems.state, 'published')))
+        .limit(1);
+      const row = rows[0];
+      if (row === undefined) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Không có bài đó' });
+      }
+      return tryGradeProblem(toProblemDTO(row), ctx.user.id, input.runLog as never);
     }),
 
   mySubmissions: protectedProcedure
@@ -234,3 +460,58 @@ export const problemsRouter = createTRPCRouter({
     return toProblemDTO(row);
   }),
 });
+
+/**
+ * Ba cổng của một lượt nộp TRONG kỳ thi (§18.G, "cổng số 1").
+ *
+ * Không có `examId` thì không làm gì cả — mọi lượt nộp ngoài kỳ thi đi qua đây
+ * không đổi một dòng nào, và seed do người nộp mang lên vẫn là hành vi CỐ Ý của
+ * hợp đồng (`core/problem.ts` § `Submission.seed`).
+ *
+ * ## Vì sao cổng nằm ở ĐÂY chứ không trong `submitProblem`
+ *
+ * `submitProblem` trả lời câu "bài làm này đúng tới đâu". Cổng này trả lời câu
+ * "lượt nộp này có được tính không" — hai câu khác nhau, và gộp chúng sẽ bắt
+ * `submitProblem` phải biết về kỳ thi, tức nó không dùng lại được cho đường nộp
+ * thường. Cổng chạy TRƯỚC, nên một lượt bị từ chối không tốn một lượt phát lại
+ * toàn bộ nhật ký.
+ *
+ * ## `FORBIDDEN` chứ không `BAD_REQUEST`
+ *
+ * Người nộp không gửi lên dữ liệu hỏng; họ gửi một lượt hợp lệ mà luật kỳ thi
+ * không nhận. `BAD_REQUEST` sẽ dẫn họ đi sửa bài làm, trong khi thứ cần sửa là
+ * việc họ đã hết giờ, hoặc đang làm một bài ngoài đề.
+ */
+async function assertExamRules(
+  ctx: { db: Database; user: { id: string } },
+  input: { examId?: string | undefined; runLog: { seed: number } },
+  problemCode: string,
+): Promise<void> {
+  if (input.examId === undefined) {
+    return;
+  }
+  const now = new Date();
+  // Lọc theo tư cách thành viên lớp. Một `examId` của lớp khác trả NOT_FOUND ở
+  // đây, nên trường `examId` trên dây không cấp thêm quyền nào.
+  const exam = await getExamForStudent(ctx.db, input.examId, ctx.user.id);
+  const attempt = await getAttemptFor(ctx.db, input.examId, ctx.user.id);
+  if (attempt === null) {
+    throw new TRPCError({
+      code: 'FORBIDDEN',
+      message: 'Bạn chưa mở lượt thi này, nên bài nộp không được tính',
+    });
+  }
+  const rejection = examSubmissionRejection(
+    {
+      problemCodes: exam.problemCodes,
+      attemptSeed: attempt.seed,
+      attempt,
+      closesAt: exam.closesAt,
+    },
+    { problemCode, seed: input.runLog.seed },
+    now,
+  );
+  if (rejection !== null) {
+    throw new TRPCError({ code: 'FORBIDDEN', message: rejection });
+  }
+}

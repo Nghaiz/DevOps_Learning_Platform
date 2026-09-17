@@ -1,10 +1,12 @@
 import { errText, t } from '@devops-platform/copy';
-import type { Objective, ProblemHint } from '@devops-platform/games';
+import type { GameId, ProblemHint, Testcase } from '@devops-platform/games';
 import type { FieldIssue } from './cluster-form';
 import { clusterToSpec } from './cluster-to-spec';
+import { pluginViewFor } from './game-plugin-view';
 import type { ObjectiveFormState, ProblemDraftInput, ProblemFormState } from './problem-form';
-import { PREDICATE_SPECS, isPredicateName } from './predicate-spec';
+import { coerceGenericArg, genericArgs, isPredicateOfGame, k8sSpec } from './predicate-catalog';
 import type { PredicateArgSpec } from './predicate-arg-types';
+import { specFromText } from './spec-text';
 import { parseTags, toSlug } from './text-tools';
 
 /**
@@ -77,10 +79,16 @@ function readArg(spec: PredicateArgSpec, raw: string, path: string, issues: Fiel
 function toObjective(
   form: ObjectiveFormState,
   index: number,
+  gameId: GameId,
   issues: FieldIssue[],
-): Objective | null {
+): Testcase | null {
   const path = `objectives.${String(index)}`;
-  if (form.check === '' || !isPredicateName(form.check)) {
+  /*
+   * ⛔ Hỏi theo GAME, không hỏi `isPredicateName` (bảng của riêng K8s) — P20.
+   * Trước đợt này dòng đó từ chối MỌI vị từ của Git và CI/CD, và người soạn nhận
+   * đúng câu "Chưa chọn vị từ kiểm tra" cho một ô họ đã chọn.
+   */
+  if (!isPredicateOfGame(gameId, form.check)) {
     issues.push({
       path: `${path}.check`,
       message: errText('problem.problem-draft-chua-chon-vi-tu-kiem-tra'),
@@ -88,17 +96,38 @@ function toObjective(
     return null;
   }
 
-  const spec = PREDICATE_SPECS[form.check];
+  const spec = k8sSpec(gameId, form.check);
   const args: Record<string, unknown> = {};
-  for (const argSpec of spec.args) {
-    const value = readArg(
-      argSpec,
-      form.args[argSpec.key] ?? '',
-      `${path}.args.${argSpec.key}`,
-      issues,
-    );
-    if (value !== undefined) {
-      args[argSpec.key] = value;
+  if (spec !== null) {
+    for (const argSpec of spec.args) {
+      const value = readArg(
+        argSpec,
+        form.args[argSpec.key] ?? '',
+        `${path}.args.${argSpec.key}`,
+        issues,
+      );
+      if (value !== undefined) {
+        args[argSpec.key] = value;
+      }
+    }
+  } else {
+    /*
+     * Game khác K8s đi bảng CHUNG của hợp đồng plugin. Ép kiểu ở đây chứ không
+     * để nguyên chuỗi: `Testcase.args` là `unknown`, nên một `'120'` thay vì
+     * `120` lưu xuống được và chỉ hỏng lúc chấm — `argNumber` trả `null`, vị từ
+     * trả `false`, và bài không bao giờ qua được.
+     */
+    for (const argSpec of genericArgs(gameId, form.check)) {
+      const raw = form.args[argSpec.name] ?? '';
+      const ket = coerceGenericArg(argSpec, raw);
+      if (ket.kind === 'ok') {
+        args[argSpec.name] = ket.value;
+      } else if (ket.kind === 'sai-kieu') {
+        issues.push({
+          path: `${path}.args.${argSpec.name}`,
+          message: errText('problem.problem-draft-phai-la-so', { specLabel: argSpec.name }),
+        });
+      }
     }
   }
 
@@ -123,21 +152,60 @@ function toObjective(
     // object rỗng trong dữ liệu bài đọc ra như "đã khai, không có gì" — hai ý
     // khác nhau khi so bài trong git.
     ...(Object.keys(args).length > 0 ? { args } : {}),
-    required: form.required,
+    visible: form.visible,
   };
+}
+
+/**
+ * Trạng thái ban đầu, lấy từ ĐÚNG một trường của form theo `specEditor`.
+ *
+ * Tách ra khỏi `toProblemDraft` vì nó là chỗ §18.D.1 nửa sau thật sự đổi hành
+ * vi: bản trước luôn phát `initialState: cluster.value`, nên một bài Git soạn
+ * xong sẽ được lưu bằng một `ClusterSpec`. Đó chính là lý do `formFromProblem`
+ * từng phải chốt cứng K8s — mở được mà lưu thì hỏng dữ liệu.
+ *
+ * `{ ok: false }` nghĩa là "đã đẩy lỗi vào `issues`", không phải "không có giá
+ * trị" — và nó là một nhánh riêng chứ không phải `null`, vì giá trị hợp lệ ở đây
+ * có kiểu `unknown` (kiểu đúng phụ thuộc `gameId`) và `unknown` đã bao gồm `null`.
+ * Một `null` sentinel trên một kiểu chứa `null` là chỗ hai nghĩa chồng lên nhau.
+ */
+type InitialStateResult = { readonly ok: true; readonly value: unknown } | { readonly ok: false };
+
+function toInitialState(form: ProblemFormState, issues: FieldIssue[]): InitialStateResult {
+  const view = pluginViewFor(form.gameId);
+  if (view === null) {
+    // Game chưa có plugin: không có biểu mẫu nào để đọc, và biên ghi cũng sẽ từ
+    // chối `gameId` đó. Nói ra ở đây để người soạn thấy lý do trên màn hình thay
+    // vì nhận một lỗi 400 trỏ vào một trường họ chưa từng nhìn thấy.
+    issues.push({ path: 'gameId', message: t('author.problem.game.no-plugin-body') });
+    return { ok: false };
+  }
+  if (view.specEditor === 'cluster') {
+    const cluster = clusterToSpec(form.cluster);
+    if (!cluster.ok) {
+      issues.push(...cluster.issues);
+      return { ok: false };
+    }
+    return { ok: true, value: cluster.value };
+  }
+  const spec = specFromText(view.authorFields, form.specText);
+  for (const issue of spec.issues) {
+    issues.push({
+      path: issue.path,
+      message: t('author.problem.spec.unreadable-field', { label: issue.label }),
+    });
+  }
+  return spec.issues.length > 0 ? { ok: false } : { ok: true, value: spec.value };
 }
 
 export function toProblemDraft(form: ProblemFormState): DraftResult {
   const issues: FieldIssue[] = [];
 
-  const cluster = clusterToSpec(form.cluster);
-  if (!cluster.ok) {
-    issues.push(...cluster.issues);
-  }
+  const initialState = toInitialState(form, issues);
 
-  const objectives: Objective[] = [];
+  const objectives: Testcase[] = [];
   form.objectives.forEach((objective, index) => {
-    const built = toObjective(objective, index, issues);
+    const built = toObjective(objective, index, form.gameId, issues);
     if (built !== null) {
       objectives.push(built);
     }
@@ -192,27 +260,35 @@ export function toProblemDraft(form: ProblemFormState): DraftResult {
     issues,
   );
 
-  if (issues.length > 0 || !cluster.ok) {
+  if (issues.length > 0 || !initialState.ok) {
     return { ok: false, issues };
   }
 
   return {
     ok: true,
     value: {
+      gameId: form.gameId,
       // Slug rỗng thì sinh từ tiêu đề: máy chủ gác `SLUG_PATTERN`, nên gửi `''`
       // chỉ đổi một lỗi đọc được ở đây lấy một lỗi 400 khó hiểu ở kia.
       slug: form.slug.trim() === '' ? toSlug(form.title) : toSlug(form.slug),
       title: form.title.trim(),
       statement: form.statement,
       difficulty: form.difficulty,
+      /*
+       * ⛔ Phép ép `as readonly ProblemTopic[]` ĐÃ XOÁ, đúng như bản trước dặn:
+       * *"Ngày `ProblemDraftInput` nhận chủ đề dạng mờ thì XOÁ hẳn phép ép chứ
+       * đừng nới nó ra"*. `ProblemDraftInput` nay neo vào `ProblemBase`, mà
+       * `ProblemTopicId` ở đó là chuỗi mờ — tập đóng gác theo plugin ở biên ghi.
+       */
       topics: form.topics,
       tags: parseTags(form.tagsText),
       timeLimitSec,
-      initialState: cluster.value,
+      initialState: initialState.value,
       objectives,
       allowedResources: form.restrictResources ? form.allowedResources : null,
       hints,
       parMoves,
+      seedable: form.seedable,
     },
   };
 }

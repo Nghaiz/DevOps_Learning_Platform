@@ -36,6 +36,14 @@ import type {
   ResourceKind,
   ResourceRef,
 } from '@devops-platform/games';
+// Chỉ KIỂU, và chỉ một chiều: `problem-level.ts` thuần và không import ngược lại
+// file này, nên không có vòng. Import giá trị từ đó vào đây sẽ kéo phép dựng
+// level vào mọi module đọc hợp đồng — kể cả chế độ `level`.
+import type { K8sOjProblem } from './problem-level';
+// Chỉ KIỂU — `use-hint-reveal.ts` là một hook React và kéo `api` theo; import
+// giá trị từ đó vào hợp đồng sẽ lôi client tRPC vào mọi module đọc hợp đồng, kể
+// cả chế độ `level` vốn phải chạy với 0 lời gọi backend.
+import type { HintReveal } from '../../lib/use-hint-reveal';
 
 // ── Chế độ chơi ─────────────────────────────────────────────────────────────
 
@@ -64,6 +72,26 @@ export interface ArenaModeContext {
   /** Chỉ khác `null` khi `mode === 'problem'`. */
   readonly problemCode: string | null;
   /**
+   * Đề bài đã nạp, ở chế độ `problem`. `null` ở chế độ `level`.
+   *
+   * ⛔ Đi CÙNG `problemCode` chứ không phải một nguồn thứ hai. `useProblemSubmit`
+   * cần đúng object này để dựng lời khai (`k8sOjClaim`): nó phải là CHÍNH bài mà
+   * `k8sOjLevel` đã dựng level, nếu không thì `objectivesTotal` và bảng gợi ý
+   * dùng để tính điểm trừ sẽ thuộc về hai bài khác nhau — và lượt nộp trả về
+   * `CE` mà không dòng log nào nói tại sao.
+   *
+   * Vì sao nằm ở `mode` chứ không phải một prop riêng của `ArenaRoot`: hợp đồng
+   * trên đã chốt rằng chế độ được suy MỘT LẦN ở cửa vào rồi truyền xuống, và
+   * "đang làm bài NÀO" là một phần của "đang ở chế độ nào". Một prop song song
+   * là chỗ thứ hai có thể bất đồng.
+   *
+   * ⚠ `null` trong khi `mode === 'problem'` là trạng thái ĐANG NẠP, không phải
+   * lỗi. Cửa vào (`arena-problem.tsx`) không dựng `ArenaRoot` trước khi đề bài
+   * về, nên ca đó không tới được màn chơi — nhưng kiểu vẫn khai `| null` để
+   * không ai phải viết một `!` ở chỗ gọi.
+   */
+  readonly problem: K8sOjProblem | null;
+  /**
    * Ngăn tra cứu chỉ có ở chế độ `level`. Ở chế độ `problem` thì phím mở nó
    * không làm gì, và nút mở nó không được render — một nút bấm không phản ứng
    * tệ hơn là không có nút.
@@ -71,6 +99,29 @@ export interface ArenaModeContext {
   readonly codexAvailable: boolean;
   /** Gợi ý có trừ điểm hay không. `true` ở chế độ `problem`. */
   readonly hintsCostPoints: boolean;
+  /**
+   * Chữ của các gợi ý đã xin máy chủ, theo CHỈ SỐ. Rỗng ở chế độ `level`.
+   *
+   * Ở chế độ `level` chữ gợi ý nằm sẵn trong `LEVELS` nên `level.hints` đã đủ.
+   * Ở chế độ `problem` thì KHÔNG: `problems.byCode` che chữ của gợi ý chưa mở
+   * (§18.B.4), nên `level.hints` toàn chuỗi rỗng và chữ chỉ tới từ
+   * `problems.revealHint`. Xem `lib/use-hint-reveal.ts`.
+   */
+  readonly hintReveals: ReadonlyMap<number, HintReveal>;
+  /**
+   * Xin chữ gợi ý thứ `index`. `null` ở chế độ `level` (không cần xin ai cả).
+   *
+   * ⛔ Trả `null` nghĩa là ĐỪNG trừ điểm — chỗ gọi phải chờ kết quả rồi mới bắn
+   * action `hint`, không được bắn trước. Lý do đầy đủ ở `use-hint-reveal.ts`.
+   *
+   * ⚠ Hàm này KHÔNG được gọi `api.*` ở tầng `mission-card.tsx`: thẻ nhiệm vụ
+   * render ở CẢ HAI chế độ, mà `app/games/layout.tsx` cố ý không cấp
+   * `TrpcQueryProvider`. Một hook tRPC ở đó sẽ ném ngay lúc render đường
+   * `/games/k8s` thường — đúng lỗi C1 đã phải vá ở `c4fa97a`. Nên chủ của hook
+   * là `arena-problem.tsx` (tự cấp provider, chỉ tồn tại ở chế độ `problem`), và
+   * thẻ nhiệm vụ chỉ cầm một callback.
+   */
+  readonly onRevealHint: ((index: number) => Promise<string | null>) | null;
 }
 
 // ── Chất lượng hiển thị ─────────────────────────────────────────────────────

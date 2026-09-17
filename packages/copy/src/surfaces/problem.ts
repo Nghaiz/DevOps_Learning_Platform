@@ -131,6 +131,14 @@ export const problem = {
   'problem.node-fields-moi-dong-mot-taint': 'Mỗi dòng một taint.',
   'problem.objective-arg-field-tuy-chon': (p: { propsSpecLabel: string }) =>
     `${p.propsSpecLabel} (tuỳ chọn)`,
+  /*
+   * P20: ô nhập tham số cho game KHÁC K8s. Nhãn hiện TÊN THAM SỐ trần
+   * (`ref`, `seconds`), vì đó là định danh của engine và người soạn tra tài liệu
+   * bằng chính nó; một bản dịch tạm sẽ làm họ tìm không ra.
+   */
+  'problem.objective-arg-generic-chon-mot-gia-tri': 'Chọn một giá trị',
+  'problem.objective-arg-generic-de-mac-dinh': 'Để trống = dùng mặc định của engine',
+  'problem.objective-arg-generic-moi-dong-mot-phan-tu': 'Mỗi dòng là một phần tử',
   'problem.objective-arg-field-readiness-san-sang-nhan-luu-luong':
     'readiness: sẵn sàng nhận lưu lượng',
   'problem.objective-arg-field-liveness-con-song': 'liveness: còn sống',
@@ -149,14 +157,18 @@ export const problem = {
   'problem.objective-fields-noi-nguoi-lam-phai-lam-duoc-gi-khong-noi-lam-the-nao':
     'Nói người làm phải làm ĐƯỢC gì, không nói làm THẾ NÀO.',
   'problem.objective-fields-vi-tu-kiem-tra': 'Vị từ kiểm tra',
-  'problem.objective-fields-chon-mot-trong-32-vi-tu': 'Chọn một trong 32 vị từ…',
+  /*
+   * ⛔ ĐỔI Ở P20: số vị từ nay THEO GAME (K8s 32, Git 25, CI/CD 27), nên một con
+   * số ghi cứng trong câu chữ là một lời nói dối trên hai trong ba game. Khoá cũ
+   * `...-chon-mot-trong-32-vi-tu` bỏ hẳn thay vì giữ lại: một khoá không ai gọi
+   * là thứ trôi mà không ai thấy.
+   */
+  'problem.objective-fields-chon-mot-vi-tu': (p: { n: number }) =>
+    `Chọn một trong ${String(p.n)} vị từ…`,
   'problem.objective-fields-phai-dien-it-nhat-mot-trong': 'Phải điền ít nhất một trong:',
   'problem.objective-fields-hoac': ' hoặc ',
   'problem.objective-fields-thieu-ca-hai-thi-vi-tu-luon-tra-sai-va-bai-khong-bao-gio-qua-duoc':
     '. Thiếu cả hai thì vị từ luôn trả sai, và bài không bao giờ qua được.',
-  'problem.objective-fields-bat-buoc-khong-dat-thi-khong-qua-bai':
-    'Bắt buộc: không đạt thì không qua bài',
-  'problem.objective-fields-thuong-an-diem-khong-chan': 'Thưởng: ăn điểm, không chặn',
   'problem.predicate-arg-types-loai-tai-nguyen': 'Loại tài nguyên',
   'problem.predicate-arg-types-ten': 'Tên',
   'problem.predicate-arg-types-bo-chon-nhan': 'Bộ chọn nhãn',
@@ -303,11 +315,6 @@ export const problem = {
     what: 'Bài phải có ít nhất một mục tiêu.',
     next: 'Sửa ô được đánh dấu rồi thử lại.',
   },
-  'problem.problem-validate-can-it-nhat-mot-muc-tieu-bat-buoc-bai-chi-toan-muc-tieu-thuong-thi-qua-ngay':
-    {
-      what: 'Cần ít nhất một mục tiêu BẮT BUỘC. Bài chỉ toàn mục tiêu thưởng thì qua ngay khi vừa mở.',
-      next: 'Sửa ô được đánh dấu rồi thử lại.',
-    },
   'problem.problem-validate-trung-dinh-danh-muc-tieu': (p: { id: string }) => ({
     what: `Trùng định danh mục tiêu "${p.id}".`,
     next: 'Sửa ô được đánh dấu rồi thử lại.',
@@ -354,7 +361,7 @@ export const problem = {
     'Máy chủ cấp khi bạn lưu lần đầu. Mã ổn định vĩnh viễn, không đổi kể cả khi bạn sửa đề.',
   'problem.statement-fields-slug-trong-url': 'Slug trong URL',
   'problem.statement-fields-chu-thuong-so-va-gach-noi-slug-doi-duoc-khi-sua-ten-bai-khac-ma-bai-la-thu':
-    'Chữ thường, số và gạch nối. Slug đổi được khi sửa tên bài, khác mã bài là thứ không bao giờ đổi. Sẽ lưu thành',
+    'Chữ thường, số và gạch nối. Xem trước:',
   'problem.statement-fields-trong': '(trống)',
   'problem.statement-fields-sinh-lai-tu-ten-bai': 'Sinh lại từ tên bài',
   'problem.statement-fields-viet-de': 'Viết đề',
@@ -363,13 +370,13 @@ export const problem = {
   'problem.statement-fields-namespace-thanh-toan-co-mot-deployment-khong-len-noi-replica-nao-tim-nguyen':
     'Namespace `thanh-toan` có một Deployment không lên nổi replica nào.\n\nTìm nguyên nhân và đưa nó về đủ 3 replica sẵn sàng.',
   'problem.statement-fields-bai-oj-khong-day-ly-thuyet-chi-noi-de-kien-thuc-nen-de-nguoi-lam-tu-tra':
-    'Bài OJ KHÔNG dạy lý thuyết, chỉ nói đề. Kiến thức nền để người làm tự tra.',
+    'Nêu tình huống và kết quả cần đạt.',
   'problem.statement-fields-chua-co-gi-de-xem-truoc': 'Chưa có gì để xem trước.',
   'problem.statement-fields-tu': 'từ.',
   'problem.statement-fields-vuot-tran-phai-cat-tu-moi-xuat-ban-duoc': (p: { remaining: string }) =>
     `Vượt trần: phải cắt ${p.remaining} từ mới xuất bản được.`,
   'problem.statement-fields-con-tu-bai-oj-noi-de-khong-giang-bai': (p: { remaining: string }) =>
-    `Còn ${p.remaining} từ. Bài OJ nói đề, không giảng bài.`,
+    `Còn ${p.remaining} từ.`,
   'problem.statement-fields-con-tu': (p: { remaining: string }) => `Còn ${p.remaining} từ.`,
   'problem.vocabulary-tag-image-sai-pod-ket-imagepullbackoff':
     'Tag image sai, pod kẹt ImagePullBackOff',
@@ -414,6 +421,59 @@ export const problem = {
   'problem.cluster-json-fields-loi-cu-phap': 'lỗi cú pháp',
   'problem.resource-cpu': 'CPU (milli-core)',
   'problem.resource-service-account': 'ServiceAccount',
+
+  /*
+   * Chu de bai tap cua game Git (18.A.5).
+   *
+   * Tam muc, tap dong, doi xung voi chin muc `problem.topic.*` cua K8s o dau
+   * file. Id trong ma de tran (`branching`) vi cong kiem luon tra theo `gameId`
+   * cua bai; khoa chu thi phai co doan `git` vi goi copy la mot khong gian ten
+   * phang cho ca du an, va `problem.topic.config` da co chu roi.
+   *
+   * Ghi bang chu khong dau trong khoi chu thich nay la co y: goi `packages/copy`
+   * cam go thang ba ky tu gach dai U+2014 / U+2013 / U+2015 o BAT KY dau trong
+   * file, ke ca chu thich, va bo quet T1a doc ca file duoi dang van ban.
+   */
+  'problem.topic.git.commit': 'Commit và object',
+  'problem.topic.git.branching': 'Nhánh và con trỏ',
+  'problem.topic.git.merging': 'Gộp nhánh',
+  'problem.topic.git.history': 'Nắn lịch sử',
+  'problem.topic.git.remote': 'Kho từ xa',
+  'problem.topic.git.collaboration': 'Làm việc nhóm',
+  'problem.topic.git.conflict': 'Xung đột',
+  'problem.topic.git.recovery': 'Cứu hộ',
+
+  /*
+   * Nhan form soan `WorldSpec` cua bai Git (18.A.5).
+   *
+   * Gan het la o JSON, va `git/problem-plugin.ts` giai thich vi sao: `commits`
+   * la mot DO THI (cha tro vao id cua commit khac trong cung mang, nhanh va the
+   * tro nguoc vao nhung id do), nen mot bieu mau o phang khong kiem duoc rang
+   * tham chieu co that. Cau `help` vi vay phai noi ra hinh dang du lieu, khong
+   * chi dat mot cai ten.
+   */
+  'problem.git-spec.commits': 'Lịch sử commit',
+  'problem.git-spec.commits-help':
+    'Mảng JSON, cha đứng trước con. Mỗi mục cần id và message; parents là mảng id của các mục khác.',
+  'problem.git-spec.branches': 'Nhánh',
+  'problem.git-spec.branches-help': 'Object JSON: tên nhánh ngắn thành id commit trong lịch sử ở trên.',
+  'problem.git-spec.tags': 'Thẻ',
+  'problem.git-spec.head': 'HEAD',
+  'problem.git-spec.head-help':
+    'Tên nhánh ngắn, hoặc {"detached": "<id commit>"}. Để trống nghĩa là main.',
+  'problem.git-spec.worktree': 'File trong thư mục làm việc',
+  'problem.git-spec.worktree-help':
+    'Object JSON: đường dẫn file thành nội dung. Dùng cho file chưa được track.',
+  'problem.git-spec.staged': 'File đã staged sẵn',
+  'problem.git-spec.staged-help': 'Mảng JSON các đường dẫn file. Dùng để dựng bài về reset.',
+  'problem.git-spec.origin': 'Kho từ xa',
+  'problem.git-spec.origin-help':
+    'Origin và ref theo dõi của local. Hai thứ này cố ý tách nhau: origin/main là thứ local NHỚ, không phải thứ origin đang có.',
+  'problem.git-spec.bots': 'Đồng đội tự động',
+  'problem.git-spec.bots-help': 'Hành động của bot theo đồng hồ logic. Dùng cho bài làm việc nhóm.',
+  'problem.git-spec.author': 'Tên tác giả commit',
+  'problem.git-spec.author-help': 'Để trống thì dùng "Bạn".',
 } as const satisfies Surface<'problem'>;
 
 export const problemIntentionalThree = {} as const satisfies IntentionalThree;
+

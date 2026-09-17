@@ -29,6 +29,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import type { ReactElement } from 'react';
 import { Check, Clock, Play, Terminal } from 'lucide-react';
 import type { Level } from '@devops-platform/games';
@@ -100,18 +101,18 @@ export function LevelPicker({ levels, onPick }: LevelPickerProps): ReactElement 
      * tảng giữ nguyên theme của nó"; màn chọn màn thuộc về arena, không thuộc
      * về phần còn lại đó.
      */
-    <div className="dark arena-root min-h-full bg-background text-foreground">
-      <div className="mx-auto w-full max-w-4xl px-4 py-10">
+    <div className="practice-k8s-picker bg-background text-foreground">
+      <div className="practice-k8s-container">
+        <Link href="/games" className="practice-link">← Chọn game</Link>
         <header className="mb-8">
           <p className="font-mono text-xs font-semibold tracking-[0.2em] text-status-progress">
             KUBERNETES ARENA
           </p>
           <h1 className="mt-1 text-3xl font-semibold tracking-tight">
-            Cụm hỏng. Bạn là người trực.
+            Kubernetes Arena
           </h1>
           <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-            {levels.length} tình huống có thật, dựng lại trong trình duyệt. Gõ `kubectl` thật, nhìn
-            cụm phản ứng thật, và tự tìm ra chỗ hỏng.
+            {levels.length} bài thực hành kubectl trên cụm mô phỏng.
           </p>
 
           <div className="mt-5 flex flex-wrap items-center gap-4">
@@ -124,10 +125,33 @@ export function LevelPicker({ levels, onPick }: LevelPickerProps): ReactElement 
                 onClick={() => {
                   onPick(next.id);
                 }}
+                /*
+                 * Độ pha của mặt nền là một con số CÓ RÀNG BUỘC, không phải một
+                 * lựa chọn thẩm mỹ tự do: chữ ở đây dùng chính `--status-progress`
+                 * làm mực, nên nền càng đậm thì tương phản chữ-trên-nền càng tụt.
+                 *
+                 * Nút nằm trong `.practice-k8s-container > header`, mà luật đó đặt
+                 * `background: var(--card)` (`practice.css`) — nên nền dưới lớp pha
+                 * là `--card`, không phải `--background`. Đo trên đúng nền ấy:
+                 *
+                 *   /15 → 4.392 sáng · 4.425 tối   ← cả HAI đều dưới AA 4.5
+                 *   /12 → 4.589 sáng · 4.668 tối
+                 *   /10 → 4.723 sáng · 4.833 tối   ← chọn cái này
+                 *
+                 * axe chỉ báo nhánh sáng vì lượt quét chạy ở nhánh sáng; nhánh tối
+                 * hỏng y hệt và không ô nào nhìn tới. `/10` sửa cả hai.
+                 *
+                 * Hover đổi sang mặt tô ĐẶC thay vì pha đậm hơn: `/20` cho 4.074 và
+                 * `/25` (bản cũ) còn thấp hơn nữa, tức trạng thái hover vi phạm
+                 * SC 1.4.3 trong khi axe không bao giờ quét nó. Cặp
+                 * `--status-progress-foreground` trên `--status-progress` là cặp đã
+                 * được thiết kế cho nhau (5.23 sáng / 7.32 tối) nên hover vừa rõ
+                 * hơn vừa không còn chỗ hụt.
+                 */
                 className={cn(
-                  'inline-flex items-center gap-2 rounded-lg bg-status-progress/15 px-4 py-2',
+                  'inline-flex items-center gap-2 rounded-lg bg-status-progress/10 px-4 py-2',
                   'text-sm font-medium text-status-progress ring-1 ring-status-progress/40',
-                  'transition-colors hover:bg-status-progress/25',
+                  'transition-colors hover:bg-status-progress hover:text-status-progress-foreground',
                   'focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
                 )}
               >
@@ -138,10 +162,12 @@ export function LevelPicker({ levels, onPick }: LevelPickerProps): ReactElement 
           </div>
         </header>
 
+        <nav className="practice-chapter-nav" aria-label="Chương Kubernetes">{chapters.map(([chapter]) => <a key={chapter} href={`#k8s-chapter-${chapter}`}>{String(chapter).padStart(2, '0')} · {CHAPTER_LABELS[chapter] ?? 'Khác'}</a>)}</nav>
+        <div className="practice-k8s-chapters">
         {chapters.map(([chapter, items], chapterIndex) => {
           const chapterDone = items.filter((l) => progress[l.id]?.completed === true).length;
           return (
-            <section key={chapter} className="mb-10">
+            <section key={chapter} id={`k8s-chapter-${chapter}`} className="practice-k8s-chapter">
               <div className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
                 <h2 className="text-sm font-semibold text-foreground">
                   <span className="font-mono text-muted-foreground">
@@ -190,6 +216,7 @@ export function LevelPicker({ levels, onPick }: LevelPickerProps): ReactElement 
             </section>
           );
         })}
+        </div>
       </div>
     </div>
   );

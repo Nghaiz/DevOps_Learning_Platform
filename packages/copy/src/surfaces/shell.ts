@@ -41,6 +41,10 @@ export const shell = {
   'shell.brand.medium': 'DevOps Learning',
   'shell.brand.short': 'DLP',
   'shell.brand.home': 'DevOps Learning Platform, về trang chủ',
+  // Dòng chữ nhỏ dưới tên trong khối nhận diện ở thanh bên. Giữ nguyên tiếng
+  // Anh viết hoa: đây là một phần của khối nhận diện, cùng loại với tên sản
+  // phẩm, không phải một câu để đọc.
+  'shell.brand.tagline': 'PRACTICE SPACE',
 
   // ── Đường tắt bàn phím ──────────────────────────────────────────────────
   //
@@ -66,11 +70,49 @@ export const shell = {
   'shell.nav.paths': 'Lộ trình',
   'shell.nav.quiz': 'Quiz',
   'shell.nav.games': 'Games',
+  'shell.nav.problems': 'Bài tập',
+  'shell.nav.exams': 'Kỳ thi',
   'shell.nav.me': 'Của tôi',
+
+  // Ba mục chỉ author/admin thấy, và ba mục chỉ admin thấy. Nhãn của `/author`
+  // và `/admin` KHÔNG khai lại ở đây: chúng dùng lại `shell.account.menu.author`
+  // và `shell.account.menu.admin`, vì cùng một đích thì cùng một chữ, và hai
+  // khoá mang cùng một câu là hai chỗ để trôi khỏi nhau.
+  'shell.nav.author-problems': 'Soạn bài tập',
+  'shell.nav.level-builder': 'Dựng màn chơi',
+  'shell.nav.admin-exams': 'Tổ chức kỳ thi',
+  'shell.nav.admin-classes': 'Lớp học',
+
+  // Tiêu đề nhóm trong thanh điều hướng. Viết HOA vì đó là chữ thật của tiêu
+  // đề, không phải một hiệu ứng `text-transform` mà trình đọc màn hình đọc
+  // khác với thứ mắt thấy.
+  //
+  // Nhóm thứ năm (tài khoản) KHÔNG có khoá riêng ở đây: nó dùng lại
+  // `shell.account.group`, khoá vốn sinh ra để làm nhãn nhóm tài khoản.
+  'shell.nav.group.learn': 'THỰC HÀNH',
+  'shell.nav.group.library': 'THƯ VIỆN',
+  'shell.nav.group.studio': 'STUDIO',
+  'shell.nav.group.manage': 'QUẢN LÝ',
 
   // ── Ngăn kéo ≤768px ─────────────────────────────────────────────────────
   'shell.drawer.open': 'Mở điều hướng',
   'shell.drawer.title': 'Điều hướng',
+
+  // ── Thanh bên ───────────────────────────────────────────────────────────
+  //
+  // `shell.sidebar.aria` là TÊN của landmark `complementary` mà `<aside
+  // class="practice-sidebar">` tạo ra. Không phải chữ trang trí: axe có luật
+  // `landmark-unique`, và hai landmark cùng vai mà cùng VÔ DANH thì bị tính là
+  // trùng. Màn sandbox Git dựng landmark `complementary` thứ hai
+  // (`git-sandbox.tsx`), nên trước khi có khoá này `a11y.spec.ts` đỏ ở đó.
+  // Đặt tên cho MỘT trong hai là đủ để hai cái phân biệt được.
+  //
+  // Đặt tên cho cái của vỏ ứng dụng chứ không cho cái của trò chơi là có chủ
+  // ý: thanh bên này có mặt trên MỌI màn không-xác-thực, nên một cái tên ở đây
+  // đóng luôn cả những màn chưa ai mở, kể cả màn level của Git, nơi
+  // `git-level-screen.tsx` cũng dựng một `<aside>` cùng loại.
+  'shell.sidebar.aria': 'Thanh bên điều hướng',
+  'shell.sidebar.tagline': 'Học bằng thực hành',
 
   // ── Menu tài khoản ──────────────────────────────────────────────────────
   //

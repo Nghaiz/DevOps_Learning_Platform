@@ -42,6 +42,8 @@ export const admin = {
   'admin.nav.aria': 'Điều hướng quản trị',
   'admin.nav.overview': 'Tổng quan',
   'admin.nav.users': 'Người dùng',
+  'admin.nav.exams': 'Kỳ thi',
+  'admin.nav.classes': 'Lớp học',
   'admin.nav.sessions': 'Phiên đang chạy',
   'admin.nav.content': 'Nội dung',
   'admin.nav.audit': 'Nhật ký',
@@ -328,6 +330,7 @@ export const admin = {
 
   'admin.audit-target.user': 'Người dùng',
   'admin.audit-target.session': 'Phiên',
+  'admin.audit-target.class': 'Lớp học',
 
   'admin.audit-detail.none': 'không có chi tiết',
   'admin.audit-detail.role-change': (p: { from: string; to: string }) =>
@@ -394,6 +397,196 @@ export const admin = {
     what: `Không lưu trữ được bài: ${p.message}`,
     next: 'Đọc lại danh sách để xem trạng thái hiện tại trước khi thử lại.',
   }),
+
+  // ── /admin/classes, lớp học (18.F) ──────────────────────────────────────
+  //
+  // Màn thứ SÁU của nhánh quản trị. Chú thích đầu file nói năm màn là cố định
+  // bởi D12; con số đó đã cũ kể từ khi phase-18 §2 giao 18.F vào /admin, và lý
+  // do nằm ở chính quyết định vai trò: giảng viên dùng lại role `admin`, nên
+  // lớp học không có chỗ nào khác để ở.
+  //
+  // Chữ ở đây gọi người trong lớp là "sinh viên", không gọi là "thành viên"
+  // chung chung: bảng `class_members` theo định nghĩa chỉ chứa sinh viên, còn
+  // chủ lớp là một cột riêng. Dùng một từ mơ hồ cho một tập đã rõ sẽ làm người
+  // đọc màn hình tưởng chủ lớp cũng nằm trong bảng.
+  'admin.classes.title': 'Lớp học',
+  'admin.classes.description':
+    'Tạo lớp, thêm sinh viên, xem bảng điểm. Mỗi lớp thuộc về tài khoản quản trị đã tạo ra nó.',
+  'admin.classes.back': 'Về danh sách lớp',
+
+  'admin.classes.create-name-label': 'Tên lớp',
+  'admin.classes.create-name-placeholder': 'D21CQCN01-B',
+  'admin.classes.create-desc-label': 'Mô tả (không bắt buộc)',
+  'admin.classes.create-desc-placeholder': 'Học kỳ 1, nhóm thực hành thứ Ba',
+  'admin.classes.create-submit': 'Tạo lớp',
+
+  'admin.classes.col-name': 'Lớp',
+  'admin.classes.col-owner': 'Chủ lớp',
+  'admin.classes.col-members': 'Sĩ số',
+  'admin.classes.col-created': 'Ngày tạo',
+  'admin.classes.col-actions': 'Thao tác',
+  'admin.classes.open': 'Mở lớp',
+  'admin.classes.no-description': 'Không có mô tả',
+
+  'admin.classes.empty-title': 'Chưa có lớp nào',
+  'admin.classes.empty-body': 'Tạo lớp đầu tiên bằng ô phía trên, rồi thêm sinh viên bằng email.',
+  // Câu tự đính chính phạm vi, cùng khuôn `admin.users.note`: bảng chỉ nói về
+  // TRANG đang xem, nên một con số đọc ra như tổng của cả hệ là một khẳng định
+  // sai.
+  'admin.classes.note': (p: { count: number; page: number }): string =>
+    `Đang hiện ${String(p.count)} lớp ở trang ${String(p.page)}`,
+  'admin.classes.note-more': ', còn trang tiếp theo.',
+  'admin.classes.created-toast-title': (p: { name: string }): string => `Đã tạo lớp ${p.name}`,
+  'admin.classes.created-toast-body': 'Mở lớp để thêm sinh viên bằng email.',
+
+  'admin.classes.detail-owner': (p: { owner: string }): string => `Chủ lớp: ${p.owner}`,
+  'admin.classes.members-title': 'Sinh viên',
+  'admin.classes.members-description':
+    'Thêm bằng email của tài khoản đã đăng ký. Chủ lớp không nằm trong danh sách này.',
+  'admin.classes.add-email-label': 'Email sinh viên',
+  'admin.classes.add-email-placeholder': 'sinhvien@ptit.edu.vn',
+  'admin.classes.add-submit': 'Thêm vào lớp',
+  'admin.classes.member-col-student': 'Sinh viên',
+  'admin.classes.member-col-joined': 'Vào lớp',
+  'admin.classes.members-empty-title': 'Lớp chưa có sinh viên nào',
+  'admin.classes.members-empty-body':
+    'Nhập email của một tài khoản đã đăng ký vào ô phía trên. Tài khoản chưa đăng ký thì chưa thêm được.',
+  'admin.classes.members-note': (p: { count: number; page: number }): string =>
+    `Đang hiện ${String(p.count)} sinh viên ở trang ${String(p.page)}`,
+  'admin.classes.added-toast-title': (p: { email: string }): string => `Đã thêm ${p.email}`,
+  'admin.classes.added-toast-body': 'Bảng điểm sẽ tính cả người vừa thêm.',
+  'admin.classes.remove': 'Bỏ khỏi lớp',
+  'admin.classes.remove-title': (p: { name: string }): string => `Bỏ ${p.name} khỏi lớp?`,
+  'admin.classes.remove-body':
+    'Lịch sử làm bài của người này KHÔNG bị xoá, chỉ tư cách thành viên lớp. Thêm lại được bất cứ lúc nào.',
+  'admin.classes.remove-confirm': 'Bỏ khỏi lớp',
+  'admin.classes.removed-toast-title': (p: { name: string }): string => `Đã bỏ ${p.name} khỏi lớp`,
+  'admin.classes.removed-toast-body': 'Bảng điểm không còn tính người này nữa.',
+
+  'admin.classes.scoreboard-title': 'Bảng điểm',
+  // Phạm vi phải nói ra: bảng này chỉ đọc `problem_submissions`, tức là hệ bài
+  // tập kiểu OJ. Lượt làm lab và lượt làm trắc nghiệm không vào đây, và một
+  // bảng tên là "Bảng điểm" mà im lặng về chuyện đó sẽ bị đọc là điểm tổng kết.
+  'admin.classes.scoreboard-description':
+    'Chỉ tính bài tập kiểu OJ. Lượt làm lab và bài trắc nghiệm không nằm trong bảng này.',
+  'admin.classes.score-col-student': 'Sinh viên',
+  'admin.classes.score-col-attempted': 'Đã thử',
+  'admin.classes.score-col-solved': 'Đã giải',
+  'admin.classes.score-col-total': 'Tổng điểm',
+  'admin.classes.score-col-last': 'Nộp gần nhất',
+  'admin.classes.never-submitted': 'Chưa nộp',
+  'admin.classes.score-empty-title': 'Chưa có gì để chấm',
+  'admin.classes.score-empty-body': 'Thêm sinh viên vào lớp, bảng điểm sẽ hiện ngay khi có lượt nộp.',
+  // Điểm mỗi bài lấy bản CAO NHẤT, không cộng dồn mọi lượt. Nói ra vì hai cách
+  // tính cho hai con số rất khác nhau và người đọc không đoán được là cách nào.
+  'admin.classes.score-note': 'Mỗi bài tính điểm cao nhất của người đó, không cộng dồn các lượt nộp lại.',
+
+  'admin.error.classes-list': (p: { reason: string }): ErrorEntry => ({
+    what: `Không đọc được danh sách lớp: ${p.reason}`,
+    next: 'Bấm Thử lại. Nếu vẫn lỗi, kiểm xem BFF có kết nối được Postgres không.',
+  }),
+  'admin.error.class-get': (p: { reason: string }): ErrorEntry => ({
+    what: `Không mở được lớp: ${p.reason}`,
+    next: 'Quay về danh sách lớp. Lớp có thể vừa bị xoá cùng tài khoản chủ lớp.',
+  }),
+  // `CONFLICT` là phán quyết có chủ đích của `createClass` (trùng tên), nên câu
+  // của máy chủ đã đúng và chỉ cần thêm phần nên làm gì.
+  'admin.error.class-create-conflict': (p: { message: string }): ErrorEntry => ({
+    what: `${p.message}.`,
+    next: 'Đặt một tên khác, hoặc mở lớp đã có trong danh sách bên dưới.',
+  }),
+  'admin.error.class-create-other': (p: { message: string }): ErrorEntry => ({
+    what: `Không tạo được lớp: ${p.message}`,
+    next: 'Tải lại danh sách để xem lớp đã được tạo chưa trước khi thử lại.',
+  }),
+  'admin.error.class-members': (p: { reason: string }): ErrorEntry => ({
+    what: `Không đọc được danh sách sinh viên: ${p.reason}`,
+    next: 'Bấm Thử lại. Bảng điểm bên dưới vẫn đọc độc lập với danh sách này.',
+  }),
+  'admin.error.class-add-known': (p: { message: string }): ErrorEntry => ({
+    what: `${p.message}.`,
+    next: 'Kiểm lại email, hoặc bảo sinh viên đăng ký tài khoản trước.',
+  }),
+  'admin.error.class-add-other': (p: { message: string }): ErrorEntry => ({
+    what: `Không thêm được sinh viên: ${p.message}`,
+    next: 'Tải lại danh sách để xem người đó đã vào lớp chưa trước khi thử lại.',
+  }),
+  'admin.error.class-remove': (p: { message: string }): ErrorEntry => ({
+    what: `Không bỏ được sinh viên khỏi lớp: ${p.message}`,
+    next: 'Tải lại danh sách để xem người đó còn trong lớp không trước khi thử lại.',
+  }),
+  'admin.error.class-scoreboard': (p: { reason: string }): ErrorEntry => ({
+    what: `Không đọc được bảng điểm: ${p.reason}`,
+    next: 'Bấm Thử lại. Danh sách sinh viên phía trên vẫn đọc độc lập với bảng này.',
+  }),
+
+  // ── Kỳ thi (§18.G.2, §18.G.6, §18.G.7) ────────────────────────────────────
+  'admin.exams.title': 'Kỳ thi',
+  'admin.exams.description':
+    'Chọn lớp, ra đề và theo dõi kết quả.',
+  'admin.exams.back': 'Về danh sách kỳ thi',
+
+  /*
+   * Nhãn của thẻ `<summary>` bung khối tạo kỳ thi, KHÔNG dùng lại
+   * `admin.exams.create-submit` ('Tạo kỳ thi'). Hai vai khác nhau: cái này là
+   * một chỗ để MỞ ra, đọc lên khi khối còn đóng; cái kia là nút xác nhận đã
+   * điền xong. Dùng chung một khoá thì lần đổi chữ nút sẽ đổi luôn nhãn mở, và
+   * màn hình có hai chỗ nói đúng một câu ở hai trạng thái khác nhau.
+   */
+  'admin.exams.create-disclosure': 'Tạo kỳ thi thực hành',
+  'admin.exams.create-title-label': 'Tên kỳ thi',
+  'admin.exams.create-title-placeholder': 'Giữa kỳ DevOps, nhóm thực hành thứ Ba',
+  'admin.exams.create-class-label': 'Lớp',
+  'admin.exams.create-class-placeholder': 'Chọn lớp',
+  'admin.exams.create-problems-label': 'Mã bài, mỗi dòng một mã',
+  'admin.exams.create-problems-placeholder': 'K8S-0001\nGIT-0001',
+  'admin.exams.create-duration-label': 'Thời lượng (phút)',
+  'admin.exams.create-strategy-label': 'Cách sinh đề',
+  'admin.exams.create-opens-label': 'Mở lúc (bỏ trống là mở ngay)',
+  'admin.exams.create-closes-label': 'Đóng lúc (bỏ trống là không có hạn chung)',
+  'admin.exams.create-submit': 'Tạo kỳ thi',
+
+  'admin.exams.strategy-fixed': 'Một đề chung cho cả lớp',
+  'admin.exams.strategy-per-student': 'Mỗi người một đề theo seed riêng',
+  'admin.exams.strategy-note':
+    'Đề riêng từng người chỉ nhận những bài bật cờ seedable. Cổng chặn nằm ở máy chủ, nên một đề sai luật bị từ chối ngay lúc tạo chứ không hỏng lúc thi.',
+
+  'admin.exams.col-title': 'Kỳ thi',
+  'admin.exams.col-class': 'Lớp',
+  'admin.exams.col-problems': 'Số bài',
+  'admin.exams.col-duration': 'Thời lượng',
+  'admin.exams.col-attempts': 'Đã vào làm',
+  'admin.exams.col-created': 'Ngày tạo',
+  'admin.exams.col-actions': 'Thao tác',
+  'admin.exams.open': 'Mở kỳ thi',
+
+  'admin.exams.empty-title': 'Chưa có kỳ thi nào',
+  'admin.exams.empty-body':
+    'Tạo kỳ thi đầu tiên bằng ô phía trên. Cần có sẵn một lớp và ít nhất một bài đã xuất bản.',
+  'admin.exams.note': (p: { count: number; page: number }): string =>
+    `${String(p.count)} kỳ thi, trang ${String(p.page)}`,
+  'admin.exams.note-more': ', còn trang tiếp theo.',
+  'admin.exams.created-toast': (p: { title: string }): string => `Đã tạo kỳ thi ${p.title}`,
+
+  'admin.exams.scoreboard-title': 'Bảng điểm',
+  'admin.exams.scoreboard-description':
+    'Mỗi bài một cột. Điểm lấy lượt nộp tốt nhất TRONG cửa sổ thi, nên bài làm trước hôm thi không được tính.',
+  'admin.exams.sb-col-name': 'Họ tên',
+  'admin.exams.sb-col-started': 'Bắt đầu',
+  'admin.exams.sb-col-submitted': 'Nộp lúc',
+  'admin.exams.sb-col-auto': 'Tự nộp',
+  'admin.exams.sb-col-solved': 'Số bài AC',
+  'admin.exams.sb-col-cases': 'Testcase qua',
+  'admin.exams.sb-empty-title': 'Chưa ai vào làm',
+  'admin.exams.sb-empty-body': 'Bảng điểm hiện khi có người mở lượt thi đầu tiên.',
+  'admin.exams.sb-still-working': 'Đang làm',
+
+  'admin.exams.auto-yes': 'Có',
+  'admin.exams.auto-no': 'Không',
+
+  'admin.exams.csv-download': 'Tải CSV',
+  'admin.exams.csv-note':
+    'File kèm BOM UTF-8 nên Excel trên Windows mở không vỡ dấu. Xuất trước khi xoá lớp: xoá lớp là xoá luôn điểm thi của lớp đó.',
 } as const satisfies Surface<'admin'>;
 
 export const adminIntentionalThree = {
@@ -403,4 +596,7 @@ export const adminIntentionalThree = {
     '2026-09-10: đúng ba loại nội dung tồn tại trong CONTENT_KINDS tại packages/shared-types/src/authoring.ts (lesson, lab, playground). Bảng KIND_LABEL là Record<ContentKind, ...> nên loại thứ tư là lỗi biên dịch trước khi là một câu thiếu.',
   'admin.health.metric':
     '2026-09-10: đúng ba giá trị double của IEEE 754 không phải số hữu hạn (NaN, +Infinity, -Infinity), và formatMetricValue phân nhánh đúng ba lần vì Number.isFinite chia miền thành đúng bốn ca. Không phải một phân loại ba, mà là ba ca còn lại sau khi loại số hữu hạn.',
+  'admin.audit-target':
+    '2026-09-14: đúng ba loại đối tượng mà nhật ký quản trị GHI thật, đọc từ chỗ gọi writeAuditLog chứ không từ một danh sách khai sẵn: user (đổi vai trò), session (buộc dừng), class (tạo/thêm-bớt thành viên, §18.F). Ba là số hiện tại, không phải số đẹp. describeAuditTarget còn một nhánh cuối trả thẳng targetType, nên loại thứ tư vẫn HIỆN RA được, chỉ hiện bằng chuỗi thô tiếng Anh. Đó là lý do nhóm này phải được rà lại mỗi lần thêm một loại đối tượng, khác hẳn admin.role vốn được enum DB gác.',
 } as const satisfies IntentionalThree;
+

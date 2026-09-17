@@ -6,6 +6,7 @@ import {
   SANDBOX_SCENARIOS,
   SANDBOX_SCENARIO_LABEL,
   createGitSession,
+  emptyDraft,
   exportSandboxJson,
   importSandboxJson,
   layoutDag,
@@ -15,12 +16,17 @@ import {
   withoutOrigin,
   worldToSpec,
   type GitEngineSession,
+  type GitLevel,
+  type LevelDraft,
   type SandboxScenario,
   type WorldSpec,
 } from '@devops-platform/games';
 
+import { GitLevelBuilder } from './builder/git-builder';
 import { CommandBar, OutputLog } from './git-console';
-import { GitSvgScene } from './git-svg-scene';
+import { ArrowLeft, FlaskConical, Hammer, Terminal } from 'lucide-react';
+import { GitMapStage } from './git-map-stage';
+import './git-odyssey.css';
 import { buildSceneLayouts, type SceneView } from '../shared/scene-props';
 
 /**
@@ -45,13 +51,37 @@ import { buildSceneLayouts, type SceneView } from '../shared/scene-props';
 
 export interface GitSandboxProps {
   readonly onExit: () => void;
+  /**
+   * Bản nháp của Level Builder (§18.E). `null` = chưa mở Builder lần nào.
+   *
+   * ⚠ State NÂNG LÊN `GitGame` chứ không giữ ở đây, và lý do nằm ở E.6: "chơi
+   * thử" thay màn sandbox bằng `GitLevelScreen`, nên component này **unmount** và
+   * mọi state của nó biến mất. Khối chú thích ở `git-game.tsx` ghi đủ.
+   */
+  readonly draft: LevelDraft | null;
+  readonly onDraftChange: (next: LevelDraft) => void;
+  readonly builderOpen: boolean;
+  readonly onBuilderOpenChange: (open: boolean) => void;
+  readonly onPlayTest: (level: GitLevel) => void;
 }
 
-export function GitSandbox({ onExit }: GitSandboxProps): ReactElement {
+export function GitSandbox({
+  onExit,
+  draft,
+  onDraftChange,
+  builderOpen,
+  onBuilderOpenChange,
+  onPlayTest,
+}: GitSandboxProps): ReactElement {
   const [scenario, setScenario] = useState<SandboxScenario>('kho-roi');
   const [spec, setSpec] = useState<WorldSpec>(() => sandboxSpec('kho-roi'));
   const [problem, setProblem] = useState<string | null>(null);
   const [importText, setImportText] = useState('');
+  const [selected, setSelected] = useState<string | null>(null);
+  const [hovered, setHovered] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<{ tone: 'success' | 'error'; text: string } | null>(
+    null,
+  );
 
   /*
    * `generation` là thứ DUY NHẤT quyết định khi nào dựng lại phiên.
@@ -70,12 +100,15 @@ export function GitSandbox({ onExit }: GitSandboxProps): ReactElement {
   }
   const session = sessionRef.current.session;
 
-  const [, setTick] = useState(0);
+  const [tick, setTick] = useState(0);
   const redraw = useCallback(() => {
     setTick((n) => n + 1);
   }, []);
 
   const rebuild = useCallback((next: WorldSpec) => {
+    setSelected(null);
+    setHovered(null);
+    setFeedback(null);
     setSpec(next);
     setProblem(null);
     setGeneration((g) => g + 1);
@@ -126,38 +159,109 @@ export function GitSandbox({ onExit }: GitSandboxProps): ReactElement {
     setImportText('');
   }, [importText, rebuild]);
 
+  // Chụp lúc BẤM, không chụp lúc render — xem `GitLevelBuilderProps.captureSpec`.
+  const captureSpec = useCallback((): WorldSpec => worldToSpec(session.getWorld()), [session]);
+
+  /*
+   * ⚠ ĐÓNG/MỞ là một biến RIÊNG, không phải `draft === null`.
+   *
+   * Gộp hai thứ vào một biến rẻ hơn một dòng và biến một lần bấm nhầm thành xoá
+   * sạch đề bài đang soạn: không hỏi lại, không hoàn tác được. Nên đóng bảng là
+   * ẩn đi, và bản nháp ở lại.
+   */
+  const toggleBuilder = useCallback(() => {
+    if (draft === null) onDraftChange(emptyDraft(worldToSpec(session.getWorld())));
+    onBuilderOpenChange(!builderOpen);
+  }, [draft, onDraftChange, builderOpen, onBuilderOpenChange, session]);
+
   return (
-    <div className="flex h-full flex-col">
-      <header className="flex flex-wrap items-center gap-3 border-b border-input px-4 py-2">
-        <button
-          type="button"
-          onClick={onExit}
-          className="rounded-md px-2 py-1 text-sm text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-        >
-          ← Danh sách level
+    <div className="git-odyssey git-play-screen git-sandbox" data-chapter="2">
+      <header className="git-play-header">
+        <button type="button" onClick={onExit} className="git-button">
+          <ArrowLeft size={16} /> Bản đồ
         </button>
-        <span className="text-sm font-medium text-foreground">Sandbox · kho tự do</span>
+        <div className="git-play-title">
+          <p className="git-eyebrow">GIT ODYSSEY / XƯỞNG SÁNG TẠO</p>
+          <h1>Sandbox · Kiến tạo lịch sử của bạn</h1>
+        </div>
+        <span className="ml-auto">
+          <SandboxButton onClick={toggleBuilder}>
+            {builderOpen ? 'Đóng Level Builder' : 'Mở Level Builder'}
+          </SandboxButton>
+        </span>
       </header>
 
-      <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-        <div className="min-h-0 flex-1 overflow-auto p-4">
-          <GitSvgScene
-            view={sceneView}
-            layouts={layouts}
-            interaction={{
-              selectedId: null,
-              hoveredId: null,
-              onSelect: () => undefined,
-              onHover: () => undefined,
+      <div className="git-mission-strip">
+        <FlaskConical size={16} />
+        <p>
+          Thử nghiệm không giới hạn. Tạo nhánh, dựng lịch sử và thiết kế nhiệm vụ của riêng bạn.
+        </p>
+        <span>CHẾ ĐỘ TỰ DO</span>
+      </div>
+      <div className="git-play-body">
+        <div className="git-play-world">
+          <GitMapStage
+            key={generation}
+            revision={tick}
+            feedback={feedback}
+            scene={{
+              view: sceneView,
+              layouts,
+              interaction: {
+                selectedId: selected,
+                hoveredId: hovered,
+                onSelect: setSelected,
+                onHover: setHovered,
+              },
+              label: 'Đồ thị commit của sandbox',
             }}
-            label="Đồ thị commit của sandbox"
           />
         </div>
 
         <aside
-          className="flex w-full shrink-0 flex-col gap-4 border-t border-input p-4 lg:w-96 lg:border-t-0 lg:border-l"
+          className={
+            builderOpen
+              ? 'git-side-panel git-builder-panel git-sandbox-tools git-builder-open'
+              : 'git-side-panel git-builder-panel git-sandbox-tools'
+          }
+          /*
+           * Tên của landmark `complementary`. Vỏ ứng dụng cũng dựng một
+           * `<aside>` (`app-shell.tsx`), nên hai cái cùng vô danh là vi phạm
+           * `landmark-unique` của axe. `shell.sidebar.aria` đã đặt tên cho cái
+           * kia và một mình nó đủ để cổng xanh; cái tên ở đây là để người dùng
+           * trình đọc màn hình nghe được panel này LÀ gì, chứ không phải nghe
+           * "complementary" trống không.
+           *
+           * Chuỗi viết thẳng, không qua `t()`: cây `components/games/git` chưa
+           * có surface copy nào và nằm ngoài vùng quét của
+           * `ui-source-coverage.test.ts`; cả file này đang viết thẳng mọi nhãn
+           * (`aria-label="Đồ thị commit của sandbox"` ngay phía trên). Nhét nó
+           * vào surface `shell.` sẽ là copy của trò chơi nằm trong bản đồ của
+           * vỏ ứng dụng — chính thứ đầu file `surfaces/shell.ts` cấm.
+           */
+          aria-label="Bảng công cụ sandbox"
           data-testid="git-sandbox-panel"
         >
+          <div className="git-builder-heading">
+            <Hammer size={23} />
+            <span>
+              <strong>{builderOpen ? 'Level Builder' : 'Phòng thí nghiệm'}</strong>
+              <small>
+                {builderOpen
+                  ? 'Thiết kế · Chơi thử · Xuất bản nháp'
+                  : 'Thiết lập thế giới và khám phá Git'}
+              </small>
+            </span>
+          </div>
+          {builderOpen && draft !== null && (
+            <GitLevelBuilder
+              captureSpec={captureSpec}
+              draft={draft}
+              onDraftChange={onDraftChange}
+              onPlayTest={onPlayTest}
+            />
+          )}
+
           <section aria-labelledby="sandbox-kich-ban">
             <h2 id="sandbox-kich-ban" className="mb-2 text-sm font-semibold text-foreground">
               Kịch bản khởi tạo
@@ -182,8 +286,8 @@ export function GitSandbox({ onExit }: GitSandboxProps): ReactElement {
               ))}
             </select>
             <p className="mt-2 text-xs text-muted-foreground">
-              Đổi kịch bản, bật/tắt origin, hay nhập một cây đều dựng lại kho — và việc đó xoá
-              ngăn xếp hoàn tác.
+              Đổi kịch bản, bật/tắt origin, hay nhập một cây đều dựng lại kho — và việc đó xoá ngăn
+              xếp hoàn tác.
             </p>
           </section>
 
@@ -262,11 +366,26 @@ export function GitSandbox({ onExit }: GitSandboxProps): ReactElement {
         </aside>
       </div>
 
-      <div className="border-t border-input">
+      <div className="git-terminal">
+        <header>
+          <span>
+            <i />
+            <i />
+            <i />
+            <Terminal size={14} /> TERMINAL <small>~/sandbox</small>
+          </span>
+          <span>{session.getStatus().movesUsed} lệnh</span>
+        </header>
         <OutputLog output={session.getOutput()} />
         <CommandBar
           onSubmit={(command) => {
-            session.run(command);
+            const outcome = session.run(command);
+            setFeedback({
+              tone: outcome.result.error ? 'error' : 'success',
+              text: outcome.result.error
+                ? 'Lệnh chưa thực hiện được. Xem terminal.'
+                : command + ' · Đã thực hiện',
+            });
             redraw();
           }}
           onUndo={undo}
@@ -286,12 +405,7 @@ function SandboxButton({
   readonly disabled?: boolean;
 }): ReactElement {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled ?? false}
-      className="rounded-md border border-input px-3 py-1.5 text-xs text-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-    >
+    <button type="button" onClick={onClick} disabled={disabled ?? false} className="git-button">
       {children}
     </button>
   );

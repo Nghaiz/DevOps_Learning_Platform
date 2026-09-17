@@ -18,7 +18,7 @@ export type {
   GameSettings,
   RunResult,
 } from './core/types.ts';
-export { STORAGE_KEY_PREFIX, storageKey } from './core/types.ts';
+export { DIFFICULTIES, GAME_IDS, STORAGE_KEY_PREFIX, storageKey } from './core/types.ts';
 
 /*
  * Nhật ký hành động dùng chung — CHUYỂN từ `k8s/contract.ts` lên `core/` ngày
@@ -33,11 +33,24 @@ export type {
   GameAction,
   GameActionBase,
   GameActionKind,
+  CicdActionShape,
+  CicdCdPoliciesLike,
+  CicdOverridesLike,
   GitGameAction,
   K8sActionShape,
   ResourceRefLike,
   RunLog,
 } from './core/run-log.ts';
+
+/**
+ * ⚠ `CicdGameAction` ra khỏi khối trên ở 19.J và KHÔNG phải một lần dọn tên.
+ *
+ * `core/run-log.ts` nay chỉ khai dạng MỞ (`CicdActionShape`); bản đóng — dạng
+ * mang `CicdPlayerOverrides` + `CicdCdPolicies` thật — sống ở `cicd/action.ts`,
+ * vì `core/` không được nhập từ thư mục game. Tên xuất ra ngoài barrel giữ
+ * NGUYÊN, nên không consumer nào phải sửa import.
+ */
+export type { CicdGameAction, CicdRunLog } from './cicd/action.ts';
 
 export type {
   ChaosWave,
@@ -155,7 +168,36 @@ export {
 } from './git/sandbox.ts';
 export { GIT_PREDICATE_NAMES, evaluateObjectives, verdictOf } from './git/predicates.ts';
 export type { ObjectiveResult, Verdict } from './git/predicates.ts';
-export { GIT_VERBS, isGitVerb } from './git/command-table.ts';
+
+/**
+ * Level Builder — §18.E.
+ *
+ * `checkSolvable` là cỗ máy của AC-8/AC-9 (chạy lời giải của cả 32 level đang
+ * phát hành) dùng lại nguyên vẹn cho §18.E.7, nên level bạn tự dựng đi qua đúng
+ * phép kiểm mà hàng phát hành đi qua. Nó chứng minh "đường NÀY đi được", KHÔNG
+ * chứng minh "không có đường nào" — xem khối đầu `git/solvability.ts`.
+ */
+export { checkSolvable } from './git/solvability.ts';
+export type { RejectedCommand, SolvabilityReport, UnmetObjective } from './git/solvability.ts';
+export {
+  BUILDER_CANNOT_EXPRESS,
+  CUSTOM_LEVEL_ID_PREFIX,
+  draftFromLevel,
+  draftToLevel,
+  emptyDraft,
+  isCustomLevelId,
+  levelDraftIssues,
+  levelFromJson,
+  levelToJson,
+} from './git/level-draft.ts';
+export type {
+  BuilderLimit,
+  DraftIssue,
+  DraftIssueCode,
+  LevelDraft,
+  LevelExport,
+} from './git/level-draft.ts';
+export { GIT_COMMANDS, GIT_VERBS, isGitVerb } from './git/command-table.ts';
 export type { GitVerb } from './git/command-table.ts';
 export { parseGitCommand } from './git/parser.ts';
 export { suggest } from './git/suggest.ts';
@@ -171,13 +213,31 @@ export { layoutDag } from './core/layout/index.ts';
 export type { ReplayEngine, RunTally, VerifyResult, VerifyStatus } from './core/verify.ts';
 export {
   COMMAND_KINDS,
+  MAX_REPLAY_TICK,
   checkDeterminism,
   isVerified,
-  sessionReplayEngine,
   tallyLog,
   verifyLabel,
   verifyRun,
 } from './core/verify.ts';
+
+/*
+ * `sessionReplayEngine` CHUYỂN NHÀ 2026-09-14 (18.A): `core/verify.ts` →
+ * `k8s/replay-engine.ts`. Tên export giữ NGUYÊN, và đó là điều làm bước này an
+ * toàn — `apps/web/src/server/problems/{replay,submit}.ts` import qua gốc
+ * package (`exports` chỉ mở đúng subpath `"."`), nên chúng không phải sửa một
+ * dòng nào.
+ *
+ * Vì sao phải chuyển: hàm này là ADAPTER của riêng game K8s — nó là chỗ duy
+ * nhất trong cả `core/verify.ts` chạm `CreateSession`/`K8sSession`/`Level`. Để
+ * nó ở `core/` thì bộ phát lại chống gian lận bị trói về đúng một game, và một
+ * bài Git không có đường đi qua bộ xác minh. Chính `core/verify.ts` đã tự dặn
+ * điều đó ở đầu file từ 17.A.2; nửa còn lại của lời dặn mới trả xong hôm nay.
+ *
+ * Ô đo: `grep -rn "from '../k8s\|from '../git" packages/games/src/core/` trả
+ * rỗng. Đây là bản ĐÃ SỬA của AC-A — bản trong plan đếm cả văn xuôi nên đo nhầm.
+ */
+export { sessionReplayEngine } from './k8s/replay-engine.ts';
 
 export { SCORE_MAX, checkPlausibility, checkSave, checksum, stampSave } from './core/integrity.ts';
 
@@ -307,6 +367,197 @@ export {
   isProblemCode,
 } from './k8s/problem.ts';
 
+// ── Nhãn chủ đề theo game (§18.D) ───────────────────────────────────────────
+/*
+ * Mở ra vì `/problems` phải gọi được nó, và nó là đường DUY NHẤT tra nhãn chủ
+ * đề không kéo engine — `PROBLEM_PLUGINS` kéo cả hai. Lý do đầy đủ nằm trong
+ * chính file đó.
+ */
+export { problemTopicLabels } from './problem-topic-labels.ts';
+
+// ── Hợp đồng OJ đa-game (18.A.2 / 18.A.3) ───────────────────────────────────
+/*
+ * ⚠ TRẠNG THÁI TRUNG GIAN CÓ CHỦ Ý — đọc trước khi "dọn cho gọn".
+ *
+ * Khối này chỉ mở những tên CHỈ CÓ ở `core/`. Chín tên nữa (`ProblemDifficulty`,
+ * `PROBLEM_DIFFICULTIES`, `PROBLEM_DIFFICULTY_LABELS`, `ProblemState`,
+ * `PROBLEM_STATES`, `ProblemHint`, `ProblemHintTeaser`, `ProblemForSolver`,
+ * `isProblemCode`) hiện TỒN TẠI Ở CẢ HAI chỗ — `core/problem.ts` và
+ * `k8s/problem.ts` — nên re-export cả hai ở đây là lỗi trùng tên, không phải
+ * một lựa chọn.
+ *
+ * Hợp nhất chúng là bước dịch chuyển KẾ TIẾP của 18.A: `k8s/problem.ts` bỏ bản
+ * khai của mình và re-export từ `core/`. Tách làm hai commit là cố ý (§6 của
+ * plan: mỗi commit một bước lùi lại được) — commit này thuần thêm mới, không
+ * một dòng mã đang chạy nào đổi nghĩa.
+ *
+ * ⚠ `isProblemCode` KHÔNG phải cùng một hàm ở hai nơi: bản `core/` nhận thêm
+ * tham số tiền tố. Lúc hợp nhất phải sửa mọi chỗ gọi, không chỉ đổi đường import.
+ */
+export type {
+  AuthorField,
+  GameProblemPlugin,
+  ProblemPluginMeta,
+  ProblemPluginRegistry,
+} from './core/problem-plugin.ts';
+export type {
+  GradeResult,
+  ProblemBase,
+  ProblemRunLog,
+  ProblemTopicId,
+  ProblemTopicOption,
+  ReplayRequest,
+  ProblemFailureCode,
+  ProblemVerdict,
+  Submission,
+  Testcase,
+  TestcaseTeaser,
+} from './core/problem.ts';
+export {
+  PROBLEM_CODE_SUFFIX_DIGITS,
+  PROBLEM_FAILURE_CODES,
+  PROBLEM_VERDICTS,
+  problemCodePattern,
+  problemVerdictOf,
+  problemDifficultyToLevelDifficultyLossy,
+} from './core/problem.ts';
+
+/*
+ * Bảng đăng ký plugin (18.A.4 / 18.A.5). Đây là đường DUY NHẤT để tầng máy chủ
+ * và tầng giao diện chấm một lượt nộp — cả hai phía gọi cùng `gradeProblemRun`.
+ *
+ * ⚠ Vì sao phải mở NGAY chứ không đợi "khi nào cần": bài học `CHALLENGES` của
+ * game K8s, đã ghi ở khối đầu phần Game Git bên trên — 10 bài nằm trong package
+ * rất lâu, chạy được, có test tham chiếu, mà KHÔNG bao giờ vào barrel, nên không
+ * component nào import được và người dùng chưa từng thấy bài nào. Mã chết không
+ * đỏ ở đâu cả.
+ *
+ * `UnknownProblemGameError` mở cùng, và đó không phải thừa: `gradeProblemRun`
+ * NÉM khi `gameId` chưa có plugin thay vì trả một `GradeResult` rỗng. Phía gọi
+ * cần bắt được đúng lớp đó để trả một câu nói được cho người dùng — không có nó
+ * thì chỗ gọi chỉ còn cách so chuỗi thông điệp, và một lần sửa chính tả sẽ làm
+ * nhánh bắt lỗi im lặng ngừng khớp.
+ */
+export {
+  PROBLEM_PLUGINS,
+  UnknownProblemGameError,
+  gradeProblemRun,
+  problemPluginMeta,
+} from './problem-plugins.ts';
+
+/*
+ * Seed mặc định LÚC CHƠI của từng game — và đây là dòng gấp nhất của cả khối.
+ *
+ * Sau `ae7ed23`, `Submission.seed` luôn mang số THẬT: client chơi bằng seed nào
+ * thì gửi lên seed đó, server phát lại bằng đúng số đó. Điều đó gỡ hẳn chỗ cho
+ * phép hai bên tự chọn LÚC CHẤM.
+ *
+ * Nhưng nó dời câu hỏi chứ không xoá: **client lấy số ở đâu khi mở một bài
+ * `seedable: false`?** Client sống ở `apps/web`, ngoài package này, và
+ * `packages/games/package.json` chỉ mở đúng một subpath `"."` — nên không export
+ * ở đây thì `apps/web` **sẽ tự đặt một hằng của riêng nó**. Lúc đó lỗ hổng vừa
+ * bịt quay lại nguyên vẹn, chỉ dời từ giữa-hai-plugin sang giữa-client-và-server,
+ * và nó vẫn hiện ra dưới đúng hình dạng cũ: mọi lượt nộp hợp lệ bị từ chối, nhìn
+ * như hệ thống từ chối người chơi ngẫu nhiên.
+ *
+ * ⚠ Hai số CỐ Ý khác nhau (K8s `0`, Git `1`). Đừng "dọn" thành một hằng chung:
+ * `1` của Git khớp mặc định của `createGitSession` (`git/engine.ts:99`), và đổi
+ * nó nghĩa là lượt chấm OJ dựng thế giới khác mọi đường git còn lại của repo.
+ * Lý do đầy đủ ghi tại chỗ khai của từng hằng.
+ */
+export { K8S_UNSEEDED_REPLAY_SEED } from './k8s/problem-plugin.ts';
+export { GIT_UNSEEDED_REPLAY_SEED } from './git/problem-plugin.ts';
+export { CICD_UNSEEDED_REPLAY_SEED } from './cicd/problem-plugin.ts';
+
+/**
+ * Bộ chấm CI/CD, xuất thẳng cho adapter PHÁT LẠI phía máy chủ
+ * (`apps/web/src/server/problems/replay.ts`) — 19.J.
+ *
+ * ⚠ Đường CHẤM đã gọi nó gián tiếp qua `gradeProblemRun` → bảng plugin. Đường
+ * XÁC MINH cần chính hàm đó, và phải là CHÍNH nó chứ không phải một bản diễn
+ * giải thứ hai của cùng nhật ký: hai bản sẽ trôi, và chỗ trôi là "máy chủ chấm
+ * ra một verdict, máy chủ xác minh ra một verdict khác" — người giải đúng bị từ
+ * chối và không lệnh nào nói vì sao.
+ */
+export { gradeCicdProblem } from './cicd/problem-plugin.ts';
+
+/*
+ * Hình dạng đề bài CI/CD — 19.J. Trang soạn bài (`app/author/problems/`) và màn
+ * làm bài (`components/games/cicd/cicd-problem.tsx`) đều dựng đúng bộ này, nên
+ * không bên nào được gõ lại hình dạng của nó.
+ */
+export type { CicdProblemCd, CicdProblemSpec } from './cicd/problem-plugin.ts';
+
+/*
+ * Bảng "vị từ CD nào cần khối kịch bản nào". Xuất ra vì cổng lúc LƯU
+ * (`server/problems/validate.ts`, 19.J.2.2) phải hỏi đúng câu mà bộ chấm hỏi —
+ * hai bản chép tay của cùng một bảng sẽ trôi, và chỗ trôi sẽ là một bài lưu
+ * được nhưng không chấm được.
+ */
+export { CD_PREDICATE_NEEDS } from './cicd/predicates.ts';
+
+/**
+ * Bộ seed hai bài CI/CD — 19.J.4.
+ *
+ * ⛔ DỮ LIỆU GỐC để nạp một lần, KHÔNG phải nguồn đọc lúc chạy. Trang danh sách
+ * và trang làm bài đọc từ DB; đọc thẳng từ đây thì bài do người soạn tạo ra sẽ
+ * không bao giờ hiện.
+ *
+ * Xuất ra barrel vì hai chỗ ngoài package cần nó: `scripts/seed-content.mjs`
+ * (nạp vào Postgres) và `save-cicd-problem.integration.test.ts` (dựng body từ
+ * một đề ĐÃ được chứng minh là giải được, nên khi ô đó đỏ thì nguyên nhân nằm ở
+ * đường ghi/đọc chứ không ở chất lượng đề).
+ */
+export { CICD_PROBLEMS_SEED } from './cicd/problems-seed/index.ts';
+export type { CicdProblemSeed } from './cicd/problems-seed/index.ts';
+export type { CdSimulatorKind } from './cicd/predicates.ts';
+
+/*
+ * `ProblemPluginRegistry` đã ở trên; không có tên phần tử thì consumer cầm được
+ * bảng mà không gọi tên được thứ trong bảng.
+ */
+export type { ErasedProblemPlugin } from './core/problem-plugin.ts';
+
+/**
+ * Bảng tham số vị từ — P20. Trang soạn bài dựng ô nhập từ đây.
+ *
+ * `PREDICATE_ARGS` (game Git) giữ NGUYÊN tên cũ dù đã chuyển nhà từ
+ * `apps/web/src/components/games/git/builder/`: `git-builder.tsx` và ô gác
+ * `predicate-args.test.ts` đã gọi nó, và đổi tên ở barrel là một thay đổi phá vỡ
+ * không mua được gì.
+ */
+export type { ProblemArgKind, ProblemArgSpec, ProblemPredicateArgs } from './core/problem-plugin.ts';
+export { PREDICATE_ARGS, missingArgs } from './git/predicate-args.ts';
+export type { ArgKind, ArgSpec } from './git/predicate-args.ts';
+export { K8S_PREDICATE_ARGS } from './k8s/predicate-args.ts';
+export { CICD_PLUGIN_PREDICATE_ARGS } from './cicd/predicate-args-plugin.ts';
+
+/*
+ * Mô hình hiển thị verdict. CHUYỂN NHÀ 2026-09-14 từ
+ * `apps/web/src/server/problems/verdict-view.ts` xuống đây.
+ *
+ * Vì sao phải chuyển: `use-problem-submit.ts` khai `'use client'` và import một
+ * GIÁ TRỊ từ `src/server/`. Đã đo, đó là file DUY NHẤT trong cả `apps/web` làm
+ * điều đó. `next build` xanh vì hàm thuần, nhưng nó mong manh theo nghĩa đen:
+ * một dòng `import 'server-only'` thêm vào file kia là đỏ ngay, và đỏ ở phía
+ * người khác chứ không phía người gõ dòng đó.
+ *
+ * Vì sao chỗ này là chỗ đúng chứ không phải chép sang client: §18.C.3 sẽ đem
+ * verdict của client và của server ra SO. Hai bên phải suy bằng CÙNG một hàm —
+ * chép ra hai bản là làm phép so đó mất nghĩa, vì lúc lệch nhau ta không biết
+ * mình đang phát hiện engine sai hay hai hàm sai khác nhau.
+ */
+export type { FailedTestcaseView, VerdictView } from './core/verdict-view.ts';
+export {
+  compileErrorCode,
+  compileErrorReason,
+  gradeFromSubmission,
+  gradeOf,
+  problemFailureMessage,
+  toVerdictView,
+  verdictFromVerify,
+} from './core/verdict-view.ts';
+
 // ── Chấm điểm ───────────────────────────────────────────────────────────────
 /*
  * Mở export 2026-09-08 theo yêu cầu của tầng máy chủ OJ, và lý do đáng ghi lại.
@@ -381,3 +632,210 @@ export type {
   RolloutSub,
 } from './k8s/kubectl.ts';
 export { KUBECTL_VERBS, parseKubectl } from './k8s/kubectl.ts';
+
+/*
+ * ═══════════════════════════════════════════════════════════════════════════
+ * Game CI/CD (P19)
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Mở ra ngoài vì tầng giao diện (`/games/cicd`, 19.E/19.H) cần đúng ba thứ và
+ * không thứ nào dựng lại được ở phía web: danh sách level, một lượt chạy engine
+ * tất định, và cầu nối YAML ↔ `WorkflowSpec` kèm dòng-cột của mọi lỗi.
+ *
+ * ⚠ **SỬA LỜI KHAI 2026-09-16.** Đoạn này ban đầu viết "giao diện đọc kết quả
+ * `evaluate()` trả về, không tự chấm". Câu đó KHÔNG THỰC HIỆN ĐƯỢC, và đo ra
+ * mới biết: `EvaluationRecord` chỉ có `{ baseSeed, error, passes }` — không có
+ * kết quả mục tiêu nào trong đó. Theo đúng câu cũ thì màn chơi không có điều
+ * kiện THẮNG.
+ *
+ * Nên mở `failingObjectiveIds` — và chỉ nó. Nó vẫn là MỘT bộ chấm: giao diện
+ * gọi đúng hàm mà level gọi, không dựng bản thứ hai. `CICD_PREDICATES`,
+ * `checkObjective` và `validateObjectiveArgs` vẫn đóng, vì mở bảng vị từ ra là
+ * mời tầng giao diện tự ghép luật — đúng thứ commit `824ee8b` vừa gộp lại làm
+ * một.
+ *
+ * ⛔ `ScoreAxes` là kiểu TRẢ VỀ, không phải struct để lưu (xem `score.ts` §"No
+ * Derived Fields"). Mở kiểu ra đây không biến nó thành thứ được phép cất vào
+ * `GameSave`; ba con số phải tính lại từ `EvaluationRecord` mỗi lần.
+ */
+export type {
+  ApprovalSpec,
+  AttemptOutcome,
+  AttemptRecord,
+  CacheSpec,
+  CicdCheatSheetEntry,
+  CicdLevel,
+  CicdObjective,
+  BlockedBy,
+  CicdThresholds,
+  CicdView,
+  DagEdgeView,
+  EnvironmentId,
+  EvaluationError,
+  EvaluationRecord,
+  EvaluationSpec,
+  FailureCause,
+  FlakeSpec,
+  InstanceKey,
+  PassRecord,
+  RunnerPool,
+  RunRecord,
+  ScoreAxes,
+  StageId,
+  StageInstanceRecord,
+  StageKind,
+  StageNodeView,
+  StageRunState,
+  StageSpec,
+  StepNodeView,
+  StepRecord,
+  StepSpec,
+  WorkflowSpec,
+  WorkloadSpec,
+} from './cicd/contract.ts';
+export { DEFAULT_EVALUATION_PASSES, RELEASE_STRATEGIES, SECONDS_PER_TICK, STAGE_KINDS } from './cicd/contract.ts';
+
+/**
+ * `EDITABLE_PARTS` — mở ra ở 19.J.3, và nó ĐÍNH CHÍNH một chú thích cũ.
+ *
+ * `components/games/cicd/cicd-run.ts` ghi (đo 2026-09-16) rằng barrel này không
+ * xuất `EDITABLE_PARTS`, nên nó suy kiểu gián tiếp qua `CicdLevel['editable']`.
+ * Cách suy kiểu đó vẫn đúng và vẫn nên giữ — nhưng màn LÀM BÀI cần chính GIÁ TRỊ,
+ * không chỉ cái kiểu: `cicdOjLevel` phải khai `editable` đúng bằng tập mà
+ * `gradeCicdProblem` truyền cho `hydrateWorkflow`. Hai bên lệch nhau thì người
+ * làm gõ được thứ máy chủ lặng lẽ bỏ qua, và verdict không giải thích được.
+ *
+ * Xuất giá trị là cách duy nhất giữ chúng khớp; chép bảy chuỗi literal sang tầng
+ * web sẽ tạo bản thứ hai của một tập đóng, và bản đó trôi trong im lặng.
+ */
+export { EDITABLE_PARTS } from './cicd/contract.ts';
+export type { EditablePart } from './cicd/contract.ts';
+
+export { CD_LEVELS, CI_LEVELS, CICD_LEVELS } from './cicd/levels/index.ts';
+
+export { evaluate, validateWorkflow } from './cicd/engine.ts';
+
+export type { AxisDistribution, EvaluationSummary } from './cicd/score.ts';
+export { scoreAxes, summarizeEvaluation } from './cicd/score.ts';
+
+export type { CriticalPath, CriticalPathEdge, CriticalPathNode } from './cicd/critical-path.ts';
+export { criticalPath } from './cicd/critical-path.ts';
+
+/*
+ * ── Tầng cảnh (19.D) — view, mã hoá trạng thái, phép đặt chỗ ────────────────
+ *
+ * Ba file này là hợp đồng mà lane 2D và lane 3D CÙNG đọc. Toán thuần, không một
+ * dòng `three`: chúng phải test được ở env `node`, và `bundle:check` gác việc
+ * engine đồ hoạ rò sang route không-3D (tiền lệ `44f8e39`, P17).
+ *
+ * ⚠ `buildGraphView` trả `CicdGraphView` — phần ĐỒ THỊ của `CicdView`, không
+ * phải cả nó. `runners` và `events` chưa dựng được từ đầu ra hiện tại của engine
+ * (không có ảnh chụp máy bận theo tick, không có nhật ký sự kiện). Lý lẽ đầy đủ
+ * ở đầu `cicd/scene-view.ts`.
+ */
+export type { CicdGraphView, GraphViewInput } from './cicd/scene-view.ts';
+export { buildGraphView } from './cicd/scene-view.ts';
+export type {
+  CicdBounds,
+  CicdPlacement,
+  CicdPlacementEdge,
+  CicdPlacementNode,
+  ScenePoint,
+} from './cicd/scene-contract.ts';
+export { countNonAxialSegments, placeWorkflow } from './cicd/scene-contract.ts';
+export type { NodeGeometry, NodeMotion, StateEncoding } from './cicd/scene-encoding.ts';
+export { encodingOf, STATE_ENCODING } from './cicd/scene-encoding.ts';
+
+/*
+ * Cầu nối YAML. `YamlDiagnostic` mang dòng + cột THẬT (19.C.3) và ô soạn của
+ * 19.E.2 gạch chân theo đúng hai số đó — đừng dựng lại phép tính vị trí ở phía
+ * web, nó sẽ lệch với bộ quét ngay lần đầu có một chuỗi trong nháy.
+ */
+export type { KhoaBoQua, WorkflowReadResult, YamlDiagnostic } from './cicd/yaml-read.ts';
+export { readWorkflowYaml } from './cicd/yaml-read.ts';
+export type { TruongBiBo, WorkflowWriteResult } from './cicd/yaml-write.ts';
+export { writeWorkflowYaml } from './cicd/yaml-write.ts';
+
+/*
+ * Tầng ghép YAML ↔ dữ liệu level (19.E). Không có nó, vòng "soạn YAML ⇒ chấm ba
+ * trục" cho `leadTimeSeconds: 0` và `runnerMinutes: 0` trên MỌI level — YAML
+ * không chở được chín trường của hợp đồng, và bộ đọc áp mặc định trung tính cho
+ * tất cả. Lý lẽ đầy đủ + phép đo ở đầu `cicd/hydrate.ts`.
+ */
+export type { CicdCacheChoice, CicdHydrateSources, CicdPlayerOverrides } from './cicd/hydrate.ts';
+export type { CicdCacheControl, CicdRetryControl } from './cicd/controls.ts';
+export { cacheControls, overridesToReach, retryControls } from './cicd/controls.ts';
+export type { JobShapeProblem } from './cicd/job-shapes.ts';
+export { checkJobShapes } from './cicd/job-shapes.ts';
+export { ownValue } from './cicd/id-dict.ts';
+export { cacheOverrideKey, hydrateWorkflow, mergeStageCatalogue } from './cicd/hydrate.ts';
+
+/*
+ * Điều kiện THẮNG của một màn chơi. Xem lời khai đã sửa ở khối CI/CD phía trên:
+ * `evaluate()` không trả kết quả mục tiêu, nên không có hàm này thì màn chơi
+ * không kết luận được đạt hay trượt.
+ */
+export type { CicdCdRecords, CicdScoringContext } from './cicd/predicates.ts';
+export { failingObjectiveIds } from './cicd/predicates.ts';
+
+/*
+ * Chương CD (19.B). Ba bộ mô phỏng thuần + phép chiếu của chúng, và danh tính
+ * artifact trên bản ghi đường ống. Hợp đồng: `cicd/cd-contract.ts`.
+ */
+export type {
+  BadReleaseResponse,
+  CanaryIntervalRecord,
+  CdPolicyPart,
+  CicdCdPolicies,
+  CicdLevelCd,
+  CanaryPolicy,
+  DriftRecord,
+  GitOpsActor,
+  GitOpsChange,
+  GitOpsPolicy,
+  GitOpsRecord,
+  GitOpsScenario,
+  LogLineTemplate,
+  MaskingPolicy,
+  MaskingRecord,
+  MaskingScenario,
+  MigrationKind,
+  ReleaseEvaluationSpec,
+  ReleaseOutcome,
+  ReleasePassRecord,
+  ReleasePolicy,
+  ReleaseRecord,
+  ReleaseScenario,
+  RollingPolicy,
+  SecretForm,
+  SecretLeak,
+  SecretSpec,
+} from './cicd/cd-contract.ts';
+export {
+  BAD_RELEASE_RESPONSES,
+  CD_POLICY_PARTS,
+  GITOPS_ACTORS,
+  MIGRATION_KINDS,
+  RELEASE_OUTCOMES,
+  SECRET_FORMS,
+} from './cicd/cd-contract.ts';
+export {
+  badReleasePromotedCount,
+  dataIncidentCount,
+  goodReleaseAbortedCount,
+  isBadCandidate,
+  rollbackSeconds,
+  simulateRelease,
+} from './cicd/release.ts';
+export {
+  driftSeconds,
+  longestDriftSeconds,
+  selfHealFights,
+  simulateGitOps,
+  undetectedDriftCount,
+} from './cicd/gitops.ts';
+export { leakCount, leakedSecrets, renderMaskedLog, transformSecret } from './cicd/masking.ts';
+export type { CdSimulatorName, LevelCdRun } from './cicd/cd-run.ts';
+export { mergeCdPolicies, runLevelCd } from './cicd/cd-run.ts';
+export type { ArtifactId, DeploymentView } from './cicd/artifacts.ts';
+export { artifactIdOf, deploymentsOf } from './cicd/artifacts.ts';

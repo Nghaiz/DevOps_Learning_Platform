@@ -110,7 +110,7 @@ export const author = {
   // ── Trang danh sách ───────────────────────────────────────────────────────
   'author.list.title': 'Soạn bài',
   'author.list.lead':
-    'Bài học, lab và playground do bạn tạo. Danh sách hiển thị đầy đủ, không chia trang.',
+    'Quản lý bài học, lab và playground của bạn.',
   'author.list.new-cta': 'Tạo bài mới',
   'author.list.error-title': 'Không tải được danh sách bài',
   'author.list.empty-title': 'Bạn chưa có bài nào',
@@ -128,7 +128,7 @@ export const author = {
   // ── Trang tạo bài mới ─────────────────────────────────────────────────────
   'author.new.title': 'Tạo bài mới',
   'author.new.lead':
-    'Bài mới luôn ở trạng thái Nháp. Bạn lưu được một bản viết dở, vì kiểm tra định dạng chỉ diễn ra lúc xuất bản.',
+    'Lưu bản nháp trước. Xuất bản khi nội dung đã sẵn sàng.',
   'author.new.identity-heading': 'Định danh, không sửa lại được',
   'author.new.kind.label': 'Loại nội dung',
   'author.new.kind.hint':
@@ -269,6 +269,16 @@ export const author = {
   'author.problem.edit.code-note': 'mã không đổi kể cả khi bạn sửa đề hay đổi slug.',
   'author.problem.edit.unsaved': 'Có thay đổi chưa lưu.',
   'author.problem.edit.saved': 'Đã lưu mọi thay đổi.',
+  /*
+   * Trạng thái THỨ BA của cùng ô báo đó, thêm 2026-09-16 cùng lượt nối dây ô
+   * `practice-save-state` của `problem-editor.tsx`.
+   *
+   * Hai khoá ngay trên nói về CHÊNH LỆCH so với bản đã lưu, nên không cái nào
+   * đúng cho một bản nháp chưa lần nào gửi đi: `unsaved` doạ mất thứ chưa từng
+   * tồn tại, `saved` khẳng định một lượt lưu chưa xảy ra. Ô đó đọc `code === null`
+   * để tách ca này ra, nên nó cần chữ riêng.
+   */
+  'author.problem.edit.new-draft': 'Bản nháp mới',
 
   // ── Thông báo nổi sau mỗi lượt gọi máy chủ ─────────────────────────────────
   'author.problem.toast.saved': 'Đã lưu',
@@ -288,9 +298,97 @@ export const author = {
   'author.problem.tab.arena': 'Thử',
   'author.problem.tab.json': 'JSON',
   'author.problem.tab.publish': 'Xuất bản',
+  'author.problem.tab.spec': 'Trạng thái ban đầu',
+
+  /*
+   * ── Thanh công cụ markdown trong tab Mô tả ─────────────────────────────────
+   *
+   * Nhóm mới 2026-09-16, nối dây mười chuỗi cứng mà lượt dựng lại giao diện
+   * viết thẳng vào `statement-fields.tsx`.
+   *
+   * Bốn khoá `seed-*` KHÔNG phải bản sao của bốn nhãn nút ngay trên chúng, kể
+   * cả khi `heading` và `seed-heading` đang trùng từng chữ. Nhãn nút là chữ
+   * TRỢ NĂNG người soạn nghe; `seed-*` là đoạn chữ nút CHÈN vào đề bài khi
+   * người soạn chưa bôi đen gì, tức nó thành nội dung bài và người soạn gõ đè
+   * lên. Gộp hai vai làm một khoá thì lần đổi chữ trên nút sau này đổi luôn
+   * nội dung được chèn, và ngược lại.
+   *
+   * Vì sao chữ CHÈN vào bài lại nằm ở bản đồ vỏ, ngược với ranh giới VỎ/RUỘT ở
+   * đầu file: số bản sao của bốn chuỗi này bị chặn bởi số NÚT trên thanh công
+   * cụ, không bởi số bài tác giả soạn. Theo đúng phép thử của §5.1 thì chúng là
+   * vỏ, dù đích đến của chúng là một ô nhập.
+   */
+  'author.problem.markdown.toolbar': 'Định dạng đề bài',
+  'author.problem.markdown.badge': 'Markdown',
+  'author.problem.markdown.heading': 'Tiêu đề',
+  'author.problem.markdown.bold': 'In đậm',
+  'author.problem.markdown.list': 'Danh sách',
+  'author.problem.markdown.code': 'Đoạn mã',
+  'author.problem.markdown.seed-heading': 'Tiêu đề',
+  'author.problem.markdown.seed-bold': 'Nội dung',
+  'author.problem.markdown.seed-list': 'Yêu cầu',
+  'author.problem.markdown.seed-code': 'Lệnh hoặc cấu hình',
+
+  // -- Chon game, va gioi han lưu tru hom nay --------------------------------
+  // Ten SAU GameId, khong phai hai game co plugin: GAME_NAME trong
+  // game-plugin-view.ts khai Record<GameId, string> toan phan, nen thieu mot
+  // khoa o day la mot loi bien dich chu khong phai mot dong trong tren o chon.
+  'author.problem.game.name.k8s': 'Kubernetes Arena',
+  'author.problem.game.name.git': 'Git Quest',
+  'author.problem.game.name.pipeline': 'Pipeline',
+  'author.problem.game.name.netpol': 'Network Policy',
+  'author.problem.game.name.dockerfile': 'Dockerfile',
+  'author.problem.game.name.cicd': 'CI/CD',
+  'author.problem.game.label': 'Game',
+  'author.problem.game.hint':
+    'Chọn game trước. Biểu mẫu trạng thái ban đầu, tập chủ đề và bảng vị từ đều đổi theo game.',
+  'author.problem.game.locked':
+    'Bài đã lưu thì không đổi game được: đổi game là đổi luôn kiểu của trạng thái ban đầu. Muốn soạn cho game khác thì tạo bài mới.',
+  // Hai khoa `not-persistable-*` DA XOA 2026-09-15 cung voi PERSISTABLE_GAMES:
+  // chung noi rang bang bai chi giu duoc trang thai ban dau dang cum Kubernetes,
+  // va dieu do thoi dung tu khi §18.D.1 nua sau mo problemBodyShape sang da-game.
+  'author.problem.game.no-plugin-title': 'Game này chưa có bài tập',
+  'author.problem.game.no-plugin-body':
+    'Chưa có engine chấm cho game này nên chưa soạn bài cho nó được. Chọn một game khác trong danh sách.',
+  'author.problem.game.no-topics':
+    'Game đang chọn chưa khai chủ đề nào, nên chưa chọn được chủ đề cho bài.',
+
+  // -- Bieu mau trang thai ban dau dung tu plugin ----------------------------
+  'author.problem.spec.no-fields':
+    'Plugin của game này chưa mô tả ô nhập nào cho trạng thái ban đầu.',
+  'author.problem.spec.line-per-value': 'Mỗi dòng một giá trị.',
+  'author.problem.spec.json-hint': 'Nhập JSON. Sai cú pháp thì lượt lưu bị chặn.',
+  'author.problem.spec.list-as-json':
+    'Danh sách này nhập bằng JSON: một mảng các object. Biểu mẫu lặp có nút thêm, xoá, đổi thứ tự thì chưa dựng cho ô dạng này.',
+
+  'author.problem.spec.unreadable-field': (p: { label: string }) =>
+    `Ô "${p.label}" chưa đọc ngược được: kiểm lại cú pháp JSON hoặc giá trị số.`,
 
   'author.problem.objectives.heading': 'Mục tiêu',
   'author.problem.objectives.add': 'Thêm mục tiêu',
+  // §18.D.2: doi thu tu. Nhan ngan tren nut, cau day du trong aria-label kem so
+  // thu tu: mot hang nut giong het nhau lap lai N lan la thu trinh doc man hinh
+  // doc thanh "nut, nut, nut" ma khong biet dang o muc tieu nao (AC-8).
+  'author.problem.objectives.move-up-short': 'Lên',
+  'author.problem.objectives.move-down-short': 'Xuống',
+  'author.problem.objectives.move-up': (p: { n: number }) =>
+    `Đưa mục tiêu ${String(p.n)} lên trên`,
+  'author.problem.objectives.move-down': (p: { n: number }) =>
+    `Đưa mục tiêu ${String(p.n)} xuống dưới`,
+  // §18.B.4: an/hien. Nhan noi HE QUA cho nguoi hoc, khong noi trang thai:
+  // "an" mot minh khong noi ra rang nguoi lam VAN dem duoc no trong mau so n/m.
+  'author.problem.objectives.visible-on':
+    'Hiện: người làm đọc được nhãn này trước khi nộp.',
+  'author.problem.objectives.visible-off':
+    'Ẩn: người làm biết có testcase này (nó nằm trong mẫu số n/m) nhưng chỉ đọc được nhãn sau khi nộp.',
+
+  // §18.D.6: co seedable. Cau "unavailable" mo ta TINH TRANG THAT: khong plugin
+  // nao khai seedSpec, nen hom nay khong game nao sinh de theo seed duoc.
+  'author.problem.seedable.label': 'Sinh đề theo seed',
+  'author.problem.seedable.available':
+    'Bật thì mỗi lượt làm nhận một đề sinh từ seed riêng. Kỳ thi dùng "mỗi sinh viên một đề" chỉ nhận bài đã bật cờ này.',
+  'author.problem.seedable.unavailable':
+    'Chưa bật được: engine của game này chưa sinh được đề theo seed, nên bật cờ chỉ là một lời hứa không ai thực hiện: mọi sinh viên vẫn nhận cùng một đề. Máy chủ cũng từ chối bài bật cờ này.',
 
   // ── Tab Thử, mở đấu trường 3D ──────────────────────────────────────────────
   'author.problem.arena.heading': 'Thử trong đấu trường',
@@ -303,6 +401,9 @@ export const author = {
   'author.problem.arena.stale-body':
     'Bạn đang có thay đổi chưa lưu. Đấu trường nạp bài từ máy chủ theo mã, nên nó không thấy những gì bạn vừa sửa. Lưu trước rồi hãy mở.',
   'author.problem.arena.open': (p: { code: string }) => `Mở đấu trường với bài ${p.code}`,
+  'author.problem.arena.no-route-title': 'Game này chưa có đường xem trước',
+  'author.problem.arena.no-route-body': (p: { game: string }) =>
+    `Đấu trường nhận bài qua tham số truy vấn, và hôm nay chỉ route của Kubernetes đọc tham số đó. Bài ${p.game} vẫn lưu và vẫn xuất bản được; chỉ nút thử tại chỗ là chưa có. Nối được nó đòi một chế độ chơi mới trong game đó, không phải một nút bấm.`,
 
   // ── Tab JSON, chuyển bài giữa các môi trường ───────────────────────────────
   'author.problem.json.heading': 'Xuất và nhập JSON',
@@ -668,6 +769,137 @@ export const author = {
   'author.trial-plan-dang-cho': 'Đang chờ',
   'author.step-task': 'Task',
   'author.step-task-noun': 'task',
+
+  /*
+   * ── Level Builder của game Git, §18.E ────────────────────────────────────
+   *
+   * Khối này chỉ chở phần chữ là BẢN DỊCH CỦA MỘT UNION ĐÓNG bên
+   * `packages/games`: 16 mã `DraftIssueCode` và 2 phần tử
+   * `BUILDER_CANNOT_EXPRESS`. Vỏ còn lại của màn Builder (tiêu đề khối, nhãn
+   * nút, câu chỉ dẫn) nằm thẳng trong `components/games/git/**`, y như
+   * `git-sandbox.tsx` và `git-game.tsx` ngay cạnh nó.
+   *
+   * Ranh giới đó không tuỳ tiện, và nó có cái giá phải nói ra: MỘT màn hình đọc
+   * chữ từ HAI nguồn, nên người sửa chữ phải biết mình đang sửa loại nào. Đổi
+   * lại, hai vế đều có lý do riêng:
+   *
+   * · `level-draft.ts` khai MÃ LỖI chứ không khai câu tiếng Việt, và tự ghi
+   *   "giao diện dựng câu qua packages/copy". Đưa 16 mã vào bản đồ mua được một
+   *   phép vét cạn ở tầng KIỂU: nơi gọi khai `Record<DraftIssueCode, TextKey>`,
+   *   nên thêm mã thứ 17 mà quên câu cho nó là lỗi biên dịch, không phải một
+   *   dòng trống trên màn.
+   * · `ui-source-coverage.test.ts` CỐ Ý không quét cây `components/games`. Kéo
+   *   toàn bộ vỏ của hai màn game vào đây là một lượt viết lại lớn mà không cổng
+   *   nào đòi, và nó sẽ làm ba file cạnh nhau đọc chữ theo hai lối khác nhau.
+   *
+   * `detail` của một issue (mã mục tiêu, tên vị từ, tên lệnh) KHÔNG đi qua đây.
+   * Nó là thứ người soạn tự gõ, và §"Ranh giới VỎ so với RUỘT" ở đầu file đã
+   * chốt phép thử: chặn bởi số MÀN HÌNH thì vào bản đồ, chặn bởi số MỤC NỘI
+   * DUNG thì không. Giao diện in nó trong một thẻ `code` cạnh câu.
+   */
+  'author.builder.issue.id-trong': 'Chưa đặt mã level.',
+  'author.builder.issue.id-sai-dinh-dang':
+    'Mã level sai định dạng. Nó phải mở đầu bằng tiền tố dành riêng cho level tự dựng, rồi tới slug thường không dấu ngăn bằng gạch nối. Tiền tố đó là thứ giữ cho tiến độ đã lưu của 32 level phát hành không bị ghi đè.',
+  'author.builder.issue.tieu-de-trong': 'Chưa đặt tiêu đề.',
+  'author.builder.issue.nhiem-vu-trong':
+    'Chưa viết câu nhiệm vụ. Đây là dòng chữ thường trực duy nhất trên màn chơi.',
+  'author.builder.issue.de-bai-trong': 'Chưa viết đề bài.',
+  'author.builder.issue.khong-co-muc-tieu':
+    'Level chưa có mục tiêu nào. Một mục tiêu là một testcase.',
+  'author.builder.issue.khong-co-muc-tieu-bat-buoc':
+    'Mọi mục tiêu đều là mục thưởng, nên không còn gì chặn người chơi. Level này sẽ không bao giờ ra verdict đạt.',
+  'author.builder.issue.muc-tieu-trung-id': 'Hai mục tiêu đang mang cùng một mã.',
+  'author.builder.issue.vi-tu-khong-ton-tai': 'Vị từ chấm này không có trong engine.',
+  'author.builder.issue.thieu-cay-dich':
+    'Mục tiêu này so hình dạng DAG với cây đích, mà ô cây đích đang trống. Dựng trạng thái bạn muốn tới rồi bấm nút đặt làm đích.',
+  'author.builder.issue.khong-co-loi-giai':
+    'Chưa khai lời giải mẫu. Thiếu nó thì câu "level này qua được" là một lời khai, không phải một phép đo.',
+  'author.builder.issue.tap-lenh-rong':
+    'Tập lệnh cho phép đang rỗng, và rỗng nghĩa là CẤM mọi lệnh. Muốn cho dùng mọi lệnh thì để trắng ô này.',
+  'author.builder.issue.loi-giai-dung-lenh-ngoai-tap':
+    'Lời giải mẫu gọi một lệnh nằm ngoài tập lệnh cho phép. Level đang tự chặn lời giải của chính nó.',
+  'author.builder.issue.par-am': 'Số lệnh chuẩn không nhận giá trị âm.',
+  'author.builder.issue.trang-thai-dau-hong':
+    'Trạng thái đầu không dựng được. Thường là một nhánh trỏ vào commit chưa định nghĩa.',
+  'author.builder.issue.cay-dich-hong':
+    'Cây đích không dựng được. Thường là một nhánh trỏ vào commit chưa định nghĩa.',
+
+  'author.builder.limit.bot-dong-doi':
+    'Đồng đội tự động. Một level cần bot đẩy commit lên origin theo lượt phải soạn tay trong tệp TS, vì mỗi hành động của bot là một dòng lịch trình chứ không phải một trạng thái chụp lại được.',
+  'author.builder.limit.nhieu-luot-chay-co-seed':
+    'Level đổi theo seed. Builder chụp đúng MỘT thế giới, nên một level muốn mỗi người chơi nhận một cây khác nhau vẫn phải soạn tay.',
+
+  /*
+   * ── E.7, và phạm vi của nó ───────────────────────────────────────────────
+   *
+   * `author.builder.check.scope` là câu mà `phase-18.md` §18.E dặn phải hiện
+   * TRÊN MÀN chứ không giấu trong tài liệu. Nó ở đây, cạnh nhãn nút, để không ai
+   * đổi nhãn mà bỏ quên nó.
+   */
+  'author.builder.check.run': 'Kiểm lời giải mẫu',
+  'author.builder.check.scope':
+    'Phép này chạy chuỗi lời giải mẫu bạn vừa khai rồi hỏi nó có đạt hết mục tiêu bắt buộc không. Nó KHÔNG trả lời câu "level này có giải được không": tên nhánh, lời nhắn và đường dẫn đều là tham số tự do nên không gian lệnh git là vô hạn, và không phép dò nào duyệt hết được.',
+  'author.builder.check.pass': (p: { passed: number; total: number }) =>
+    `Lời giải mẫu đạt ${String(p.passed)}/${String(p.total)} mục tiêu bắt buộc.`,
+  'author.builder.check.fail': (p: { passed: number; total: number }) =>
+    `Lời giải mẫu mới đạt ${String(p.passed)}/${String(p.total)} mục tiêu bắt buộc.`,
+  'author.builder.check.unmet': 'Mục tiêu bắt buộc chưa đạt sau khi chạy hết chuỗi lệnh:',
+  'author.builder.check.rejected':
+    'Engine từ chối những lệnh dưới đây. Một lời giải gõ nhầm một lệnh rồi gõ lại đúng vẫn tới được đích, nên đây là thông tin cho người soạn chứ không phải điều kiện trượt.',
+  'author.builder.check.blocked':
+    'Chưa kiểm được: bản nháp còn lỗi ở danh sách trên. Sửa hết rồi bấm lại.',
+
+  /*
+   * ── E.5, đường xuất THỨ HAI của Builder ───────────────────────
+   *
+   * `author.builder.save.scope` nói ra hai thứ mà không chỗ nào khác trên màn nói:
+   * nút này là lời gọi mạng DUY NHẤT của cả trụ cột game, và nó đòi tài khoản
+   * soạn bài. Giấu hai điều đó là để người soạn soạn xong rồi mới biết mình
+   * không lưu được, cùng lý lẽ với hai giới hạn ở khối đầu.
+   */
+  'author.builder.save.run': 'Lưu thành bài tập',
+  'author.builder.save.scope':
+    'Lưu bản nháp này thành một bài tập trong kho, ở trạng thái nháp. Đây là lời gọi máy chủ duy nhất trong cả màn game, nên nó đòi bạn đang đăng nhập bằng tài khoản soạn bài. Ba ô dưới đây chỉ có nghĩa với bài tập, nên tệp level bạn xuất ra không chở chúng.',
+  'author.builder.save.unauthorized':
+    'Chưa lưu được: lưu bài tập đòi tài khoản soạn bài. Màn game không bắt đăng nhập, nên hãy đăng nhập ở một tab khác rồi bấm lại. Bản nháp của bạn vẫn nằm nguyên ở đây.',
+  'author.builder.save.done': (p: { code: string }) =>
+    `Đã lưu thành bài ${p.code}, ở trạng thái nháp. Mở trang soạn bài để xem lại rồi xuất bản.`,
+
+  /*
+   * Mã lỗi của RIÊNG đường lưu, không trùng `author.builder.issue.*`. Hai tập
+   * trả lời hai câu khác nhau: tập kia hỏi *"bản nháp đã thành một level chưa"*,
+   * tập này hỏi *"phần thêm của bài tập đã đủ chưa"*. Gộp làm một sẽ làm danh
+   * sách lỗi của đường xuất JSON mọc thêm những câu không liên quan tới nó.
+   */
+  'author.builder.save.issue.nhap-con-loi':
+    'Bản nháp còn lỗi ở danh sách trên. Bài tập lấy đề bài, mục tiêu và trạng thái đầu từ chính bản nháp, nên sửa hết ở đó trước.',
+  'author.builder.save.issue.chua-chon-chu-de':
+    'Chưa chọn chủ đề nào. Chủ đề là thứ người học dùng để lọc kho bài, nên một bài không chủ đề là một bài không ai tìm thấy.',
+  'author.builder.save.issue.qua-nhieu-chu-de':
+    'Chọn quá ba chủ đề. Nhiều hơn ba nghĩa là bài đang làm quá nhiều việc cùng lúc.',
+  'author.builder.save.issue.chu-de-la':
+    'Chủ đề này không thuộc tập chủ đề của game Git.',
+  'author.builder.save.issue.gia-goi-y-lech-so-luong':
+    'Số ô điểm trừ không khớp số gợi ý. Điền bù một số 0 cho ô thiếu sẽ lặng lẽ biến một gợi ý có giá thành gợi ý miễn phí, nên chỗ này chặn thay vì đoán.',
+  'author.builder.save.issue.gia-goi-y-ngoai-khoang':
+    'Điểm trừ của gợi ý phải là số nguyên từ 0 tới 1000. Số âm sẽ là một gợi ý CỘNG điểm.',
+  'author.builder.save.issue.co-hien-lech-so-luong':
+    'Số ô hiện trước không khớp số mục tiêu, nên một mục tiêu đang không biết mình hiện hay ẩn.',
+  'author.builder.save.issue.slug-rong':
+    'Tiêu đề không sinh ra được đường dẫn nào. Thêm chữ và số vào tiêu đề, thay vì chỉ dấu câu.',
+  'author.builder.save.issue.slug-qua-dai':
+    'Đường dẫn sinh từ tiêu đề dài quá 120 ký tự. Rút gọn tiêu đề lại.',
+
+  /*
+   * MẤT MÁT, tập thứ ba: không phải lỗi, và cố ý KHÔNG chặn nút Lưu.
+   *
+   * Câu này phải nói ra hậu quả LÚC CHƠI (`null` = mọi lệnh đều dùng được), chứ
+   * không chỉ nói "trường này không lưu". Người soạn đặt một tập lệnh hạn chế vì
+   * họ muốn bài KHÓ theo một kiểu nhất định; biết rằng "nó không lưu" mà không
+   * biết "nên bài sẽ cho dùng mọi lệnh" thì vẫn không đoán được bài mình ra sao.
+   */
+  'author.builder.save.loss.allowed-commands-mat':
+    'Tập lệnh cho phép sẽ KHÔNG được lưu vào bài tập, vì kho bài không có ô cho nó. Tệp level bạn xuất ra thì vẫn giữ. Bài lưu từ đây cho người học dùng mọi lệnh Git; nếu tập hạn chế là phần cốt lõi của bài, hãy dùng đường xuất tệp level thay vì lưu thành bài tập.',
 } as const satisfies Surface<'author'>;
 
 export const authorIntentionalThree = {
@@ -681,4 +913,7 @@ export const authorIntentionalThree = {
     '2026-09-10: đúng ba route tồn tại dưới app/author/problems (danh sách, soạn mới, sửa theo mã), kiểm bằng ba file page.tsx trong cây đó. Route thứ tư phải thêm một page.tsx trước, và lúc đó nhóm này thôi là ba.',
   'author.problem.state':
     '2026-09-10: đúng ba giá trị tồn tại trong PROBLEM_STATES tại packages/games/src/k8s/problem.ts dòng 85 (draft, published, archived). Đây là union KHÁC với ContentState của author.state, thứ có bốn giá trị vì thêm publishing.',
+  'author.problem.seedable':
+    '2026-09-15: dung ba khoa vi o danh dau nay co dung hai trang thai HIEN THI (bat duoc / chua bat duoc) cong mot nhan, khong phai mot phan loai ba. Cau available va unavailable khong thay the nhau duoc: mot cau mo ta nang luc khi plugin khai seedSpec, cau kia mo ta TINH TRANG THAT hom nay (khong plugin nao khai no, xem core/problem-plugin.ts). Gop hai cau lam mot la hua mot thu chua ton tai. Khoa thu tu chi xuat hien khi co trang thai hien thi thu ba.',
 } as const satisfies IntentionalThree;
+

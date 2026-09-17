@@ -193,7 +193,7 @@ jobs:
       # KHÔNG khai `version:` — root package.json đã có `packageManager:
       # pnpm@11.10.0` (SSOT); action-setup coi khai cả hai nơi là LỖI CỨNG
       # ("Multiple versions of pnpm specified"), không phải cảnh báo.
-      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
 
       - name: 'Bật cache pnpm (sau action-setup — cần pnpm trên PATH)'
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -211,6 +211,19 @@ jobs:
 
       - name: DB migrate (Drizzle)
         run: pnpm --filter @devops-platform/web db:migrate
+
+      # Job `web-a11y` học bài này từ run 34130030953 và đã seed từ lâu; job `ts`
+      # thì chưa cần — cho tới khi 18.G thêm `exams/authz.integration.test.ts`,
+      # thứ đòi một bài ĐÃ XUẤT BẢN có thật để dựng đề (một mã bịa sẽ bị cổng soạn
+      # đề từ chối, và cả suite sẽ đỏ vì một lý do không liên quan tới quyền).
+      #
+      # ⚠ Triệu chứng KHÔNG đọc ra là "thiếu seed": nó là `Error: DB test chưa có
+      # bài nào đã xuất bản` ném ở `beforeAll`, tức vitest báo FAIL ở mức TỆP chứ
+      # không ở mức một ô. Và nó không tái hiện được trên máy dựng, vì ở đó
+      # `dlp-postgres` đã được seed từ một đợt trước — chính là hình dạng "phép đo
+      # local mạnh hơn CI" mà `docs/` đã ghi.
+      - name: 'Nạp lộ trình + quiz + bài tập (không có nguồn đĩa)'
+        run: node scripts/seed-content.mjs
 
       # `typecheck` phải có mặt tường minh: từ khi alias TS6/TS7, `next build`
       # của apps/web type-check bằng JS API (shim TS6) — chỉ `tsc --noEmit` (TS7)
@@ -1305,7 +1318,7 @@ jobs:
         with:
           node-version: 24
 
-      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
 
       - name: 'Bật cache pnpm (sau action-setup — cần pnpm trên PATH)'
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -1368,10 +1381,18 @@ jobs:
     # TypeScript trả giá tải trình duyệt, và khi đỏ thì không đọc ngay được là
     # hỏng typecheck hay hỏng trình duyệt.
     #
-    # PHẠM VI: chỉ `a11y.spec.ts` + `csp.spec.ts` (script `e2e:a11y`). KHÔNG chạy
+    # PHẠM VI: `a11y.spec.ts` + `csp.spec.ts` + `games-level-mode.spec.ts`
+    # (script `e2e:ci`, đổi tên từ `e2e:a11y` ngày 2026-09-15). KHÔNG chạy
     # `@flow`, `keyboard`, `perf` — cả ba cần phiên sandbox thật (orchestrator +
     # gateway + pod k8s) mà runner không có, hoặc một phép đo thời gian mà một
     # runner chia sẻ CPU không đo nổi. Chúng chạy tay trên cụm ở đợt 3.
+    #
+    # ⛔ `games.spec.ts` vẫn KHÔNG ở đây, và đó là một quyết định chứ không phải
+    # một thiếu sót: nó khẳng định render WebGL, số draw call và rò rỉ geometry,
+    # tức nó đo GPU của runner. `games-level-mode.spec.ts` được tách ra chính vì
+    # thế — nó hỏi đúng một câu rẻ và tất định ("cây React có dựng được sau khi
+    # BẤM vào một level không"), câu mà `games.spec.ts` đã hỏi từ lâu nhưng chưa
+    # bao giờ được CHẠY ở đây. Lỗi C1 (`c4fa97a`) sống sót đúng vì khe đó.
     services:
       postgres:
         # Giá trị khớp .github/ci.env — credential GIẢ, sống vài phút trong runner.
@@ -1412,7 +1433,7 @@ jobs:
             echo "Redis không PONG sau 30s"; docker logs ci-redis-a11y; exit 1
           fi
 
-      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
 
       - name: 'Bật cache pnpm (sau action-setup — cần pnpm trên PATH)'
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -1473,12 +1494,12 @@ jobs:
       # E2E_ORIGIN = BETTER_AUTH_URL trong .github/ci.env. Ở đây hai giá trị
       # TÌNH CỜ bằng nhau; chúng vẫn là hai biến vì Origin là thứ Better Auth
       # đối chiếu, còn base là nơi ta điều hướng tới (xem apps/web/e2e/env.ts).
-      - name: 'axe + CSP (a11y.spec.ts, csp.spec.ts)'
+      - name: 'Suite e2e chạy được trên next start (axe · CSP · game · responsive · motif)'
         env:
           E2E_START_SERVER: '1'
           E2E_BASE_URL: http://localhost:3000
           E2E_ORIGIN: http://localhost:3000
-        run: pnpm --filter @devops-platform/web e2e:a11y
+        run: pnpm --filter @devops-platform/web e2e:ci
 
       # Chẩn đoán cho lượt đỏ, in THẲNG vào log job.
       #
@@ -1530,12 +1551,46 @@ jobs:
       - name: 'Quét chuỗi giá / gói cước / thanh toán / paywall'
         run: node scripts/check-no-commerce.mjs
 
+  # ─────────────────────────────────── lõi CI/CD trung lập (AC-4, 19.C.6 + C.5)
+  #
+  # `packages/games/src/cicd/contract.ts` §1: lõi KHÔNG được mang tên riêng của
+  # bất kỳ nhà cung cấp CI nào — chỉ tầng đọc/ghi YAML biết nhà cung cấp. Thêm
+  # một nhà cung cấp thứ hai phải là thêm một BỘ ĐỌC, không viết lại lõi.
+  #
+  # Trước cổng này ràng buộc chỉ tồn tại dưới dạng một đoạn văn trong chú thích,
+  # tức là nó đúng đúng chừng nào còn có người nhớ đọc. Cổng cũng khoá tên stage
+  # `clone` (19.C.5): một `checkout` trần trong `cicd/` làm job `no-commerce` ở
+  # trên đỏ với một thông điệp về lệnh cấm thương mại — đúng cơ chế, sai chỗ để
+  # đi tìm. Ở đây người sửa nhận đúng hai đường đi, tại đúng file và dòng.
+  #
+  # KHÔNG `paths:` Ở ĐÂY, cùng lý do với `no-commerce`: job này nằm trong
+  # `ci-ok.needs`, và GitHub báo một required check bị skip-by-paths là
+  # `Expected — Waiting` VĨNH VIỄN ⇒ khoá merge (rules/ci-cd-trigger-design.md #3).
+  #
+  # Không `pnpm install`: script không có dependency nào, chỉ cần node:fs.
+  cicd-neutral:
+    name: 'Lõi CI/CD trung lập (không tên nhà cung cấp)'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+
+      # Script tự chạy đối chứng TRƯỚC khi quét: không còn bắt được tập mẫu vi
+      # phạm đã biết thì thoát 2 và không quét gì. Nó cũng thoát 2 khi tìm thấy
+      # 0 file lõi — một cổng quét rỗng thì luôn xanh, và xanh vì KHÔNG ĐO GÌ.
+      - name: 'Quét tên nhà cung cấp trong lõi cicd + khoá tên stage `clone`'
+        run: node scripts/check-cicd-vendor-neutral.mjs
+
   ci-ok:
     name: ci-ok
     # `always()` để job vẫn chạy KHI CÓ need thất bại/bị skip — nếu không, nó bị
     # skip theo và branch protection thấy một check "chưa chạy", treo PR mãi mãi.
     if: always()
-    needs: [proto, ts, go, infra, secret-scan, sandbox-image, terminal-browser, web-a11y, no-commerce]
+    needs: [proto, ts, go, infra, secret-scan, sandbox-image, terminal-browser, web-a11y, no-commerce, cicd-neutral]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

@@ -15,8 +15,8 @@ tại: nội dung tương tác mà chi phí vận hành bằng không.
 |---|---|---|---|
 | Cứu hộ cluster Kubernetes | `k8s` | **Đã hiện thực** (P14 đợt 1): 30+ level, chaos, sandbox, challenges | hợp đồng ở `packages/games/src/k8s/contract.ts` |
 | Phòng thí nghiệm Git | `git` | **Đã hiện thực** (P17 engine + 2D, **P17b** 3D): 32 level, engine git tự viết, **hai renderer ngang hàng** — SVG 2D (mặc định) và cảnh 3D three.js | [`git.md`](git.md) |
-| Đường ống CI/CD | `cicd` | Thiết kế, chưa code | [`../../plans/reports/2026-09-11-brainstorm-git-cicd-games.md`](../../plans/reports/2026-09-11-brainstorm-git-cicd-games.md) §4 |
-| Đường ống (bản cũ) | `pipeline` | Tài liệu tham khảo, **không hiện thực** | [`pipeline.md`](pipeline.md) |
+| Đường ống CI/CD | `cicd` | **Đã có engine CI/CD và web chương CI (14 level).** 19.G đang bổ sung C15–C28; chưa tích hợp CD vào web, chưa nghiệm thu AC-G. <!-- updated 260917 --> | [`cicd.md`](cicd.md) (kiến trúc, 28 level, ba trục) · [`phase-19.md`](../../plans/devops-learning-platform/phase-19.md) §0b, §19.G <!-- updated 260917 --> |
+| Đường ống (bản cũ) | `pipeline` | Tài liệu **tham khảo** cho game `cicd`, **không phải đặc tả**, không hiện thực <!-- updated 260917 --> | [`pipeline.md`](pipeline.md) |
 | Mê cung mạng | `netpol` | Thiết kế, chưa code | [`netpol.md`](netpol.md) |
 | Lò rèn Image | `dockerfile` | Thiết kế, chưa code | [`dockerfile.md`](dockerfile.md) |
 
@@ -62,6 +62,31 @@ Tài liệu liên quan không nằm trong chỉ mục này:
 - [`anti-cheat.md`](anti-cheat.md): cơ chế xác minh bằng phát lại tất định, và danh sách
   thứ **không** bảo vệ được. Do lane G sở hữu (`phase-14-exec.md` §8), không phải lane
   tài liệu này.
+- [`../oj-format.md`](../oj-format.md): **bài OJ** — định dạng bài, hợp đồng plugin theo
+  game, cách chấm, testcase ẩn, gợi ý có giá. <!-- updated 260915 -->
+- [`../exam-format.md`](../exam-format.md): **chế độ thi** — đồng hồ, cổng soạn đề, cổng
+  nộp bài, bảng điểm, xuất CSV. <!-- updated 260915 -->
+
+### Bài OJ dùng CHUNG engine của game, nhưng không phải là game <!-- updated 260915 -->
+
+Một `Problem` chạy trên đúng reducer mà người chơi đã chạy, và đó là điều làm phép chấm lại
+phía máy chủ có nghĩa. Nhưng nó **không** phải một level, và ba khác biệt dưới đây là thứ
+phải nhớ trước khi đọc mã của một trong hai:
+
+| | `Level` | `Problem` |
+|---|---|---|
+| Có dạy không | **CÓ** (`teaching`, `primer`, `cheatsheet`) | **KHÔNG** — đề bài trần 150 từ |
+| Chấm bằng | `Objective` (có `required`, có mục tiêu thưởng) | `Testcase` (luôn chặn, không trọng số) |
+| Độ khó | **ba** bậc `Difficulty` | **bốn** bậc `PROBLEM_DIFFICULTIES` |
+| Lưu ở đâu | file `levels/lNN.ts` | Postgres (`problems`) |
+| Tiến độ | `localStorage`, 0 lời gọi backend | lượt nộp ghi xuống DB |
+
+⚠ Hai thang độ khó **cố ý khác nhau** và **tuyệt đối không được ánh xạ ngầm** — lý do đầy
+đủ ở [`../oj-format.md`](../oj-format.md) §2.
+
+⚠ Bài OJ là chỗ **duy nhất** trong trụ cột này có gọi backend, nên nó **không** nằm trong ô
+nghiệm thu "0 lời gọi backend trong lúc chơi". Ô đó đo lượt CHƠI LEVEL; một lượt nộp bài OJ
+theo định nghĩa phải đi qua máy chủ, vì cả cơ chế chống gian lận là máy chủ tự phát lại.
 
 ---
 
@@ -72,14 +97,28 @@ packages/games/src/
   index.ts              # barrel, CHỈ re-export (lead sở hữu)
   core/                 # dùng chung cho MỌI game
     types.ts            # GameId · Difficulty · RunResult · GameSave · storageKey
+    run-log.ts          # GameAction · RunLog — mở theo game, không còn của riêng K8s
+    problem.ts          # hợp đồng bài OJ: Testcase · ProblemVerdict · Submission
+    problem-plugin.ts   # GameProblemPlugin · AuthorField · bảng đăng ký
+    verify.ts           # xác minh bằng phát lại tất định
     rng.ts              # PRNG có hạt giống
     progress.ts         # đọc/ghi localStorage + migration
     achievements.ts · stats.ts
   k8s/                  # một thư mục cho mỗi game
     contract.ts · model.ts · reducer.ts · tick.ts
     predicate-names.ts · predicates.ts · scoring.ts
+    problem-plugin.ts   # phần riêng của game trong hệ OJ
+    levels/
+  git/
+    contract.ts · engine.ts · predicates.ts · world-spec.ts
+    problem-plugin.ts · problem-topics.ts
     levels/
 ```
+
+⚠ `problem-topics.ts` tách khỏi `problem-plugin.ts` **có lý do đo được**, không phải cho
+gọn: file plugin nhập `createGitSession`, nên **mọi route chạm một tên trong đó đều kéo cả
+engine git theo** — mà trang danh mục bài chỉ cần nhãn chủ đề. Cùng hình dạng lỗi mà P17 đã
+trả giá (`44f8e39`, 631KB ở hai chỗ).
 
 ### Bốn ràng buộc áp cho mọi game, không có ngoại lệ
 
@@ -109,25 +148,31 @@ thái rỗng kèm một cảnh báo.
 
 ---
 
-## ⚠ Một việc phải làm trước khi hiện thực game thứ hai
+## ✅ Việc "phải làm trước khi hiện thực game thứ hai" — ĐÃ XONG <!-- updated 260915 -->
 
-`RunLog` và `GameAction` hiện nằm ở **`k8s/contract.ts`**, không ở `core/`. Và
-`GameAction.kind` là union đóng `'apply' | 'delete' | 'scale' | 'edit' | 'kubectl' |
-'hint' | 'wait'`, tức là từ vựng của Kubernetes.
+Bản trước của mục này viết rằng `RunLog` và `GameAction` nằm ở **`k8s/contract.ts`**, rằng
+`GameAction.kind` là union đóng của từ vựng Kubernetes, và rằng vì thế *"cơ chế xác minh
+chống gian lận hiện chỉ dùng được cho Kubernetes Game"*. Kiểm lại ngày 2026-09-15: **cả ba
+vế đều đã hết hạn.** Lead đã chọn **đường ra 1**:
 
-Hệ quả: **cơ chế xác minh chống gian lận mô tả ở `phase-14-exec.md` §8.3 hiện chỉ dùng
-được cho Kubernetes Game.** Ba game còn lại không có chỗ để ghi hành động của chúng.
+```ts
+// packages/games/src/core/run-log.ts
+export type K8sActionShape<Ref extends ResourceRefLike = ResourceRefLike> = …
+export type GitGameAction = …
+export type GameAction = K8sActionShape | GitGameAction;   // mở theo game
+export interface RunLog<A extends GameActionBase = GameAction> { … }
+```
 
-Hai đường ra, cả hai đều là **quyết định của lead** vì cả hai file đều do lead sở hữu:
+Nên phát lại tất định nay dùng được cho **nhiều game**, và game Git đã dùng thật. Đường ra 2
+(xác minh bằng trạng thái cuối cho netpol/dockerfile) **không còn cần thiết** — nó vẫn đúng
+về kỹ thuật nhưng không còn là đường duy nhất.
 
-1. Chuyển `RunLog` lên `core/types.ts` và cho `GameAction.kind` mở theo game.
-2. Chấp nhận rằng netpol và dockerfile xác minh bằng **trạng thái cuối** thay vì bằng phát
-   lại. Với hai game đó thì làm được, vì kết quả chỉ phụ thuộc trạng thái cuối chứ không
-   phụ thuộc đường đi tới đó. Với `pipeline` thì **không** làm được: kết quả của nó phụ
-   thuộc chuỗi seed của N lượt chạy.
+⚠ Ba tài liệu thiết kế `pipeline.md` / `netpol.md` / `dockerfile.md` **chưa được cập nhật**
+theo lượt chuyển này: mục "mô hình trạng thái" của chúng vẫn nêu lại hạn chế cũ. Đọc chúng
+thì nhớ vế đó đã hết hạn.
 
-Ba tài liệu thiết kế đều nêu lại việc này ở mục mô hình trạng thái, để người hiện thực
-không đọc §8.3 rồi tưởng cơ chế đã sẵn sàng.
+Bài học lặp lại lần thứ ba trong chính tài liệu này: một câu mô tả kiến trúc **hết hạn theo
+chặng, và nó hết hạn trong im lặng**.
 
 ### Cái bẫy đặt tên đi kèm
 

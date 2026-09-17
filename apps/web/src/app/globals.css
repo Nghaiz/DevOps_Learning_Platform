@@ -196,6 +196,166 @@
   --journey-metal: rgb(84, 107, 135);
 
   /*
+   * ── Lớp workspace (practice.css) ──────────────────────────────────────────
+   * `practice.css` nạp SAU file này trong `app/layout.tsx`, và nó khai lại
+   * `:root`/`.dark` với cùng bộ tên token shadcn. Cùng độ đặc hiệu, nạp sau ⇒
+   * NÓ THẮNG: bộ giá trị dưới đây là thứ thật sự đang vẽ ra mọi trang, còn hệ
+   * PTIT ở trên chỉ còn hiệu lực ở những token mà lớp này không nhắc tới.
+   *
+   * ⚠ Đó là một khoản nợ kiến trúc, KHÔNG phải một quyết định thiết kế — nhưng
+   * gỡ nó ra là đổi diện mạo toàn site (ví dụ `--primary` chuyển từ `#a94326`
+   * cam-nâu sang `#BC2626` đỏ PTIT), nên lượt dọn màu cứng này chỉ DI CHUYỂN
+   * giá trị về đây làm SSOT, giữ nguyên từng bit. Việc hợp nhất hai hệ là một
+   * thay đổi thiết kế riêng, cần người quyết.
+   *
+   * Khai bằng `rgb()` chứ không `oklch()` như phần trên: đây là phép di chuyển
+   * giá trị, và `rgb()` là dạng DUY NHẤT quy đổi từ hex mà không mất một bit
+   * nào. Quy sang oklch sẽ làm tròn và đổi màu ở chữ số cuối — ràng buộc của
+   * lượt này là diện mạo không đổi. Cùng tiền lệ với `--journey-*` ngay trên.
+   */
+  --workspace-background: rgb(246 247 249);
+  --workspace-foreground: rgb(37 43 54);
+  --workspace-card: rgb(255 255 255);
+  --workspace-primary: rgb(169 67 38);
+  --workspace-primary-foreground: rgb(255 255 255);
+  --workspace-secondary: rgb(238 240 243);
+  --workspace-secondary-foreground: rgb(52 59 70);
+  --workspace-muted-foreground: rgb(96 105 118);
+  --workspace-accent: rgb(249 233 226);
+  --workspace-accent-foreground: rgb(147 59 35);
+  --workspace-border: rgb(223 227 232);
+  --workspace-input: rgb(133 141 153);
+
+  /*
+   * Hai mực bóng của lớp workspace. CỐ Ý là hai token đục riêng chứ không phải
+   * bốn token khác nhau độ trong: độ trong sống ở chỗ dùng qua `color-mix()`,
+   * nên thêm một sắc bóng mới là thêm một token, còn thêm một độ đậm mới thì
+   * không thêm gì cả.
+   */
+  --workspace-shadow-ink: rgb(23 32 44);
+  --workspace-lift-ink: rgb(21 34 55);
+
+  /*
+   * ── Tấm nền artwork của thẻ game ──────────────────────────────────────────
+   * KHÔNG đổi theo theme, và đó là chủ ý sẵn có của `practice.css`: `.dark`
+   * không hề đè lên khối `.practice-game-art`. Giữ chúng ngoài `.dark` là cách
+   * duy nhất để phép đo tương phản dưới đây đúng ở CẢ HAI theme bằng một con số.
+   *
+   * `--art-ink-*` là mực của NÉT VẼ (SVG artwork lấy `currentColor` với opacity
+   * .08–.6, trang trí, `aria-hidden`); `--art-label-git` là mực của CHỮ THẬT và
+   * phải qua ngưỡng AA. Tách hai thứ là lý do `--art-label-git` tồn tại:
+   *
+   *   `--art-ink-k8s`   trên `--art-surface-k8s` = 5.567:1  ✓ AA (≥4.5)
+   *   `--art-label-git` trên `--art-surface-git` = 5.445:1  ✓ AA
+   *   `--art-ink-git`   trên `--art-surface-git` = 3.985:1  ✗ — nét vẽ, không phải chữ
+   *
+   * ⛔ Đừng dùng `--art-ink-git` cho chữ: 3.985:1 là đúng vi phạm
+   * `[serious] color-contrast` mà axe từng báo ở `.practice-game-label`.
+   */
+  --art-surface-default: rgb(229 235 231);
+  --art-surface-k8s: rgb(229 236 231);
+  --art-surface-git: rgb(243 232 220);
+  --art-ink-k8s: rgb(58 100 87);
+  --art-ink-git: rgb(152 103 70);
+  --art-label-git: rgb(125 84 54);
+  /* Đĩa nền nút play nằm TRÊN artwork, nên nó cũng cố định theo cả hai theme —
+   * lấy `--workspace-card` sẽ làm nó hoá đen ở chế độ tối. */
+  --art-play-scrim: rgb(255 255 255 / 69.0196%);
+
+  /*
+   * ── Panel "challenge" ở cột phải practice ─────────────────────────────────
+   * Một mảng xanh rêu đặc, cố định ở cả hai theme như tấm artwork.
+   */
+  --challenge-surface: rgb(41 61 57);
+  --challenge-ink: rgb(241 245 239);
+  --challenge-border: rgb(112 133 122);
+  --challenge-icon: rgb(220 231 190);
+  --challenge-eyebrow: rgb(192 205 180);
+  --challenge-body: rgb(199 211 204);
+  --challenge-cta: rgb(224 234 201);
+
+  /*
+   * ── Git Odyssey ───────────────────────────────────────────────────────────
+   * Palette của một trò chơi, không phải của giao diện nền. Nó KHÔNG đổi theo
+   * theme: `.git-odyssey` đặt `color-scheme: dark` và tự vẽ toàn bộ mặt nền của
+   * mình, nên khai một lần ở `:root` là đủ — lặp ở `.dark` chỉ tạo thêm một chỗ
+   * để quên đồng bộ, đúng lý do đã ghi cho `--brand-*`.
+   *
+   * ⚠ Tiền tố `--odyssey-`, KHÔNG phải `--git-`, vì hai lý do độc lập:
+   *
+   *   1. `.git-odyssey` khai biến RUNTIME `--git-land`/`--git-tower`/`--git-flora`
+   *      mà `[data-chapter='2'|'3']` ghi đè. Trùng tên thì dòng gán thành
+   *      `--git-land: var(--git-land)` — tự tham chiếu, CSS coi là
+   *      invalid-at-computed-value-time, biến rơi về guaranteed-invalid và cảnh
+   *      mất màu trong im lặng.
+   *   2. Các file `.tsx` của game đọc `var(--git-abyss, var(--background))`,
+   *      `var(--git-muted, var(--muted-foreground))`, `var(--git-border, var(--border))`
+   *      — tức CÓ nhánh dự phòng cho khi component render NGOÀI `.git-odyssey`.
+   *      Khai `--git-*` ở `:root` sẽ làm mọi nhánh dự phòng đó ngừng chạy: chúng
+   *      không lỗi, chỉ lặng lẽ đổi màu ở đúng những chỗ được thiết kế để đổi.
+   *
+   * Nên palette sống ở đây dưới tên `--odyssey-*`, và `.git-odyssey` là nơi DUY
+   * NHẤT gán chúng sang tên `--git-*` — đúng phạm vi cũ, không rộng hơn một chút.
+   */
+  --odyssey-abyss: rgb(8 14 29);
+  --odyssey-panel: rgb(16 27 46);
+  --odyssey-raised: rgb(24 37 60);
+  --odyssey-border-line: rgb(41 58 83);
+  --odyssey-ink: rgb(237 244 255);
+  --odyssey-muted-ink: rgb(166 183 208);
+  --odyssey-teal: rgb(101 227 205);
+  --odyssey-violet: rgb(188 155 255);
+  --odyssey-coral: rgb(255 150 126);
+  --odyssey-gold: rgb(249 206 120);
+  --odyssey-star: rgb(228 249 255);
+  --odyssey-success: rgb(118 227 178);
+  --odyssey-danger: rgb(255 155 159);
+  --odyssey-input-line: rgb(88 112 143);
+
+  /* Ba vùng cảnh, một bộ cho mỗi chương. */
+  --odyssey-ch1-land: rgb(35 79 85);
+  --odyssey-ch1-tower: rgb(22 54 64);
+  --odyssey-ch1-flora: rgb(73 182 155);
+  --odyssey-ch2-land: rgb(64 52 99);
+  --odyssey-ch2-tower: rgb(41 31 71);
+  --odyssey-ch2-flora: rgb(140 106 189);
+  --odyssey-ch3-land: rgb(101 58 71);
+  --odyssey-ch3-tower: rgb(66 39 51);
+  --odyssey-ch3-flora: rgb(191 113 107);
+
+  /*
+   * Mặt nền và ánh sáng riêng của từng khoang. Những cái mang sẵn alpha là
+   * SCRIM — một tấm kính mờ phủ lên cảnh phía sau — nên độ trong là một phần
+   * định nghĩa của chúng, không phải một biến thể đậm nhạt tuỳ chỗ dùng.
+   */
+  --odyssey-campaign-glow: rgb(35 54 74 / 40%);
+  --odyssey-map-glow: rgb(23 41 65 / 53.3333%);
+  --odyssey-map-grid: rgb(60 84 115 / 26.6667%);
+  --odyssey-legend-scrim: rgb(12 20 36 / 93.3333%);
+  --odyssey-feedback-scrim: rgb(18 45 45 / 94.902%);
+  --odyssey-feedback-border: rgb(55 97 92);
+  --odyssey-feedback-error-scrim: rgb(56 32 43 / 94.902%);
+  --odyssey-feedback-error-border: rgb(105 65 76);
+  --odyssey-inspector-scrim: rgb(20 33 56 / 96.0784%);
+  --odyssey-objective-met: rgb(23 61 52 / 20%);
+  --odyssey-objective-met-border: rgb(57 115 98);
+  --odyssey-hint-surface: rgb(64 54 38 / 33.3333%);
+  --odyssey-reference-scrim: rgb(21 32 57 / 98.0392%);
+  --odyssey-victory-scrim: rgb(18 36 54 / 96.0784%);
+  --odyssey-lobby-glow: rgb(48 51 96 / 40%);
+  --odyssey-node-done: rgb(18 51 51);
+  --odyssey-verdict-accepted: rgb(18 55 44);
+  --odyssey-terminal-bg: rgb(8 14 25);
+  --odyssey-form-focus: rgb(16 28 45);
+  --odyssey-placeholder: rgb(132 150 178);
+  --odyssey-heading-tint: rgb(43 53 90);
+  --odyssey-pipeline-bg: rgb(13 23 40);
+  --odyssey-cta-shadow: rgb(47 118 109);
+  /* Đen thuần, một token cho BỐN độ đậm bóng đang dùng — độ trong sống ở chỗ
+   * dùng qua `color-mix()`, không đẻ thêm token. */
+  --odyssey-shadow-ink: rgb(0 0 0);
+
+  /*
    * ── Độ khó ────────────────────────────────────────────────────────────────
    * GIỮ NGUYÊN byte-identical từ hệ trước. `p16-tokens.md` §0 đặt ba nhóm
    * `--difficulty-*`/`--kind-*`/`--status-*` NGOÀI phạm vi hợp đồng và cho
@@ -500,6 +660,24 @@
   --status-done-foreground: oklch(0.145 0 0);
   --status-locked: oklch(0.7 0.012 262.881);
   --status-locked-foreground: oklch(0.145 0 0);
+
+  /*
+   * Nhánh tối của lớp workspace — xem khối `--workspace-*` ở `:root`. Chỉ những
+   * token THẬT SỰ đổi theo theme có mặt ở đây: tấm artwork, panel challenge và
+   * palette Git Odyssey cố định ở cả hai nhánh nên không lặp lại.
+   */
+  --workspace-background: rgb(23 27 34);
+  --workspace-foreground: rgb(230 233 239);
+  --workspace-card: rgb(32 37 46);
+  --workspace-primary: rgb(239 168 138);
+  --workspace-primary-foreground: rgb(48 32 23);
+  --workspace-secondary: rgb(42 48 58);
+  --workspace-secondary-foreground: rgb(230 233 239);
+  --workspace-muted-foreground: rgb(173 181 194);
+  --workspace-accent: rgb(59 43 39);
+  --workspace-accent-foreground: rgb(243 182 152);
+  --workspace-border: rgb(55 62 73);
+  --workspace-input: rgb(119 129 143);
 
   /*
    * Bóng ở chế độ tối là ĐEN THUẦN và đậm hơn hẳn nhánh sáng. Bóng "cùng hue

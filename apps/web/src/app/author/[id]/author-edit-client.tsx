@@ -357,7 +357,7 @@ export function AuthorEditClient({ contentId }: { readonly contentId: string }) 
                 </Alert>
               )}
 
-              <div className="flex gap-3">
+              <div className="practice-editor-actions">
                 <Button onClick={onSave} loading={update.isPending}>
                   {t('common.action.save')}
                 </Button>
@@ -416,7 +416,7 @@ export function AuthorEditClient({ contentId }: { readonly contentId: string }) 
 }
 
 function Shell({ children }: { readonly children: ReactNode }) {
-  return <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-6 py-10">{children}</div>;
+  return <div className="practice-catalog practice-lesson-editor">{children}</div>;
 }
 
 function Loading() {

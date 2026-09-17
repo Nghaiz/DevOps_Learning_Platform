@@ -125,6 +125,15 @@ const LABS_DIR = join(REPO, 'content', 'labs');
  */
 const PROBLEMS_MODULE = join(REPO, 'packages', 'games', 'src', 'k8s', 'problems-seed', 'index.ts');
 const PROBLEM_CONTRACT_MODULE = join(REPO, 'packages', 'games', 'src', 'k8s', 'problem.ts');
+/*
+ * Bộ seed của game THỨ BA (19.J). Tách file chứ không nhét vào bộ K8s: hai bộ
+ * có `initialState` hình dạng khác hẳn nhau (`ClusterSpec` vs bộ ba workflow),
+ * và gộp chúng vào một mảng sẽ buộc kiểu của mảng đó nới thành `unknown` — tức
+ * mất đúng phép kiểm mà `problems-seed.test.ts` của mỗi bên đang giữ.
+ */
+const CICD_PROBLEMS_MODULE = join(
+  REPO, 'packages', 'games', 'src', 'cicd', 'problems-seed', 'index.ts',
+);
 
 const AUTHOR_ID = process.env.SEED_AUTHOR_ID?.trim() || 'dlp-catalog-author';
 const AUTHOR_EMAIL = process.env.SEED_AUTHOR_EMAIL?.trim() || 'catalog@dlp.local';
@@ -284,7 +293,40 @@ async function readProblems() {
   if (!Array.isArray(problems)) {
     throw new Error(`${PROBLEMS_MODULE}: không export mảng PROBLEMS_SEED`);
   }
-  return { problems, states: new Set(contract.PROBLEM_STATES) };
+
+  const cicdSeed = await import(pathToFileURL(CICD_PROBLEMS_MODULE).href);
+  const cicdProblems = cicdSeed.CICD_PROBLEMS_SEED;
+  if (!Array.isArray(cicdProblems)) {
+    throw new Error(`${CICD_PROBLEMS_MODULE}: không export mảng CICD_PROBLEMS_SEED`);
+  }
+
+  /*
+   * ⚠ `gameId` đắp vào cho bộ K8s ngay tại đây, KHÔNG sửa mười file seed kia.
+   *
+   * Cột `game_id` có mặc định `'k8s'` (`schema.ts`), nên trước 19.J câu INSERT
+   * không hề nhắc tới nó và mười bài vẫn vào đúng chỗ. Từ khi bảng chở game thứ
+   * ba, câu INSERT phải ghi cột đó tường minh — một dòng CI/CD rơi vào mặc định
+   * sẽ nằm trong bảng dưới cờ K8s, `gradeProblemRun` tra sai plugin, và triệu
+   * chứng là `CE` trên một bài hoàn toàn đúng.
+   *
+   * Đắp ở đây thay vì sửa mười file: `Problem` của K8s KHÔNG có trường `gameId`
+   * (nó là kiểu miền của một game), nên thêm vào từng file là thêm một trường
+   * ngoài hợp đồng vào mười chỗ.
+   */
+  const all = [
+    ...problems.map((problem) => ({ ...problem, gameId: 'k8s' })),
+    ...cicdProblems,
+  ];
+
+  const codes = all.map((problem) => problem.code);
+  const trung = codes.filter((code, i) => codes.indexOf(code) !== i);
+  if (trung.length > 0) {
+    // `ON CONFLICT (code) DO UPDATE` nuốt trùng lặp trong im lặng: bài sau ghi
+    // đè bài trước và lượt seed vẫn XANH, chỉ thiếu mất một bài.
+    throw new Error(`hai bộ seed dùng chung mã bài: ${[...new Set(trung)].join(', ')}`);
+  }
+
+  return { problems: all, states: new Set(contract.PROBLEM_STATES) };
 }
 
 /**
@@ -499,12 +541,12 @@ function buildSql(quizzes, paths, problems) {
     w('  END IF;');
     w('END $own$;');
     w('INSERT INTO problems (');
-    w('  code, slug, title, statement, difficulty, topics, tags, time_limit_sec,');
+    w('  code, game_id, slug, title, statement, difficulty, topics, tags, time_limit_sec,');
     w('  initial_state, objectives, allowed_resources, hints, par_moves, state, author_id,');
     w('  created_at, updated_at');
     w(') VALUES (');
     w(
-      `  ${lit(problem.code)}, ${lit(problem.slug)}, ${lit(problem.title)}, ${lit(problem.statement)},`,
+      `  ${lit(problem.code)}, ${lit(problem.gameId)}, ${lit(problem.slug)}, ${lit(problem.title)}, ${lit(problem.statement)},`,
     );
     w(
       `  ${lit(problem.difficulty)}, ${textArray(problem.topics)}, ${textArray(problem.tags)}, ${intLit(problem.timeLimitSec)},`,
@@ -517,6 +559,7 @@ function buildSql(quizzes, paths, problems) {
     w(')');
     // `created_at` vắng mặt ở đây là CÓ Ý — xem khối "IDEMPOTENT" ở đầu file.
     w('ON CONFLICT (code) DO UPDATE SET');
+    w('  game_id = EXCLUDED.game_id,');
     w('  slug = EXCLUDED.slug, title = EXCLUDED.title, statement = EXCLUDED.statement,');
     w('  difficulty = EXCLUDED.difficulty, topics = EXCLUDED.topics, tags = EXCLUDED.tags,');
     w('  time_limit_sec = EXCLUDED.time_limit_sec, initial_state = EXCLUDED.initial_state,');

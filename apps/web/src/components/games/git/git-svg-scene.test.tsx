@@ -318,6 +318,39 @@ describe('AC-L · bàn phím đủ cho mọi thao tác', () => {
     expect(onSelect2).toHaveBeenCalledWith(null);
   });
 
+  it('chọn một commit thì CHÍNH node đó được cuộn vào tầm nhìn', () => {
+    /*
+      jsdom không cài `scrollIntoView` (nó có ở `Element` trên trình duyệt thật,
+      không có ở đây), nên renderer mang một guard `typeof … === 'function'`.
+      Guard đó mở một đường IM LẶNG: sau nó, "chọn thì cuộn tới" không còn ô
+      nào gác, và một ngày nào đó ref trỏ nhầm sẽ không ai hay.
+
+      Ô này gắn spy lên ĐÚNG phần tử được kỳ vọng — KHÔNG phải một stub trong
+      file setup dùng chung, và khác biệt nằm ở thứ còn nghe được: stub toàn
+      cục gắn hàm lên MỌI phần tử, nên một `nodeRefs` trỏ sang node khác vẫn
+      xanh. Ở đây hàm chỉ tồn tại trên node ta chỉ đích danh, nên trỏ nhầm ⇒ 0
+      lần gọi ⇒ đỏ.
+    */
+    const { rerender } = render(<GitSvgScene {...props()} />);
+    const target = screen.getByRole('button', { name: /Thông điệp c3/ });
+    const spy = vi.fn();
+    Object.assign(target, { scrollIntoView: spy });
+
+    rerender(
+      <GitSvgScene
+        {...props({
+          interaction: {
+            selectedId: 'local:c3',
+            hoveredId: null,
+            onSelect: () => {},
+            onHover: () => {},
+          },
+        })}
+      />,
+    );
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
   it('bấm chuột và bấm phím cho ra CÙNG một kết quả — không thao tác nào chỉ có ở chuột', () => {
     const byKey = vi.fn();
     const { unmount } = render(
@@ -397,16 +430,39 @@ describe('hình học của cảnh', () => {
   });
 
   it('hai kho tách rời: không commit origin nào chồng lên vùng của local', () => {
+    /*
+      Đọc `data-node-y` / `data-node-h` chứ KHÔNG đọc `<rect>` đầu tiên.
+
+      Phép đo cũ (`button.querySelector('rect')` rồi lấy `y` + `height`) dựa
+      trên một tiền đề đã hết đúng: rằng rect đầu tiên mang vị trí TUYỆT ĐỐI.
+      Không còn. Vị trí nằm ở `transform` của `motion.g` bao ngoài, còn mọi
+      rect bên trong dùng toạ độ tương đối so với hộp node — và rect đầu tiên
+      giờ là vòng sáng trang trí ở (-9, -9, h=78).
+
+      Hệ quả không phải "ô đỏ oan" mà tệ hơn thế: phép đo cũ trả về ĐÚNG MỘT
+      con số, −78 = (−9) − (−9 + 78), ở mọi cảnh có thể có. Nó đọc ra cùng kết
+      quả dù hai kho cách nhau 172px hay chồng khít lên nhau, tức nó đã thôi
+      gác được thứ nó mang tên — `rules/green-that-proves-nothing.md`.
+
+      Khẳng định và ngưỡng 40 giữ NGUYÊN. Chỉ kênh đọc đổi, sang một kênh mà
+      renderer công bố có chủ ý và lane này sở hữu.
+    */
     const { container } = render(<GitSvgScene {...props()} />);
     const bottoms: number[] = [];
     const tops: number[] = [];
     for (const button of screen.getAllByRole('button')) {
-      const rect = button.querySelector('rect');
-      const y = Number(rect?.getAttribute('y') ?? 0);
-      const h = Number(rect?.getAttribute('height') ?? 0);
+      const rawY = button.getAttribute('data-node-y');
+      const rawH = button.getAttribute('data-node-h');
+      expect(rawY, 'node không công bố data-node-y — phép đo mất kênh đọc').not.toBeNull();
+      expect(rawH, 'node không công bố data-node-h — phép đo mất kênh đọc').not.toBeNull();
+      const y = Number(rawY);
+      const h = Number(rawH);
+      expect(h, 'chiều cao node phải dương').toBeGreaterThan(0);
       if ((button.getAttribute('aria-label') ?? '').includes('Kho từ xa')) tops.push(y);
       else bottoms.push(y + h);
     }
+    expect(tops.length, 'phải có commit ở kho origin để phép so có nghĩa').toBeGreaterThan(0);
+    expect(bottoms.length, 'phải có commit ở kho local để phép so có nghĩa').toBeGreaterThan(0);
     expect(container.querySelector('svg')).toBeTruthy();
     expect(Math.min(...tops) - Math.max(...bottoms)).toBeGreaterThan(40);
   });
@@ -424,12 +480,41 @@ describe('hình học của cảnh', () => {
   });
 
   it('"mờ" của commit mồ côi KHÔNG làm bằng opacity', () => {
+    /*
+      Nhắm ĐÍCH DANH `.git-node-surface`, không nhắm "rect đầu tiên".
+
+      Kênh này gác một yêu cầu TRỢ NĂNG, không phải một sở thích: hạ `opacity`
+      lên cả ô kéo tương phản chữ xuống theo đúng hệ số đó (5.51 × 0.45 không
+      còn là 5.51), nên "mờ" phải là NỀN nhạt hơn + VIỀN ĐỨT — xem bảng đo ở
+      đầu `git-palette.ts`. Nét đứt là kênh hình học, và nó là kênh sống sót
+      khi in đen trắng hoặc khi người đọc không phân biệt được màu.
+
+      `rect` đầu tiên giờ là vòng sáng trang trí (`.git-node-halo`), không bao
+      giờ đứt nét — nên phép đo cũ đỏ trong khi kênh trợ năng vẫn còn nguyên.
+      Thứ mang nghĩa là rect MẶT: nó chở `fill` + `stroke` của trạng thái.
+    */
     const { container } = render(<GitSvgScene {...props()} />);
     const lost = screen.getByRole('button', { name: /Commit đã mất/ });
     expect(lost.getAttribute('opacity')).toBeNull();
     expect((lost.getAttribute('style') ?? '')).not.toContain('opacity');
+
+    const lostSurface = lost.querySelector('.git-node-surface');
+    expect(lostSurface, 'node mất rect mặt — không còn gì chở trạng thái').not.toBeNull();
+    expect(lostSurface?.getAttribute('opacity')).toBeNull();
+    expect((lostSurface?.getAttribute('style') ?? '')).not.toContain('opacity');
     // Nét đứt là kênh hình học thay cho opacity.
-    expect(lost.querySelector('rect')?.getAttribute('stroke-dasharray')).toBeTruthy();
+    expect(lostSurface?.getAttribute('stroke-dasharray')).toBeTruthy();
+
+    /*
+      Đối chứng ÂM, ngay trong ô. Không có nó thì một lượt sửa rải
+      `stroke-dasharray` lên MỌI node vẫn đi qua — và lúc đó "nét đứt" thôi
+      mang nghĩa "đã mất", tức kênh còn đó mà đã rỗng nghĩa.
+    */
+    const alive = screen.getByRole('button', { name: /Thông điệp c1.*Kho trên máy bạn/ });
+    expect(
+      alive.querySelector('.git-node-surface')?.getAttribute('stroke-dasharray'),
+      'commit còn sống mà cũng đứt nét ⇒ nét đứt không còn phân biệt được gì',
+    ).toBeFalsy();
     expect(container.querySelector('svg')).toBeTruthy();
   });
 

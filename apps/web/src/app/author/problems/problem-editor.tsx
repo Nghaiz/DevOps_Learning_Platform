@@ -9,10 +9,13 @@ import { ClassifyFields } from './classify-fields';
 import { ClusterFields } from './cluster-fields';
 import type { ClusterFormState, FieldIssue } from './cluster-form';
 import { parseList } from './text-tools';
+import { GameSelectField } from './game-select-field';
+import { pluginViewFor } from './game-plugin-view';
 import { HintListFields } from './hint-fields';
 import { JsonTransfer } from './json-transfer';
 import { ObjectiveFields } from './objective-fields';
-import { emptyObjective, type ProblemFormState } from './problem-form';
+import { PluginFields } from './plugin-fields';
+import { emptyObjective, formWithGame, moveObjective, type ProblemFormState } from './problem-form';
 import { StatementFields } from './statement-fields';
 
 /**
@@ -54,9 +57,33 @@ export function ProblemEditor(props: {
     .map((node) => node.name.trim())
     .filter((name) => name !== '');
 
+  /**
+   * Plugin của game đang chọn. `null` khi game chưa có bài tập, và đó là một
+   * câu trả lời hợp lệ chứ không phải lỗi (`GameSelectField` hiện trạng thái
+   * rỗng cho ca đó).
+   */
+  const view = pluginViewFor(props.form.gameId);
+
   return (
-    <div className="flex flex-col gap-6">
+    <div className="practice-editor">
+      <GameSelectField
+        gameId={props.form.gameId}
+        // Đổi game trên một bài ĐÃ LƯU là đổi cả kiểu `initialState` của nó,
+        // mà máy chủ chưa có đường nhận chuyện đó. Khoá ô lại ở trang sửa thì
+        // giới hạn nhìn thấy được; để mở thì người soạn đổi xong rồi mất bản
+        // cụm đã dựng, đổi lấy một lỗi 400.
+        canChange={props.code === null}
+        onChange={(gameId) => {
+          // Phép đổi nằm ở `formWithGame` chứ không viết thẳng ở đây: nó phải
+          // đổi ba thứ cùng lúc, và một hàm thuần thì ô nghiệm thu đo được mà
+          // không phải dựng DOM.
+          props.onChange(formWithGame(props.form, gameId));
+        }}
+      />
+
       <Tabs
+        data-slot="tabs"
+        orientation="vertical"
         value={tab}
         onValueChange={(value) => {
           setTab(value);
@@ -64,7 +91,14 @@ export function ProblemEditor(props: {
       >
         <TabsList className="h-auto max-w-full flex-wrap justify-start [&>[data-slot=tabs-trigger]]:min-h-11">
           <TabsTrigger value="mo-ta">{t('author.problem.tab.statement')}</TabsTrigger>
-          <TabsTrigger value="cum">{t('author.problem.tab.cluster')}</TabsTrigger>
+          {/*
+            Nhãn tab tới từ PLUGIN, không phải một hằng: "Cụm ban đầu" đúng với
+            K8s và sai với mọi game khác. Đây cũng là dấu hiệu rẻ nhất trên màn
+            hình cho thấy ô chọn game đã ăn.
+          */}
+          <TabsTrigger value="cum">
+            {view?.specTabLabel ?? t('author.problem.tab.spec')}
+          </TabsTrigger>
           <TabsTrigger value="muc-tieu">
             {t('author.problem.tab.objectives', { n: props.form.objectives.length })}
           </TabsTrigger>
@@ -86,21 +120,49 @@ export function ProblemEditor(props: {
               issues={props.issues}
               code={props.code}
             />
-            <ClassifyFields form={props.form} onChange={patch} issues={props.issues} />
+            {/*
+              Tập chủ đề tới từ plugin của game đang chọn. Chín chủ đề K8s
+              không còn là danh sách dùng chung, và truyền `[]` khi game chưa
+              có plugin là đúng nghĩa: chưa có bài tập thì chưa có chủ đề nào.
+            */}
+            <ClassifyFields
+              form={props.form}
+              onChange={patch}
+              issues={props.issues}
+              topics={view?.topics ?? []}
+              // §18.D.6 — `false` khi plugin không khai `seedSpec`, tức HÔM NAY
+              // là mọi game. `ClassifyFields` vô hiệu hoá ô đánh dấu và nói ra
+              // lý do thay vì để người soạn bật một cờ không có tác dụng.
+              canSeed={view?.canSeed ?? false}
+            />
           </div>
         </TabsContent>
 
         <TabsContent value="cum">
           <div className="pt-4">
-            <ClusterFields
-              cluster={props.form.cluster}
-              issues={props.issues}
-              nextKey={props.nextKey}
-              onChange={patchCluster}
-              onReplace={(cluster) => {
-                props.onChange({ ...props.form, cluster });
-              }}
-            />
+            {view !== null && view.specEditor === 'generic' ? (
+              <PluginFields
+                fields={view.authorFields}
+                value={props.form.specText}
+                issues={props.issues}
+                onChange={(path, next) => {
+                  props.onChange({
+                    ...props.form,
+                    specText: { ...props.form.specText, [path]: next },
+                  });
+                }}
+              />
+            ) : (
+              <ClusterFields
+                cluster={props.form.cluster}
+                issues={props.issues}
+                nextKey={props.nextKey}
+                onChange={patchCluster}
+                onReplace={(cluster) => {
+                  props.onChange({ ...props.form, cluster });
+                }}
+              />
+            )}
           </div>
         </TabsContent>
 
@@ -113,11 +175,14 @@ export function ProblemEditor(props: {
               <ObjectiveFields
                 key={objective.key}
                 objective={objective}
+              gameId={props.form.gameId}
                 index={index}
                 issues={props.issues}
                 namespaces={namespaces}
                 nodes={nodeNames}
                 canRemove={props.form.objectives.length > 1}
+                canMoveUp={index > 0}
+                canMoveDown={index < props.form.objectives.length - 1}
                 onChange={(part) => {
                   patch({
                     objectives: props.form.objectives.map((item, i) =>
@@ -127,6 +192,9 @@ export function ProblemEditor(props: {
                 }}
                 onRemove={() => {
                   patch({ objectives: props.form.objectives.filter((_, i) => i !== index) });
+                }}
+                onMove={(delta) => {
+                  patch({ objectives: moveObjective(props.form.objectives, index, delta) });
                 }}
               />
             ))}
@@ -166,7 +234,11 @@ export function ProblemEditor(props: {
 
         <TabsContent value="thu">
           <div className="pt-4">
-            <ArenaPreview code={props.code} hasUnsavedChanges={props.hasUnsavedChanges} />
+            <ArenaPreview
+              code={props.code}
+              gameId={props.form.gameId}
+              hasUnsavedChanges={props.hasUnsavedChanges}
+            />
           </div>
         </TabsContent>
 
@@ -188,7 +260,14 @@ export function ProblemEditor(props: {
         )}
       </Tabs>
 
-      <div className="flex flex-wrap items-center gap-3 border-t border-border pt-4">
+      <div className="practice-editor-actions">
+        <span className="practice-save-state" role="status">
+          {props.hasUnsavedChanges
+            ? t('author.problem.edit.unsaved')
+            : props.code === null
+              ? t('author.problem.edit.new-draft')
+              : t('author.problem.edit.saved')}
+        </span>
         {props.actions}
       </div>
     </div>

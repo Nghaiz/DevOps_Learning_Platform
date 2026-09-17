@@ -14,10 +14,42 @@
 
 import { useMemo, useState } from 'react';
 import type { ReactElement } from 'react';
+import dynamic from 'next/dynamic';
 import { LEVELS } from '@devops-platform/games';
 import type { ArenaModeContext } from './arena-contract';
-import { ArenaRoot } from './arena-root';
+import type { HintReveal } from '../../lib/use-hint-reveal';
 import { LevelPicker } from './level-picker';
+
+const ArenaRoot = dynamic(() => import('./arena-root').then((module) => module.ArenaRoot), {
+  ssr: false,
+  loading: () => <div role="status" className="practice-arena-loading">Đang mở môi trường Kubernetes…</div>,
+});
+
+/**
+ * Một Map rỗng DÙNG CHUNG cho mọi lần render của chế độ `level`.
+ *
+ * Hằng ở module scope chứ không phải `new Map()` trong `useMemo`: mảng phụ
+ * thuộc của `mode` là rỗng, nên một Map dựng tại chỗ vẫn ổn định — nhưng viết
+ * hằng ra ngoài làm điều đó ĐÚNG TỰ THÂN thay vì đúng nhờ một chi tiết của
+ * `useMemo` mà lần sửa sau có thể đánh rơi.
+ */
+const HINT_REVEALS_RONG: ReadonlyMap<number, HintReveal> = new Map();
+
+/**
+ * Chế độ làm bài nạp LƯỜI, và đó là điều kiện để giữ lời hứa của trụ cột game.
+ *
+ * `arena-problem.tsx` kéo theo client tRPC + TanStack Query. `app/games/layout.tsx`
+ * cố ý không cấp `TrpcQueryProvider` vì game phải chạy với 0 lời gọi backend;
+ * một `import` tĩnh ở đây sẽ đưa cả tầng mạng vào bundle của người chơi level,
+ * tức trả giá cho một thứ họ không dùng. Cùng khuôn `games/git/git-game.tsx`.
+ *
+ * `ssr: false` vì màn đó chỉ tồn tại sau khi truy vấn về — render nó ở máy chủ
+ * là dựng một khung "đang tải" rồi vứt đi.
+ */
+const ArenaProblemScreen = dynamic(
+  () => import('./arena-problem').then((m) => m.ArenaProblemScreen),
+  { ssr: false },
+);
 
 export interface ArenaEntryProps {
   /** Từ `?problem=` trên route. `null` = chế độ level. */
@@ -25,6 +57,32 @@ export interface ArenaEntryProps {
 }
 
 export function ArenaEntry({ problemCode }: ArenaEntryProps): ReactElement {
+  /*
+   * ⛔ Chế độ `problem` RẼ TRƯỚC MỌI THỨ KHÁC, và trước cả hook chọn level.
+   *
+   * Bản trước dựng `mode` rồi vẫn rơi xuống `LevelPicker` khi chưa chọn level —
+   * nên một người mở `?problem=K8S-0001` được mời chọn một level trong `LEVELS`,
+   * chơi nó, và nộp một nhật ký mang `levelId: 'k8s-NN-…'`. Máy chủ so trường đó
+   * với `problem.code` và từ chối; không lượt nộp K8s nào từng qua được cổng ấy.
+   *
+   * Hai chế độ nay là hai cây component tách hẳn: chế độ `level` giữ nguyên
+   * đường cũ (0 lời gọi mạng), chế độ `problem` đi qua `arena-problem.tsx` — nơi
+   * level được DỰNG TỪ ĐỀ BÀI chứ không được chọn.
+   */
+  if (problemCode !== null) {
+    return <ArenaProblemScreen code={problemCode} />;
+  }
+  return <ArenaLevelEntry />;
+}
+
+/**
+ * Cửa vào chế độ `level`: chọn một bài trong `LEVELS` rồi chơi.
+ *
+ * Tách thành component riêng vì `ArenaEntry` phải rẽ chế độ TRƯỚC khi gọi hook
+ * nào — `useState`/`useMemo` gọi có điều kiện là vi phạm luật hook. Tách ra là
+ * cách duy nhất vừa rẽ sớm vừa giữ hook hợp lệ.
+ */
+function ArenaLevelEntry(): ReactElement {
   const [levelId, setLevelId] = useState<string | null>(null);
 
   /*
@@ -33,13 +91,24 @@ export function ArenaEntry({ problemCode }: ArenaEntryProps): ReactElement {
    */
   const mode = useMemo<ArenaModeContext>(
     () => ({
-      mode: problemCode === null ? 'level' : 'problem',
-      problemCode,
-      /* Bài OJ không dạy, nên không có ngăn tra cứu. */
-      codexAvailable: problemCode === null,
-      hintsCostPoints: problemCode !== null,
+      mode: 'level',
+      problemCode: null,
+      /* Ngăn tra cứu chỉ có ở chế độ dạy. */
+      codexAvailable: true,
+      hintsCostPoints: false,
+      // Chế độ `level` không có đề bài nào — `null` là đúng nghĩa, không phải
+      // chỗ giữ chỗ.
+      problem: null,
+      /*
+       * Chữ gợi ý của chế độ `level` nằm sẵn trong `LEVELS`, nên không có gì để
+       * xin máy chủ. `null` chứ không phải một hàm rỗng: một hàm rỗng luôn trả
+       * `null` sẽ đọc ra thành "xin thất bại" ở chỗ gọi, và nút gợi ý của chế độ
+       * dạy sẽ ngừng hoạt động.
+       */
+      hintReveals: HINT_REVEALS_RONG,
+      onRevealHint: null,
     }),
-    [problemCode],
+    [],
   );
 
   const level = useMemo(() => LEVELS.find((entry) => entry.id === levelId) ?? null, [levelId]);

@@ -122,12 +122,26 @@ const IS_TEST_FILE = /\.(test|spec)\.[cm]?[jt]sx?$/i;
 //
 // ⛔ Đừng thêm lookbehind `(?<![a-z])`: nó làm `productsku` lọt, mà đó là vi phạm
 // thật. Ba ca DIRTY + một ca CLEAN ở dưới gác đúng bốn vế này.
+//
+// TÁI PHÁT 2026-09-15, đúng như dòng trên đã đoán: `0016_striped_bloodstorm`, và
+// `"striped"` chứa `"stripe"`. Nguồn tên ngẫu nhiên nghĩa là lớp lỗi này quay lại
+// mỗi khi bộ sinh rút trúng một từ tiếng Anh chứa một từ khoá thương mại.
+//
+// ⚠ `stripe(?!d)` chứ KHÔNG `stripes?(?![a-z])` như đã làm cho `sku`, và khác biệt
+// này đo được chứ không phải sở thích: cờ `i` khiến `[a-z]` phủ luôn chữ hoa, nên
+// `(?![a-z])` sẽ đánh rơi `stripeCheckout` — một vi phạm THẬT viết kiểu camelCase.
+// `(?!d)` loại ĐÚNG MỘT từ tiếng Anh vô hại thay vì loại cả một lớp ký tự. Ca
+// DIRTY `stripe-camelCase` dưới đây tồn tại để gác chính vế đó: đổi sang
+// `(?![a-z])` thì nó đỏ ngay.
+//
+// `sku` giữ nguyên `(?![a-z])` — ở đó lớp ký tự là đúng, vì `skullbuster`,
+// `skulk`, `skunk` đều là tiền tố hợp lệ và không đếm hết được bằng tay.
 const RULES = [
   {
     id: 'en-thương-mại',
     scope: 'all',
     why: 'từ khoá thương mại tiếng Anh',
-    src: String.raw`price|pricing|paywall|checkout|billing|invoice|stripe|paddle|sepay|entitlement|skus?(?![a-z])|subscription|is_?paid|premium|freemium|payment|purchase|refund|coupon|discount|momo|vnpay|zalopay|paypal|mastercard|shopping[ _-]?cart|add[ _-]?to[ _-]?cart`,
+    src: String.raw`price|pricing|paywall|checkout|billing|invoice|stripe(?!d)|paddle|sepay|entitlement|skus?(?![a-z])|subscription|is_?paid|premium|freemium|payment|purchase|refund|coupon|discount|momo|vnpay|zalopay|paypal|mastercard|shopping[ _-]?cart|add[ _-]?to[ _-]?cart`,
   },
   {
     id: 'vi-thương-mại',
@@ -401,6 +415,10 @@ const DIRTY = [
   ['thêm-thanh-toán', 'Thanh toán qua VNPay hoặc chuyển khoản'],
   ['thêm-giá-bán', 'Giá bán: 50000 VND'],
   ['thêm-stripe', 'await stripe.checkout.sessions.create({});'],
+  // Gác vế `(?!d)` vs `(?![a-z])`: dạng camelCase phải VẪN bị bắt. Đổi luật sang
+  // `stripes?(?![a-z])` thì đúng dòng này lọt, vì `i` làm `[a-z]` phủ cả `C`.
+  ['stripe-camelCase', 'const key = env.stripeSecretKey;'],
+  ['stripe-snake_case', "const id = row.stripe_customer_id;"],
   ['thêm-ngoại-tệ', '<span>$9.99 / month</span>'],
   ['thêm-mua-gói', 'Mua gói 12 tháng để tiết kiệm'],
 ];
@@ -427,6 +445,10 @@ const CLEAN = [
   // dòng này gác một lớp dương tính giả sẽ tái phát chứ không phải một ca lẻ.
 
   '"tag": "0008_nervous_skullbuster",',
+  // Lần tái phát thứ hai của CÙNG lớp lỗi (2026-09-15). Giữ cả hai dòng: chúng
+  // chứng minh hai vế khác nhau của luật (`sku` dùng lớp ký tự, `stripe` dùng
+  // phủ định một từ), và xoá dòng nào cũng làm mất một nửa phép đo.
+  '"tag": "0016_striped_bloodstorm",',
 
   'giá trị mặc định là 30 giây',
   'đánh giá kết quả bài làm của người học',

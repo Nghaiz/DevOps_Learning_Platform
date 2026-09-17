@@ -60,12 +60,13 @@ export interface GameEntry {
 }
 
 /**
- * Bốn game của đợt này: một chơi được, ba ở trạng thái "sắp có".
+ * Năm mục: BA chơi được (P14 dựng K8s, P17 dựng Git, P19 dựng CI/CD), HAI còn ở
+ * trạng thái "sắp có".
  *
- * Ba ô "sắp có" là **lựa chọn có ý thức** (quyết định #4 của phase), không phải
- * chỗ còn thiếu: đợt này chỉ hiện thực Kubernetes Game, ba game kia mới có thiết kế
- * (`docs/games/`, lane F). Hiện chúng ở trạng thái không bấm được là cách nói
- * ra kế hoạch mà không hứa một đường link dẫn tới trang trắng.
+ * Hai ô "sắp có" là **lựa chọn có ý thức** (quyết định #4 của phase), không phải
+ * chỗ còn thiếu: chúng mới có thiết kế (`docs/games/`, lane F). Hiện chúng ở
+ * trạng thái không bấm được là cách nói ra kế hoạch mà không hứa một đường link
+ * dẫn tới trang trắng.
  */
 export const GAMES: readonly GameEntry[] = [
   {
@@ -81,11 +82,14 @@ export const GAMES: readonly GameEntry[] = [
     /*
      * Game thứ hai chơi được, thêm ở P17.
      *
-     * ⚠ `id` ở đây là `string` tự do, KHÔNG phải `GameId` của
-     * `@devops-platform/games`. Hai trục đó hiện không nối với nhau và tên cũng
-     * không trùng (danh mục dùng `pipeline`, union dùng `cicd`). Nối chúng lại
-     * sẽ là một thay đổi có chủ ý đáng ghi ra, không phải hệ quả tự nhiên của
-     * việc mở union — nên ở đây vẫn là một chuỗi.
+     * ⚠ `id` ở đây vẫn là `string` tự do, KHÔNG phải `GameId` của
+     * `@devops-platform/games`, và hai trục vẫn chỉ TRÙNG MỘT PHẦN: `maze` và
+     * `forge` ở dưới ứng với `netpol` và `dockerfile`, hai cặp tên khác hẳn nhau.
+     *
+     * Bản trước của chú thích này còn một vế nữa: danh mục gọi game CI/CD là
+     * `pipeline` trong khi union gọi nó là `cicd`, và nối hai tên đó lại "sẽ là
+     * một thay đổi có chủ ý đáng ghi ra". 19.H làm đúng việc đó, nên phần ghi ra
+     * nằm ở mục `cicd` ngay dưới.
      */
     id: 'git',
     title: 'Phòng thí nghiệm Git',
@@ -96,11 +100,32 @@ export const GAMES: readonly GameEntry[] = [
     topics: ['git'],
   },
   {
-    id: 'pipeline',
-    title: 'Đường ống',
-    href: null,
+    /*
+     * Game thứ ba chơi được, mở ở 19.H. Đây là lời ghi ra mà chú thích của mục
+     * `git` phía trên đã hẹn: `id` ĐỔI từ `pipeline` sang `cicd`.
+     *
+     * ## Vì sao đổi, và vì sao nó không phải một lần đổi chữ cho đẹp
+     *
+     * Từ đợt này một mục danh mục không còn chỉ là một thẻ đứng một mình. Nó trỏ
+     * tới `/games/cicd`, và CÙNG cái tên ấy là khoá tra ở ba bảng khác:
+     * `PREVIEW_ROUTE_BY_GAME` (`lib/problem-preview-href.ts`), `GAME_NAMES`
+     * (`app/(session)/problems/problem-game.ts`) và `TOPIC_LABELS_BY_GAME`
+     * (`packages/games/src/problem-topic-labels.ts`). Giữ hai tên cho một game
+     * nghĩa là mỗi lần đi từ bảng này sang bảng kia phải có một phép dịch, và
+     * một phép dịch thiếu thì tra ra `undefined` chứ không ném: thẻ vẫn vẽ, link
+     * vẫn bấm được, chỉ là trỏ sai. Đúng kiểu hỏng im lặng mà cả ba bảng kia đã
+     * ghi ra bằng chữ.
+     *
+     * ## Cái giá đã trả, ghi ra để không ai đọc nhầm
+     *
+     * `pipeline` vẫn là một `GameId` HỢP LỆ (`GAME_IDS` giữ đủ sáu). Từ nay nó
+     * là tên của một game CHƯA có gì, không còn là tên gọi thứ hai của game này.
+     */
+    id: 'cicd',
+    title: 'Đường ống CI/CD',
+    href: '/games/cicd',
     description:
-      'Nối các bước của một pipeline CI/CD thành đồ thị chạy được: build, test, quét, phát hành. Sai thứ tự thì pipeline đỏ.',
+      'Xếp các job CI thành một đồ thị phụ thuộc rồi chỉnh cho nó vừa nhanh vừa ổn định: chia runner, bật cache, chặn job hay hỏng vặt bằng retry. 14 level, chấm theo ba trục là đường găng, runner-phút và số lần chạy lại.',
     difficulty: 'intermediate',
     topics: ['cicd'],
   },

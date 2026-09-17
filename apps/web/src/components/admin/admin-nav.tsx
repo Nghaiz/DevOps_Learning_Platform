@@ -19,15 +19,30 @@ export interface AdminNavItem {
 }
 
 /**
- * Năm màn hình quản trị (D12, thêm màn hình phải hỏi chủ dự án).
+ * BẢY màn hình quản trị (D12, thêm màn hình phải hỏi chủ dự án).
  *
- * Dữ liệu thuần, export ra để `admin-nav.test.ts` khẳng định đúng năm đường
+ * Dữ liệu thuần, export ra để `admin-nav.test.ts` khẳng định đúng sáu đường
  * này và không đường nào ngoài `/admin`: một mục nav trỏ ra ngoài nhánh sẽ
  * không được `layout.tsx` của `/admin` gác, tức lọt cổng vai trò.
+ *
+ * `/admin/classes` thêm 2026-09-14 (§18.F), **đã hỏi và được chủ dự án duyệt**
+ * đúng như dòng trên yêu cầu. Lý do nó không thể ở ngoài nav: lane 18.F giao
+ * xong màn hình nhưng nó **chỉ tới được bằng cách gõ URL**, và một màn chỉ tới
+ * được bằng gõ URL thì trên thực tế là chưa giao. §18.G (chế độ thi) dựng trên
+ * lớp học, nên đây là màn giảng viên mở hằng ngày chứ không phải một trang phụ.
+ *
+ * `/admin/exams` thêm 2026-09-15 (§18.G.2), **đã hỏi và được chủ dự án duyệt**.
+ * Đặt ngay sau `/admin/classes` vì một kỳ thi luôn thuộc về một lớp, và hai màn
+ * này là một cặp trong công việc hằng ngày của giảng viên.
+ *
+ * Đặt ngay sau `/admin/users` vì cùng nói về con người; `/admin/sessions` trở
+ * đi là về hệ thống.
  */
 export const ADMIN_NAV: readonly AdminNavItem[] = [
   { href: '/admin', labelKey: 'admin.nav.overview' },
   { href: '/admin/users', labelKey: 'admin.nav.users' },
+  { href: '/admin/classes', labelKey: 'admin.nav.classes' },
+  { href: '/admin/exams', labelKey: 'admin.nav.exams' },
   { href: '/admin/sessions', labelKey: 'admin.nav.sessions' },
   { href: '/admin/content', labelKey: 'admin.nav.content' },
   { href: '/admin/audit', labelKey: 'admin.nav.audit' },

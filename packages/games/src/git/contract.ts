@@ -1004,8 +1004,21 @@ export interface GitSession {
   subscribe(listener: () => void): () => void;
   /** Chạy một dòng lệnh thô. Đây là đường DUY NHẤT trạng thái đổi. */
   run(command: string): GitDispatchOutcome;
-  /** Mở gợi ý thứ `index`. Ghi vào nhật ký, có giá về điểm. */
-  revealHint(index: number): void;
+  /**
+   * Mở gợi ý thứ `index`. Ghi vào nhật ký, có giá về điểm.
+   *
+   * `text` ghi đè chữ lấy từ `level.hints[index]`, và chỉ chế độ làm bài OJ
+   * truyền nó. Lý do: `problems.byCode` che chữ của gợi ý chưa mở (§18.B.4), nên
+   * một `GitLevel` dựng từ đề bài OJ mang `hints` TOÀN CHUỖI RỖNG — phiên chơi
+   * đẩy ra đúng chữ *"Gợi ý 1: "* rồi hết, trong khi điểm vẫn bị trừ. Chữ thật
+   * chỉ tới từ `problems.revealHint`, tức là SAU khi phiên đã dựng, nên nó phải
+   * đi vào ở đây chứ không thể nằm trong `level`.
+   *
+   * ⚠ Chỉ đổi phần HIỂN THỊ. Action ghi vào nhật ký không đổi hình dạng
+   * (`{ kind: 'hint', index }`), nên phát lại và chấm lại không thấy khác biệt
+   * nào — `hintIdsFromLog` đọc chỉ số, không đọc chữ.
+   */
+  revealHint(index: number, text?: string): void;
   /** Hoàn tác một bước (17.I.3). Không ghi vào nhật ký — xem chú thích dưới. */
   undo(): boolean;
   redo(): boolean;

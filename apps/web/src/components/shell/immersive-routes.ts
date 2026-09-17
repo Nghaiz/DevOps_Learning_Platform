@@ -51,8 +51,25 @@ const IMMERSIVE_PREFIXES: readonly string[] = ['/games/k8s'];
  * chịu sức ép chiều cao như hai trang kia — và mất thanh điều hướng ở một trang
  * người ta hay rời đi giữa chừng thì tệ hơn là được thêm 56px. Nếu sau này đổi
  * ý thì thêm vào đây, đừng suy ra từ "trang nào có terminal".
+ *
+ * ## `/games/cicd` — vì sao ở ĐÂY chứ không ở danh sách trên (19.D, 2026-09-17)
+ *
+ * Quyết định #3 của chủ dự án đòi sân chơi CI/CD **toàn màn hình, đúng như game
+ * K8s**, và AC-D7 đo bằng số: chiều rộng > 95% viewport. Không immersive thì
+ * `.practice-shell` chừa `--workspace-sidebar` = 224px, tức ~82.5% ở 1280px —
+ * ô đó đỏ vì vỏ trang, không vì bố cục màn chơi.
+ *
+ * Nhưng `/games/cicd` (không có đoạn con) là **trang danh mục** — có tiêu đề,
+ * có danh sách màn, và `CicdCampaign` KHÔNG có nút thoát nào: nó dựa hoàn toàn
+ * vào thanh điều hướng của vỏ để rời đi. Đẩy nó lên danh sách khớp-chính-nó là
+ * nhốt người dùng ở đó với đúng nút Back của trình duyệt.
+ *
+ * Nên màn chơi được đưa về một đoạn con thật (`/games/cicd/<levelId>`, 19.D) để
+ * dùng được luật này — cùng hình dạng `/labs/<id>`. Trước đó màn chơi sống ở
+ * `?level=`, và một tham số truy vấn thì luật nào ở file này cũng không thấy:
+ * `isImmersiveRoute` chỉ nhận `pathname`.
  */
-const IMMERSIVE_CHILD_PREFIXES: readonly string[] = ['/labs', '/lessons'];
+const IMMERSIVE_CHILD_PREFIXES: readonly string[] = ['/labs', '/lessons', '/games/cicd'];
 
 /** Bỏ dấu `/` ở cuối, trừ khi đường dẫn CHÍNH LÀ `/`. */
 function normalize(pathname: string): string {
