@@ -37,7 +37,7 @@
 | 19.D tầng 3D | chưa bắt đầu | — |
 | 19.E giao diện soạn YAML | **XONG (E.1–E.5)** | đợt 2 — kèm tầng ghép `cicd/hydrate.ts`, thứ plan không dự liệu |
 | 19.F chương CI, 14 level | **XONG** | PR #139 (`e0f4ed9`, `824ee8b`, `2d8fce5`) |
-| 19.G chương CD | chưa bắt đầu | — |
+| 19.G chương CD | **ĐÃ VIẾT C15–C28, chưa nghiệm thu** | 2 lane: C15–C21 và C22–C28; xem [báo cáo 2026-09-17](reports/2026-09-17-p19-g-implementation.md). Không chạy test/smoke hay lệnh xác minh trong lượt này theo yêu cầu chủ dự án |
 | 19.H sandbox + tích hợp | **XONG phần web** | route, ô danh mục, sandbox, plugin OJ, ô Playwright AC-H. Đợt 3 vá bộ chấm OJ chấm bản CHƯA GHÉP |
 | 19.I lý thuyết + tài liệu | chưa bắt đầu | `content/games/cicd/` và `docs/games/cicd.md` chưa tồn tại |
 
@@ -338,6 +338,18 @@ của cả 14 level chạy được và cho AC.
 - **C27 hotfix lúc 2 giờ sáng** — bỏ qua bước nào thì trả giá gì. Level có áp lực thời gian.
 
 **AC-G:** như AC-F, cho 14 level chương CD.
+
+**Lượt triển khai 2026-09-17:** thực hiện nội dung C15–C28 theo
+[`phase-19-g-lanes.md`](phase-19-g-lanes.md), chia 2 lane C15–C21 và C22–C28. Hợp đồng engine
+được giữ nguyên; nếu một level cần mở rộng hợp đồng thì ghi nhận riêng, không tự sửa.
+Trạng thái hiện tại là **đang triển khai, chưa nghiệm thu AC-G**. Chủ dự án yêu cầu bỏ pha test,
+không chạy test, smoke test hay lệnh xác minh trong lượt này; vì vậy không có bằng chứng nghiệm
+thu mới. Tiến độ và việc còn lại được ghi tại
+[`reports/2026-09-17-p19-g-implementation.md`](reports/2026-09-17-p19-g-implementation.md).
+
+**Tích hợp web còn lại:** đọc mã nguồn cho thấy màn web vẫn nhập `CI_LEVELS` và chưa có nơi
+tiêu thụ cheatsheet `cd-panel`. Nối chương CD và bảng điều khiển CD vào web là việc tiếp nối
+riêng; nội dung level được thêm trong lượt này chưa đồng nghĩa với chương CD chơi được trên web.
 
 ### 19.H — Sandbox + tích hợp (M, ~2 ngày)
 

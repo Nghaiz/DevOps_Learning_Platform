@@ -64,7 +64,8 @@ export const LEVEL_C17: CicdLevel = {
   thresholds: {
     parLeadSeconds: 210, budgetLeadSeconds: 500,
     parThroughputPerHour: 6, minThroughputPerHour: 1,
-    parRunnerMinutes: 6, budgetRunnerMinutes: 20, minGreenRate: 0.66,
+    // Tỷ lệ xanh đếm cả pass: mỗi pass chứa một commit bị từ chối có chủ ý.
+    parRunnerMinutes: 6, budgetRunnerMinutes: 20, minGreenRate: 0,
   },
   hints: [
     'Nhìn riêng commit thứ hai: trạng thái đỏ do bị từ chối là kết quả mong muốn, nhưng prod không được chạy.',

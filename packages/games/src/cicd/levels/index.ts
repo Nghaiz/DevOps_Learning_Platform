@@ -1,9 +1,9 @@
 /**
- * Chương CI — 14 level, gộp từ hai nửa.
+ * Danh mục CI/CD — mỗi chương gộp từ hai nửa, CI trước CD.
  *
  * ## Vì sao file này do LEAD viết, không lane nào
  *
- * Hai lane viết C01–C07 và C08–C14 song song trong cùng một worktree. Một file
+ * Hai lane viết mỗi nửa chương trong worktree riêng. Một file
  * gộp mà cả hai cùng ghi là đúng cái bẫy `packages/copy/src/registry.ts` đã ghi
  * thành văn trong chính nó: hai lượt ghi thì lượt sau ĐÈ lượt trước, không dấu
  * xung đột, không lỗi biên dịch, và bảy level biến mất trong im lặng cho tới khi
