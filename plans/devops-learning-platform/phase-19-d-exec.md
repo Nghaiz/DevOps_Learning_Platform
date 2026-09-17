@@ -55,14 +55,45 @@ Ba lý do, cả ba có tiền lệ đắt trong repo:
 3. **Hợp đồng đọc được.** Lane 2D và lane 3D đọc CÙNG một phép đặt chỗ; nếu không thì ô "hai
    renderer vẽ cùng một thứ" là lời khai chứ không phải phép đo.
 
-Hình dạng:
+**⚠ SỬA 2026-09-17 sau khi đọc mã — chữ ký dưới đây thay cho bản đầu.** Bản đầu
+(`placeWorkflow(workflow, record | null, chapter)`, node khoá theo `stageId`) sai
+ba chỗ, cả ba đo được:
+
+1. **`CicdView` đã có sẵn và chưa ai dựng.** `contract.ts:1191` khai nó, và khối
+   chú thích §7 ngay trên viết rõ *"Engine KHÔNG biết gì về toạ độ. `core/layout/`
+   tính vị trí TỪ VIEW NÀY. Hai renderer nhận cùng `CicdView`."* `grep` ra **0
+   producer**. Đọc thẳng `WorkflowSpec + RunRecord` buộc tầng đặt chỗ tự suy lại
+   `state`/`kind`/`statusToken` — nguồn sự thật thứ hai cho đúng những thứ
+   `StageNodeView` đã định nghĩa.
+2. **Khoá theo `stageId` làm mất node ở ma trận.** C12 và C13 có `fanOut` (7 chỗ
+   khai), nên `test#node20/ubuntu`, `test#node22/ubuntu`, `test#node24/ubuntu`
+   gộp thành MỘT. Engine khoá bằng `InstanceKey`.
+3. **`chapter` là tham số thừa.** `CicdView.yAxis` đã mang đúng thông tin đó, và
+   chú thích của nó CẤM suy lại từ `level.chapter` ở tầng renderer (sandbox 19.H
+   không có level nào).
+
+Hình dạng đã chốt:
 
 ```
-placeWorkflow(workflow, record | null, chapter) -> CicdPlacement
-  nodes: { stageId, x, y, z, layer, lane, status, kind, stepCount }[]
-  edges: { from, to, critical, points }[]      // routeEdge, góc vuông theo làn
-  bounds, layerCount, laneCount
+buildGraphView({ workflow, run | null, yAxis, atTick? }) -> CicdGraphView
+  = Pick<CicdView, 'nodes' | 'edges' | 'yAxis'>       // lấy bằng Pick, không khai lại
+
+placeWorkflow(view) -> CicdPlacement
+  nodes: { instance, stageId, x, y, z, layer, lane, band }[]   // HÌNH HỌC thôi
+  edges: { from, to, critical, resourceEdge, points }[]        // góc vuông theo làn
+  bounds, layerCount, laneCount, bandCount
 ```
+
+⛔ `CicdPlacementNode` KHÔNG mang `status`/`kind`/`stepCount`: chúng đã ở
+`view.nodes`, chép sang là đúng thứ "No Derived Fields" cấm. Renderer ghép hai
+bên bằng `instance`.
+
+⚠ **`runners` và `events` của `CicdView` vẫn CHƯA dựng được.** `evaluate()` /
+`simulatePass()` trả bản ghi, không trả ảnh chụp số máy bận theo từng tick, và
+không có nhật ký sự kiện nào trong engine. Trả `[]` cho đủ hình dạng là nói dối
+im lặng (HUD sẽ vẽ "0 máy bận", không gì đỏ). Hai trường đó cần engine mở thêm —
+**việc này chưa nằm trong ước lượng nào của 19.D.4**, lane-hud phải báo lại trước
+khi đụng vào.
 
 **Ba trục, mỗi trục đúng một nghĩa** (quyết định #13 của `phase-19.md` §1 — trục Y đổi theo chương):
 
@@ -107,12 +138,28 @@ vì hết hạn.
 
 ### 19.D.1 — Nền hợp đồng (S, ~1 ngày; LEAD làm và commit TRƯỚC khi fan-out)
 
-| # | Việc | Ước |
-|---|---|---|
-| D.1.1 | `cicd/scene-contract.ts`: `placeWorkflow`, ba trục theo chương, cạnh góc vuông qua `routeEdge` | 4h |
-| D.1.2 | `scene-contract.test.ts`: tất định (cùng đầu vào ra cùng toạ độ, 200 lượt), Y chỉ mang một biến, `countDiagonalSegments === 0`, đường găng đúng trên 5 đồ thị có đáp án tính tay | 4h |
-| D.1.3 | `cicd/scene-encoding.ts`: bảng ba kênh, `satisfies Record<StageStatus, ...>` để thiếu một trạng thái là đỏ lúc biên dịch | 2h |
-| D.1.4 | Nâng `scene-tokens.ts` lên `games/shared/`, arena import từ chỗ mới, test cũ của arena giữ nguyên xanh | 3h |
+| # | Việc | Ước | Trạng thái |
+|---|---|---|---|
+| D.1.0 | `cicd/scene-view.ts`: `buildGraphView` — **producer còn thiếu của `CicdView`**, thêm ngoài kế hoạch gốc (xem §2.1) | 4h | ✅ `48d8d42` |
+| D.1.1 | `cicd/scene-contract.ts`: `placeWorkflow`, ba trục theo chương, cạnh góc vuông qua `routeEdge` | 4h | ✅ `48d8d42` |
+| D.1.2 | `scene-contract.test.ts` + `scene-view.test.ts`: tất định (200 lượt cùng toạ độ), Y chỉ mang một biến **ở cả hai chiều**, `countNonAxialSegments === 0` | 4h | ✅ `48d8d42` |
+| D.1.3 | `cicd/scene-encoding.ts`: bảng ba kênh, `satisfies Record<StageRunState, ...>` để thiếu một trạng thái là đỏ lúc biên dịch | 2h | ✅ `48d8d42` |
+| D.1.4 | Nâng `scene-tokens.ts` lên `games/shared/`, arena import từ chỗ mới, test cũ của arena giữ nguyên xanh | 3h | |
+
+Ba ghi chú từ lượt làm thật:
+
+- **`satisfies Record<StageRunState, …>` chứ không phải `StageStatus`** — kiểu
+  thật tên là `StageRunState` và nó có **bảy** giá trị, trong khi bảng §2.2 chỉ
+  liệt kê năm. Thiếu `pending` (trạng thái của MỌI node trước lượt chạy đầu, tức
+  thứ người chơi thấy khi vừa mở level) và `retrying` (thứ bài C10 dạy).
+- **Cột màu của §2.2 không khớp union `statusToken`.** `--primary` và `--muted`
+  không nằm trong `success | destructive | warning | status-progress |
+  status-locked`. `scene-encoding.ts` giữ luôn cột `statusToken` làm nguồn DUY
+  NHẤT thay vì đẻ ra bảng màu thứ hai; `pending` và `skipped` dùng chung
+  `status-locked` và phân biệt nhau ở hình học + icon.
+- **"Đường găng đúng trên 5 đồ thị tính tay" đã có ở `critical-path.test.ts`**
+  (22KB). Lặp lại ở tầng cảnh là đo lại cùng một phép tính; ô ở đây đo cái MỚI —
+  cờ `critical` đi từ `criticalPath()` qua view sang placement còn nguyên.
 
 ### 19.D.2 — Cảnh 2D (L, ~4 ngày) — **chế độ mặc định, không phải bản dự phòng**
 
@@ -183,8 +230,8 @@ chương nên người chơi phải học lại cách đọc không gian.
 
 | # | Ô | Đo bằng |
 |---|---|---|
-| AC-D1 | Đồ thị và đường găng hiện được ở CẢ HAI chế độ | e2e: chạy thử một level, số node vẽ ra bằng số stage, cạnh đường găng mang dấu riêng |
-| AC-D2 | Hai renderer vẽ CÙNG tập node/cạnh | Test gọi `placeWorkflow` một lần rồi so tập id mà mỗi renderer dựng — không so hai phép lọc riêng |
+| AC-D1 | Đồ thị và đường găng hiện được ở CẢ HAI chế độ | e2e: chạy thử một level, số node vẽ ra bằng **số thực thể** (`view.nodes.length`), cạnh đường găng mang dấu riêng. ⛔ **KHÔNG đếm theo số stage** — C12/C13 quạt ra nên hai con số khác nhau, và bản đếm-theo-stage XANH ngay trên con bug gộp node mà nó đáng lẽ phải bắt. Ô này phải chạy trên MỘT level có `fanOut` |
+| AC-D2 | Hai renderer vẽ CÙNG tập node/cạnh | Test gọi `placeWorkflow(view)` một lần rồi so tập `instance` mà mỗi renderer dựng — không so hai phép lọc riêng |
 | AC-D3 | AC-5: đường 2D dùng được | Playwright `--disable-3d-apis`, **có đối chứng dương** (cùng ô chạy không cờ đó phải đi nhánh 3D) |
 | AC-D4 | AC-7: draw call < 100 ở level đông nhất | `renderer.info.render.calls` sau `gl.info.reset()` đầu `useFrame`, ghi số theo TỪNG bậc chất lượng. ⛔ Không ghim bậc là ô xanh chứng minh đúng zero điều gì |
 | AC-D5 | AC-6: axe 0 vi phạm | Cả hai theme, cả hai chế độ, cả màn CI lẫn màn CD |
