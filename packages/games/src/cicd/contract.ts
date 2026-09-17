@@ -1224,6 +1224,27 @@ export interface DagEdgeView {
   readonly resourceEdge: boolean;
 }
 
+/*
+ * ⛔ **KHÔNG có trường "lưu lượng" trên cạnh, và sẽ không có** (chốt 2026-09-17).
+ *
+ * `phase-19-d-exec.md` §3 mục D.2.3 ghi "mật độ chấm = lưu lượng (mượn Vizceral)".
+ * Đại lượng đó không dựng được ở đây, và lý do là một ranh giới tầng chứ không
+ * phải một trường bị quên:
+ *
+ *   `CicdView` mô tả **MỘT `RunRecord`** — một commit đi hết workflow. Trong
+ *   phạm vi một commit, mỗi cạnh phụ thuộc đi qua đúng MỘT lần. Không có gì để
+ *   mà đếm.
+ *
+ * Lưu lượng chỉ có nghĩa ở tầng `PassRecord` (mọi commit của một lượt mô phỏng),
+ * và đó cũng chính là chỗ trục điểm ② THÔNG LƯỢNG sống. Gắn một con số của cả
+ * lượt lên cạnh của một commit là trộn hai tầng: người chơi sẽ đọc "cạnh này
+ * đông" thành một tính chất của lượt chạy họ đang xem, trong khi nó là tính chất
+ * của bảng tổng.
+ *
+ * Thứ tầng vẽ dùng thay, và nó đọc được từ đúng một commit: **"có việc đang chảy
+ * qua cạnh này"** — đầu trên đã xong, đầu dưới thì chưa. Suy từ `state` của hai
+ * node, không cần trường mới.
+ */
 export interface RunnerLaneView {
   readonly runnerClass: RunnerClassId;
   readonly label: string;

@@ -332,11 +332,13 @@ chương nên người chơi phải học lại cách đọc không gian.
    hiện — lớp phủ đang thu thì không được quét.
 3. **AC-D3 chưa có ca không-WebGL2 thật**, xem bảng trên.
 
-**Ba lỗ hổng hợp đồng đã ghi, KHÔNG vá trong 19.D:** `StageNodeView` không mang
-`steps` (chặn cấp 3 của D.2.7 — cấp 3 hiện nằm ở inspector của HUD, không trong
-SVG); `CicdGraphView` không mang `tickSeconds` (nhãn đường găng nói "tick", không
-nói giây); `DagEdgeView` không có đại lượng lưu lượng nào (D.2.3 "mật độ chấm =
-lưu lượng" thay bằng "có việc đang chảy qua cạnh": đầu trên xong, đầu dưới chưa).
+**Ba lỗ hổng hợp đồng — ĐÃ ĐÓNG 2026-09-17**, mỗi cái một kiểu khác nhau:
+
+| # | Lỗ hổng | Kết luận |
+|---|---|---|
+| 1 | `StageNodeView` không mang `steps` | **Vá thật.** Thêm `StepNodeView[]` vào view; cấp 3 của D.2.7 nay vẽ bước thật trong SVG. Mọi bước của spec đều liệt kê, kể cả bước KHÔNG chạy vì bước trước gãy — vẽ bằng `·` chứ không `✕`, vì "không tới lượt" và "đỏ" dẫn người chơi đi sửa hai chỗ khác nhau. Không mang `flakeNature` (đỏ giả phải giống đỏ thật — điều kiện của bài C11), có ô test ghim |
+| 2 | `CicdGraphView` không mang `tickSeconds` | **KHÔNG phải lỗ hổng.** `SECONDS_PER_TICK` là hằng của hợp đồng và đã export ở barrel từ trước chặng này (`index.ts:623`). Nhìn vào view để kết luận một hằng không tồn tại là nhìn nhầm chỗ: view chở DỮ LIỆU của một lượt chạy, hằng quy đổi đơn vị thì giống nhau ở mọi lượt. Nhãn nay đọc ra giây, giữ tick trong ngoặc cho người cân bằng level |
+| 3 | `DagEdgeView` không có lưu lượng | **Đóng bằng lý lẽ, sẽ không thêm.** `CicdView` mô tả MỘT `RunRecord` — trong phạm vi một commit, mỗi cạnh đi qua đúng một lần, không có gì để đếm. Lưu lượng chỉ có nghĩa ở tầng `PassRecord`, cũng là chỗ trục ② THÔNG LƯỢNG sống. Gắn một con số của cả lượt lên cạnh của một commit là trộn hai tầng. Tầng vẽ dùng "có việc đang chảy qua cạnh" thay — suy từ `state` hai đầu, không cần trường mới |
 
 ## 5. Chia lane
 
