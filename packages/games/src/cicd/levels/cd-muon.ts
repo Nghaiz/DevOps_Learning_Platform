@@ -8,5 +8,6 @@
 import type { CicdLevel } from '../contract.ts';
 import { LEVEL_C22 } from './c22-migration-khong-lui.ts';
 import { LEVEL_C23 } from './c23-git-la-nguon-that.ts';
+import { LEVEL_C24 } from './c24-drift-giua-hai-nhip.ts';
 
-export const CD_LEVELS_MUON: readonly CicdLevel[] = [LEVEL_C22, LEVEL_C23];
+export const CD_LEVELS_MUON: readonly CicdLevel[] = [LEVEL_C22, LEVEL_C23, LEVEL_C24];
