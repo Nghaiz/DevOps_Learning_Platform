@@ -250,15 +250,34 @@ export function CicdSceneNode(props: CicdSceneNodeProps): ReactElement {
               </>
             )}
 
-            {/* Mặt trên sáng hơn — kênh "khối 3D giả" của D.2.2. */}
+            {/*
+             * Mép trên bắt sáng — kênh "khối 3D giả" của D.2.2.
+             *
+             * ⚠ Đây là chỗ "theme sáng không phải theme tối đảo ngược" suýt cắn.
+             * Cách hiển nhiên — phủ một mảng `--background` mờ 22% lên mặt trên —
+             * làm mặt trên SÁNG hơn ở theme sáng (`--background` gần trắng) và
+             * TỐI hơn ở theme tối (`--background` gần đen). Tức cái gợi ý chiều
+             * sâu **đảo chiều** giữa hai theme, trong khi bóng đổ phía dưới thì
+             * không đổi — khối đọc ra lồi ở theme này và lõm ở theme kia.
+             *
+             * Nên mép trên là một NÉT (hình học) chứ không phải một mảng SHADE:
+             * nó vẽ bằng token chữ của chính node, nên nó tương phản với thân hộp
+             * ở CẢ HAI theme, và một đường viền sáng dọc mép trên đọc ra là "mép"
+             * bất kể nó sáng hơn hay tối hơn nền. Không ô tự động nào bắt được
+             * lỗi đảo chiều kia — nó chỉ lộ ra khi đọc lại bảng token.
+             */}
             {geo.depth && (
               <path
-                d={`M ${RADIUS} 1 H ${NODE_W - (geo.notch ? NOTCH : RADIUS)} ${
-                  geo.notch ? `L ${NODE_W - 2} ${NOTCH - 2}` : `Q ${NODE_W - 1} 1 ${NODE_W - 1} ${RADIUS}`
-                } V ${RADIUS + 8} H 1 V ${RADIUS} Q 1 1 ${RADIUS} 1 Z`}
-                fill={cssVar('--background')}
-                opacity={0.22}
-                stroke="none"
+                d={`M 2 ${RADIUS} Q 2 2 ${RADIUS} 2 H ${NODE_W - (geo.notch ? NOTCH : RADIUS)}${
+                  geo.notch
+                    ? ` L ${NODE_W - 3} ${NOTCH - 1}`
+                    : ` Q ${NODE_W - 2} 2 ${NODE_W - 2} ${RADIUS}`
+                }`}
+                fill="none"
+                stroke={bodyText}
+                strokeWidth={2}
+                strokeLinecap="round"
+                opacity={0.45}
               />
             )}
 
