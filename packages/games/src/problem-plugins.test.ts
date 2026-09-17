@@ -19,6 +19,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { Testcase } from './core/problem.ts';
 import type { GameAction } from './core/run-log.ts';
+import type { GameId } from './core/types.ts';
 import type { GitWorld, WorldSpec } from './git/contract.ts';
 import { CICD_UNSEEDED_REPLAY_SEED } from './cicd/problem-plugin.ts';
 import type { ClusterSpec } from './k8s/contract.ts';
@@ -655,4 +656,61 @@ describe('bất biến: `failedCode` khác `null` ĐÚNG KHI verdict là `CE`', 
     expect(grade.failedCode).toBe('chua-co-testcase');
     expect(grade.total).toBe(0);
   });
+});
+
+// ── P20: `predicateArgs` phủ đúng `predicateNames` ──────────────────────────
+
+describe('mọi plugin khai bảng tham số phủ đúng tập vị từ', () => {
+  /*
+   * ⛔ Ô này tồn tại vì một lỗi ĐÃ ĐO (2026-09-17): trang soạn bài dựng ô chọn
+   * vị từ bằng `PREDICATE_NAMES` của RIÊNG K8s và đọc đặc tả tham số từ một bảng
+   * cũng chỉ-K8s, nên KHÔNG soạn được testcase cho bất kỳ game nào khác — bài
+   * Git lẫn CI/CD đều dừng ở "Chưa chọn vị từ kiểm tra". `predicateNames` một
+   * mình không đủ: giao diện còn cần biết vị từ đó ĐỌC tham số nào.
+   *
+   * Hai chiều, và cả hai đều cần:
+   *  - thiếu một tên ⇒ chọn được vị từ nhưng không có ô nhập tham số, và bài sẽ
+   *    trượt vĩnh viễn vì engine đọc `undefined`;
+   *  - thừa một tên ⇒ giao diện chào mời một vị từ bộ chấm không biết, và mọi
+   *    lượt nộp vào bài đó nhận `CE`.
+   */
+  const ids = Object.keys(PROBLEM_PLUGINS) as GameId[];
+
+  it('có ít nhất ba plugin — nếu không, vòng dưới không đo gì', () => {
+    // Đối chứng cho chính vòng lặp: `for` trên mảng rỗng là một ô xanh tuyệt đối.
+    expect(ids.length).toBeGreaterThanOrEqual(3);
+  });
+
+  for (const gameId of ids) {
+    it(`"${gameId}": predicateArgs phủ đúng predicateNames, không thiếu không thừa`, () => {
+      const plugin = PROBLEM_PLUGINS[gameId];
+      expect(plugin).toBeDefined();
+      if (plugin === undefined) return;
+
+      const ten = [...plugin.predicateNames].sort();
+      const bang = Object.keys(plugin.predicateArgs).sort();
+
+      expect(bang.filter((n) => !ten.includes(n)), `${gameId}: bảng có tên vị từ KHÔNG khai được`).toEqual([]);
+      expect(ten.filter((n) => !bang.includes(n)), `${gameId}: vị từ khai được mà bảng KHÔNG có`).toEqual([]);
+    });
+
+    it(`"${gameId}": mọi tham số có tên, kiểu hợp lệ và cờ optional`, () => {
+      const plugin = PROBLEM_PLUGINS[gameId];
+      if (plugin === undefined) return;
+      const KIEU = ['string', 'number', 'boolean', 'lines'];
+      for (const [ten, specs] of Object.entries(plugin.predicateArgs)) {
+        for (const spec of specs) {
+          expect(spec.name.length, `${gameId}.${ten}: tham số không tên`).toBeGreaterThan(0);
+          expect(KIEU, `${gameId}.${ten}.${spec.name}: kiểu lạ`).toContain(spec.kind);
+          expect(typeof spec.optional, `${gameId}.${ten}.${spec.name}`).toBe('boolean');
+        }
+        /*
+         * Tên tham số không được trùng trong CÙNG một vị từ: giao diện dựng ô
+         * theo tên, nên hai ô cùng tên là ô sau ghi đè ô trước — im lặng.
+         */
+        const names = specs.map((s) => s.name);
+        expect(new Set(names).size, `${gameId}.${ten}: trùng tên tham số`).toBe(names.length);
+      }
+    });
+  }
 });

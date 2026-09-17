@@ -51,7 +51,9 @@ export async function getProblemForViewer(
     // trên một tham số `redact: boolean` là chỗ mà lần "đơn giản hoá" sau sẽ gộp
     // nhầm.
     problem: canReadHintText(visibility, row.authorId)
-      ? toAuthorProblem(problem)
+      // `revealed` vẫn đi qua BẢNG kể cả ở nhánh này — tác giả đọc được `text`
+      // mà chưa trả điểm, và phép tính điểm đọc cờ kia. Xem `toAuthorProblem`.
+      ? toAuthorProblem(problem, revealed)
       // §18.B.4 — nhãn testcase ẩn chỉ mở SAU KHI NỘP, và "đã nộp" đọc từ
       // `viewerStatus` mà máy chủ vừa gộp ra từ bảng `problem_submissions`.
       // KHÔNG có đường nào cho client tự khai điều này.

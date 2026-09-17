@@ -635,6 +635,9 @@ export const catalog = {
   'catalog.problem.hint-ordinal': (p: { n: number }) => `Gợi ý ${p.n}`,
   'catalog.problem.hint-revealed': (p: { points: number }) => `Đã mở · trừ ${p.points} điểm`,
   'catalog.problem.hint-reveal': (p: { points: number }) => `Mở gợi ý (trừ ${p.points} điểm)`,
+  // Đường của tác giả và người duyệt: đọc được mà chưa trả điểm. Nói ra thay vì
+  // để trống, vì một ô không có nhãn nào đọc ra như một chỗ render thiếu.
+  'catalog.problem.hint-author-preview': 'Bạn viết gợi ý này, nên đọc không mất điểm.',
 
   // ── Lịch sử nộp của chính người đang xem ──────────────────────────────
   'catalog.problem.subs-title': 'Lượt nộp của bạn',

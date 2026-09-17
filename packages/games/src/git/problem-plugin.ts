@@ -40,6 +40,7 @@ import { problemVerdictOf,
 import type { GitGameAction } from '../core/run-log.ts';
 import type { GitLevel, GitPredicateName, GitWorld, WorldSpec } from './contract.ts';
 import { createGitSession } from './engine.ts';
+import { PREDICATE_ARGS } from './predicate-args.ts';
 import { GIT_PREDICATE_NAMES, evaluatePredicate } from './predicates.ts';
 import { GIT_PROBLEM_TOPICS } from './problem-topics.ts';
 import { buildWorld } from './world-spec.ts';
@@ -396,6 +397,7 @@ export const GIT_PROBLEM_PLUGIN: GameProblemPlugin<WorldSpec, GitGameAction> = {
   codePrefix: GIT_PROBLEM_CODE_PREFIX,
   topics: GIT_PROBLEM_TOPICS,
   predicateNames: GIT_PREDICATE_NAMES,
+  predicateArgs: PREDICATE_ARGS,
   initialSpec: () => ({
     // Một commit gốc trên `main` — thế giới nhỏ nhất mà `buildWorld` dựng được
     // và người soạn nhìn vào là hiểu ngay phải thêm gì. Hàm chứ không phải hằng

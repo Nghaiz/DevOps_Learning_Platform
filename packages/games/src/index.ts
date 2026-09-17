@@ -518,6 +518,20 @@ export type { CdSimulatorKind } from './cicd/predicates.ts';
  */
 export type { ErasedProblemPlugin } from './core/problem-plugin.ts';
 
+/**
+ * Bảng tham số vị từ — P20. Trang soạn bài dựng ô nhập từ đây.
+ *
+ * `PREDICATE_ARGS` (game Git) giữ NGUYÊN tên cũ dù đã chuyển nhà từ
+ * `apps/web/src/components/games/git/builder/`: `git-builder.tsx` và ô gác
+ * `predicate-args.test.ts` đã gọi nó, và đổi tên ở barrel là một thay đổi phá vỡ
+ * không mua được gì.
+ */
+export type { ProblemArgKind, ProblemArgSpec, ProblemPredicateArgs } from './core/problem-plugin.ts';
+export { PREDICATE_ARGS, missingArgs } from './git/predicate-args.ts';
+export type { ArgKind, ArgSpec } from './git/predicate-args.ts';
+export { K8S_PREDICATE_ARGS } from './k8s/predicate-args.ts';
+export { CICD_PLUGIN_PREDICATE_ARGS } from './cicd/predicate-args-plugin.ts';
+
 /*
  * Mô hình hiển thị verdict. CHUYỂN NHÀ 2026-09-14 từ
  * `apps/web/src/server/problems/verdict-view.ts` xuống đây.

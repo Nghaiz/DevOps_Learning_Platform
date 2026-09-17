@@ -15,39 +15,34 @@
  * `requireRole` ở dòng đầu NÉM khi `E2E_REQUIRE_ROLES=1` — đó là cách biến lượt
  * skip đó thành đỏ ở lượt nghiệm thu thật.
  *
- * ## ⛔ ĐANG `fixme` — BỊ CHẶN BỞI MỘT LỖI NGOÀI 19.J, ĐÃ ĐO
+ * ## ✅ ĐÃ BỎ `fixme` 2026-09-18 — hai lỗi nó từng chặn, và cả hai đã đóng
  *
- * Lượt chạy thật 2026-09-17 (Postgres cục bộ + `next start`, tài khoản nâng vai
- * trò `author` thẳng trong DB) dừng ở bước LƯU với đúng một ô:
+ * Ô này `fixme` từ 2026-09-17 vì đường nó đi có hai chỗ hỏng. Ghi lại cả hai để
+ * lần sau ô đỏ thì người đọc biết nó ĐANG gác gì, chứ không đi tìm lại từ đầu.
  *
- *     Còn 1 ô chưa lưu được — "Chưa chọn vị từ kiểm tra."
+ * **(1) Ô chọn vị từ chỉ biết K8s.** Lượt chạy thật dừng ở bước LƯU với đúng một
+ * ô: *"Còn 1 ô chưa lưu được — Chưa chọn vị từ kiểm tra."* Không phải lỗi nhập
+ * JSON (`importProblemJson` trả `check: 'rollbackUnder'` nguyên vẹn) mà là ba
+ * chỗ của trang soạn bài khoá cứng vào bảng vị từ của riêng K8s. Nên giao diện
+ * **không soạn được testcase cho bất kỳ game nào khác K8s** — Git dính từ 18.D,
+ * CI/CD dính từ 19.J. Đóng bằng ô `predicateArgs` trong hợp đồng
+ * `GameProblemPlugin` (`core/problem-plugin.ts`) cộng bộ tra theo game
+ * `app/author/problems/predicate-catalog.ts`.
  *
- * Nguyên nhân KHÔNG nằm ở lượt nhập JSON. Đo riêng `importProblemJson` bằng một
- * ô vitest: nó trả về `check: 'rollbackUnder'` và `args: { seconds: '120' }`
- * nguyên vẹn. Thứ đánh rơi giá trị là **ô chọn vị từ của trang soạn bài**:
+ * **(2) Tác giả nộp bài của chính mình thì nhận `CE`.** Lộ ra ngay sau khi (1)
+ * được vá, ở đúng ô cuối: verdict về `CE — phát lại ra kết quả khác`, lệch đúng
+ * MỘT field (`score` 980 vs 1000). `toAuthorProblem` đặt cứng `revealed: true`
+ * cho mọi gợi ý, nên client trừ `penaltyPoints` còn máy chủ thì không. Đóng ở
+ * `server/problems/solver.ts`; hợp đồng hai nghĩa của cờ đó nay ghi ở
+ * `core/problem.ts` § `ProblemHintTeaser`.
  *
- *   - `app/author/problems/objective-fields.tsx:154` dựng danh sách chọn bằng
- *     `PREDICATE_NAMES` — bảng vị từ của **riêng K8s**;
- *   - `app/author/problems/predicate-spec.ts:37` khai `PREDICATE_SPECS` là
- *     `Record<PredicateName, …>`, cũng chỉ K8s, nên `isPredicateName('rollbackUnder')`
- *     trả `false` và không có ô tham số nào được dựng.
+ * ⚠ Hai lỗi trên đều **không** đỏ ở bất kỳ ô nào khác: (1) vì không ô nào soạn
+ * bài cho game khác K8s, (2) vì mọi fixture claim đều dùng bài KHÔNG gợi ý. Đó
+ * là lý do ô đầu-cuối này đáng giữ dù nó cần cụm và một tài khoản `author`.
  *
- * Nên giao diện soạn bài **không soạn được testcase cho BẤT KỲ game nào khác
- * K8s** — game Git cũng dính, và nó có từ 18.D chứ không phải từ 19.J: đợt đó mở
- * đa-game ở BIÊN GHI (`server/problems/validate.ts`), không mở ở ô chọn vị từ.
- *
- * Sửa cho tử tế đòi một bảng đặc tả tham số theo TỪNG game — tức một ô mới trong
- * hợp đồng `GameProblemPlugin` (hôm nay nó có `predicateNames` nhưng không có
- * đặc tả tham số). Đó là một việc riêng, không phải một dòng vá ở đây.
- *
- * `test.fixme` chứ không xoá, và cũng không `skip`: ô này mô tả đúng luồng cần
- * chạy được, và ngày ô chọn vị từ biết đa-game thì bỏ `fixme` là có ngay một
- * phép đo. Một ô bị xoá thì không ai nhớ để dựng lại.
- *
- * Phần ĐÃ đo được của cùng đường ghi nằm ở
+ * Phần đo được của riêng đường GHI vẫn ở
  * `src/server/problems/save-cicd-problem.integration.test.ts` (body → biên ghi
- * Zod → Postgres → đọc lại → chấm), chạy trong CI mỗi lượt. Nó chứng minh đường
- * GHI lành; thứ còn hỏng đúng là cái ô chọn trên màn hình.
+ * Zod → Postgres → đọc lại → chấm) và chạy trong CI mỗi lượt.
  *
  * ## Chạy
  *
@@ -77,7 +72,7 @@ const FLOW_TIMEOUT_MS = 4 * 60_000;
 const SEED = CICD_PROBLEMS_SEED.find((p) => p.code === 'CICD-0002');
 
 test.describe('luồng soạn bài CI/CD', { tag: '@flow' }, () => {
-  test.fixme('nhập JSON → lưu → xuất bản → làm bài → AC', async ({ page, account }) => {
+  test('nhập JSON → lưu → xuất bản → làm bài → AC', async ({ page, account }) => {
     requireRole(account, 'author');
     test.setTimeout(FLOW_TIMEOUT_MS);
 

@@ -154,8 +154,28 @@ export interface ProblemHint {
 export interface ProblemHintTeaser {
   readonly id: string;
   readonly penaltyPoints: number;
+  /**
+   * ĐÃ BỊ TRỪ ĐIỂM — không phải "đọc được". Hai câu hỏi khác nhau, và chúng tách
+   * đôi ở đúng một chỗ: TÁC GIẢ đọc được gợi ý của chính mình mà không trả gì.
+   *
+   * ⛔ Đây là trường mà phép tính điểm đọc (`revealedHintIds` của mọi `*OjClaim`),
+   * nên nó phải trả lời đúng câu hỏi *"máy chủ đã ghi một dòng
+   * `problem_hint_reveals` cho người này chưa"* và không câu nào khác. Bản đầu để
+   * `toAuthorProblem` đặt cứng `true` cho mọi gợi ý, và hệ quả đo được
+   * 2026-09-18: một tác giả nộp bài CỦA MÌNH trừ `penaltyPoints` khỏi điểm khai,
+   * máy chủ không trừ, `verifyRun` thấy lệch đúng MỘT field ⇒ `khong-khop` ⇒
+   * `CE` cho một lời giải đúng. Bài không có gợi ý tính điểm thì không chạm phải,
+   * nên nó sống im lặng qua cả ba game.
+   *
+   * Đọc được hay chưa thì hỏi `text !== null`.
+   */
   readonly revealed: boolean;
-  /** Chỉ khác `null` khi `revealed` là `true`. Máy chủ quyết, không phải client. */
+  /**
+   * `null` = chưa được phép đọc. Máy chủ quyết, không phải client.
+   *
+   * `revealed` ⇒ `text !== null`. KHÔNG có chiều ngược lại: tác giả (và người
+   * duyệt) nhận `text` kèm `revealed: false`.
+   */
   readonly text: string | null;
 }
 

@@ -4,7 +4,7 @@ import { clusterToSpec } from './cluster-to-spec';
 import type { ProblemFormState } from './problem-form';
 import { pluginViewFor } from './game-plugin-view';
 import { toProblemDraft } from './problem-draft';
-import { PREDICATE_SPECS, isPredicateName } from './predicate-spec';
+import { genericArgs, isPredicateOfGame, k8sSpec, missingGenericArgs } from './predicate-catalog';
 import { SLUG_PATTERN, STATEMENT_WORD_LIMIT, countWords, toSlug } from './text-tools';
 
 /**
@@ -172,10 +172,18 @@ function objectiveIssues(form: ProblemFormState): readonly FieldIssue[] {
       });
       return;
     }
-    if (!isPredicateName(objective.check)) {
-      // Chỉ tới được đây với bài NHẬP từ JSON hoặc bài cũ trong DB: ô chọn không
-      // cho gõ tay. Vẫn phải kiểm, vì một vị từ ngoài bảng làm bài KHÔNG BAO GIỜ
-      // qua được, và lỗi đó chỉ lộ ra khi đã có người ngồi làm.
+    /*
+     * ⛔ Hỏi theo GAME đang soạn — P20. Trước đợt này dòng dưới gọi
+     * `isPredicateName`, tức bảng của RIÊNG K8s, nên MỌI vị từ của Git và CI/CD
+     * rơi vào nhánh "không có trong bảng tra". Đo 2026-09-17: một bài CI/CD nhập
+     * từ JSON với `check: 'rollbackUnder'` không lưu được.
+     *
+     * Vẫn phải kiểm, và vì đúng lý do cũ: ô chọn không cho gõ tay, nên chỉ bài
+     * NHẬP từ JSON hoặc bài cũ trong DB mới tới được đây — mà một vị từ ngoài
+     * bảng của game làm bài KHÔNG BAO GIỜ qua được, và lỗi đó chỉ lộ ra khi đã
+     * có người ngồi làm.
+     */
+    if (!isPredicateOfGame(form.gameId, objective.check)) {
       issues.push({
         path: `${path}.check`,
         message: errText(
@@ -186,7 +194,21 @@ function objectiveIssues(form: ProblemFormState): readonly FieldIssue[] {
       return;
     }
 
-    const spec = PREDICATE_SPECS[objective.check];
+    const spec = k8sSpec(form.gameId, objective.check);
+    if (spec === null) {
+      /*
+       * Game khác K8s: bảng CHUNG của hợp đồng plugin. Nhãn lỗi hiện TÊN tham số
+       * trần vì đó là định danh của engine và nó không dịch.
+       */
+      for (const ten of missingGenericArgs(genericArgs(form.gameId, objective.check), objective.args)) {
+        issues.push({
+          path: `${path}.args.${ten}`,
+          message: errText('problem.problem-validate-thieu-tham-so-bat-buoc', { argspecLabel: ten }),
+        });
+      }
+      return;
+    }
+
     for (const argSpec of spec.args) {
       if (argSpec.required && (objective.args[argSpec.key] ?? '').trim() === '') {
         issues.push({

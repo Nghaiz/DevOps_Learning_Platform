@@ -175,6 +175,7 @@ export function ProblemEditor(props: {
               <ObjectiveFields
                 key={objective.key}
                 objective={objective}
+              gameId={props.form.gameId}
                 index={index}
                 issues={props.issues}
                 namespaces={namespaces}

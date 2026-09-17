@@ -34,6 +34,7 @@ import { problemVerdictOf,
 import type { K8sActionShape } from '../core/run-log.ts';
 import type { ClusterSpec, K8sGameAction, Level } from './contract.ts';
 import type { ClusterState } from './model.ts';
+import { K8S_PREDICATE_ARGS } from './predicate-args.ts';
 import { PREDICATE_NAMES } from './predicate-names.ts';
 import { PREDICATES } from './predicates.ts';
 import { PROBLEM_TOPICS, PROBLEM_TOPIC_LABELS } from './problem.ts';
@@ -425,6 +426,7 @@ export const K8S_PROBLEM_PLUGIN: GameProblemPlugin<ClusterSpec, K8sActionShape> 
   codePrefix: K8S_PROBLEM_CODE_PREFIX,
   topics: K8S_PROBLEM_TOPICS,
   predicateNames: PREDICATE_NAMES,
+  predicateArgs: K8S_PREDICATE_ARGS,
   initialSpec: () => ({
     // Một node, một namespace, không tài nguyên: đủ để engine chạy và đủ để
     // người soạn thấy ngay mình phải điền gì. Hàm chứ không phải hằng dùng chung

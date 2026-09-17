@@ -12,11 +12,16 @@ import {
   SelectValue,
   Switch,
 } from '@devops-platform/ui';
-import { PREDICATE_NAMES, type PredicateName } from '@devops-platform/games';
+import type { GameId, PredicateName } from '@devops-platform/games';
 import { TextField, issueFor } from '../../../components/author/field';
 import type { FieldIssue } from './cluster-form';
 import { ObjectiveArgField } from './objective-arg-field';
-import { PREDICATE_SPECS, isPredicateName } from './predicate-spec';
+import {
+  genericArgs,
+  k8sSpec,
+  predicateOptions,
+} from './predicate-catalog';
+import { ObjectiveArgGeneric } from './objective-arg-generic';
 import type { ObjectiveFormState } from './problem-form';
 
 /**
@@ -40,6 +45,13 @@ export function ObjectiveFields(props: {
   readonly issues: readonly FieldIssue[];
   readonly namespaces: readonly string[];
   readonly nodes: readonly string[];
+  /**
+   * Game của bài đang soạn — P20.
+   *
+   * ⛔ BẮT BUỘC. Trước nó component dựng ô chọn bằng `PREDICATE_NAMES` của riêng
+   * K8s, nên bài Git lẫn bài CI/CD không soạn được testcase nào (đo 2026-09-17).
+   */
+  readonly gameId: GameId;
   readonly onChange: (patch: Partial<ObjectiveFormState>) => void;
   readonly onRemove: () => void;
   readonly canRemove: boolean;
@@ -57,7 +69,14 @@ export function ObjectiveFields(props: {
 }): ReactElement {
   const base = `objectives.${String(props.index)}`;
   const check = props.objective.check;
-  const spec = check !== '' && isPredicateName(check) ? PREDICATE_SPECS[check] : null;
+  /*
+   * HAI nguồn đặc tả, chọn theo game — xem `predicate-catalog.ts`. K8s giữ bản
+   * giàu (bộ chọn namespace/node/kind/selector + `requireOneOf`); mọi game khác
+   * đi bảng chung của hợp đồng plugin.
+   */
+  const spec = k8sSpec(props.gameId, check);
+  const chung = spec === null ? genericArgs(props.gameId, check) : [];
+  const options = predicateOptions(props.gameId);
   const visibleId = `objective-visible-${props.objective.key}`;
 
   return (
@@ -148,12 +167,12 @@ export function ObjectiveFields(props: {
           }}
         >
           <SelectTrigger id={`objective-check-${props.objective.key}`}>
-            <SelectValue placeholder={t('problem.objective-fields-chon-mot-trong-32-vi-tu')} />
+            <SelectValue placeholder={t('problem.objective-fields-chon-mot-vi-tu', { n: options.length })} />
           </SelectTrigger>
           <SelectContent>
-            {PREDICATE_NAMES.map((predicate) => (
-              <SelectItem key={predicate} value={predicate}>
-                {t(PREDICATE_SPECS[predicate].label)}: {predicate}
+            {options.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
               </SelectItem>
             ))}
           </SelectContent>
@@ -177,6 +196,24 @@ export function ObjectiveFields(props: {
               nodes={props.nodes}
               onChange={(value) => {
                 props.onChange({ args: { ...props.objective.args, [argSpec.key]: value } });
+              }}
+            />
+          ))}
+        </div>
+      )}
+
+      {chung.length > 0 && (
+        <div className="grid gap-3 rounded-md bg-muted/40 p-3 sm:grid-cols-2">
+          {chung.map((argSpec) => (
+            <ObjectiveArgGeneric
+              key={argSpec.name}
+              spec={argSpec}
+              controlId={`arg-${props.objective.key}-${argSpec.name}`}
+              path={`${base}.args.${argSpec.name}`}
+              value={props.objective.args[argSpec.name] ?? ''}
+              issues={props.issues}
+              onChange={(value) => {
+                props.onChange({ args: { ...props.objective.args, [argSpec.name]: value } });
               }}
             />
           ))}

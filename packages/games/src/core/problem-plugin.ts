@@ -116,6 +116,39 @@ export type AuthorField =
       readonly required: boolean;
     };
 
+// ── Tham số của vị từ ───────────────────────────────────────────────────────
+
+/**
+ * Kiểu giá trị của một tham số, đặt theo ĐÚNG hàm mà engine dùng để đọc nó.
+ *
+ * `lines` là dạng `argLines` của game Git: nhận cả một chuỗi (tự cắt theo xuống
+ * dòng) lẫn một mảng chuỗi. Giao diện cho gõ nhiều dòng rồi gửi đi dạng mảng.
+ */
+export type ProblemArgKind = 'string' | 'number' | 'boolean' | 'lines';
+
+/**
+ * Một tham số mà vị từ chấm ĐỌC RA.
+ *
+ * ⛔ Đây là thứ giao diện soạn bài cần để dựng ô nhập, và nó tồn tại vì một lỗi
+ * đã đo: mọi engine đọc tham số qua `arg*(args, '<tên>')` và **im lặng** khi
+ * thiếu — vị từ trả `false`, người soạn thấy một mục tiêu không bao giờ đạt mà
+ * không có lấy một dòng nói vì sao.
+ */
+export interface ProblemArgSpec {
+  readonly name: string;
+  readonly kind: ProblemArgKind;
+  /**
+   * Engine có giá trị mặc định cho tham số này, nên bỏ trống vẫn chấm được.
+   * Thiếu một tham số BẮT BUỘC thì vị từ trả `false` vĩnh viễn.
+   */
+  readonly optional: boolean;
+  /** Tập giá trị hợp lệ, cho tham số là enum. Vắng ⇒ nhận mọi giá trị đúng kiểu. */
+  readonly oneOf?: readonly string[];
+}
+
+/** Bảng tham số của cả một game: tên vị từ → những tham số nó đọc. */
+export type ProblemPredicateArgs = Readonly<Record<string, readonly ProblemArgSpec[]>>;
+
 // ── Plugin ──────────────────────────────────────────────────────────────────
 
 /**
@@ -147,6 +180,27 @@ export interface GameProblemPlugin<Spec, A extends GameAction = GameAction> {
    * đúng bài học `k8s/predicate-names.ts` đã ghi lại và nó vẫn đúng ở tầng này.
    */
   readonly predicateNames: readonly string[];
+
+  /**
+   * Tham số mà TỪNG vị từ của game này đọc — §P20.
+   *
+   * ⛔ BẮT BUỘC, và nó tồn tại vì một lỗi đã đo (2026-09-17): trang soạn bài
+   * dựng ô chọn vị từ bằng `PREDICATE_NAMES` của RIÊNG K8s và đọc đặc tả tham số
+   * từ một bảng cũng chỉ-K8s, nên **không soạn được testcase cho bất kỳ game nào
+   * khác** — bài Git lẫn bài CI/CD đều dừng ở *"Chưa chọn vị từ kiểm tra"*. Đợt
+   * 18.D mở đa-game ở BIÊN GHI mà không mở ở ô chọn, và khoảng hở đó sống im
+   * lặng vì `predicateNames` một mình không đủ cho giao diện dựng ô nhập.
+   *
+   * Phủ ĐÚNG `predicateNames` — không thiếu, không thừa; `problem-plugins.test.ts`
+   * ghim hai chiều. Một tên có mặt ở đây mà vắng ở kia là một vị từ giao diện
+   * chào mời nhưng bộ chấm không biết.
+   *
+   * ⚠ Bảng này là bản sao của thứ engine THẬT SỰ đọc, và bản sao đó phải trả
+   * giá: mỗi game giữ một ô gác đọc thẳng mã engine rồi đối chiếu (game Git làm
+   * từ 18.E.2 — xem `git/predicate-args.ts`). Không có ô đó thì bảng trôi khỏi
+   * engine trong im lặng, và triệu chứng lại đúng là cái bẫy nó sinh ra để chặn.
+   */
+  readonly predicateArgs: ProblemPredicateArgs;
 
   /**
    * Trạng thái ban đầu cho một bài MỚI trong trang soạn bài.
@@ -240,6 +294,7 @@ export interface ErasedProblemPlugin {
   readonly codePrefix: string;
   readonly topics: readonly ProblemTopicOption[];
   readonly predicateNames: readonly string[];
+  readonly predicateArgs: ProblemPredicateArgs;
   readonly authorFields: readonly AuthorField[];
   initialSpec(): unknown;
   grade(input: {
@@ -274,5 +329,5 @@ export type ProblemPluginRegistry = Readonly<Partial<Record<GameId, ErasedProble
  */
 export type ProblemPluginMeta = Pick<
   GameProblemPlugin<never, GameAction>,
-  'gameId' | 'codePrefix' | 'topics' | 'predicateNames' | 'authorFields'
+  'gameId' | 'codePrefix' | 'topics' | 'predicateNames' | 'predicateArgs' | 'authorFields'
 >;
