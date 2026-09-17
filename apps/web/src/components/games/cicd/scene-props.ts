@@ -100,6 +100,28 @@ export const CICD_NODE_STATE_ATTR = 'data-cicd-state';
 export const CICD_EDGE_ATTR = 'data-cicd-edge';
 export const CICD_EDGE_CRITICAL_ATTR = 'data-cicd-critical';
 
+/**
+ * ⛔ **Bộ đếm trên GỐC cảnh — bắt buộc ở CẢ HAI renderer.**
+ *
+ * Đây không phải thứ thừa bên cạnh `[data-cicd-node]`, và lý do là một cái bẫy
+ * đã suýt lọt: **cảnh 3D vẽ trên canvas nên KHÔNG có phần tử DOM cho từng
+ * node.** Một ô e2e đếm `[data-cicd-node]` sẽ trả **0** ở chế độ 3D — và vì
+ * AC-D1 so "số node vẽ ra" với một con số kỳ vọng, ô đó **XANH khi cả hai vế
+ * cùng bằng 0** nếu cảnh không dựng được gì. Nó chỉ có thể báo động giả, không
+ * bao giờ báo đúng.
+ *
+ * Nên gốc cảnh của CẢ HAI renderer mang `data-cicd-node-count` và
+ * `data-cicd-edge-count`, lấy thẳng từ `cicdSceneNodes(props).length` /
+ * `cicdSceneEdges(props).length`. Ô e2e đọc bộ đếm này, rồi ở 2D đối chiếu thêm
+ * với số phần tử `[data-cicd-node]` thật — hai nguồn phải khớp.
+ *
+ * ⚠ Lấy từ đúng hai hàm đó, KHÔNG từ `view.nodes.length`: hai con số có thể
+ * khác nhau (xem `cicdSceneNodes` — nó là phép GIAO), và bộ đếm phải nói về thứ
+ * THẬT SỰ được vẽ, không phải thứ đáng lẽ được vẽ.
+ */
+export const CICD_NODE_COUNT_ATTR = 'data-cicd-node-count';
+export const CICD_EDGE_COUNT_ATTR = 'data-cicd-edge-count';
+
 /** Khoá một cạnh trong cảnh: `from->to`. */
 export type CicdSceneEdgeKey = string;
 
