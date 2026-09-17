@@ -119,6 +119,8 @@ export function CicdSandbox({ onExit }: CicdSandboxProps): ReactElement {
         yaml,
         // Không có bảng dữ liệu nào để khôi phục — xem khối chú thích đầu file.
         sourcesFor: (parsed) => ({ baseline: parsed, catalogue: parsed }),
+        // Bàn thử không có level: workflow vừa đọc là cấu hình duy nhất đã biết, nên luôn khớp.
+        knownFor: (parsed) => [parsed],
         // Bàn thử mở MỌI phần: không có bài nào đang khoá thứ gì lại.
         editable: MOI_PHAN_SUA_DUOC,
         overrides,

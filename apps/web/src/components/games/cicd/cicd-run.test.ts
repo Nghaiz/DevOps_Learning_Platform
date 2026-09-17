@@ -30,6 +30,11 @@ function nguonCua(level: CicdLevel) {
   return () => ({ baseline: level.initialWorkflow, catalogue });
 }
 
+/** Workflow level đã khai — khuôn job. */
+function daKhai(level: CicdLevel): readonly WorkflowSpec[] {
+  return [level.initialWorkflow, level.solutionWorkflow, level.altSolutionWorkflow];
+}
+
 /**
  * `retries`/`cache` người chơi đặt qua bảng núm — dựng bằng CHÍNH các núm bảng
  * đó hiện (`overridesToReach`), không chép `CacheSpec` của lời giải. Bản chép
@@ -46,6 +51,7 @@ function chay(level: CicdLevel, spec: WorkflowSpec): CicdRunOutcome {
   return runWorkflow({
     yaml: writeWorkflowYaml(spec).yaml,
     sourcesFor: nguonCua(level),
+    knownFor: () => daKhai(level),
     editable: level.editable,
     overrides: overridesCua(level, spec),
     workload: level.workload,
@@ -96,6 +102,7 @@ describe('runWorkflow — hai nhánh hỏng nói ra đúng loại hỏng', () =>
     const ket = runWorkflow({
       yaml: writeWorkflowYaml(level.initialWorkflow).yaml,
       sourcesFor: nguonCua(level),
+      knownFor: () => daKhai(level),
       editable: level.editable,
       overrides: {},
       workload: level.workload,
@@ -109,6 +116,7 @@ describe('runWorkflow — hai nhánh hỏng nói ra đúng loại hỏng', () =>
     const ket = runWorkflow({
       yaml: 'jobs:\n\tbuild:\n',
       sourcesFor: nguonCua(level),
+      knownFor: () => daKhai(level),
       editable: level.editable,
       overrides: {},
       workload: level.workload,
@@ -125,6 +133,7 @@ describe('runWorkflow — hai nhánh hỏng nói ra đúng loại hỏng', () =>
     const ket = runWorkflow({
       yaml: 'jobs:\n  a:\n    needs:\n      - b\n    steps: []\n  b:\n    needs:\n      - a\n    steps: []\n',
       sourcesFor: nguonCua(level),
+      knownFor: () => daKhai(level),
       editable: level.editable,
       overrides: {},
       workload: level.workload,
@@ -212,4 +221,59 @@ describe('insertSnippetAt — chèn dưới dòng con trỏ', () => {
     if (!ket.ok) throw new Error(ket.errors.map((e) => e.message).join(' | '));
     expect(ket.workflow.stages.map((s) => s.id)).toEqual(['build', 'clone']);
   });
+});
+
+describe('runWorkflow — ba đường lách của review PR #141 KHÔNG thắng được qua màn chơi', () => {
+  /*
+   * Đo trên đúng đường màn chơi đi (YAML ⇒ khuôn job ⇒ ghép ⇒ engine ⇒ mục tiêu).
+   * Trước bản vá: đổi tên bước thắng 9/13, xoá bước không tạo sản phẩm thắng 10/13,
+   * bỏ nguyên job kiểm thử thắng 7/9 level cho sửa `stages`.
+   */
+  function chayWf(level: CicdLevel, wf: WorkflowSpec): CicdRunOutcome {
+    return runWorkflow({
+      yaml: writeWorkflowYaml(wf).yaml,
+      sourcesFor: nguonCua(level),
+      knownFor: () => daKhai(level),
+      editable: level.editable,
+      overrides: {},
+      workload: level.workload,
+      evaluation: level.evaluation,
+      objectives: level.objectives,
+    });
+  }
+  const thang = (o: CicdRunOutcome) => o.kind === 'scored' && o.won;
+  const coKhoiDau = CI_LEVELS.filter((l) => l.initialWorkflow.stages.length > 0);
+
+  it.each(coKhoiDau.map((level) => ({ level })))('$level.id — đổi tên / xoá bước không thắng', ({ level }) => {
+    const doiTen: WorkflowSpec = {
+      ...level.initialWorkflow,
+      stages: level.initialWorkflow.stages.map((s) => ({ ...s, steps: s.steps.map((st) => ({ ...st, id: `z-${st.id}` })) })),
+    };
+    const xoa: WorkflowSpec = {
+      ...level.initialWorkflow,
+      stages: level.initialWorkflow.stages.map((s) => ({ ...s, steps: s.steps.filter((st) => (st.produces?.length ?? 0) > 0) })),
+    };
+    expect(thang(chayWf(level, doiTen))).toBe(false);
+    expect(thang(chayWf(level, xoa))).toBe(false);
+  });
+
+  it.each(CI_LEVELS.filter((l) => l.editable.includes('stages')).map((level) => ({ level })))(
+    '$level.id — bỏ nguyên một job không tạo sản phẩm không thắng',
+    ({ level }) => {
+      for (const base of daKhai(level)) {
+        for (const victim of base.stages) {
+          if (victim.steps.some((st) => (st.produces?.length ?? 0) > 0)) continue;
+          const bo: WorkflowSpec = {
+            ...base,
+            stages: base.stages.filter((s) => s.id !== victim.id).map((s) => ({ ...s, dependsOn: s.dependsOn.filter((d) => d !== victim.id) })),
+          };
+          const trung = daKhai(level).some(
+            (wf) => [...wf.stages.map((s) => s.id)].sort().join('|') === [...bo.stages.map((s) => s.id)].sort().join('|'),
+          );
+          if (trung) continue;
+          expect(thang(chayWf(level, bo)), `${base.name} bỏ ${victim.id}`).toBe(false);
+        }
+      }
+    },
+  );
 });

@@ -7,6 +7,7 @@ import type { AxisDistribution, CicdObjective, CicdThresholds } from '@devops-pl
 
 import {
   describeEngineError,
+  describeJobShapeProblem,
   formatNumber,
   formatPercent,
   formatSeconds,
@@ -106,6 +107,31 @@ export function CicdResultPanel({
           Đường ống chưa có job nào, nên chưa có gì để đo. Thêm một job vào mục{' '}
           <code className="font-mono">jobs</code> rồi chạy lại.
         </p>
+      </section>
+    );
+  }
+
+  if (outcome.kind === 'shape-error') {
+    return (
+      <section className="flex flex-col gap-3" aria-label="Kết quả lượt chạy">
+        <div className="flex items-center gap-3">
+          <Badge variant="status-todo" icon={null}>
+            <CircleX aria-hidden className="size-3" />
+            Job không khớp màn
+          </Badge>
+          <p className="text-sm text-muted-foreground">Workflow chưa được chấm.</p>
+        </div>
+        <ul role="alert" data-testid="cicd-shape-error" className="flex flex-col gap-2">
+          {outcome.problems.map((problem, index) => (
+            <li
+              key={index}
+              className="flex items-start gap-3 rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3"
+            >
+              <CircleX aria-hidden className="mt-0.5 size-4 shrink-0 text-destructive" />
+              <span className="text-sm text-foreground">{describeJobShapeProblem(problem)}</span>
+            </li>
+          ))}
+        </ul>
       </section>
     );
   }
