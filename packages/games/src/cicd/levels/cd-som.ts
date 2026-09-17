@@ -12,5 +12,8 @@ import { LEVEL_C17 } from './c17-cong-duyet-prod.ts';
 import { LEVEL_C18 } from './c18-rolling-tung-dot.ts';
 import { LEVEL_C19 } from './c19-blue-green-doi-bo-chon.ts';
 import { LEVEL_C20 } from './c20-canary-gioi-han-luu-luong.ts';
+import { LEVEL_C21 } from './c21-doc-tin-hieu-canary.ts';
 
-export const CD_LEVELS_SOM: readonly CicdLevel[] = [LEVEL_C15, LEVEL_C16, LEVEL_C17, LEVEL_C18, LEVEL_C19, LEVEL_C20];
+export const CD_LEVELS_SOM: readonly CicdLevel[] = [
+  LEVEL_C15, LEVEL_C16, LEVEL_C17, LEVEL_C18, LEVEL_C19, LEVEL_C20, LEVEL_C21,
+];
