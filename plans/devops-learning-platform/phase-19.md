@@ -34,7 +34,7 @@
 | 19.C.1/C.2/C.3 cầu nối YAML | **XONG** | PR #139 (`0c41efd`, `f457fe8`) |
 | 19.C.5/C.6 khoá tên stage + cổng lõi-trung-lập | **XONG** | PR #139 (`cbc7bac`), `scripts/check-cicd-vendor-neutral.mjs` |
 | 19.C.4 lỗi ngữ nghĩa | **XONG** | đợt 2 — xem hộp cảnh báo ở §19.C |
-| 19.D tầng 3D | chưa bắt đầu | — |
+| 19.D tầng 3D | chưa bắt đầu | Plan exec: [`phase-19-d-exec.md`](phase-19-d-exec.md) (2026-09-17) — gồm CẢ cảnh 2D, vì hôm nay game CI/CD chưa vẽ đồ thị ở chế độ nào |
 | 19.E giao diện soạn YAML | **XONG (E.1–E.5)** | đợt 2 — kèm tầng ghép `cicd/hydrate.ts`, thứ plan không dự liệu |
 | 19.F chương CI, 14 level | **XONG** | PR #139 (`e0f4ed9`, `824ee8b`, `2d8fce5`) |
 | 19.G chương CD | **XONG, đã nghiệm thu AC-G** | 14 level C15–C28 (2 lane) + lượt nghiệm thu `eeda563`, nối web `c2c3043`; xem [báo cáo nghiệm thu](reports/2026-09-17-p19-g-i-acceptance.md) |
@@ -125,9 +125,9 @@ chia job khác được chấm thì phải KHAI nó thành một workflow của 
 
 | # | Việc | Vì sao chưa làm |
 |---|---|---|
-| 1 | `CicdGameAction.evaluate` chỉ chở YAML ⇒ retries/cache không tới được bộ chấm OJ | Câu hỏi thiết kế, phải quyết TRƯỚC ngày mở chế độ làm bài CI/CD (`cicd-game.tsx` vẫn hiện "chưa mở") |
-| 2 | Bài OJ không chở kịch bản phát hành/GitOps/log | Tám vị từ CD bị trừ khỏi tập khai; mở lại khi `CicdProblemSpec` chở kịch bản |
-| 3 | `CicdLevel` chưa có trường nào cho kịch bản CD | Việc của 19.G — thêm khi viết level đầu tiên dùng tới, không thêm trước |
+| 1 | `CicdGameAction.evaluate` chỉ chở YAML ⇒ retries/cache không tới được bộ chấm OJ | **Đã quyết 2026-09-17** — đổi hẳn hình dạng action; plan exec [`phase-19-j-exec.md`](phase-19-j-exec.md) |
+| 2 | Bài OJ không chở kịch bản phát hành/GitOps/log | **Đã quyết 2026-09-17** — mở, `CicdProblemSpec` chở khối `cd`; xem [`phase-19-j-exec.md`](phase-19-j-exec.md) §2.2 |
+| ~~3~~ | ~~`CicdLevel` chưa có trường nào cho kịch bản CD~~ | **XONG** — `CicdLevel.cd` đã có từ 19.G (`cd-contract.ts` §5) |
 
 ### Cách chạy lượt e2e của màn này
 
