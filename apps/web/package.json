@@ -58,7 +58,7 @@
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "three": "0.186.0",
-    "zod": "^4.5.4"
+    "zod": "^4.6.5"
   },
   "//typescript": "Alias TS6/TS7 song song — xem giải thích ở package.json gốc: `tsc` = TS7 native, `typescript` = shim TS6 cho typescript-eslint/Next API.",
   "devDependencies": {
