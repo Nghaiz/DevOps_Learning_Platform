@@ -156,8 +156,8 @@ export function AuthorNewClient(): ReactElement {
               <p className="text-muted-foreground">{t('author.studio.rail.issues-clean')}</p>
             )}
           </RailSection>
-          <RailSection title={t('author.new.after.title')}>
-            <p className="text-muted-foreground">{t('author.new.after.body')}</p>
+          <RailSection title={t('author.new.after-title')}>
+            <p className="text-muted-foreground">{t('author.new.after-body')}</p>
           </RailSection>
         </>
       }
