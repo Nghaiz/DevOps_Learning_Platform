@@ -24,7 +24,7 @@ export function CursorPager(props: CursorPagerProps): ReactElement {
       <Button variant="outline" size="sm" onClick={onReset} disabled={loading || page <= 1}>
         Về đầu
       </Button>
-      <span className="text-sm text-muted-foreground" aria-live="polite">
+      <span className="font-mono text-xs tabular-nums text-muted-foreground uppercase" aria-live="polite">
         Trang {page}
       </span>
       <Button variant="outline" size="sm" onClick={onNext} disabled={!hasNext} loading={loading}>

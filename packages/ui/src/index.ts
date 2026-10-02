@@ -15,6 +15,27 @@ export { Label } from './label.tsx';
 export type { LabelProps } from './label.tsx';
 export { Badge } from './badge.tsx';
 export type { BadgeProps, BadgeVariant } from './badge.tsx';
+export { Chip } from './chip.tsx';
+export type { ChipProps, ChipSize } from './chip.tsx';
+
+// ── Tuyến chủ đề + glyph bảng tuyến (bản dựng lại PTIT, design-brief §2.3) ──
+// `LINE_CLASSES` là bảng class LITERAL theo tuyến: Tailwind chỉ sinh luật cho
+// class đọc thấy nguyên văn, nên mọi nơi cần màu tuyến đọc từ đây thay vì ghép
+// chuỗi `'bg-line-' + id`.
+export { LINE_IDS, LINE_CODE, LINE_CLASSES } from './lines.ts';
+export type { LineId, LineClassSet } from './lines.ts';
+export { TopicBadge } from './topic-badge.tsx';
+export type { TopicBadgeProps, TopicBadgeSize } from './topic-badge.tsx';
+export { LineMarker } from './line-marker.tsx';
+export type { LineMarkerProps, LineMarkerState } from './line-marker.tsx';
+export { Difficulty } from './difficulty.tsx';
+export type { DifficultyProps, DifficultyLevel } from './difficulty.tsx';
+export { StatusDot } from './status-dot.tsx';
+export type { StatusDotProps, StatusDotTone } from './status-dot.tsx';
+export { Meter } from './meter.tsx';
+export type { MeterProps, MeterTone } from './meter.tsx';
+export { Num } from './num.tsx';
+export type { NumProps, NumTone } from './num.tsx';
 
 // ── Card ─────────────────────────────────────────────────────────────────────
 export { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from './card.tsx';
@@ -41,6 +62,16 @@ export {
   DropdownMenuLabel,
 } from './dropdown-menu.tsx';
 export { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './tooltip.tsx';
+export { Popover, PopoverTrigger, PopoverContent } from './popover.tsx';
+export {
+  Sheet,
+  SheetTrigger,
+  SheetClose,
+  SheetContent,
+  SheetTitle,
+  SheetDescription,
+} from './sheet.tsx';
+export type { SheetProps, SheetSide, SheetContentProps } from './sheet.tsx';
 
 // ── Form controls (Radix) ────────────────────────────────────────────────────
 export { Switch } from './switch.tsx';

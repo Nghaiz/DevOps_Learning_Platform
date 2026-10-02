@@ -14,9 +14,10 @@ export function SelectTrigger({ className, children, ...props }: ComponentProps<
     <RadixSelect.Trigger
       data-slot="select-trigger"
       className={cn(
-        'flex h-10 w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 text-sm',
+        'flex h-10 w-full items-center justify-between gap-2 rounded-control border border-input bg-card px-3 text-sm',
         'text-foreground outline-none transition-colors duration-[var(--motion-fast)] ease-out',
-        'focus-visible:ring-2 focus-visible:ring-ring',
+        'hover:border-ink data-[state=open]:border-ink',
+        'focus-visible:border-ink focus-visible:ring-2 focus-visible:ring-ring',
         'disabled:cursor-not-allowed disabled:opacity-50',
         'data-[placeholder]:text-muted-foreground',
         className,
@@ -25,7 +26,7 @@ export function SelectTrigger({ className, children, ...props }: ComponentProps<
     >
       {children}
       <RadixSelect.Icon asChild>
-        <ChevronDown className="size-4 shrink-0 opacity-50" />
+        <ChevronDown aria-hidden="true" className="size-4 shrink-0 opacity-60" />
       </RadixSelect.Icon>
     </RadixSelect.Trigger>
   );
@@ -39,9 +40,9 @@ export function SelectContent({ className, children, ...props }: ComponentProps<
         position="popper"
         sideOffset={4}
         className={cn(
-          'z-50 max-h-96 min-w-[8rem] overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground',
-          // §5: popover = bậc `lg`. §6: popover = bậc nâng nền 3.
-          'shadow-elevation-3',
+          // Lớp nổi: vuông, viền mực, bóng cứng `shadow-float` (design-brief §5).
+          'z-50 max-h-96 min-w-[var(--radix-select-trigger-width)] overflow-hidden rounded-surface border border-ink',
+          'bg-popover text-popover-foreground shadow-float animate-rise [animation-duration:var(--motion-fast)]',
           className,
         )}
         {...props}
@@ -57,8 +58,8 @@ export function SelectItem({ className, children, ...props }: ComponentProps<typ
     <RadixSelect.Item
       data-slot="select-item"
       className={cn(
-        'relative flex w-full cursor-default items-center rounded-sm py-1.5 pr-8 pl-2 text-sm outline-none select-none',
-        'focus:bg-accent focus:text-accent-foreground',
+        'relative flex w-full cursor-default items-center rounded-control py-2 pr-8 pl-2 text-sm outline-none select-none',
+        'focus:bg-muted focus:text-foreground data-[state=checked]:font-semibold',
         'data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
         className,
       )}
@@ -66,7 +67,7 @@ export function SelectItem({ className, children, ...props }: ComponentProps<typ
     >
       <RadixSelect.ItemText>{children}</RadixSelect.ItemText>
       <RadixSelect.ItemIndicator className="absolute right-2 flex items-center">
-        <Check className="size-4" />
+        <Check aria-hidden="true" className="size-4" />
       </RadixSelect.ItemIndicator>
     </RadixSelect.Item>
   );

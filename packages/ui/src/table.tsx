@@ -34,13 +34,25 @@ import { cn } from './cn.ts';
 export function Table({ className, ...props }: ComponentProps<'table'>) {
   return (
     <div data-slot="table-container" className="relative w-full overflow-x-auto">
-      <table data-slot="table" className={cn('w-full caption-bottom text-sm', className)} {...props} />
+      {/* Sổ cái (design-brief §4.4): chữ số cùng bề rộng cho cả bảng để cột số
+          thẳng hàng; không viền bao ngoài, không sọc ngựa vằn. */}
+      <table
+        data-slot="table"
+        className={cn('w-full caption-bottom border-collapse text-sm tabular-nums', className)}
+        {...props}
+      />
     </div>
   );
 }
 
 export function TableHeader({ className, ...props }: ComponentProps<'thead'>) {
-  return <thead data-slot="table-header" className={cn('[&_tr]:border-b [&_tr]:border-border', className)} {...props} />;
+  return (
+    <thead
+      data-slot="table-header"
+      className={cn('[&_tr]:border-b [&_tr]:border-ink [&_tr]:hover:bg-transparent', className)}
+      {...props}
+    />
+  );
 }
 
 export function TableBody({ className, ...props }: ComponentProps<'tbody'>) {
@@ -57,7 +69,10 @@ export function TableRow({ className, ...props }: ComponentProps<'tr'>) {
   return (
     <tr
       data-slot="table-row"
-      className={cn('border-b border-border transition-colors duration-[var(--motion-fast)] ease-out hover:bg-muted/50', className)}
+      className={cn(
+        'border-b border-border transition-colors duration-[var(--motion-fast)] ease-out hover:bg-muted/60',
+        className,
+      )}
       {...props}
     />
   );
@@ -68,7 +83,14 @@ export function TableHead({ className, ...props }: ComponentProps<'th'>) {
     <th
       data-slot="table-head"
       className={cn(
-        'h-10 px-3 text-left align-middle text-xs font-medium text-muted-foreground whitespace-nowrap',
+        /*
+         * Ô tiêu đề dính đầu khi KHỐI CUỘN cuộn dọc (nơi gọi đặt `max-h-*` lên
+         * bảng qua vùng chứa). `overflow-x-auto` của vùng chứa biến nó thành
+         * khung cuộn của `sticky`, nên ô không dính theo cuộn TRANG — đó là
+         * giới hạn của CSS, không phải của component.
+         */
+        'sticky top-0 z-10 h-10 bg-muted px-3 text-left align-middle whitespace-nowrap',
+        'type-label text-muted-foreground',
         className,
       )}
       {...props}

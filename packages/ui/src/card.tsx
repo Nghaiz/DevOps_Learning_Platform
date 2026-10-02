@@ -37,7 +37,7 @@ const ACCENT_CLASS: Record<CardAccent, string> = {
  *   tới ~23px, tức vừa đủ nằm trong lề `p-5`/`p-6` của thẻ và KHÔNG cắt ngang
  *   chữ. Nới hộp to hơn là đẩy cung vào dưới tiêu đề.
  * - **`overflow-hidden` ở lớp bọc, KHÔNG ở `Card`** — cung phải bị cắt theo
- *   góc bo `rounded-lg`, nhưng `Card` mà `overflow-hidden` thì mọi vòng focus
+ *   mép thẻ, nhưng `Card` mà `overflow-hidden` thì mọi vòng focus
  *   và popover bên trong nó cũng bị cắt theo. Lớp bọc tuyệt đối gánh việc cắt;
  *   `Card` giữ nguyên `overflow` mặc định.
  *
@@ -50,7 +50,7 @@ function CardAccentArc({ accent }: { readonly accent: CardAccent }): ReactElemen
     <span
       data-slot="card-accent"
       aria-hidden="true"
-      className="pointer-events-none absolute inset-0 overflow-hidden rounded-lg"
+      className="pointer-events-none absolute inset-0 overflow-hidden"
     >
       <svg
         viewBox={ARC_VIEWBOX}
@@ -72,10 +72,10 @@ function CardAccentArc({ accent }: { readonly accent: CardAccent }): ReactElemen
 
 export interface CardProps extends ComponentProps<'div'> {
   /**
-   * `true` ⇒ nhấc nhẹ + đổi sang `--elevation-2` khi rê chuột.
+   * `true` ⇒ viền chuyển sang mực + nền ngả muted khi rê chuột, lún 1px khi nhấn.
    *
-   * ⚠ MẶC ĐỊNH `false`, và đó là một quyết định chứ không phải sự dè dặt: hiệu
-   * ứng nhấc là tín hiệu “bấm được”. Đặt nó lên một tấm bảng tĩnh (thẻ “Sức
+   * ⚠ MẶC ĐỊNH `false`, và đó là một quyết định chứ không phải sự dè dặt: phản
+   * hồi hover là tín hiệu “bấm được”. Đặt nó lên một tấm bảng tĩnh (thẻ “Sức
    * chứa” ở `admin/overview-client.tsx`, khung đăng nhập ở `login/login-form.tsx`)
    * là hứa một hành động không tồn tại — người dùng bấm và không có gì xảy ra.
    *
@@ -91,39 +91,17 @@ export interface CardProps extends ComponentProps<'div'> {
 }
 
 /**
- * Bóng dùng `shadow-elevation-1|2` — tiện ích do namespace `--shadow-*` trong
- * `@theme inline` của `globals.css` sinh ra. Lane nền quy định thẳng ở đó:
- * KHÔNG viết `shadow-[var(--elevation-1)]`, vì dạng arbitrary bỏ qua bảng
- * theme nên mỗi chỗ gọi lại tự chọn bậc — đúng thứ mà ba bậc ngữ nghĩa sinh ra
- * để chặn. `shadow-sm` cũ bị GỠ chứ không để chồng lên (xem cảnh báo dưới).
+ * Tấm phẳng (design-brief §0.1, hợp đồng ui-kit §B): vuông, KHÔNG bóng, viền
+ * hairline, nền `bg-card`. "Thẻ" kiểu hộp trắng nổi trên nền xám là thứ bản
+ * dựng lại cấm; `Card` còn được export để nơi gọi cũ không vỡ, nhưng trang mới
+ * nên dùng page pattern (Board, Split, Section) thay vì xếp thẻ.
  *
- * ⚠ `tailwind-merge` KHÔNG khử được trùng cho họ class này — đã đo:
- *
- *     twMerge('shadow-sm shadow-elevation-1')      → cả hai cùng sống
- *     twMerge('shadow-elevation-1 shadow-none')    → cả hai cùng sống
- *
- * Lý do: cấu hình mặc định của `tailwind-merge` chỉ biết thang bóng dựng sẵn
- * (`sm`/`md`/`lg`/…); `elevation-1` không phải cỡ áo phông nên nó rơi xuống
- * nhóm *shadow-COLOR*, và một "màu" thì không xung đột với một "bóng". Hệ quả:
- * nơi gọi truyền `className="shadow-none"` sẽ TƯỞNG đã tắt bóng mà thực ra
- * không — thứ tự nguồn CSS quyết định, không phải ý định. Vì vậy ở đây phát ra
- * ĐÚNG MỘT class bóng cho mỗi trạng thái (nghỉ / hover là hai modifier khác
- * nhau nên không đụng nhau). Sửa tận gốc là dạy `cn.ts` biết nhóm này qua
- * `extendTailwindMerge({ extend: { classGroups: { shadow: [{ shadow: ['elevation-1','elevation-2','elevation-3'] }] } } })`
- * — `cn.ts` không thuộc lane này nên chỉ ghi lại, không tự sửa.
- *
- * Chuyển động dùng `motion-safe:` chứ không phải `motion-reduce:…-0` để đè
- * lại: hai luật cùng độ đặc hiệu thì THỨ TỰ NGUỒN quyết định, mà thứ tự đó do
- * bộ sắp biến thể của Tailwind định — đè có điều kiện vào thứ mình không kiểm
- * soát. Với `motion-safe` thì dưới `prefers-reduced-motion: reduce` luật đơn
- * giản không tồn tại, không có gì phải thắng.
- *
- * Và nó CẦN nằm ở đây, không thừa so với khối `@media (prefers-reduced-motion)`
- * toàn cục ở cuối `globals.css`: khối đó hạ `transition-duration`/
- * `animation-duration` xuống 0.01ms, tức nó làm chuyển động TỨC THÌ chứ không
- * gỡ `translate` đi. Không có `motion-safe`, thẻ vẫn GIẬT nảy lên khi rê chuột,
- * chỉ là nảy ngay lập tức. `duration-[var(--motion-base)]` thì ngược lại —
- * dạng arbitrary vì `--motion-*` cố ý KHÔNG có ánh xạ `@theme inline` nào.
+ * `interactive` không nhấc thẻ lên nữa — nhấc + bóng là ngôn ngữ của thẻ nổi.
+ * Phản hồi bấm được nay là viền chuyển sang MỰC và nền ngả muted, cộng một cú
+ * lún 1px khi nhấn. Lún nằm sau `motion-safe:`: khối
+ * `@media (prefers-reduced-motion)` toàn cục chỉ hạ `transition-duration`, nó
+ * không gỡ `translate`, nên thiếu `motion-safe` thì thẻ vẫn giật, chỉ là giật
+ * ngay lập tức.
  */
 export function Card({ interactive = false, accent, className, children, ...props }: CardProps) {
   return (
@@ -135,13 +113,9 @@ export function Card({ interactive = false, accent, className, children, ...prop
         // `relative` là điều kiện sống của cung góc: `CardAccentArc` định vị
         // tuyệt đối theo thẻ. Không có nó, cung neo vào tổ tiên định vị gần
         // nhất — một thứ KHÁC NHAU ở mỗi nơi gọi, và hỏng im lặng.
-        'relative rounded-lg border border-border bg-card p-6 text-card-foreground',
-        'shadow-elevation-1',
-        'transition-[box-shadow,transform,border-color] duration-[var(--motion-base)] ease-out',
-        interactive && [
-          'hover:border-input hover:shadow-elevation-2',
-          'motion-safe:hover:-translate-y-0.5',
-        ],
+        'relative border border-border bg-card p-6 text-card-foreground',
+        'transition-[background-color,transform,border-color] duration-[var(--motion-base)] ease-out',
+        interactive && ['hover:border-ink hover:bg-muted/40', 'motion-safe:active:translate-y-px'],
         className,
       )}
       {...props}
@@ -172,7 +146,7 @@ export function CardTitle({
   return (
     <Heading
       data-slot="card-title"
-      className={cn('text-lg font-semibold text-foreground', className)}
+      className={cn('type-title text-foreground', className)}
       {...props}
     />
   );

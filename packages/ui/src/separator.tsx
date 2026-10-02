@@ -46,7 +46,8 @@ export function Kbd({ className, ...props }: HTMLAttributes<HTMLElement>) {
          * thang mới. Hợp đồng §5 xếp chip/phím vào bậc `sm`
          * (`calc(var(--radius) - 6px)` = 6px).
          */
-        'inline-flex h-5 min-w-5 items-center justify-center rounded-sm border border-border bg-muted px-1',
+        // Phím vuông, đáy dày 2px để đọc ra một phím bấm chứ không phải một ô chữ.
+        'inline-flex h-5 min-w-5 items-center justify-center rounded-control border border-b-2 border-border bg-card px-1',
         'font-mono text-xs text-muted-foreground',
         className,
       )}

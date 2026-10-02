@@ -15,17 +15,19 @@ export function RadioGroupItem({ className, ...props }: ComponentProps<typeof Ra
     <RadixRadioGroup.Item
       data-slot="radio-group-item"
       className={cn(
-        'flex size-4 shrink-0 items-center justify-center rounded-full border border-input bg-background',
+        // Nút radio GIỮ hình tròn: đó là một quy ước chuẩn để phân biệt "chọn
+        // một" với "chọn nhiều" (ô vuông của Checkbox). Nét mực 1.5px.
+        'flex size-4 shrink-0 items-center justify-center rounded-full border-[1.5px] border-ink bg-card',
         'transition-colors duration-[var(--motion-fast)] ease-out outline-none',
-        'focus-visible:ring-2 focus-visible:ring-ring',
+        'focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
         'disabled:cursor-not-allowed disabled:opacity-50',
-        'data-[state=checked]:border-primary',
+
         className,
       )}
       {...props}
     >
       <RadixRadioGroup.Indicator className="flex items-center justify-center">
-        <span className="size-2 rounded-full bg-primary" />
+        <span className="size-2 rounded-full bg-ink" />
       </RadixRadioGroup.Indicator>
     </RadixRadioGroup.Item>
   );

@@ -7,8 +7,12 @@ export interface EmptyStateProps {
    * Hình lớn ở giữa. Bỏ trống ⇒ dùng **vòng ellipse hở của motif, ruột rỗng**
    * (design §3: "trạng thái rỗng — vòng ellipse hở, bên trong không có gì").
    * `null` ⇒ không vẽ hình nào.
+   *
+   * Tên cũ của `glyph`; giữ để nơi gọi hiện có không vỡ. Có cả hai ⇒ `glyph` thắng.
    */
   readonly icon?: ReactNode;
+  /** Hình lớn (hợp đồng ui-kit §B). Cùng ngữ nghĩa ba trạng thái với `icon`. */
+  readonly glyph?: ReactNode;
   /** Chuyện gì đã xảy ra — một câu ngắn, KHÔNG phải nhãn cụt kiểu “Trống”. */
   readonly title: string;
   /** Làm gì tiếp. Không có câu này thì `action` mất ngữ cảnh — xem chú thích dưới. */
@@ -74,27 +78,30 @@ function EmptyArc(): ReactElement {
  * nhiễu. Vì lớp bọc đã `aria-hidden`, node của nơi gọi KHÔNG cần tự khai.
  */
 export function EmptyState(props: EmptyStateProps): ReactElement {
-  const { icon, title, description, action, className } = props;
-  const glyph = icon === undefined ? <EmptyArc /> : icon;
+  const { icon, glyph: glyphProp, title, description, action, className } = props;
+  const chosen = glyphProp === undefined ? icon : glyphProp;
+  const glyph = chosen === undefined ? <EmptyArc /> : chosen;
 
   return (
     <div
       data-slot="empty-state"
       className={cn(
-        'flex flex-col items-center gap-4 rounded-lg border border-dashed border-border px-6 py-12 text-center',
+        // Khung nét đứt vuông: đánh dấu một CHỖ TRỐNG trong bố cục, không phải
+        // một thẻ nổi (design-brief §4.9: hình lớn + một câu + một hành động).
+        'flex flex-col items-center gap-5 border border-dashed border-border px-6 py-14 text-center',
         className,
       )}
     >
       {glyph !== null && (
         <div
           aria-hidden="true"
-          className="flex size-16 items-center justify-center text-muted-foreground"
+          className="flex size-20 items-center justify-center text-muted-foreground"
         >
           {glyph}
         </div>
       )}
       <div className="flex max-w-prose flex-col gap-1">
-        <p className="text-base font-semibold text-foreground">{title}</p>
+        <p className="type-title text-balance text-foreground">{title}</p>
         {description !== undefined && <p className="text-sm text-muted-foreground">{description}</p>}
       </div>
       {action !== undefined && <div className="mt-1">{action}</div>}

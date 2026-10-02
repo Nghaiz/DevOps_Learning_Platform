@@ -12,7 +12,7 @@ export function Label({ className, ...props }: LabelProps) {
     <RadixLabel.Root
       data-slot="label"
       className={cn(
-        'text-sm leading-none font-medium text-foreground',
+        'text-sm leading-none font-semibold text-foreground',
         'peer-disabled:cursor-not-allowed peer-disabled:opacity-50',
         className,
       )}

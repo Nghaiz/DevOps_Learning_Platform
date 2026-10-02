@@ -9,7 +9,9 @@ export function Switch({ className, ...props }: ComponentProps<typeof RadixSwitc
     <RadixSwitch.Root
       data-slot="switch"
       className={cn(
-        'peer inline-flex h-5 w-9 shrink-0 items-center rounded-full border border-transparent',
+        // Rãnh vuông, núm vuông (design-brief §0.1). Kích thước giữ nguyên như
+        // bản bo tròn để game K8s không xô bố cục.
+        'peer inline-flex h-5 w-9 shrink-0 items-center rounded-control border border-transparent',
         'bg-input transition-colors duration-[var(--motion-fast)] ease-out outline-none',
         /*
          * Lúc BẬT rãnh là `bg-primary`, mà `--ring` = `--primary`, nên vòng
@@ -25,7 +27,7 @@ export function Switch({ className, ...props }: ComponentProps<typeof RadixSwitc
     >
       <RadixSwitch.Thumb
         className={cn(
-          'pointer-events-none block size-4 translate-x-0.5 rounded-full bg-background shadow-elevation-1',
+          'pointer-events-none block size-4 translate-x-0.5 rounded-control bg-background',
           'transition-transform duration-[var(--motion-fast)] ease-out',
           'data-[state=checked]:translate-x-[18px]',
         )}

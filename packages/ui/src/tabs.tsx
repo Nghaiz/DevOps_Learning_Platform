@@ -11,7 +11,15 @@ export function TabsList({ className, ...props }: ComponentProps<typeof RadixTab
   return (
     <RadixTabs.List
       data-slot="tabs-list"
-      className={cn('inline-flex h-10 items-center gap-1 rounded-md bg-muted p-1', className)}
+      /*
+       * Điều khiển phân đoạn (design-brief §5): khung hairline, các ô nằm sát
+       * nhau, ô đang chọn là khối mực đảo màu. Cao `h-10` + ô `h-8` như trước —
+       * game K8s đặt `TabsList` trong khung đo sẵn, đổi chiều cao là xô bố cục.
+       */
+      className={cn(
+        'inline-flex h-10 items-center gap-0.5 rounded-control border border-border bg-card p-1',
+        className,
+      )}
       {...props}
     />
   );
@@ -22,13 +30,17 @@ export function TabsTrigger({ className, ...props }: ComponentProps<typeof Radix
     <RadixTabs.Trigger
       data-slot="tabs-trigger"
       className={cn(
-        'inline-flex h-8 items-center justify-center rounded-sm px-3 text-sm font-medium whitespace-nowrap',
-        'text-muted-foreground transition-colors duration-[var(--motion-fast)] ease-out outline-none',
+        'inline-flex h-8 items-center justify-center rounded-control px-3 text-sm font-medium whitespace-nowrap',
+        'text-muted-foreground transition-[color,background-color,transform] duration-[var(--motion-fast)] ease-out outline-none',
+        // Hover chỉ ở ô CHƯA chọn: `hover:bg-muted` trần sẽ tranh với nền mực
+        // của ô đang chọn, và bên nào thắng do thứ tự biến thể của Tailwind định.
+        'data-[state=inactive]:hover:bg-muted data-[state=inactive]:hover:text-foreground',
+        'motion-safe:active:translate-y-px',
         'focus-visible:ring-2 focus-visible:ring-ring',
         'disabled:pointer-events-none disabled:opacity-50',
-        // Tab đang chọn nổi lên khỏi rãnh `bg-muted` — đúng nghĩa "thẻ lúc nghỉ"
-        // của bậc 1 (§6). `shadow-sm` cũ là một bậc ngoài hệ ba bậc ngữ nghĩa.
-        'data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-elevation-1',
+        // Ô đang chọn = khối mực đảo màu (design-brief §0.3: không dùng vạch viền
+        // làm dấu "đang ở đây").
+        'data-[state=active]:bg-ink data-[state=active]:text-ink-foreground',
         className,
       )}
       {...props}
