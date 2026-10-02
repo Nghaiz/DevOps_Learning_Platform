@@ -1,38 +1,27 @@
 'use client';
 
 import { useId, useState, type FormEvent, type ReactElement } from 'react';
-import {
-  Alert,
-  AlertDescription,
-  AlertTitle,
-  Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  Input,
-  Label,
-} from '@devops-platform/ui';
+import { AlertTriangle } from 'lucide-react';
+import { Button, Input, Label } from '@devops-platform/ui';
 import { t } from '@devops-platform/copy';
 import { authClient } from '../../lib/auth-client';
+import { Split } from '../kit';
 import {
   MIN_PASSWORD_LENGTH,
   describePasswordChangeError,
   describePasswordSection,
+  saveStateOf,
   validatePasswordChange,
 } from './account-sections';
+import { SaveStatus } from './save-status';
 
 /**
- * Đổi mật khẩu — đi qua Better Auth, KHÔNG qua tRPC.
+ * Khối "Mật khẩu": đổi qua Better Auth (`/api/auth/change-password`), KHÔNG qua
+ * tRPC. Bọc lại bằng một procedure riêng nghĩa là tự cầm mật khẩu thô đi qua một
+ * tầng nữa.
  *
- * `/api/auth/change-password` là route của Better Auth (catch-all
- * `app/api/auth/[...all]`), không phải một procedure trong `routers/me.ts`. Bọc
- * lại nó bằng một procedure của mình sẽ phải tự cầm mật khẩu thô đi qua một
- * tầng nữa — đúng thứ không nên tự viết khi thư viện đã có đường.
- *
- * Ẩn/hiện quyết định bởi `describePasswordSection(hasPassword)`; xem ở đó vì
- * sao "ẩn" phải kèm một câu giải thích, không phải một `&&` im lặng.
+ * Tài khoản Google/Microsoft không có mật khẩu: form ẩn và một câu nói vì sao
+ * (`describePasswordSection`), không phải một khối trống.
  */
 export function PasswordForm({ hasPassword }: { readonly hasPassword: boolean }): ReactElement {
   const fieldId = useId();
@@ -47,19 +36,17 @@ export function PasswordForm({ hasPassword }: { readonly hasPassword: boolean })
 
   if (!section.visible) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle as="h2">{t('me.password.title')}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Alert>
-            <AlertTitle>{t('me.password.hidden-title')}</AlertTitle>
-            <AlertDescription>{section.reason}</AlertDescription>
-          </Alert>
-        </CardContent>
-      </Card>
+      <Split index="02" title={t('me.password.title')}>
+        <div className="max-w-xl border-t-4 border-border bg-card p-5">
+          <p className="type-title">{t('me.password.hidden-title')}</p>
+          <p className="mt-2 text-sm text-muted-foreground">{section.reason}</p>
+        </div>
+      </Split>
     );
   }
+
+  const dirty = current !== '' || next !== '' || confirm !== '';
+  const state = saveStateOf({ dirty, pending: saving, saved: done, failed: error !== null });
 
   async function onSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -77,15 +64,12 @@ export function PasswordForm({ hasPassword }: { readonly hasPassword: boolean })
       const result = await authClient.changePassword({
         currentPassword: current,
         newPassword: next,
-        // KHÔNG thu hồi phiên đăng nhập khác: người học có thể đang chạy một
-        // lab ở tab/máy khác, và đá họ ra giữa bài là một tác dụng phụ không ai
-        // xin. Đây là một quyết định, không phải một mặc định bỏ quên.
+        // KHÔNG thu hồi phiên khác: người học có thể đang chạy lab ở tab khác, và
+        // đá họ ra giữa bài là tác dụng phụ không ai xin.
         revokeOtherSessions: false,
       });
       if (result.error != null) {
-        setError(
-          describePasswordChangeError(result.error.code ?? null, result.error.message ?? null),
-        );
+        setError(describePasswordChangeError(result.error.code ?? null, result.error.message ?? null));
         return;
       }
       setDone(true);
@@ -99,71 +83,69 @@ export function PasswordForm({ hasPassword }: { readonly hasPassword: boolean })
     }
   }
 
+  const errorId = `${fieldId}-error`;
+  const touch = (setter: (value: string) => void) => (value: string) => {
+    setter(value);
+    setDone(false);
+  };
+
   return (
-    <Card>
+    <Split
+      index="02"
+      title={t('me.password.title')}
+      aside={
+        <>
+          <p>{t('me.password.description', { min: MIN_PASSWORD_LENGTH })}</p>
+          <SaveStatus state={state} />
+        </>
+      }
+    >
       <form
         onSubmit={(event) => {
           void onSubmit(event);
         }}
+        className="flex max-w-xl flex-col gap-5"
       >
-        <CardHeader>
-          <CardTitle as="h2">{t('me.password.title')}</CardTitle>
-          <CardDescription>
-            {t('me.password.description', { min: MIN_PASSWORD_LENGTH })}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex max-w-md flex-col gap-4">
-          <PasswordField
-            id={`${fieldId}-current`}
-            label={t('me.password.field.current')}
-            autoComplete="current-password"
-            value={current}
-            onChange={(value) => {
-              setCurrent(value);
-              setDone(false);
-            }}
-          />
-          <PasswordField
-            id={`${fieldId}-next`}
-            label={t('me.password.field.next')}
-            autoComplete="new-password"
-            value={next}
-            onChange={(value) => {
-              setNext(value);
-              setDone(false);
-            }}
-          />
-          <PasswordField
-            id={`${fieldId}-confirm`}
-            label={t('me.password.field.confirm')}
-            autoComplete="new-password"
-            value={confirm}
-            onChange={(value) => {
-              setConfirm(value);
-              setDone(false);
-            }}
-          />
+        <PasswordField
+          id={`${fieldId}-current`}
+          label={t('me.password.field.current')}
+          autoComplete="current-password"
+          value={current}
+          onChange={touch(setCurrent)}
+          describedBy={error === null ? undefined : errorId}
+        />
+        <PasswordField
+          id={`${fieldId}-next`}
+          label={t('me.password.field.next')}
+          autoComplete="new-password"
+          value={next}
+          onChange={touch(setNext)}
+          describedBy={error === null ? undefined : errorId}
+        />
+        <PasswordField
+          id={`${fieldId}-confirm`}
+          label={t('me.password.field.confirm')}
+          autoComplete="new-password"
+          value={confirm}
+          onChange={touch(setConfirm)}
+          describedBy={error === null ? undefined : errorId}
+        />
 
-          {error !== null && (
-            <Alert variant="destructive">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
+        {error !== null && (
+          <p id={errorId} role="alert" className="flex items-start gap-2 text-sm text-destructive">
+            <AlertTriangle aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+            {error}
+          </p>
+        )}
+        {done && <p className="text-sm text-success">{t('me.password.done')}</p>}
 
-          {done && (
-            <Alert variant="success">
-              <AlertDescription>{t('me.password.done')}</AlertDescription>
-            </Alert>
-          )}
-
-          <div>
-            <Button type="submit" loading={saving}>
-              {t('me.password.submit')}
-            </Button>
-          </div>
-        </CardContent>
+        <div>
+          <Button type="submit" loading={saving}>
+            {t('me.password.submit')}
+          </Button>
+        </div>
       </form>
-    </Card>
+    </Split>
   );
 }
 
@@ -173,15 +155,20 @@ function PasswordField(props: {
   readonly autoComplete: string;
   readonly value: string;
   readonly onChange: (value: string) => void;
+  readonly describedBy: string | undefined;
 }): ReactElement {
   return (
-    <div className="flex flex-col gap-1.5">
-      <Label htmlFor={props.id}>{props.label}</Label>
+    <div className="flex flex-col gap-2">
+      <Label htmlFor={props.id} className="text-[13px]">
+        {props.label}
+      </Label>
       <Input
         id={props.id}
         type="password"
         autoComplete={props.autoComplete}
         value={props.value}
+        aria-describedby={props.describedBy}
+        invalid={props.describedBy !== undefined}
         onChange={(event) => {
           props.onChange(event.target.value);
         }}

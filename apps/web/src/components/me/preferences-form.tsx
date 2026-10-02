@@ -3,16 +3,9 @@
 import { useEffect, useId, useState, type ReactElement } from 'react';
 import { err, t } from '@devops-platform/copy';
 import { THEME_NAMES, type ThemeName } from '@devops-platform/terminal/themes';
+import { AlertTriangle } from 'lucide-react';
 import {
-  Alert,
-  AlertDescription,
-  Badge,
   Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
   Label,
   Select,
   SelectContent,
@@ -23,6 +16,9 @@ import {
 } from '@devops-platform/ui';
 import { api } from '../../lib/trpc-react';
 import { describeTrpcError } from '../../lib/trpc';
+import { Split } from '../kit';
+import { saveStateOf } from './account-sections';
+import { SaveStatus } from './save-status';
 import {
   SHELL_OPTIONS,
   describeLeaderboardPreference,
@@ -96,19 +92,29 @@ export function PreferencesForm(props: PreferencesFormProps): ReactElement {
     theme !== props.terminalTheme ||
     leaderboard !== props.leaderboardNamePublic;
 
-  return (
-    <Card>
-      <CardHeader>
-        <div className="flex flex-wrap items-center gap-2">
-          <CardTitle as="h2">{t('me.preferences.title')}</CardTitle>
-          {dirty && <Badge variant="warning">{t('me.preferences.dirty')}</Badge>}
-        </div>
-        <CardDescription>{t('me.preferences.description')}</CardDescription>
-      </CardHeader>
+  const state = saveStateOf({
+    dirty,
+    pending: updatePreferences.isPending,
+    saved,
+    failed: updatePreferences.isError,
+  });
 
-      <CardContent className="flex flex-col gap-6">
+  return (
+    <Split
+      index="03"
+      title={t('me.preferences.title')}
+      aside={
+        <>
+          <p>{t('me.preferences.description')}</p>
+          <SaveStatus state={state} />
+        </>
+      }
+    >
+      <div className="flex max-w-xl flex-col gap-8">
         <div className="flex flex-col gap-2">
-          <Label htmlFor={`${fieldId}-shell`}>{t('me.preferences.shell-label')}</Label>
+          <Label htmlFor={`${fieldId}-shell`} className="text-[13px]">
+            {t('me.preferences.shell-label')}
+          </Label>
           <Select
             value={shell}
             onValueChange={(value) => {
@@ -127,13 +133,13 @@ export function PreferencesForm(props: PreferencesFormProps): ReactElement {
               ))}
             </SelectContent>
           </Select>
-          <NoticeText
-            notice={describeShellPreference({ shell, activeSessionCount, moreSessions })}
-          />
+          <NoticeText notice={describeShellPreference({ shell, activeSessionCount, moreSessions })} />
         </div>
 
         <div className="flex flex-col gap-2">
-          <Label htmlFor={`${fieldId}-theme`}>{t('me.preferences.theme-label')}</Label>
+          <Label htmlFor={`${fieldId}-theme`} className="text-[13px]">
+            {t('me.preferences.theme-label')}
+          </Label>
           <Select
             value={theme ?? FOLLOW_APP_THEME}
             onValueChange={(value) => {
@@ -166,20 +172,12 @@ export function PreferencesForm(props: PreferencesFormProps): ReactElement {
                 setSaved(false);
               }}
             />
-            <Label htmlFor={`${fieldId}-leaderboard`}>
-              {t('me.preferences.leaderboard-label')}
-            </Label>
+            <Label htmlFor={`${fieldId}-leaderboard`}>{t('me.preferences.leaderboard-label')}</Label>
           </div>
           <NoticeText notice={describeLeaderboardPreference(leaderboard)} />
         </div>
 
         {updatePreferences.isError && <SaveError error={updatePreferences.error} />}
-
-        {saved && !dirty && !updatePreferences.isPending && (
-          <Alert variant="success">
-            <AlertDescription>{t('me.preferences.saved')}</AlertDescription>
-          </Alert>
-        )}
 
         <div>
           <Button
@@ -197,43 +195,44 @@ export function PreferencesForm(props: PreferencesFormProps): ReactElement {
             {t('me.preferences.save')}
           </Button>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </Split>
   );
 }
 
-/**
- * `Alert` chỉ có MỘT khe nội dung, nên hai nửa của `ErrorEntry` được ghép ở
- * đây. Ghép hợp lệ khi nơi nhận có đúng một khe; `ErrorState` có hai và ở đó
- * chúng đi vào hai khe riêng.
- */
+/** Lỗi lưu: hai nửa của `ErrorEntry` ở hai dòng, chuyện gì hỏng rồi làm gì tiếp. */
 function SaveError({ error }: { readonly error: unknown }): ReactElement {
   const entry = err('me.error.preferences-save', { reason: describeTrpcError(error) });
   return (
-    <Alert variant="destructive">
-      <AlertDescription>{`${entry.what} ${entry.next}`}</AlertDescription>
-    </Alert>
+    <p role="alert" className="flex items-start gap-2 text-sm">
+      <AlertTriangle aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-destructive" />
+      <span>
+        <span className="block font-semibold text-destructive">{entry.what}</span>
+        <span className="block text-muted-foreground">{entry.next}</span>
+      </span>
+    </p>
   );
 }
 
-/** `warning` dùng `Alert` để câu cảnh báo không lẫn vào chú thích thường. */
+/** Cảnh báo có viền trên màu warning để không lẫn vào chú thích thường. */
 function NoticeText({ notice }: { readonly notice: PreferenceNotice }): ReactElement {
   if (notice.tone === 'warning') {
     return (
-      <Alert variant="warning">
-        <AlertDescription>
+      <div className="flex gap-2 border-t-2 border-warning bg-card p-3 text-sm">
+        <AlertTriangle aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-warning" />
+        <div>
           {notice.lines.map((line) => (
             <span key={line} className="block">
               {line}
             </span>
           ))}
-        </AlertDescription>
-      </Alert>
+        </div>
+      </div>
     );
   }
 
   return (
-    <div className="flex flex-col gap-0.5 text-xs text-muted-foreground">
+    <div className="flex flex-col gap-0.5 text-sm text-muted-foreground">
       {notice.lines.map((line) => (
         <span key={line}>{line}</span>
       ))}
