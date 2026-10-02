@@ -265,8 +265,8 @@ export const author = {
   'author.problem.state.archived': 'Lưu trữ',
   'author.problem.filter-all': 'Tất cả',
 
-  'author.problem.nav.back': 'Về danh sách bài tập',
-  'author.problem.server-error-title': 'Máy chủ từ chối',
+  'author.problem.code-note': 'Mã không đổi kể cả khi bạn sửa đề hay đổi slug.',
+  'author.problem.jump-missing': 'Không tìm thấy ô này trên biểu mẫu. Mở chế độ chứa nó rồi tìm theo tên ô.',
 
   // ── Danh sách bài tập ──────────────────────────────────────────────────────
   'author.problem.list.title': 'Đề bài',
@@ -288,9 +288,8 @@ export const author = {
     `${String(p.solvers)}/${String(p.attempts)} người thử đã giải được.`,
 
   // ── Soạn bài tập mới ───────────────────────────────────────────────────────
-  'author.problem.new.title': 'Soạn bài tập mới',
-  'author.problem.new.lead':
-    'Bài OJ không dạy lý thuyết. Nó ra đề, dựng sẵn một cụm, và chấm bằng vị từ chọn từ bảng tra. Không cần viết một dòng logic engine nào.',
+  'author.problem.new.title': 'Soạn đề mới',
+  'author.problem.new.crumb': 'Đề mới',
   /*
    * `Counted` chứ không phải một câu ghép số: nhánh `zero` bắt buộc ở tầng kiểu,
    * và nó không phải chỗ điền cho đủ. Hộp này chỉ hiện khi `issues.length > 0`,
@@ -302,28 +301,16 @@ export const author = {
     one: 'Còn 1 ô chưa lưu được',
     many: (n: number) => `Còn ${String(n)} ô chưa lưu được`,
   },
-  'author.problem.new.submit': 'Lưu bản nháp',
   'author.problem.new.submit-hint':
-    'Máy chủ cấp mã bài khi lưu. Xuất bản được làm ở trang sửa, sau khi có mã.',
+    'Máy chủ cấp mã đề lúc bạn lưu lần đầu. Có mã rồi mới xuất bản được, ở trang sửa.',
   'author.problem.new.created-title': (p: { code: string }) => `Đã tạo bản nháp ${p.code}`,
-  'author.problem.new.created-body': 'Người học chưa thấy bài này cho tới khi bạn xuất bản.',
+  'author.problem.new.created-body': 'Người học chưa thấy đề này cho tới khi bạn xuất bản.',
 
   // ── Sửa bài tập ────────────────────────────────────────────────────────────
-  'author.problem.edit.error-title': 'Không mở được bài này',
-  'author.problem.edit.error-fallback': 'Không đọc được nội dung bài.',
-  'author.problem.edit.code-note': 'mã không đổi kể cả khi bạn sửa đề hay đổi slug.',
-  'author.problem.edit.unsaved': 'Có thay đổi chưa lưu.',
-  'author.problem.edit.saved': 'Đã lưu mọi thay đổi.',
-  /*
-   * Trạng thái THỨ BA của cùng ô báo đó, thêm 2026-09-16 cùng lượt nối dây ô
-   * `practice-save-state` của `problem-editor.tsx`.
-   *
-   * Hai khoá ngay trên nói về CHÊNH LỆCH so với bản đã lưu, nên không cái nào
-   * đúng cho một bản nháp chưa lần nào gửi đi: `unsaved` doạ mất thứ chưa từng
-   * tồn tại, `saved` khẳng định một lượt lưu chưa xảy ra. Ô đó đọc `code === null`
-   * để tách ca này ra, nên nó cần chữ riêng.
-   */
-  'author.problem.edit.new-draft': 'Bản nháp mới',
+  // Ô "đã lưu / chưa lưu" nay là `SaveState` dùng chung của Xưởng soạn
+  // (`author.studio.save.*`), nên ba khoá trạng thái lưu riêng của đề đã xoá.
+  'author.problem.edit.error-title': 'Không mở được đề này',
+  'author.problem.edit.error-fallback': 'Không đọc được nội dung đề.',
 
   // ── Thông báo nổi sau mỗi lượt gọi máy chủ ─────────────────────────────────
   'author.problem.toast.saved': 'Đã lưu',
@@ -426,6 +413,7 @@ export const author = {
     'Hiện: người làm đọc được nhãn này trước khi nộp.',
   'author.problem.objectives.visible-off':
     'Ẩn: người làm biết có testcase này (nó nằm trong mẫu số n/m) nhưng chỉ đọc được nhãn sau khi nộp.',
+  'author.problem.objectives.visible-label': 'Cho xem nhãn trước khi nộp',
 
   // §18.D.6: co seedable. Cau "unavailable" mo ta TINH TRANG THAT: khong plugin
   // nao khai seedSpec, nen hom nay khong game nao sinh de theo seed duoc.
@@ -480,11 +468,27 @@ export const author = {
     'Máy chủ kiểm lại một lượt nữa khi bạn bấm. Đó là lớp cuối, và nó gác cùng bộ điều kiện.',
   'author.problem.publish.submit': 'Xuất bản',
   'author.problem.publish.already': 'Đã xuất bản',
-  'author.problem.publish.archive': 'Đưa vào lưu trữ',
+  // e2e luồng CI/CD (`flows/cicd-problem.flow.spec.ts`) tìm ĐÚNG câu này sau khi
+  // xuất bản. Cột kiểm nói cùng ý bằng câu khác (`author.problem.rail.live`).
+  'author.problem.publish.live-title': 'Bài đang mở cho người học',
+  'author.problem.publish.live-body':
+    'Người học thấy đề trong danh mục và làm được ngay. Muốn rút đề về thì lưu trữ, lượt nộp cũ vẫn giữ.',
+  'author.problem.publish.open': 'Mở chế độ xuất bản',
   'author.problem.publish.danger-heading': 'Xoá hẳn bài',
   'author.problem.publish.danger-body':
     'Chỉ xoá được bài CHƯA có ai nộp. Đã có lượt nộp thì máy chủ từ chối và bảo dùng lưu trữ. Xoá một bài đã có người làm là xoá lịch sử của họ.',
-  'author.problem.publish.delete': 'Xoá bài',
+
+  'author.problem.rail.ready': 'Đủ điều kiện, chờ bạn bấm xuất bản.',
+  'author.problem.rail.live': 'Đang mở cho người học.',
+
+  'author.problem.archive.lead':
+    'Rút đề khỏi danh mục của người học. Lượt nộp và điểm đã có vẫn giữ, và bạn xuất bản lại được.',
+  'author.problem.archive.confirm-title': (p: { code: string }) => `Lưu trữ đề ${p.code}?`,
+  'author.problem.archive.confirm-body': 'Đề chuyển sang trạng thái lưu trữ. Bạn vẫn sửa và xuất bản lại được.',
+  'author.problem.archive.loss': 'Người học không còn thấy đề trong danh mục. Lượt nộp và điểm đã có không mất.',
+  'author.problem.delete.confirm-title': (p: { code: string }) => `Xoá hẳn đề ${p.code}?`,
+  'author.problem.delete.loss':
+    'Đề bài, trạng thái ban đầu, mục tiêu và gợi ý mất hẳn. Không khôi phục được.',
 
   /*
    * ── Dịch đường dẫn máy đọc sang câu người soạn đọc ─────────────────────────

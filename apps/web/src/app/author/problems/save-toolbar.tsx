@@ -50,7 +50,7 @@ export function SaveToolbar(props: {
           className="inline-flex h-8 animate-rise items-center gap-1.5 px-1 text-xs font-medium text-destructive underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <CircleAlert aria-hidden className="size-3.5 shrink-0" />
-          {count('author.problem.save-blocked', props.localIssues.length)}
+          {count('author.problem.new.issues-title', props.localIssues.length)}
         </button>
       )}
       <SaveState status={props.status} />
