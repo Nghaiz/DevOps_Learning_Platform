@@ -131,6 +131,28 @@ function failureText(head: string, fallback: string): (failure: SetupStepFailure
   };
 }
 
+/**
+ * Chờ dockerd trước script `background` (tối đa 45 giây, KHÔNG chặn bài).
+ *
+ * Pod lấy từ warm pool đã chạy dockerd từ lâu, nhưng pod dựng lạnh (mọi profile
+ * có tên: `ide`, `k8s`, …) tới tay người học khi dockerd còn đang khởi động:
+ * orchestrator coi pod "Ready" ngay khi container chạy (podspec không có
+ * readinessProbe), và một `docker run` ở dòng đầu `background.sh` lúc ấy trả
+ * `Cannot connect to the Docker daemon` — setup đỏ, người học bấm Thử lại, lần
+ * hai xanh. Chờ ở MỘT chỗ thay vì để mỗi bài tự viết vòng chờ của nó.
+ *
+ * Không chặn: bài không dùng Docker vẫn chạy khi dockerd hỏng; bài dùng Docker
+ * sẽ hỏng ở đúng lệnh docker của nó, với câu lỗi của chính lệnh đó. Gần như
+ * miễn phí khi dockerd đã sẵn: `docker info` trả về ngay lượt đầu.
+ */
+export const DOCKERD_WAIT_PREFIX = [
+  '# --- dlp: chờ dockerd (tối đa 45 giây, không chặn) ---',
+  'for __dlp_wait in $(seq 1 45); do docker info >/dev/null 2>&1 && break; sleep 1; done',
+  'unset __dlp_wait',
+  '# --- hết phần chờ dockerd ---',
+  '',
+].join('\n');
+
 export function setupScriptPlan(input: {
   /** `null` = bài không khai `toolset`, hoặc không phải phase đầu. */
   readonly tools: string | null;
@@ -160,7 +182,7 @@ export function setupScriptPlan(input: {
   if (input.background !== null) {
     steps.push({
       kind: 'background',
-      script: input.background,
+      script: DOCKERD_WAIT_PREFIX + input.background,
       failureMessage: failureText(
         'Script chuẩn bị môi trường thất bại',
         'Hãy khởi động lại phiên.',

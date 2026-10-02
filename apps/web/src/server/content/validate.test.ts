@@ -61,6 +61,29 @@ describe('validateContentBody — lesson', () => {
     expect(validateContentBody('lesson', body())).toEqual([]);
   });
 
+  function withStepMarkdown(markdown: string): ContentBodyRow {
+    const base = body();
+    const [first] = base.steps;
+    if (first === undefined) {
+      throw new Error('fixture body() phải có ít nhất một bước');
+    }
+    return { ...base, steps: [{ ...first, markdown }] };
+  }
+
+  it('markdown có hậu tố hành động lạ bị TỪ CHỐI kèm đúng ô — trang người học sẽ đổ nếu xuất bản', () => {
+    const issues = validateContentBody('lesson', withStepMarkdown('`ls`{{run}}'));
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.path).toBe('steps[0].markdown');
+  });
+
+  it('tham chiếu sơ đồ diagrams/… bị TỪ CHỐI — bài trong DB không mang được SVG', () => {
+    const issues = validateContentBody(
+      'lesson',
+      withStepMarkdown('![Một sơ đồ mà bài soạn trên giao diện không có](diagrams/x.svg)'),
+    );
+    expect(issues).toEqual([{ path: 'steps[0].markdown', message: expect.stringContaining('diagrams/') }]);
+  });
+
   it('lesson 0 bước bị TỪ CHỐI, kèm tên field', () => {
     // `scenarioSchema.steps` đòi `min(1)`: một bài không có bước nào là một
     // trang trắng. Nháp thì được phép 0 bước — nhưng nháp không đi qua hàm này.

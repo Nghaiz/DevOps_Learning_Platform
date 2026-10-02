@@ -33,6 +33,7 @@ const CHUA_MO: SandboxSession = {
   remainingMs: null,
   start: () => undefined,
   end: () => undefined,
+  reconnect: () => undefined,
   extend: () => undefined,
   onControl: () => undefined,
   onClose: () => undefined,
