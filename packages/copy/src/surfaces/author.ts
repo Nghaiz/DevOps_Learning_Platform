@@ -200,6 +200,41 @@ export const author = {
     `Bài "${p.liveId}" mà người học đang học giữ nguyên. Thay đổi của bạn nằm ở bản nháp "${p.draftId}" và chỉ thay thế bản đang chạy khi bạn bấm Xuất bản.`,
 
   /*
+   * ── Khung chung của Xưởng soạn (2026-10-03, bản dựng lại PTIT) ────────────
+   *
+   * `components/author/studio/**`: ô trạng thái lưu, hàng tab chế độ, cột kiểm
+   * bên phải, nút hành động dùng chung cho trình soạn bài học VÀ trình soạn đề.
+   * Một nguồn cho cả hai, để "Lưu trữ" ở trang này và "Lưu trữ" ở trang kia là
+   * cùng một chữ, không phải hai chữ tình cờ giống nhau.
+   */
+  'author.studio.modes.label': 'Chế độ soạn',
+  'author.studio.rail.label': 'Bảng kiểm',
+  'author.studio.save.new': 'Chưa lưu lần nào',
+  'author.studio.save.saved': 'Đã lưu',
+  'author.studio.save.unsaved': 'Chưa lưu',
+  'author.studio.save.saving': 'Đang lưu',
+  'author.studio.save.error': 'Không lưu được',
+  'author.studio.rail.issues': 'Ô cần sửa',
+  'author.studio.rail.issues-clean': 'Chưa thấy ô nào sai. Máy chủ vẫn kiểm lại lúc lưu và lúc xuất bản.',
+  'author.studio.rail.readiness': 'Xuất bản',
+  'author.studio.publish.save-first.title': 'Lưu trước khi xuất bản',
+  'author.studio.publish.save-first.body':
+    'Xuất bản dùng bản đã lưu trên máy chủ, không dùng thứ đang có trên màn hình. Bấm Lưu rồi quay lại đây.',
+  'author.studio.action.publish': 'Xuất bản',
+  'author.studio.action.archive': 'Lưu trữ',
+  'author.studio.action.delete': 'Xoá bài',
+  'author.studio.action.save-draft': 'Lưu bản nháp',
+  'author.studio.action-error.save': 'Máy chủ từ chối lượt lưu',
+  'author.studio.action-error.publish': 'Không xuất bản được',
+  'author.studio.action-error.archive': 'Không lưu trữ được',
+  'author.studio.action-error.delete': 'Không xoá được',
+  'author.studio.list.filter-label': 'Lọc theo trạng thái',
+  'author.studio.list.search-label': 'Tìm theo tên hoặc mã',
+  'author.studio.list.search-placeholder': 'Tên bài hoặc mã',
+  'author.studio.list.no-match': (p: { query: string }) =>
+    `Không có bài nào khớp "${p.query}". Thử từ khác, hoặc xoá ô tìm.`,
+
+  /*
    * ── Bài tập Kubernetes (OJ), lane 16.G2 ───────────────────────────────────
    *
    * Tiền tố riêng `author.problem.` chứ không dùng chung với `author.state.` /
