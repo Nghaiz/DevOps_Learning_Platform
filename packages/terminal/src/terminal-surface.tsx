@@ -107,12 +107,25 @@ export interface TerminalSurfaceProps {
    * (`components/session/TerminalPane` ở apps/web) dùng `focusNextAfter`.
    */
   readonly onEscapeFocus?: (direction: 'forward' | 'backward') => void;
+  /**
+   * M9 — `true` ⇒ focus vào terminal sau khi font tải xong, ĐÚNG một lần lúc
+   * mount. Mặc định `false`: terminal không tự giật focus. Chỉ có tác dụng lúc
+   * mount (đổi giá trị sau đó bị bỏ qua) — muốn focus về sau thì gọi
+   * `TerminalHandle.focus()`.
+   *
+   * Đặt khi terminal là thứ người dùng vừa CHỦ ĐỘNG mở (bấm "Bắt đầu", mở cửa
+   * sổ terminal riêng); KHÔNG đặt khi nó tự mount lại vì đổi bố cục.
+   */
+  readonly autoFocus?: boolean;
 }
 
 export function TerminalSurface(props: TerminalSurfaceProps): React.ReactElement {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const coreRef = useRef<TerminalCore | null>(null);
   const connectionRef = useRef<Connection | null>(null);
+  // M9 — đọc MỘT lần lúc mount, như thuộc tính `autofocus` của HTML: đổi prop
+  // sau đó không được giật focus giữa chừng.
+  const autoFocusOnMountRef = useRef(props.autoFocus === true);
 
   // Callback mới nhất trong ref: effect kết nối KHÔNG được phụ thuộc vào danh
   // tính hàm của props, nếu không mỗi lần trang re-render (đồng hồ đếm ngược
@@ -168,7 +181,12 @@ export function TerminalSurface(props: TerminalSurfaceProps): React.ReactElement
       // không bao giờ chạy. `refitAfterFontLoad()` ép đo lại metric TRƯỚC rồi
       // mới fit, và chỉ phát `resize` khi số cột/hàng thật sự đổi.
       core.refitAfterFontLoad();
-      core.focus();
+      // M9 — chỉ giật focus khi trang XIN (`autoFocus`). Bản cũ gọi vô điều kiện,
+      // nên mỗi lần mount (đổi bố cục hẹp↔rộng, mở lại trang có phiên sống) kéo
+      // focus khỏi chỗ người dùng đang gõ.
+      if (autoFocusOnMountRef.current) {
+        core.focus();
+      }
     });
 
     return () => {
