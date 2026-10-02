@@ -17,6 +17,7 @@ import {
 import { CicdCdPanel } from './cicd-cd-panel';
 import { CicdCheatsheet } from './cicd-cheatsheet';
 import { CicdOverridesPanel } from './cicd-overrides-panel';
+import { recordCicdRun } from './cicd-progress';
 import { CicdResultPanel } from './cicd-result-panel';
 import { formatNumber, formatSeconds, runWorkflow, type CicdRunOutcome } from './cicd-run';
 import { CicdSnippetBar } from './cicd-snippet-bar';
@@ -222,6 +223,12 @@ export function CicdLevelScreen({
       ...(level.cd === undefined ? {} : { cd: { level: level.cd, edited: cdPolicies } }),
     });
     setOutcome(ketQua);
+    /*
+     * Mốc của chiến dịch: chỉ màn LEVEL, chỉ lượt đã chấm. Ở chế độ OJ danh sách
+     * mục tiêu truyền vào là rỗng nên `won` luôn đúng một cách vô nghĩa, và máy
+     * chủ mới là nơi chấm; ghi mốc ở đó là khai một màn đã qua mà chưa ai chấm.
+     */
+    if (oj === undefined && ketQua.kind === 'scored') recordCicdRun(level.id, ketQua.won);
     setHistory((truoc) => [...truoc, { n: truoc.length + 1, outcome: ketQua }]);
     /*
      * Mở bảng kết quả khi có kết quả. Người chơi vừa bấm "Chạy thử" thì thứ họ
@@ -574,7 +581,7 @@ export function CicdLevelScreen({
                     phút
                   </Button>
                   {showTheory ? (
-                    <div className="rounded-lg border border-border px-4 py-3" data-testid="cicd-theory">
+                    <div className="border border-border px-4 py-3" data-testid="cicd-theory">
                       <MarkdownView markdown={theory.body} resolveAssetUrl={() => null} />
                     </div>
                   ) : null}
@@ -662,7 +669,7 @@ function CicdOjBar({
        * Mép trái ở giữa chiều cao là ngăn kéo ô soạn, mép trên giữa là bảng ba
        * trục — nên đáy-giữa là vùng còn trống thật sự.
        */
-      className="pointer-events-auto absolute bottom-3 left-1/2 z-30 flex max-w-sm -translate-x-1/2 flex-col gap-2 rounded-lg border border-border bg-card/95 p-3 shadow-lg"
+      className="pointer-events-auto absolute bottom-3 left-1/2 z-30 flex max-w-sm -translate-x-1/2 flex-col gap-2 border border-foreground bg-card p-3 shadow-float"
     >
       <div className="flex items-center gap-2">
         <Button
@@ -720,7 +727,7 @@ function AttemptHistory({
           {[...history].reverse().map((entry) => (
             <li
               key={entry.n}
-              className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-border px-3 py-2 text-xs"
+              className="flex flex-wrap items-center gap-x-3 gap-y-1 border border-border px-3 py-2 text-xs"
             >
               <span className="font-mono text-muted-foreground">#{entry.n}</span>
               {entry.outcome.kind === 'parse-error' ? (

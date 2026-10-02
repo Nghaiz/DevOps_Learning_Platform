@@ -108,7 +108,7 @@ export function SceneLabels3d({
     for (let i = 0; i < MAX_CICD_LABELS; i += 1) {
       const span = document.createElement('span');
       span.className =
-        'pointer-events-none absolute left-0 top-0 whitespace-nowrap rounded-sm bg-background/80 ' +
+        'pointer-events-none absolute left-0 top-0 whitespace-nowrap bg-background ' +
         'px-1 py-px font-mono text-[10px] leading-4 text-foreground ring-1 ring-border';
       span.style.display = 'none';
       span.style.willChange = 'transform';

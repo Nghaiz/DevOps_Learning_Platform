@@ -183,7 +183,7 @@ export function CicdSandbox({ onExit }: CicdSandboxProps): ReactElement {
 
         <div className="flex flex-col gap-4">
           {outcome === null ? (
-            <p className="rounded-lg border border-border bg-muted px-4 py-3 text-sm text-muted-foreground">
+            <p className="border border-border bg-muted px-4 py-3 text-sm text-muted-foreground">
               Bấm “Chạy thử” để mô phỏng và xem ba trục.
             </p>
           ) : (

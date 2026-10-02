@@ -147,7 +147,7 @@ export function CicdAxisIntro({ chapter, onDismiss }: CicdAxisIntroProps): React
 
   return (
     <div
-      className="pointer-events-auto absolute inset-0 z-40 flex items-center justify-center bg-background/85 p-6 backdrop-blur-sm"
+      className="pointer-events-auto absolute inset-0 z-40 flex items-center justify-center bg-background p-6"
       data-testid="cicd-axis-intro"
     >
       <div
@@ -166,7 +166,7 @@ export function CicdAxisIntro({ chapter, onDismiss }: CicdAxisIntroProps): React
           event.preventDefault();
           onDismiss();
         }}
-        className="flex max-h-full w-full max-w-2xl flex-col gap-4 overflow-y-auto rounded-xl border border-border bg-card p-6 shadow-lg focus-visible:outline-none"
+        className="flex max-h-full w-full max-w-2xl flex-col gap-4 overflow-y-auto border border-border bg-card p-6 shadow-float focus-visible:outline-none"
       >
         <h2 id="cicd-axis-intro-title" className="text-lg font-semibold text-foreground">
           {chapter === 'cd'
@@ -213,7 +213,7 @@ export function CicdAxisIntro({ chapter, onDismiss }: CicdAxisIntroProps): React
           <ul className="grid gap-x-4 gap-y-1 sm:grid-cols-2">
             {CICD_HOTKEYS.map((hotkey) => (
               <li key={hotkey.label} className="flex items-baseline gap-2 text-xs">
-                <kbd className="rounded border border-border px-1 font-mono text-muted-foreground">
+                <kbd className="border border-border px-1 font-mono text-muted-foreground">
                   {hotkey.label}
                 </kbd>
                 <span className="text-muted-foreground">{hotkey.describe}</span>

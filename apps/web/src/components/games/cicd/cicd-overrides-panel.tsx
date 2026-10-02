@@ -74,7 +74,7 @@ export function CicdOverridesPanel({
   };
 
   return (
-    <div className="flex flex-col gap-4 rounded-lg border border-border bg-muted px-4 py-3">
+    <div className="flex flex-col gap-4 border border-border bg-muted px-4 py-3">
       <div className="flex flex-col gap-1">
         <h3 className="text-sm font-semibold text-foreground">Núm không nằm trong YAML</h3>
         <p className="text-xs text-muted-foreground">
@@ -118,7 +118,7 @@ export function CicdOverridesPanel({
                        */
                       datRetry(nut.stageId, Number.isFinite(parsed) ? Math.min(5, Math.max(0, parsed)) : 0);
                     }}
-                    className="w-16 rounded-md border border-border bg-background px-2 py-1 text-right text-sm text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                    className="w-16 border border-border bg-background px-2 py-1 text-right text-sm text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                   />
                 </li>
               ))}
@@ -144,7 +144,7 @@ export function CicdOverridesPanel({
                 const bat = chon === undefined ? nut.defaultOn : chon !== null;
                 const keyParts = chon == null ? nut.defaultKeyParts : chon.keyParts;
                 return (
-                  <li key={nut.key} className="flex flex-col gap-2 rounded-md border border-border px-3 py-2">
+                  <li key={nut.key} className="flex flex-col gap-2 border border-border px-3 py-2">
                     <div className="flex items-center gap-2">
                       <input
                         id={`cache-on-${nut.key}`}

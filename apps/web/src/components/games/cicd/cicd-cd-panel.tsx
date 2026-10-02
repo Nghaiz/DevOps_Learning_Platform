@@ -53,7 +53,7 @@ const NHAN_DANG: Readonly<Record<SecretForm, string>> = {
 };
 
 const O_SO =
-  'w-24 rounded-md border border-border bg-background px-2 py-1 text-right text-sm text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none';
+  'w-24 border border-border bg-background px-2 py-1 text-right text-sm text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none';
 
 export function CicdCdPanel({ cd, value, onChange }: CicdCdPanelProps): ReactElement | null {
   if (cd.editable.length === 0) {
@@ -81,7 +81,7 @@ export function CicdCdPanel({ cd, value, onChange }: CicdCdPanelProps): ReactEle
   const biMat = cd.masking?.scenario.secrets ?? [];
 
   return (
-    <div className="flex flex-col gap-4 rounded-lg border border-border bg-muted px-4 py-3" data-testid="cicd-cd-panel">
+    <div className="flex flex-col gap-4 border border-border bg-muted px-4 py-3" data-testid="cicd-cd-panel">
       <div className="flex flex-col gap-1">
         <h3 className="text-sm font-semibold text-foreground">Bảng điều khiển phát hành</h3>
         <p className="text-xs text-muted-foreground">

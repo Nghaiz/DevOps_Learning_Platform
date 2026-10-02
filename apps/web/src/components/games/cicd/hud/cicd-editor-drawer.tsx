@@ -88,7 +88,7 @@ export function CicdEditorDrawer({
         type="button"
         onClick={onOpen}
         data-testid="cicd-editor-handle"
-        className="pointer-events-auto absolute top-1/2 left-0 flex -translate-y-1/2 items-center gap-1 rounded-r-lg border border-l-0 border-border bg-card/95 px-2 py-4 text-xs font-semibold text-muted-foreground shadow-lg backdrop-blur-sm hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+        className="pointer-events-auto absolute top-1/2 left-0 flex -translate-y-1/2 items-center gap-1 bg-ink px-2 py-4 text-xs font-semibold text-ink-foreground shadow-float transition-[padding] hover:pl-3 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none motion-reduce:transition-none"
       >
         <PanelLeftOpen className="size-4" aria-hidden="true" />
         Ô soạn

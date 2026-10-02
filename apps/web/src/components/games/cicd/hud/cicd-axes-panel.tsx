@@ -91,7 +91,7 @@ export function CicdAxesPanel({ outcome, className }: CicdAxesPanelProps): React
       data-testid={CICD_SCENE_TESTIDS.axesPanel}
       aria-label="Ba trục điểm"
       className={cn(
-        'pointer-events-auto rounded-xl border border-border bg-card/95 px-3 py-2 shadow-lg backdrop-blur-sm',
+        'pointer-events-auto border border-border bg-card px-3 py-2 shadow-float',
         className,
       )}
     >

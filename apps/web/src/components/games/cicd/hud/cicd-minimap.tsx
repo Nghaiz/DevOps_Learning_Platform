@@ -69,7 +69,7 @@ export function CicdMinimap({ scene, className }: CicdMinimapProps): ReactElemen
 
   return (
     <div className={cn('relative', className)}>
-      <div className="relative h-32 w-full overflow-hidden rounded-lg border border-border bg-muted/40">
+      <div className="relative h-32 w-full overflow-hidden border border-border bg-muted/40">
         {nodes.map(({ id, node, spot }) => {
           const [h, v] = project2d(spot, axes);
           const left = ((h - minH) / spanH) * 84 + 8;
@@ -93,7 +93,7 @@ export function CicdMinimap({ scene, className }: CicdMinimapProps): ReactElemen
               }}
               style={{ left: `${left}%`, top: `${top}%` }}
               className={cn(
-                'absolute size-3 -translate-x-1/2 -translate-y-1/2 rounded-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+                'absolute size-3 -translate-x-1/2 -translate-y-1/2 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
                 STATUS_BG[node.statusToken] ?? 'bg-muted-foreground',
                 selected && 'ring-2 ring-ring',
               )}

@@ -306,7 +306,7 @@ export function CicdScene3d(props: CicdScene3dProps): ReactElement {
         {focusedNode === null ? '' : focusedNode.ariaLabel}
       </p>
       {degraded ? (
-        <p className="pointer-events-none absolute bottom-2 left-2 rounded bg-background/85 px-2 py-1 text-xs text-muted-foreground ring-1 ring-border">
+        <p className="pointer-events-none absolute bottom-2 left-2 bg-background px-2 py-1 text-xs text-muted-foreground ring-1 ring-border">
           Không đọc được một số màu chủ đề — cảnh đang dùng màu dự phòng.
         </p>
       ) : null}
@@ -393,21 +393,21 @@ function CameraAngleControl({
     <div className="pointer-events-none absolute right-2 top-2 flex items-center gap-1">
       <button
         type="button"
-        className="pointer-events-auto rounded bg-background/85 px-2 py-1 text-xs text-foreground ring-1 ring-border hover:bg-background"
+        className="pointer-events-auto bg-background px-2 py-1 text-xs text-foreground ring-1 ring-border hover:bg-background"
         onClick={() => onRotate(-1)}
         aria-label={`Xoay cảnh sang trái. ${angleLabel(angleIndex - 1)}`}
       >
         ◀
       </button>
       <span
-        className="pointer-events-none rounded bg-background/85 px-2 py-1 text-xs text-muted-foreground ring-1 ring-border"
+        className="pointer-events-none bg-background px-2 py-1 text-xs text-muted-foreground ring-1 ring-border"
         data-cicd-camera-angle={angleIndex}
       >
         {`${angleIndex + 1}/${CAMERA_ANGLE_COUNT}`}
       </span>
       <button
         type="button"
-        className="pointer-events-auto rounded bg-background/85 px-2 py-1 text-xs text-foreground ring-1 ring-border hover:bg-background"
+        className="pointer-events-auto bg-background px-2 py-1 text-xs text-foreground ring-1 ring-border hover:bg-background"
         onClick={() => onRotate(1)}
         aria-label={`Xoay cảnh sang phải. ${angleLabel(angleIndex + 1)}`}
       >

@@ -71,7 +71,7 @@ export function CicdResultPanel({
           {outcome.errors.map((diagnostic, index) => (
             <li
               key={`${diagnostic.line}-${diagnostic.column}-${index}`}
-              className="flex items-start gap-3 rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3"
+              className="flex items-start gap-3 border border-destructive/40 bg-destructive/5 px-4 py-3"
             >
               <CircleX aria-hidden className="mt-0.5 size-4 shrink-0 text-destructive" />
               <span className="text-sm text-foreground">
@@ -103,7 +103,7 @@ export function CicdResultPanel({
         <p
           role="status"
           data-testid="cicd-empty"
-          className="rounded-lg border border-border bg-muted px-4 py-3 text-sm text-foreground"
+          className="border border-border bg-muted px-4 py-3 text-sm text-foreground"
         >
           Đường ống chưa có job nào, nên chưa có gì để đo. Thêm một job vào mục{' '}
           <code className="font-mono">jobs</code> rồi chạy lại.
@@ -126,7 +126,7 @@ export function CicdResultPanel({
           {outcome.problems.map((problem, index) => (
             <li
               key={index}
-              className="flex items-start gap-3 rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3"
+              className="flex items-start gap-3 border border-destructive/40 bg-destructive/5 px-4 py-3"
             >
               <CircleX aria-hidden className="mt-0.5 size-4 shrink-0 text-destructive" />
               <span className="text-sm text-foreground">{describeJobShapeProblem(problem)}</span>
@@ -153,7 +153,7 @@ export function CicdResultPanel({
           biết mình vừa tạo một chu trình. Kiểu trả về của `runWorkflow` ép điều
           này thành lỗi biên dịch chứ không để nó thành một lựa chọn.
         */}
-        <p role="alert" className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-foreground">
+        <p role="alert" className="border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-foreground">
           {describeEngineError(outcome.error)}
         </p>
       </section>
@@ -169,7 +169,7 @@ export function CicdResultPanel({
             Chính sách CD không hợp lệ
           </Badge>
         </div>
-        <p role="alert" className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-foreground">
+        <p role="alert" className="border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-foreground">
           {`Bộ mô phỏng “${outcome.simulator}” từ chối giá trị trên bảng núm CD: ${outcome.message}`}
         </p>
       </section>
@@ -242,7 +242,7 @@ export function CicdResultPanel({
         nhanh và rẻ mà chỉ xanh 6/20 lượt thì không giao được gì. Đặt nó ở hàng
         riêng, với nhãn nói ra vai trò đó, để nó không bị đọc ngang hàng ba trục.
       */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-border bg-muted px-4 py-3">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border border-border bg-muted px-4 py-3">
         <span className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
           Ngưỡng đạt — tỉ lệ lượt xanh
         </span>
@@ -310,7 +310,7 @@ function AxisCard({
   testId,
 }: AxisCardProps): ReactElement {
   return (
-    <div className="flex flex-col gap-1 rounded-lg border border-border bg-muted px-4 py-3">
+    <div className="flex flex-col gap-1 border border-border bg-muted px-4 py-3">
       <span className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">{label}</span>
       <span
         data-testid={testId}

@@ -163,7 +163,7 @@ export function CicdInspector({ node, run, selectedId }: CicdInspectorProps): Re
           <p className="text-muted-foreground">{describeBlockedBy(record.blockedBy)}</p>
 
           {attempt === null || attempt.cause === null ? null : (
-            <p className="rounded-md border border-destructive/40 bg-destructive/5 px-2 py-1 text-destructive">
+            <p className="border border-destructive/40 bg-destructive/5 px-2 py-1 text-destructive">
               {describeCause(attempt.cause)}
               {attempt.failedStep === null ? null : (
                 <span className="text-muted-foreground"> Bước gãy: {attempt.failedStep}.</span>

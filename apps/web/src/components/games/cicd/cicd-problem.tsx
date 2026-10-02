@@ -95,7 +95,7 @@ function ManBao({
       {onRetry === undefined ? null : (
         <button
           type="button"
-          className="rounded-md border border-border px-3 py-1.5 text-sm"
+          className="border border-border px-3 py-1.5 text-sm"
           onClick={onRetry}
         >
           Thử lại

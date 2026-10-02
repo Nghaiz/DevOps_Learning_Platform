@@ -42,7 +42,7 @@ export function CicdCdMetrics({ records }: { readonly records: CicdCdRecords }):
       {release.map(({ record, scenario }, index) => {
         if (record.error !== null) {
           return (
-            <p key={index} role="alert" className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-foreground">
+            <p key={index} role="alert" className="border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-foreground">
               Chiến lược “{record.error.strategy}” thiếu tham số của nó, nên kịch bản {index + 1} không chạy được.
             </p>
           );
@@ -52,7 +52,7 @@ export function CicdCdMetrics({ records }: { readonly records: CicdCdRecords }):
         const xau = isBadCandidate(scenario);
         const suCo = dataIncidentCount(record) ?? 0;
         return (
-          <div key={index} className="flex flex-col gap-1 rounded-lg border border-border bg-muted px-4 py-3">
+          <div key={index} className="flex flex-col gap-1 border border-border bg-muted px-4 py-3">
             <span className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
               Kịch bản {index + 1} · bản ứng viên {xau ? 'LỖI' : 'tốt'} · {record.passes.length} lượt
             </span>
@@ -73,7 +73,7 @@ export function CicdCdMetrics({ records }: { readonly records: CicdCdRecords }):
       })}
 
       {gitops === undefined ? null : (
-        <div className="flex flex-col gap-1 rounded-lg border border-border bg-muted px-4 py-3">
+        <div className="flex flex-col gap-1 border border-border bg-muted px-4 py-3">
           <span className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
             Đối soát · {gitops.record.reconcileSeconds.length} nhịp trong {formatSeconds(gitops.scenario.horizonSeconds)}
           </span>
@@ -96,7 +96,7 @@ export function CicdCdMetrics({ records }: { readonly records: CicdCdRecords }):
       )}
 
       {masking === undefined ? null : (
-        <div className="flex flex-col gap-1 rounded-lg border border-border bg-muted px-4 py-3">
+        <div className="flex flex-col gap-1 border border-border bg-muted px-4 py-3">
           <span className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
             Log sau khi che · <span data-testid="cicd-cd-leaks">{leakCount(masking.record)}</span> chỗ rò
           </span>
@@ -104,7 +104,7 @@ export function CicdCdMetrics({ records }: { readonly records: CicdCdRecords }):
             Log hiện đúng như người xem job thấy. Chỗ rò không tô màu: đọc ra
             chuỗi lạ trong log là chính kỹ năng bài này dạy.
           */}
-          <pre className="max-h-48 overflow-auto rounded-md border border-border bg-background px-3 py-2 font-mono text-xs text-foreground">
+          <pre className="max-h-48 overflow-auto border border-border bg-background px-3 py-2 font-mono text-xs text-foreground">
             <code>{masking.record.lines.join('\n')}</code>
           </pre>
         </div>

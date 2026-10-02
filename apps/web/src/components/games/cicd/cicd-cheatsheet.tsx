@@ -27,7 +27,7 @@ export function CicdCheatsheet({ entries }: { readonly entries: readonly CicdChe
         {entries.map((entry, index) => (
           <li key={index} className="flex flex-col gap-1">
             {entry.where === 'yaml' ? (
-              <pre className="overflow-x-auto rounded-md border border-border bg-muted px-3 py-2 font-mono text-xs text-foreground">
+              <pre className="overflow-x-auto border border-border bg-muted px-3 py-2 font-mono text-xs text-foreground">
                 <code>{writeWorkflowYaml(entry.example).yaml}</code>
               </pre>
             ) : (

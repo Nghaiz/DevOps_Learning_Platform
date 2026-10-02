@@ -153,6 +153,49 @@ export const games = {
   'games.k8s.chapter.6.name': 'Sự cố',
   'games.k8s.chapter.6.blurb': 'Probe, NetworkPolicy, RBAC, HPA. Chẩn đoán trên cụm gần với thật.',
   'games.k8s.chapter.other': 'Chương khác',
+
+  // ── /games/cicd: trang chọn màn ────────────────────────────────────────────
+  'games.cicd.campaign.kicker': (p: { levels: number; chapters: number }) =>
+    `Trò chơi · CI · ${String(p.levels)} màn · ${String(p.chapters)} chương`,
+  'games.cicd.campaign.lead':
+    'Soạn workflow bằng YAML, chạy mô phỏng rồi đọc ba trục: thời gian chờ của một commit, số commit qua được mỗi giờ và runner-phút tiêu tốn. Ba trục không suy ra được từ nhau, mỗi màn dạy một cách chúng kéo nhau.',
+  'games.cicd.campaign.start': (p: { title: string }) => `Bắt đầu: ${p.title}`,
+  'games.cicd.campaign.continue': (p: { title: string }) => `Tiếp tục: ${p.title}`,
+  'games.cicd.campaign.all-done': (p: { total: number }) =>
+    `Bạn đã qua cả ${String(p.total)} màn. Chọn màn bất kỳ để chơi lại.`,
+  'games.cicd.campaign.sandbox': 'Bàn thử tự do',
+  'games.cicd.campaign.sandbox-sub': 'Soạn workflow bất kỳ, chạy mô phỏng, không có đề và không chấm.',
+  'games.cicd.campaign.editable': 'Sửa được',
+  'games.cicd.chapter.ci.title': 'Chương CI: thời gian chờ',
+  'games.cicd.chapter.ci.blurb':
+    'Dựng và tối ưu đường ống tích hợp: đồ thị job, runner, cache, job hay hỏng vặt, ma trận.',
+  'games.cicd.chapter.cd.title': 'Chương CD: môi trường',
+  'games.cicd.chapter.cd.blurb':
+    'Đưa artifact qua các môi trường: thăng hạng, cổng duyệt, chiến lược phát hành, GitOps, che secret.',
+
+  // ── /games/cicd/<màn>: thanh trên và khung bảng nổi ────────────────────────
+  'games.cicd.hud.bar-aria': 'Thanh điều khiển màn chơi',
+  'games.cicd.hud.exit': 'Danh sách màn',
+  'games.cicd.hud.chapter': (p: { id: string; chapter: string }) => `${p.id} · chương ${p.chapter}`,
+  'games.cicd.hud.run': 'Chạy thử',
+  'games.cicd.hud.next': 'Màn tiếp',
+  'games.cicd.hud.mode-group': 'Chế độ vẽ',
+  'games.cicd.hud.quality': 'Chất lượng',
+  'games.cicd.hud.overlays': 'Lớp phủ',
+  'games.cicd.hud.close-all': 'Thu hết',
+  'games.cicd.hud.help': 'Trợ giúp',
+  'games.cicd.hud.close-panel': (p: { title: string }) => `Đóng bảng ${p.title}`,
+  'games.cicd.quality.low': 'Thấp',
+  'games.cicd.quality.medium': 'Vừa',
+  'games.cicd.quality.high': 'Cao',
+  'games.cicd.quality.aria': 'Chất lượng cảnh 3D',
+  'games.cicd.panel.editor': 'Ô soạn',
+  'games.cicd.panel.mission': 'Đề bài',
+  'games.cicd.panel.inspector': 'Thông số',
+  'games.cicd.panel.result': 'Kết quả',
+  'games.cicd.panel.tools': 'Bảng núm',
+  'games.cicd.panel.learn': 'Bài học',
+  'games.cicd.panel.minimap': 'Bản đồ',
 } as const;
 
 export const gamesIntentionalThree: IntentionalThree = {};
