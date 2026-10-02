@@ -52,7 +52,7 @@ import { GAMES, GAME_TOPIC_LABEL, GAME_META } from './games-catalog';
  * KHÔNG phải chữ (id, href, enum) mà quên khai ở đây ⇒ ô dưới đỏ và bắt người
  * thêm phải quyết định, thay vì để phép quét tự đoán.
  */
-const NON_PROSE_FIELDS: ReadonlySet<string> = new Set(['id', 'href', 'difficulty', 'topics']);
+const NON_PROSE_FIELDS: ReadonlySet<string> = new Set(['id', 'gameId', 'href', 'difficulty', 'topics']);
 
 /** Mọi chuỗi người dùng ĐỌC ĐƯỢC trên `/games`, kèm chỗ nó đến từ đâu. */
 function userFacingStrings(): ReadonlyArray<readonly [string, string]> {

@@ -1,59 +1,59 @@
 import { t, type CopyRef } from '@devops-platform/copy';
+import type { GameId } from '@devops-platform/games';
 import type { ScenarioDifficulty } from '@devops-platform/shared-types/scenario';
-import type { CatalogIconName } from '../../components/catalog/catalog-icons';
 
 /**
- * Dữ liệu của trụ cột ③ Games — hợp đồng C4 (`phase-14-exec.md` §4.1, §5).
+ * Dữ liệu của trụ cột Trò chơi (hợp đồng C4, `phase-14-exec.md` §4.1, §5).
  *
  * ## Vì sao là một hằng số trong mã, không phải một lời gọi API
  *
  * Ô nghiệm thu của phase là **0 lời gọi backend trong lúc chơi**, đo bằng
  * network trace của Playwright. Một `games.list` qua tRPC sẽ phá đúng ô đó ngay
- * ở trang danh mục — trước cả khi người chơi bấm vào game nào. Bốn mục là dữ
- * liệu do lập trình viên viết ra chứ không phải nội dung do author soạn, nên
- * không có gì để một bảng DB làm ở đây ngoài việc mua một lượt round-trip.
+ * ở trang danh mục, trước cả khi người chơi bấm vào game nào. Năm mục là dữ liệu
+ * do lập trình viên viết ra, không phải nội dung do tác giả soạn.
  *
  * Hệ quả có chủ ý: thêm một game là một lần deploy, không phải một lần nhập
- * liệu. Đó là đúng hình dạng của thứ này — mỗi game là một bó mã, không phải
- * một bản ghi.
+ * liệu. Mỗi game là một bó mã, không phải một bản ghi.
  *
- * ## Phần LOGIC nằm ở đây, phần JSX nằm ở `games-client.tsx`
+ * ## Chữ đi qua `packages/copy`
  *
- * `apps/web` chạy vitest ở môi trường `node` theo mặc định (xem
- * `vitest.config.ts`), nên thứ kiểm được rẻ nhất là hàm thuần. Lọc, đếm, và
- * hai nhãn bắt buộc của mọi thẻ đều ở đây để `games-catalog.test.ts` khẳng định
- * được mà không phải dựng DOM.
+ * Tên và mô tả từng game đọc từ surface `games.` (đợt dựng lại PTIT, 2026-10-03).
+ * Trước đó chúng là chuỗi viết thẳng ở đây và nằm ngoài tầm mọi cổng chữ; cổng
+ * riêng `games-copy-quality.test.ts` vẫn quét GIÁ TRỊ của hằng này để một chuỗi
+ * lọt khỏi bản đồ mai sau vẫn bị bắt.
+ *
+ * Số màn, số chương và dải độ khó KHÔNG nằm ở đây: chúng suy ra từ dữ liệu màn
+ * thật (`components/games/hub/game-facts.ts`). Một con số chép tay ở đây sẽ là
+ * một lời khai lệch ngay khi ai đó thêm một màn.
  */
 
 export const GAME_TOPICS = ['kubernetes', 'cicd', 'network', 'container', 'git'] as const;
 export type GameTopic = (typeof GAME_TOPICS)[number];
 
-/**
- * Nhãn chủ đề. Thuật ngữ hạ tầng GIỮ tiếng Anh (`Kubernetes`, `CI/CD`,
- * `container`) — dịch chúng ra tiếng Việt là tạo một từ vựng thứ hai mà không
- * tài liệu nào ngoài kia dùng. Chỉ `network` có bản tiếng Việt đủ phổ thông.
- */
 export const GAME_TOPIC_LABEL: Record<GameTopic, string> = {
-  kubernetes: t('catalog.games.topic.kubernetes'),
-  cicd: t('catalog.games.topic.cicd'),
-  network: t('catalog.games.topic.network'),
-  container: t('catalog.games.topic.container'),
-  git: t('catalog.games.topic.git'),
+  kubernetes: t('games.topic.kubernetes'),
+  cicd: t('games.topic.cicd'),
+  network: t('games.topic.network'),
+  container: t('games.topic.container'),
+  git: t('games.topic.git'),
 };
 
 export interface GameEntry {
   readonly id: string;
+  /**
+   * Tên game ở `@devops-platform/games`. Hai trục chỉ TRÙNG MỘT PHẦN: `maze` và
+   * `forge` ứng với `netpol` và `dockerfile`. Màu tuyến của game đọc qua trường
+   * này (`lineForTopic({ gameId })`), không đoán từ chủ đề: `maze` mang cả
+   * `kubernetes` lẫn `network`, và đoán theo chủ đề đầu tiên sẽ tô nó màu K8s.
+   */
+  readonly gameId: GameId;
   readonly title: string;
-  /** `null` ⇒ **chưa chơi được**; thẻ hiện ở trạng thái "sắp có" và không bấm được. */
+  /** `null` ⇒ **chưa chơi được**; mục hiện ở danh sách "đang dựng" và không bấm được. */
   readonly href: string | null;
   readonly description: string;
   /**
-   * Độ khó **lúc bắt đầu**, không phải độ khó trung bình.
-   *
-   * Mỗi game đi từ dễ tới khó qua nhiều level, nên một con số duy nhất không
-   * mô tả được cả game. Chọn "mức bắt đầu" vì đó là thứ người học cần để quyết
-   * định mở hay không — và trang nói thẳng điều đó trong phần mô tả đầu trang
-   * thay vì để người đọc tự đoán badge nghĩa là gì.
+   * Độ khó **lúc bắt đầu**, chỉ dùng cho bộ lọc. Trang không in con số này: dải
+   * độ khó in ra trên `/games` đọc từ chính dữ liệu màn của từng game.
    */
   readonly difficulty: ScenarioDifficulty;
   readonly topics: readonly GameTopic[];
@@ -61,125 +61,81 @@ export interface GameEntry {
 
 /**
  * Năm mục: BA chơi được (P14 dựng K8s, P17 dựng Git, P19 dựng CI/CD), HAI còn ở
- * trạng thái "sắp có".
+ * trạng thái "sắp có" (quyết định #4 của phase): chúng mới có thiết kế ở
+ * `docs/games/`. Hiện chúng không bấm được là cách nói ra kế hoạch mà không hứa
+ * một đường dẫn tới trang trắng.
  *
- * Hai ô "sắp có" là **lựa chọn có ý thức** (quyết định #4 của phase), không phải
- * chỗ còn thiếu: chúng mới có thiết kế (`docs/games/`, lane F). Hiện chúng ở
- * trạng thái không bấm được là cách nói ra kế hoạch mà không hứa một đường link
- * dẫn tới trang trắng.
+ * `id: 'cicd'` (đổi từ `pipeline` ở 19.H): cùng cái tên ấy là khoá tra ở
+ * `PREVIEW_ROUTE_BY_GAME`, `GAME_NAMES` và `TOPIC_LABELS_BY_GAME`. `pipeline`
+ * vẫn là một `GameId` hợp lệ, nhưng nay là tên của một game CHƯA có gì.
  */
 export const GAMES: readonly GameEntry[] = [
   {
     id: 'k8s',
-    title: 'Kubernetes Game',
+    gameId: 'k8s',
+    title: t('games.k8s.name'),
     href: '/games/k8s',
-    description:
-      'Dựng rồi cứu một cluster: tạo pod, phơi service, chịu sự cố ngẫu nhiên. Mỗi level là một cluster hỏng theo một kiểu khác nhau.',
+    description: t('games.k8s.blurb'),
     difficulty: 'beginner',
     topics: ['kubernetes'],
   },
   {
-    /*
-     * Game thứ hai chơi được, thêm ở P17.
-     *
-     * ⚠ `id` ở đây vẫn là `string` tự do, KHÔNG phải `GameId` của
-     * `@devops-platform/games`, và hai trục vẫn chỉ TRÙNG MỘT PHẦN: `maze` và
-     * `forge` ở dưới ứng với `netpol` và `dockerfile`, hai cặp tên khác hẳn nhau.
-     *
-     * Bản trước của chú thích này còn một vế nữa: danh mục gọi game CI/CD là
-     * `pipeline` trong khi union gọi nó là `cicd`, và nối hai tên đó lại "sẽ là
-     * một thay đổi có chủ ý đáng ghi ra". 19.H làm đúng việc đó, nên phần ghi ra
-     * nằm ở mục `cicd` ngay dưới.
-     */
     id: 'git',
-    title: 'Phòng thí nghiệm Git',
+    gameId: 'git',
+    title: t('games.git.name'),
     href: '/games/git',
-    description:
-      'Gõ lệnh git thật trên một kho mô phỏng chạy trong trình duyệt. Ba chương: nắn lịch sử, làm việc nhóm, và cứu commit tưởng đã mất.',
+    description: t('games.git.blurb'),
     difficulty: 'beginner',
     topics: ['git'],
   },
   {
-    /*
-     * Game thứ ba chơi được, mở ở 19.H. Đây là lời ghi ra mà chú thích của mục
-     * `git` phía trên đã hẹn: `id` ĐỔI từ `pipeline` sang `cicd`.
-     *
-     * ## Vì sao đổi, và vì sao nó không phải một lần đổi chữ cho đẹp
-     *
-     * Từ đợt này một mục danh mục không còn chỉ là một thẻ đứng một mình. Nó trỏ
-     * tới `/games/cicd`, và CÙNG cái tên ấy là khoá tra ở ba bảng khác:
-     * `PREVIEW_ROUTE_BY_GAME` (`lib/problem-preview-href.ts`), `GAME_NAMES`
-     * (`app/(session)/problems/problem-game.ts`) và `TOPIC_LABELS_BY_GAME`
-     * (`packages/games/src/problem-topic-labels.ts`). Giữ hai tên cho một game
-     * nghĩa là mỗi lần đi từ bảng này sang bảng kia phải có một phép dịch, và
-     * một phép dịch thiếu thì tra ra `undefined` chứ không ném: thẻ vẫn vẽ, link
-     * vẫn bấm được, chỉ là trỏ sai. Đúng kiểu hỏng im lặng mà cả ba bảng kia đã
-     * ghi ra bằng chữ.
-     *
-     * ## Cái giá đã trả, ghi ra để không ai đọc nhầm
-     *
-     * `pipeline` vẫn là một `GameId` HỢP LỆ (`GAME_IDS` giữ đủ sáu). Từ nay nó
-     * là tên của một game CHƯA có gì, không còn là tên gọi thứ hai của game này.
-     */
     id: 'cicd',
-    title: 'Đường ống CI/CD',
+    gameId: 'cicd',
+    title: t('games.cicd.name'),
     href: '/games/cicd',
-    description:
-      'Xếp các job CI thành một đồ thị phụ thuộc rồi chỉnh cho nó vừa nhanh vừa ổn định: chia runner, bật cache, chặn job hay hỏng vặt bằng retry. 14 level, chấm theo ba trục là đường găng, runner-phút và số lần chạy lại.',
+    description: t('games.cicd.blurb'),
     difficulty: 'intermediate',
     topics: ['cicd'],
   },
   {
     id: 'maze',
-    title: 'Mê cung mạng',
+    gameId: 'netpol',
+    title: t('games.maze.name'),
     href: null,
-    description:
-      'Đưa gói tin từ pod này sang pod kia qua một mê cung NetworkPolicy: mở đúng đường cần mở, đóng phần còn lại.',
+    description: t('games.maze.blurb'),
     difficulty: 'advanced',
     topics: ['kubernetes', 'network'],
   },
   {
     id: 'forge',
-    title: 'Lò rèn Image',
+    gameId: 'dockerfile',
+    title: t('games.forge.name'),
     href: null,
-    description:
-      'Ghép một Dockerfile chạy được rồi rèn cho nhỏ lại. Mỗi layer thừa là một điểm trừ, mỗi lần cache trượt cũng vậy.',
+    description: t('games.forge.blurb'),
     difficulty: 'beginner',
     topics: ['container'],
   },
 ];
 
 /**
- * Hai điều MỌI thẻ game phải nói ra — yêu cầu 14.B.6 của phase gốc.
+ * Hai điều MỌI game phải nói ra trước khi bấm (yêu cầu 14.B.6): không tốn
+ * sandbox, không cần đăng nhập. Một hằng dùng chung chứ không phải một field ở
+ * từng mục, nên không có đường nào để một game hiện ra mà thiếu hai câu này.
  *
- * Là MỘT hằng số dùng chung chứ không phải hai dòng chép vào từng mục: người
- * học cần biết **trước khi bấm** cái gì tốn chỗ và cái gì không, và một field
- * `noSandbox: true` viết lại ở bốn mục là bốn dịp để mục thứ năm quên. Ở đây
- * không có đường nào để một thẻ game hiện ra mà thiếu hai nhãn này.
- *
- * Đối lập là CTF (P11): nó chạy trên hạ tầng thật nên **tốn một sandbox** và
- * **cần đăng nhập**. Trang danh mục nói cả hai vế cạnh nhau — xem khối CTF ở
- * `games-client.tsx`.
+ * Đối lập là CTF (P11): nó chạy trên hạ tầng thật nên tốn một sandbox và cần
+ * đăng nhập.
  */
-export const NO_SANDBOX_LABEL = t('catalog.games.no-sandbox');
-export const NO_LOGIN_LABEL = t('catalog.games.no-login');
+export const NO_SANDBOX_LABEL = t('games.fact.no-sandbox');
+export const NO_LOGIN_LABEL = t('games.fact.no-login');
 
 export interface GameMetaItem {
-  readonly icon: CatalogIconName;
+  readonly icon: 'sandbox' | 'login';
   readonly label: string;
 }
 
-/**
- * ⚠ `icon: 'selected'` (dấu tích) cho nhãn đăng nhập là lựa chọn CÓ CÂN NHẮC.
- * Registry `catalog-icons.tsx` không có icon khoá/người dùng, và file đó là tài
- * sản dùng chung của năm trang danh mục — thêm một icon vào giữa lượt fan-out
- * song song là chạm một file lane khác cũng có thể đang chạm. Dấu tích cạnh một
- * mệnh đề khẳng định ("✓ Không cần đăng nhập") đọc đúng nghĩa, nên cái giá duy
- * nhất là tên khoá trong registry hơi lệch ngữ cảnh.
- */
 export const GAME_META: readonly GameMetaItem[] = [
   { icon: 'sandbox', label: NO_SANDBOX_LABEL },
-  { icon: 'selected', label: NO_LOGIN_LABEL },
+  { icon: 'login', label: NO_LOGIN_LABEL },
 ];
 
 export interface GameFilterState {
@@ -194,10 +150,8 @@ export function hasActiveGameFilter(filters: GameFilterState): boolean {
 }
 
 /**
- * Lọc theo chủ đề + độ khó. Lọc CHẠY Ở CLIENT trên toàn bộ danh sách, nên
- * KHÔNG có cảnh báo phạm vi kiểu `describeSortScope` của các trang danh mục
- * khác: ở đó server phân trang keyset nên sắp xếp chỉ áp cho trang đang tải,
- * còn ở đây bốn mục đã nằm sẵn trong bundle — "khớp bộ lọc" là khớp toàn bộ kho.
+ * Lọc theo chủ đề + độ khó, chạy ở client trên TOÀN BỘ danh sách: năm mục nằm
+ * sẵn trong bundle, nên "khớp bộ lọc" là khớp toàn bộ kho, không phải một trang.
  */
 export function filterGames(
   games: readonly GameEntry[],
@@ -211,15 +165,11 @@ export function filterGames(
 }
 
 /**
- * Dòng đếm của `/games`, trả về KHOÁ chứ không trả về câu (§1.6).
- *
- * Không có vế “trong trang này”, và đó là một khác biệt CÓ THẬT so với năm trang
- * danh mục: bốn mục nằm sẵn trong bundle nên bộ lọc và ô tìm đều chạy trên TOÀN
- * BỘ kho. Mượn câu cảnh báo phạm vi của các trang kia sang đây sẽ là cảnh báo
- * về một giới hạn không tồn tại.
+ * Dòng đếm của `/games`, trả về KHOÁ chứ không trả về câu. Không có vế "trong
+ * trang này": bộ lọc chạy trên toàn bộ kho.
  */
 export function describeGameCount(shown: number, filtering: boolean): CopyRef {
   return filtering
-    ? { key: 'catalog.games.count-filtered', params: { shown } }
-    : { key: 'catalog.games.count', params: { shown } };
+    ? { key: 'games.hub.count-filtered', params: { shown } }
+    : { key: 'games.hub.count', params: { shown } };
 }
