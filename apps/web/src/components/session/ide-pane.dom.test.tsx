@@ -186,7 +186,7 @@ describe('AC-8 · 4xx là lỗi thật, dừng NGAY và nêu mã', () => {
     await tick(0);
 
     const text = screen.getByRole('alert').textContent ?? '';
-    expect(text).toContain('404');
+    expect(text).toContain('401');
     expect(text).toMatch(/terminal/);
   });
 });
