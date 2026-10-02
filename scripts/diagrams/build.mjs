@@ -111,7 +111,7 @@ async function buildOne(texPath, ctx) {
     try {
       await run('dvisvgm', [...DVISVGM_ARGS, '-o', 'raw.svg', 'main.xdv'], { cwd: tmp, timeout: TEX_TIMEOUT_MS, windowsHide: true });
     } catch (e) {
-      throw new Error(`dvisvgm lỗi:\n${String(e.stderr || e.stdout || e.message).trim()}`);
+      throw new Error(`dvisvgm lỗi:\n${String(e.stderr || e.stdout || e.message).trim()}`, { cause: e });
     }
     const svg = postprocess(readFileSync(join(tmp, 'raw.svg'), 'utf8'), src, ctx.palette);
     const problems = validateSvg(svg, { prefix: idPrefix(src), palette: ctx.palette });

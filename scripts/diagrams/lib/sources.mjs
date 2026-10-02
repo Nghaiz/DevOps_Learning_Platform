@@ -7,6 +7,8 @@ import { DIAGRAMS_DIR, toPosix } from './paths.mjs';
 
 export const FORMAT = 'dlp-diagram v1';
 const HEADER = /^<!-- dlp-diagram v1 src=([0-9a-f]{64}) out=([0-9a-f]{64}) -->$/;
+// U+FEFF dựng từ mã số: viết thẳng ký tự (hay escape qua công cụ ghi file) dễ thành ký tự vô hình.
+const LEADING_BOM = new RegExp('^' + String.fromCharCode(0xfeff));
 
 /**
  * Những file mà đổi một byte là đầu ra có thể đổi theo. Băm nguồn của MỌI sơ đồ phủ cả chúng,
@@ -19,7 +21,7 @@ const FONT_DIR = 'fonts';
 const sha256 = (data) => createHash('sha256').update(data).digest('hex');
 
 /** Chuẩn hoá văn bản trước khi băm: bỏ BOM, CRLF → LF. Checkout Windows (autocrlf) không làm đỏ cổng. */
-export const normalizeText = (s) => s.replace(/^﻿/, '').replace(/\r\n/g, '\n');
+export const normalizeText = (s) => s.replace(LEADING_BOM, '').replace(/\r\n/g, '\n');
 
 function fontFiles() {
   const out = [];

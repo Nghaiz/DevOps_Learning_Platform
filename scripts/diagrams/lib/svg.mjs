@@ -6,6 +6,8 @@
 
 const NAME = /^[A-Za-z_][\w:.-]*/;
 const ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" };
+// U+FEFF dựng từ mã số: viết thẳng ký tự (hay escape qua công cụ ghi file) dễ thành ký tự vô hình.
+const LEADING_BOM = new RegExp('^' + String.fromCharCode(0xfeff));
 
 function decode(text, where) {
   return text.replace(/&(#x[0-9a-fA-F]+|#[0-9]+|[a-z]+);|&/g, (m, ent) => {
@@ -22,7 +24,7 @@ function decode(text, where) {
 /** Chuỗi SVG → cây { name, attrs: [[k, v]…], children: [], text }. Ném lỗi khi gặp thứ ngoài ngữ pháp. */
 export function parseSvg(input) {
   let i = 0;
-  const src = input.replace(/^﻿/, '');
+  const src = input.replace(LEADING_BOM, '');
   const root = { name: '#root', attrs: [], children: [], text: '' };
   const stack = [root];
   const fail = (msg) => {

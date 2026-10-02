@@ -63,8 +63,8 @@ function selfTest(palette) {
   const texText = readFileSync(example, 'utf8');
   const svgText = readFileSync(example.replace(/\.tex$/, '.svg'), 'utf8');
   const lines = [];
-  const pristine = checkPair(texText, svgText, palette);
-  if (pristine.length > 0) lines.push(`tự kiểm: bản gốc ${repoRel(example)} lẽ ra phải xanh: ${pristine[0]}`);
+  // Không đòi bản gốc xanh ở đây: khi bảng màu/preamble đổi thì nó đỏ đúng lý do, và lượt kiểm
+  // thật bên dưới sẽ liệt kê từng sơ đồ cần dựng lại. Tự kiểm chỉ hỏi: mỗi đột biến có đỏ không.
   const cases = mutations(texText, svgText);
   for (const [name, t, s] of cases) {
     if (checkPair(t, s, palette).length === 0) lines.push(`tự kiểm: đột biến "${name}" KHÔNG bị bắt, cổng đang mù`);

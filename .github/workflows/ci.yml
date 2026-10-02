@@ -173,6 +173,15 @@ jobs:
       - name: Env drift gate
         run: node scripts/env-check.mjs
 
+      # Sơ đồ TikZ (plans/labs-rebuild/contracts.md §C4). SVG commit cạnh .tex phải khớp băm nguồn
+      # (thân .tex + bảng màu + preamble + font + hậu xử lý) và băm đầu ra (bắt sửa tay), và qua danh
+      # sách cho phép (không script, không href ngoài, màu chỉ trong bảng). Runner KHÔNG có TeX: cổng
+      # chỉ so băm, tác giả dựng bằng `pnpm diagrams:build` trên máy mình. Chỉ cần node stdlib nên
+      # chạy trước pnpm install, đỏ trong vài giây. Script tự kiểm bằng đột biến trước khi kiểm thật,
+      # nên một cổng mù (không biết đỏ) sẽ tự đỏ chứ không xanh khống.
+      - name: 'Cổng sơ đồ (diagrams:check)'
+        run: node scripts/diagrams/check.mjs
+
       - name: 'Start Redis (requirepass — services: không cho đặt CMD)'
         run: |
           docker run -d --name ci-redis -p 6379:6379 redis:7-alpine \

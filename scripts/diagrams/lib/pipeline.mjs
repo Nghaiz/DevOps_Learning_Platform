@@ -117,5 +117,14 @@ export function postprocess(rawSvg, srcHash, palette) {
     if (classes.length > 0) node.attrs.push(['class', classes.join(' ')]);
   }
   root.children = root.children.filter((c) => !(c.name === 'g' && c.children.length === 0));
+
+  // dvisvgm xếp các khối glyph trong <defs> theo thứ tự KHÔNG ổn định giữa hai lần chạy (đo:
+  // cùng nguồn, ba lần --force cho ba băm out khác nhau, chỉ khác vị trí khối g0-*). Thứ tự trong
+  // <defs> không ảnh hưởng hình, nên sắp theo id (so code unit, không phụ thuộc locale).
+  for (const node of walkSvg(root)) {
+    if (node.name !== 'defs') continue;
+    const key = (n) => getAttr(n, 'id') ?? '';
+    node.children.sort((a, b) => (key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0));
+  }
   return serializeSvg(root);
 }
