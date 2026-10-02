@@ -172,6 +172,8 @@ test.describe('luồng 2 — lab', { tag: '@flow' }, () => {
     const submit = page.getByRole('button', { name: 'Nộp bài', exact: true });
     await expect(submit).toBeVisible();
     await submit.click();
+    // Nộp bài có hộp xác nhận (điểm chốt, không chấm lại được): bấm nút Nộp bài TRONG hộp.
+    await page.getByRole('dialog').getByRole('button', { name: 'Nộp bài', exact: true }).click();
     // Sau khi nộp, `lab-client` khoá lượt chấm lại và hiện câu lý do đó. Đây là
     // dấu hiệu quan sát được của "đã nộp", không phải một khoảng chờ.
     /*

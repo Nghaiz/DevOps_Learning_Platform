@@ -23,8 +23,7 @@ import {
   expect,
   signInThroughForm,
   startSandbox,
-  test,
-} from './flow-kit';
+  test, SESSION_READY_TIMEOUT_MS } from './flow-kit';
 import { settle } from '../fixtures/nav';
 
 test.describe('luồng 1 — bài học', { tag: '@flow' }, () => {
@@ -90,7 +89,8 @@ test.describe('luồng 1 — bài học', { tag: '@flow' }, () => {
         `bước nào chấm được, nên nó không phục vụ được luồng "học → chấm" — ` +
         `hoặc StepNav đã hỏng. Cả hai đều là lỗi thật.`,
     ).toBeVisible();
-    await expect(check).toBeEnabled();
+    // Nút Kiểm tra chỉ mở ở pha ready (M6), nên chờ theo mốc pha phiên, không theo trần 5s mặc định.
+    await expect(check).toBeEnabled({ timeout: SESSION_READY_TIMEOUT_MS });
     await check.click();
 
     // `CheckResultPanel` có BA nhánh và cả ba đều là một lượt chấm ĐÃ CHẠY:
