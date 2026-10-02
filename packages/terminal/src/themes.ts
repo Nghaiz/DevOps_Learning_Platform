@@ -16,29 +16,34 @@ export type ThemeName = 'dlp-dark' | 'dlp-light' | 'dlp-contrast';
 
 export const DEFAULT_THEME: ThemeName = 'dlp-dark';
 
+/**
+ * Đêm (bản dựng lại PTIT, design-brief §7): workspace luôn tối ở cả hai theme
+ * trang. Nền trùng --background tối của trang, con trỏ đỏ PTIT, vùng chọn vàng
+ * tín hiệu với chữ mực. ANSI chỉnh sáng để đọc được trên nền #0A0D14.
+ */
 const dark: ITheme = {
-  foreground: '#e2e8f0',
-  background: '#0f172a',
-  cursor: '#38bdf8',
-  cursorAccent: '#0f172a',
-  selectionBackground: '#334155',
-  selectionForeground: '#f8fafc',
-  black: '#1e293b',
-  red: '#f87171',
-  green: '#4ade80',
-  yellow: '#fbbf24',
-  blue: '#60a5fa',
-  magenta: '#c084fc',
-  cyan: '#22d3ee',
-  white: '#e2e8f0',
-  brightBlack: '#475569',
-  brightRed: '#fca5a5',
-  brightGreen: '#86efac',
-  brightYellow: '#fcd34d',
-  brightBlue: '#93c5fd',
-  brightMagenta: '#d8b4fe',
-  brightCyan: '#67e8f9',
-  brightWhite: '#f8fafc',
+  foreground: '#ECEAE3',
+  background: '#0A0D14',
+  cursor: '#E3261D',
+  cursorAccent: '#0A0D14',
+  selectionBackground: '#EFF003',
+  selectionForeground: '#121829',
+  black: '#1A2030',
+  red: '#FF6A5E',
+  green: '#3DD27E',
+  yellow: '#FFC940',
+  blue: '#7AA7FF',
+  magenta: '#C99BFF',
+  cyan: '#3FD3E2',
+  white: '#D5D3CC',
+  brightBlack: '#6B7387',
+  brightRed: '#FF8F85',
+  brightGreen: '#6BE39E',
+  brightYellow: '#FFE07A',
+  brightBlue: '#A3C2FF',
+  brightMagenta: '#DDBEFF',
+  brightCyan: '#7FE4EE',
+  brightWhite: '#F6F5F1',
 };
 
 const light: ITheme = {

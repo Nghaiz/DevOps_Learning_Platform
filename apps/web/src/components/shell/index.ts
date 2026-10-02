@@ -11,7 +11,6 @@ export {
   DESKTOP_TARGET_MIN_PX,
   meetsTerminalWidth,
 } from './breakpoints';
-export { NarrowScreenNotice } from './narrow-screen-notice';
 export { useMinWidth } from './use-min-width';
 export { useCapacity, CAPACITY_REFETCH_MS } from './use-capacity';
 export type { CapacityState } from './use-capacity';

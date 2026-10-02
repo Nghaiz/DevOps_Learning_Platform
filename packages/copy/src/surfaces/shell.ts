@@ -127,7 +127,7 @@ export const shell = {
   'shell.capacity.load': (p: { active: number; soft: number; hard: number }) =>
     `Đang chạy ${String(p.active)}/${String(p.soft)} phiên, trần cứng ${String(p.hard)}.`,
   'shell.capacity.full-label': 'Hết chỗ',
-  'shell.capacity.low-label': (p: { remaining: number }) => `Còn ${String(p.remaining)} chỗ`,
+  'shell.capacity.low-label': (p: { remaining: number }) => `Chỉ còn ${String(p.remaining)} chỗ`,
   'shell.capacity.ok-label': (p: { remaining: number }) => `Còn ${String(p.remaining)} chỗ`,
   'shell.capacity.full-detail': (p: { load: string; note: string }) =>
     `${p.load} Mở phiên mới lúc này sẽ bị từ chối. Đợi vài phút, hoặc đóng bớt phiên ở Bàn học.${p.note}`,
@@ -157,11 +157,6 @@ export const shell = {
   'shell.footer.note': 'Đề tài nghiên cứu khoa học sinh viên, khoa Công nghệ thông tin.',
   'shell.footer.source': 'Máy ảo chạy trên cụm Kubernetes của phòng lab.',
 
-  // ── Màn hình hẹp (dùng chung cho workspace) ────────────────────────────
-  'shell.narrow.title': (p: { minWidth: number }) =>
-    `Màn hình hẹp hơn ${String(p.minWidth)}px, terminal sẽ xếp bên dưới bài`,
-  'shell.narrow.body':
-    'Lệnh dài có thể xuống dòng. Xoay ngang máy hoặc mở trên laptop sẽ dễ làm hơn.',
 } as const satisfies Surface<'shell'>;
 
 /**
