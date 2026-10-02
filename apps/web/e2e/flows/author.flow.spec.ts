@@ -73,21 +73,12 @@ test.describe('luồng 5 — soạn bài', { tag: '@flow' }, () => {
 
     await page.getByRole('button', { name: /^Thêm bước$/ }).click();
 
-    // ⚠ Thẻ bước là một `Card`, và chữ "Bước 1" nằm trong một `<h3>` — KHÔNG
-    // phải một `<div>` có text đúng bằng "Bước 1". Bản đầu dùng
-    // `locator('div').filter({ hasText: /^Bước 1$/ })` và khớp 0 phần tử trên
-    // cụm 2026-09-07: `hasText` đối chiếu với TOÀN BỘ text của phần tử, mà div
-    // bọc gần nhất còn chứa ba nút "Lên"/"Xuống"/"Xoá" nên text của nó là
-    // "Bước 1LênXuốngXoá". Triệu chứng đọc ra rất lạc hướng — một
-    // `locator.fill: Timeout` ở dòng NGAY SAU, tức trông như ô nhập không nhận
-    // chữ chứ không như thẻ bước không tồn tại.
-    //
-    // Neo bằng chính heading rồi lấy `Card` chứa nó: `data-slot="card"` là hook
-    // ổn định `packages/ui/src/card.tsx` cố ý phát ra, còn `h3` là cấu trúc
-    // ngữ nghĩa thật của thẻ bước.
-    const stepCard = page
-      .locator('[data-slot="card"]')
-      .filter({ has: page.getByRole('heading', { name: 'Bước 1', exact: true }) });
+    // Mỗi bước là một `<section aria-labelledby>` có heading "Bước N" (bản dựng
+    // lại PTIT 2026-10-03 bỏ `Card`), nên nó là một landmark `region` mang đúng
+    // tên đó. Neo bằng vai trò + tên chứ không bằng `data-slot="card"`: bản cũ
+    // neo vào hook của `Card` và sẽ khớp 0 phần tử khi thẻ thôi là `Card`.
+    // `exact` vì "Bước 1" là tiền tố của "Bước 10".
+    const stepCard = page.getByRole('region', { name: 'Bước 1', exact: true });
     await stepCard.getByLabel('Tiêu đề').fill('Bước kiểm thử tự động');
     await stepCard.getByLabel('Nội dung (Markdown)').fill(
       'Bước này do harness e2e sinh ra để đi hết luồng soạn bài. Không có gì phải làm.',
@@ -133,7 +124,10 @@ test.describe('luồng 5 — soạn bài', { tag: '@flow' }, () => {
     // Alert là thứ ta đang đo (kết quả của lượt chạy thử); badge chỉ nói trạng
     // thái hàng. Lấy nhầm badge sẽ xanh cả khi lượt chạy thử chưa báo gì.
     const published = page.getByRole('heading', { name: 'Đã xuất bản', exact: true });
-    const failed = page.getByText('Lượt chạy thử trượt — bài quay về Nháp');
+    // Chuỗi PHẢI khớp nguyên văn `author.publish-panel-luot-chay-thu-truot-bai-quay-ve-nhap`.
+    // Bản cũ còn mang gạch ngang dài trong khi bản đồ chữ đã bỏ nó, nên `failed`
+    // không bao giờ khớp và ô "không trượt" dưới đây xanh trong mọi trường hợp.
+    const failed = page.getByText('Lượt chạy thử trượt, bài quay về Nháp');
 
     await expect(async () => {
       expect(
