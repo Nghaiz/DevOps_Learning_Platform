@@ -1,302 +1,240 @@
 'use client';
 
 import { useId, useState, type ReactElement } from 'react';
+import { ArrowDownWideNarrow, ArrowUpNarrowWide, Search, X } from 'lucide-react';
 import { t } from '@devops-platform/copy';
 import {
+  Button,
+  Chip,
+  Difficulty,
+  Input,
   Label,
-  SearchTabs,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from '@devops-platform/ui';
-import { Button } from '@devops-platform/ui';
 import {
   PROBLEM_DIFFICULTIES,
   PROBLEM_DIFFICULTY_LABELS,
   PROBLEM_ORDER_KEYS,
-  type GameId,
-  type ProblemOrderKey,
+  type ProblemFilter,
 } from '@devops-platform/games';
 import {
+  PROBLEM_DIFFICULTY_LEVEL,
   PROBLEM_DIRECTION_LABELS,
   PROBLEM_ORDER_LABELS,
   PROBLEM_VIEWER_STATUSES,
   PROBLEM_VIEWER_STATUS_LABELS,
 } from './problem-labels';
-import { PROBLEM_FILTER_GAMES, gameName, topicIdsFor, topicLabelsFor } from './problem-game';
-import { FilterChecklist, TagFilter } from './problem-filter-groups';
+import { PROBLEM_FILTER_GAMES, topicIdsFor, topicLabelsFor } from './problem-game';
+import { ChipGroup, GameSwitch, TagFilter } from './problem-filter-groups';
 import type { ProblemControls } from './use-problem-controls';
 
 const DIRECTIONS = ['asc', 'desc'] as const;
 
 /**
+ * Số điều kiện lọc đang bật, để câu "Đang bật 3 điều kiện" nói đúng thứ nút xoá
+ * sắp xoá. Thứ tự sắp KHÔNG tính: nó không phải điều kiện lọc, và `clearFilters`
+ * cố ý giữ nguyên nó.
+ */
+function activeConditionCount(filter: ProblemFilter): number {
+  return (
+    (filter.difficulty?.length ?? 0) +
+    (filter.topics?.length ?? 0) +
+    (filter.tags?.length ?? 0) +
+    (filter.viewerStatus?.length ?? 0) +
+    (filter.query !== undefined && filter.query !== '' ? 1 : 0)
+  );
+}
+
+/**
  * Thanh lọc + sắp xếp của `/problems`.
  *
- * Đây là thứ bản của k8sgames.com KHÔNG có: họ liệt kê phẳng mười bài, không
- * lọc, không phân loại, không mã bài. Một trình chấm bài mà không lọc được thì
- * chỉ dùng được khi số bài còn đếm trên đầu ngón tay.
+ * ## Ô tìm là ô tìm THẬT, trên cả kho
  *
- * ## Ô tìm ở đây là ô tìm THẬT, và đó là chỗ khác năm trang danh mục
+ * `problems.list` nhận `filter.query` và lọc trên TOÀN BỘ kho, khác các trang
+ * danh mục chỉ lọc trong trang vừa tải. Vì vậy màn này không mang câu cảnh báo
+ * phạm vi của các trang đó: mượn câu đó sang đây là cảnh báo về một giới hạn
+ * không tồn tại.
  *
- * `problems.list` nhận `filter.query` và lọc trên TOÀN BỘ kho, còn năm trang
- * danh mục chỉ lọc được trên trang server vừa trả về. Hai màn vì vậy dùng hai
- * nhãn khác nhau (`catalog.problems.search-label` so với
- * nhãn “trong trang” của các màn lọc-tại-chỗ), và màn này KHÔNG mang câu cảnh báo phạm vi.
- * Mượn câu đó sang đây sẽ cảnh báo về một giới hạn không tồn tại, và một cảnh
- * báo sai chỗ dạy người dùng bỏ qua cảnh báo đúng chỗ.
+ * ## Ô tìm commit khi gửi form (Enter hoặc nút Tìm), KHÔNG theo từng phím
  *
- * ## `SearchTabs` ở đây chạy KHÔNG có tab, và đó là quyết định
+ * Mỗi lần ghi bộ lọc là một mục lịch sử duyệt, nên gõ "nginx" theo từng phím sẽ
+ * chôn trang trước dưới năm mục rác và nút quay lại thành vô dụng.
  *
- * Bốn chiều lọc của màn này (độ khó, trạng thái, chủ đề, tag) đều là NHIỀU LỰA
- * CHỌN: người dùng bật cùng lúc `easy` và `medium`, và luật gộp còn khác nhau
- * giữa chủ đề (HOẶC) với tag (VÀ). Một hàng tab là điều khiển MỘT lựa chọn; ánh
- * xạ nó vào bất kỳ chiều nào ở đây sẽ hoặc âm thầm bỏ các lựa chọn khác khi
- * người ta bấm tab, hoặc hiện một tab "đang chọn" trong khi thật ra có ba giá
- * trị đang bật. Cả hai đều là điều khiển nói dối. `SearchTabs` xử lý
- * `tabs: []` sẵn nên ô tìm vẫn dùng được mà không phải bịa ra một trục.
+ * ## Bốn chiều lọc đều là NHIỀU lựa chọn
  *
- * ## Ô TÌM commit khi bấm Enter, KHÔNG commit theo từng phím
- *
- * Lý do là lịch sử duyệt: mỗi lần ghi bộ lọc là một mục lịch sử, nên gõ "nginx"
- * theo từng phím sẽ chôn trang trước dưới năm mục rác và nút quay lại thành vô
- * dụng, đúng thứ mà yêu cầu "bấm quay lại được" đòi phải giữ.
- *
- * Vì vậy `onSearchChange` chỉ nuôi bản nháp còn `onSearch` (Enter) mới commit.
- * Đây là chỗ khác năm trang danh mục lần thứ hai: ở đó ô tìm là state cục bộ
- * không đụng URL nên commit theo từng phím là đúng.
+ * Độ khó, kết quả, chủ đề, tag: người dùng bật cùng lúc `easy` và `medium`, và
+ * luật gộp còn khác nhau giữa chủ đề (HOẶC) với tag (VÀ). Vì thế chúng là nhóm
+ * chip bật tắt, không phải một hàng tab một-lựa-chọn: tab ở đây sẽ hoặc âm thầm
+ * bỏ các lựa chọn khác, hoặc hiện một ô "đang chọn" trong khi thật ra ba giá trị
+ * đang bật.
  */
 export function ProblemsToolbar({
   controls,
 }: {
   readonly controls: ProblemControls;
 }): ReactElement {
+  const searchId = useId();
   const orderId = useId();
-  const directionId = useId();
+  const directionLabelId = useId();
   const committed = controls.query.filter.query ?? '';
   const [draft, setDraft] = useState(committed);
 
-  // Bộ lọc đổi từ NƠI KHÁC (nút xoá lọc, hoặc người dùng bấm quay lại) thì ô
-  // tìm phải theo. So khoá đã commit thay vì `useEffect` đồng bộ hai chiều: hai
-  // nguồn cho một ô nhập là cách chắc chắn để có một lượt render mà ô hiện một
-  // đằng còn URL nói một nẻo.
+  // Bộ lọc đổi từ NƠI KHÁC (nút xoá lọc, hoặc người dùng bấm quay lại) thì ô tìm
+  // phải theo. So khoá đã commit ngay trong lượt render thay vì một `useEffect`
+  // đồng bộ hai chiều: hai nguồn cho một ô nhập là cách chắc chắn để có một lượt
+  // render mà ô hiện một đằng còn URL nói một nẻo.
   const [syncedWith, setSyncedWith] = useState(committed);
   if (syncedWith !== committed) {
     setSyncedWith(committed);
     setDraft(committed);
   }
 
-  return (
-    <div className="flex flex-col gap-5 rounded-lg border border-border bg-card p-4 shadow-elevation-1">
-      <div className="practice-game-switch" aria-label={t('catalog.problems.game-switch-label')}>
-        {PROBLEM_FILTER_GAMES.map((gameId) => (
-          <button
-            key={gameId}
-            type="button"
-            aria-pressed={controls.query.game === gameId}
-            onClick={() => controls.setGame(gameId)}
-          >
-            {gameName(gameId)}
-          </button>
-        ))}
-      </div>
-      <div className="flex flex-wrap items-end gap-4">
-        <div className="flex min-w-64 flex-1 flex-col gap-2">
-          <span className="text-xs font-medium text-muted-foreground">
-            {t('catalog.problems.search-label')}
-          </span>
-          <SearchTabs
-            tabs={[]}
-            value={draft}
-            onSearchChange={setDraft}
-            onSearch={controls.setSearch}
-            placeholder={t('catalog.problems.search-placeholder')}
-            label={t('catalog.problems.search-region')}
-          />
-        </div>
-
-        <div className="flex w-44 flex-col gap-2">
-          <Label htmlFor={orderId} className="text-xs font-medium text-muted-foreground">
-            {t('catalog.problems.order-label')}
-          </Label>
-          <Select
-            value={controls.query.orderBy}
-            onValueChange={(value) => {
-              controls.setOrderBy(value as ProblemOrderKey);
-            }}
-          >
-            <SelectTrigger id={orderId}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {PROBLEM_ORDER_KEYS.map((key) => (
-                <SelectItem key={key} value={key}>
-                  {PROBLEM_ORDER_LABELS[key]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="flex w-36 flex-col gap-2">
-          <Label htmlFor={directionId} className="text-xs font-medium text-muted-foreground">
-            {t('catalog.problems.direction-label')}
-          </Label>
-          <Select
-            value={controls.query.direction}
-            onValueChange={(value) => {
-              controls.setDirection(value === 'desc' ? 'desc' : 'asc');
-            }}
-          >
-            <SelectTrigger id={directionId}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {DIRECTIONS.map((key) => (
-                <SelectItem key={key} value={key}>
-                  {PROBLEM_DIRECTION_LABELS[key]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={controls.clearFilters}
-          disabled={!controls.hasActiveFilter}
-        >
-          {t('catalog.action.clear-filter')}
-        </Button>
-      </div>
-
-      <details className="practice-advanced-filters">
-        <summary>
-          {t('catalog.problems.advanced-summary')}
-          {controls.hasActiveFilter ? ` · ${t('catalog.problems.advanced-active')}` : ''}
-        </summary>
-        <div className="grid gap-5 md:grid-cols-2">
-          <FilterChecklist
-            legend={t('catalog.problems.difficulty-legend')}
-            options={PROBLEM_DIFFICULTIES}
-            labels={PROBLEM_DIFFICULTY_LABELS}
-            selected={controls.query.filter.difficulty ?? []}
-            onToggle={controls.toggleDifficulty}
-          />
-          <FilterChecklist
-            legend={t('catalog.problems.status-legend')}
-            options={PROBLEM_VIEWER_STATUSES}
-            labels={PROBLEM_VIEWER_STATUS_LABELS}
-            selected={controls.query.filter.viewerStatus ?? []}
-            onToggle={controls.toggleViewerStatus}
-          />
-          <TopicFilter controls={controls} />
-          <TagFilter
-            tags={controls.query.filter.tags ?? []}
-            onAdd={controls.addTag}
-            onRemove={controls.removeTag}
-          />
-        </div>
-      </details>
-    </div>
-  );
-}
-
-/**
- * Khối lọc chủ đề, kèm bộ chọn GAME quyết định từ vựng của nó — §18 khối 6.
- *
- * ## Vì sao bộ chọn game nằm TRONG khối này, không nằm cạnh "Sắp xếp theo"
- *
- * Chỗ đứng là lời giải thích rẻ nhất. Đặt nó trên hàng điều khiển đầu — cạnh
- * thứ tự và chiều sắp — sẽ đọc như một chiều lọc thứ năm ngang hàng với độ khó,
- * và người dùng sẽ chờ bảng bài thu lại khi chọn "Git Game". Nó không làm thế:
- * `ProblemFilter` không có trường `gameId` và schema đầu vào của `problems.list`
- * khai `.strict()` (đo 2026-09-15 — xem `problem-game.ts`). Đặt nó ngay trên
- * danh sách chủ đề thì quan hệ "đổi cái này thì cái kia đổi theo" tự hiện ra,
- * và câu `game-hint` chỉ phải xác nhận điều mắt đã thấy.
- *
- * ## MỘT nhánh, từ 2026-09-15
- *
- * Bản đầu có hai nhánh vì hợp đồng `ProblemFilter.topics` còn đóng ở chín chủ đề
- * K8s: game chở được thì ô bấm được, game chưa chở được thì chủ đề vẫn hiện
- * nhưng KHOÁ kèm lý do. Hợp đồng nới xong thì nhánh thứ hai hết đối tượng.
- *
- * Lý lẽ của nhánh khoá vẫn đúng và đáng giữ lại đây phòng khi cần: khoá-kèm-lý-do
- * đúng hơn một danh sách rỗng, vì danh sách rỗng trả lời sai câu người dùng đang
- * hỏi — họ muốn biết game này có những chủ đề nào, và "tám chủ đề, chưa lọc
- * được" đúng hơn "không có chủ đề nào".
- */
-function TopicFilter({ controls }: { readonly controls: ProblemControls }): ReactElement {
+  const active = activeConditionCount(controls.query.filter);
   const gameId = controls.query.game;
 
-  /*
-   * Nhánh KHOÁ đã bị GỠ 2026-09-15, cùng lượt nới `ProblemFilter.topics` sang
-   * `ProblemTopicId`. Nó tồn tại vì hợp đồng lọc còn đóng ở chín chủ đề K8s, nên
-   * chủ đề Git hiện ra được mà không gửi đi được; nay mọi game đi qua cùng một
-   * đường và không còn trạng thái thứ hai để hiện.
-   */
   return (
-    <div className="flex flex-col gap-3">
-      <GameSelect value={gameId} onChange={controls.setGame} />
-      <FilterChecklist
-        legend={t('catalog.problems.topic-legend')}
-        hint={t('catalog.problems.topic-hint')}
+    <section aria-label={t('problem.oj.filter.region')} className="mb-8 border-t-2 border-ink">
+      <div className="flex flex-col gap-4 py-5 lg:flex-row lg:items-end">
+        <form
+          role="search"
+          className="flex min-w-0 flex-1 flex-col gap-2"
+          onSubmit={(event) => {
+            event.preventDefault();
+            controls.setSearch(draft);
+          }}
+        >
+          <Label htmlFor={searchId} className="type-label text-muted-foreground">
+            {t('problem.oj.filter.search')}
+          </Label>
+          <div className="flex gap-2">
+            <div className="relative min-w-0 flex-1">
+              <Search
+                aria-hidden
+                className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+              />
+              <Input
+                id={searchId}
+                type="search"
+                value={draft}
+                className="h-12 pl-10 text-base"
+                placeholder={t('problem.oj.filter.search-placeholder')}
+                onChange={(event) => {
+                  setDraft(event.target.value);
+                }}
+              />
+            </div>
+            <Button type="submit" variant="ink" size="lg">
+              {t('problem.oj.filter.search-submit')}
+            </Button>
+          </div>
+        </form>
+
+        <div className="flex flex-wrap items-end gap-4">
+          <div className="flex w-48 flex-col gap-2">
+            <Label htmlFor={orderId} className="type-label text-muted-foreground">
+              {t('problem.oj.filter.order')}
+            </Label>
+            <Select
+              value={controls.query.orderBy}
+              onValueChange={(value) => {
+                /*
+                  `onValueChange` của Radix trả `string`, nên thu hẹp bằng một lượt
+                  TRA trong danh sách thật, không bằng `as`. Ép kiểu sẽ nhận mọi chuỗi
+                  Radix có thể phát ra và đẩy thẳng nó vào URL.
+                */
+                const picked = PROBLEM_ORDER_KEYS.find((key) => key === value);
+                if (picked !== undefined) {
+                  controls.setOrderBy(picked);
+                }
+              }}
+            >
+              <SelectTrigger id={orderId} className="h-12">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PROBLEM_ORDER_KEYS.map((key) => (
+                  <SelectItem key={key} value={key}>
+                    {PROBLEM_ORDER_LABELS[key]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <span id={directionLabelId} className="type-label text-muted-foreground">
+              {t('problem.oj.filter.direction')}
+            </span>
+            <div role="group" aria-labelledby={directionLabelId} className="flex h-12 items-center gap-1">
+              {DIRECTIONS.map((direction) => {
+                const Icon = direction === 'asc' ? ArrowUpNarrowWide : ArrowDownWideNarrow;
+                return (
+                  <Chip
+                    key={direction}
+                    selected={controls.query.direction === direction}
+                    onClick={() => {
+                      controls.setDirection(direction);
+                    }}
+                  >
+                    <Icon aria-hidden className="size-3.5" />
+                    {PROBLEM_DIRECTION_LABELS[direction]}
+                  </Chip>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <GameSwitch games={PROBLEM_FILTER_GAMES} value={gameId} onChange={controls.setGame} />
+
+      <ChipGroup
+        label={t('problem.oj.filter.difficulty')}
+        options={PROBLEM_DIFFICULTIES}
+        labels={PROBLEM_DIFFICULTY_LABELS}
+        selected={controls.query.filter.difficulty ?? []}
+        onToggle={controls.toggleDifficulty}
+        decorate={(value) => <Difficulty level={PROBLEM_DIFFICULTY_LEVEL[value]} />}
+      />
+      <ChipGroup
+        label={t('problem.oj.filter.status')}
+        options={PROBLEM_VIEWER_STATUSES}
+        labels={PROBLEM_VIEWER_STATUS_LABELS}
+        selected={controls.query.filter.viewerStatus ?? []}
+        onToggle={controls.toggleViewerStatus}
+      />
+      <ChipGroup
+        label={t('problem.oj.filter.topic')}
+        hint={t('problem.oj.filter.topic-hint')}
         options={topicIdsFor(gameId)}
         labels={topicLabelsFor(gameId)}
         selected={controls.query.filter.topics ?? []}
         onToggle={controls.toggleTopic}
       />
-    </div>
-  );
-}
+      <TagFilter
+        tags={controls.query.filter.tags ?? []}
+        onAdd={controls.addTag}
+        onRemove={controls.removeTag}
+      />
 
-/**
- * `Select` một lựa chọn, KHÁC hẳn bốn khối lọc còn lại vốn đều là nhiều lựa
- * chọn. Đó là điều đúng ở đây và là lý do §"SearchTabs chạy không có tab" ở đầu
- * file không áp dụng: từ vựng chủ đề của hai game là hai tập rời, nên "đang
- * chọn" luôn là đúng một game — một điều khiển một-lựa-chọn nói đúng trạng thái
- * chứ không che mất lựa chọn nào.
- */
-function GameSelect(props: {
-  readonly value: GameId;
-  readonly onChange: (value: GameId) => void;
-}): ReactElement {
-  const id = useId();
-
-  return (
-    <div className="flex flex-col gap-2">
-      <Label htmlFor={id} className="text-xs font-medium text-muted-foreground">
-        {t('catalog.problems.game-legend')}
-      </Label>
-      <p className="text-xs text-muted-foreground">{t('catalog.problems.game-hint')}</p>
-      <Select
-        value={props.value}
-        onValueChange={(next) => {
-          /*
-            `onValueChange` của Radix trả `string`, nên phép thu hẹp phải là một
-            lượt TRA trong danh sách thật, không phải `as GameId`. Ép kiểu ở đây
-            sẽ nhận mọi chuỗi mà Radix có thể phát ra (kể cả chuỗi rỗng lúc bị
-            xoá trạng thái) và đẩy thẳng nó vào URL.
-          */
-          const picked = PROBLEM_FILTER_GAMES.find((gameId) => gameId === next);
-          if (picked !== undefined) {
-            props.onChange(picked);
-          }
-        }}
-      >
-        <SelectTrigger id={id} className="w-56">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {PROBLEM_FILTER_GAMES.map((gameId) => (
-            <SelectItem key={gameId} value={gameId}>
-              {gameName(gameId)}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
+      <div className="flex flex-wrap items-center justify-end gap-4 border-t border-border pt-4">
+        <p aria-live="polite" className="font-mono text-xs text-foreground">
+          {active > 0 ? t('problem.oj.filter.active', { n: active }) : null}
+        </p>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={controls.clearFilters}
+          disabled={!controls.hasActiveFilter}
+          iconLeft={<X aria-hidden className="size-4" />}
+        >
+          {t('problem.oj.filter.clear')}
+        </Button>
+      </div>
+    </section>
   );
 }

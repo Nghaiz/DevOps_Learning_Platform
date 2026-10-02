@@ -417,7 +417,6 @@ export const problem = {
   'problem.vocabulary-poddisruptionbudget-chan-luot-drain': 'PodDisruptionBudget chặn lượt drain',
   'problem.vocabulary-hpa-khong-co-nguon-metric': 'HPA không có nguồn metric',
   'problem.vocabulary-so-replica-vuot-quota': 'Số replica vượt quota',
-  'problem.problems-client-dang-tai-danh-sach-bai': 'Đang tải danh sách bài',
   'problem.cluster-json-fields-loi-cu-phap': 'lỗi cú pháp',
   'problem.resource-cpu': 'CPU (milli-core)',
   'problem.resource-service-account': 'ServiceAccount',
@@ -473,7 +472,162 @@ export const problem = {
   'problem.git-spec.bots-help': 'Hành động của bot theo đồng hồ logic. Dùng cho bài làm việc nhóm.',
   'problem.git-spec.author': 'Tên tác giả commit',
   'problem.git-spec.author-help': 'Để trống thì dùng "Bạn".',
+
+  /*
+   * ── Bài tập OJ, phía người học: `/problems` và `/problems/[code]` ─────────
+   *
+   * Chuyển về surface này từ `catalog.problems.*` và `catalog.problem.*` trong
+   * đợt dựng lại giao diện PTIT (2026-10-03, lane judge). Ở lại `catalog` có chủ
+   * ý: các nhãn verdict (`catalog.problem.verdict-*`, `subs-verdict-ungraded`)
+   * và cụm `submit-*`. Đấu trường K8s (đóng băng) gọi đúng các khoá đó, và ô test
+   * logic của `submission-verdict.ts` ghim chúng.
+   */
+  'problem.oj.meta-title': 'Bài tập · PTIT DevOps Lab',
+  'problem.oj.meta-description':
+    'Bài tập chấm tự động trên game Kubernetes, Git và CI/CD. Lọc theo độ khó, chủ đề, tag và kết quả của bạn.',
+  'problem.oj.kicker': 'Luyện đề · Bài tập',
+  'problem.oj.title': 'Bài tập',
+  'problem.oj.lead':
+    'Mỗi đề là một tình huống dựng sẵn trong game. Bạn gõ lệnh để sửa, máy chủ chấm theo testcase.',
+  'problem.oj.loading': 'Đang tải danh sách bài',
+  'problem.oj.error-title': 'Không tải được danh sách bài',
+  'problem.oj.board-label': 'Danh sách bài tập',
+  'problem.oj.scope-more': (p: { shown: number; page: number }) =>
+    `Trang ${p.page} có ${p.shown} bài. Bộ lọc chạy trên cả kho, còn trang sau.`,
+  'problem.oj.scope-last': (p: { shown: number; page: number }) =>
+    `Trang ${p.page} có ${p.shown} bài. Đã hết danh sách.`,
+  'problem.oj.tags-more': (p: { n: number }) => `+${p.n} tag`,
+  'problem.oj.solvers': (p: { n: number }) => `${p.n} người giải`,
+  'problem.oj.acceptance-none': 'Chưa ai thử',
+  'problem.oj.acceptance-percent': (p: { percent: number }) => `${p.percent}%`,
+  'problem.oj.acceptance-meter': (p: { percent: number }) => `Tỉ lệ giải ${p.percent}%`,
+  'problem.oj.time-unlimited': 'Không giới hạn giờ',
+
+  'problem.oj.game.k8s': 'Kubernetes',
+  'problem.oj.game.git': 'Git',
+  'problem.oj.game.cicd': 'CI/CD',
+
+  'problem.oj.filter.region': 'Lọc bài tập',
+  'problem.oj.filter.game': 'Chủ đề theo game',
+  'problem.oj.filter.game-hint':
+    'Đổi game để thấy chủ đề của game đó. Bài của mọi game vẫn nằm chung một danh sách.',
+  'problem.oj.filter.search': 'Tìm theo mã hoặc tên bài',
+  'problem.oj.filter.search-placeholder': 'K8S-0042 hoặc pod treo',
+  'problem.oj.filter.search-submit': 'Tìm',
+  'problem.oj.filter.order': 'Sắp theo',
+  'problem.oj.filter.direction': 'Chiều sắp',
+  'problem.oj.filter.difficulty': 'Độ khó',
+  'problem.oj.filter.status': 'Kết quả của bạn',
+  'problem.oj.filter.topic': 'Chủ đề',
+  'problem.oj.filter.topic-hint': 'Chọn nhiều chủ đề thì bài chỉ cần khớp một.',
+  'problem.oj.filter.tag': 'Tag',
+  'problem.oj.filter.tag-hint': 'Chọn nhiều tag thì bài phải có đủ mọi tag.',
+  'problem.oj.filter.tag-placeholder': 'ví dụ: ingress',
+  'problem.oj.filter.tag-add': 'Thêm tag',
+  'problem.oj.filter.tag-remove': (p: { tag: string }) => `Bỏ tag ${p.tag}`,
+  'problem.oj.filter.clear': 'Xoá bộ lọc',
+  'problem.oj.filter.active': (p: { n: number }) => `Đang bật ${p.n} điều kiện`,
+
+  'problem.oj.order.code': 'Mã bài',
+  'problem.oj.order.difficulty': 'Độ khó',
+  'problem.oj.order.solvers': 'Số người giải',
+  'problem.oj.order.created': 'Mới thêm',
+  'problem.oj.direction.asc': 'Tăng dần',
+  'problem.oj.direction.desc': 'Giảm dần',
+
+  'problem.oj.viewer.solved': 'Đã giải',
+  'problem.oj.viewer.attempted': 'Chưa qua',
+  'problem.oj.viewer.untouched': 'Chưa làm',
+
+  'problem.oj.duration.seconds': (p: { seconds: number }) => `${p.seconds} giây`,
+  'problem.oj.duration.minutes': (p: { minutes: number }) => `${p.minutes} phút`,
+  'problem.oj.duration.both': (p: { minutes: number; seconds: number }) =>
+    `${p.minutes} phút ${p.seconds} giây`,
+
+  'problem.oj.empty.filter-title': 'Không có bài nào khớp bộ lọc',
+  'problem.oj.empty.filter-body':
+    'Tag phải khớp đủ, còn chủ đề chỉ cần khớp một. Bỏ bớt tag trước khi bỏ chủ đề.',
+  'problem.oj.empty.blank-title': 'Chưa có bài tập nào được đăng',
+  'problem.oj.empty.blank-body':
+    'Trong lúc chờ, các màn của Kubernetes Game luyện đúng những thao tác mà bài tập sẽ hỏi.',
+  'problem.oj.empty.blank-action': 'Mở Kubernetes Game',
+
+  'problem.oj.detail.meta-title': (p: { code: string }) => `${p.code} · Bài tập · PTIT DevOps Lab`,
+  'problem.oj.detail.loading': 'Đang tải đề bài',
+  'problem.oj.detail.error-title': 'Không tải được đề bài',
+  'problem.oj.detail.not-found-title': (p: { code: string }) => `Không có bài ${p.code}`,
+  'problem.oj.detail.not-found-body':
+    'Kiểm tra lại mã bài trong đường dẫn, hoặc quay về danh sách để tìm bài khác.',
+  'problem.oj.detail.back': 'Về danh sách bài',
+  'problem.oj.detail.statement': 'Đề bài',
+  'problem.oj.detail.time-limit': (p: { limit: string }) =>
+    `Bài có hạn giờ ${p.limit}. Đồng hồ chạy từ lúc bạn mở game, không phải lúc đọc đề.`,
+  'problem.oj.detail.facts': 'Thông tin bài',
+  'problem.oj.detail.fact-game': 'Game',
+  'problem.oj.detail.fact-difficulty': 'Độ khó',
+  'problem.oj.detail.fact-topics': 'Chủ đề',
+  'problem.oj.detail.fact-tags': 'Tag',
+  'problem.oj.detail.fact-time': 'Hạn giờ',
+  'problem.oj.detail.fact-par': 'Số lệnh chuẩn',
+  'problem.oj.detail.fact-acceptance': 'Tỉ lệ giải',
+  'problem.oj.detail.fact-result': 'Kết quả của bạn',
+  'problem.oj.detail.fact-last': 'Lượt nộp gần nhất',
+  'problem.oj.detail.no-tags': 'Không có tag',
+  'problem.oj.detail.par-value': (p: { n: number }) => `${p.n} lệnh`,
+  'problem.oj.detail.stats': (p: { solvers: number; attempts: number }) =>
+    `${p.solvers} người đã giải trên ${p.attempts} người đã thử.`,
+  'problem.oj.detail.play': 'Mở trong game',
+  'problem.oj.detail.play-note': 'Làm xong thì bấm Nộp ngay trong game. Lượt nộp hiện lại ở trang này.',
+  'problem.oj.detail.play-missing': 'Game của bài này chưa mở chế độ làm bài, nên chưa vào làm được.',
+  'problem.oj.detail.tabs': 'Kiểm tra, gợi ý và lượt nộp',
+  'problem.oj.detail.tab-checks': 'Kiểm tra',
+  'problem.oj.detail.tab-hints': 'Gợi ý',
+  'problem.oj.detail.tab-subs': 'Lượt nộp',
+
+  'problem.oj.tests.list': 'Danh sách testcase',
+  'problem.oj.tests.count': (p: { total: number }) =>
+    `Chấm bằng ${p.total} testcase. Qua hết mới được AC.`,
+  'problem.oj.tests.empty': 'Bài chưa có testcase nào nên chưa chấm được.',
+  'problem.oj.tests.hidden-item': 'Tên ẩn tới khi bạn nộp bài',
+  'problem.oj.tests.hidden-badge': 'Ẩn',
+  'problem.oj.tests.hidden-note': (p: { hidden: number }) =>
+    `${p.hidden} testcase ẩn tên để một lượt nộp không biến thành một lượt dò đáp án.`,
+
+  'problem.oj.hints.list': 'Danh sách gợi ý',
+  'problem.oj.hints.none': 'Bài này không có gợi ý.',
+  'problem.oj.hints.cost': 'Mỗi gợi ý trừ điểm của lượt làm bài. Đã mở thì không hoàn lại.',
+  'problem.oj.hints.spent': (p: { count: number; points: number }) =>
+    `Bạn đã mở ${p.count} gợi ý, bị trừ ${p.points} điểm.`,
+  'problem.oj.hints.ordinal': (p: { n: number }) => `Gợi ý ${p.n}`,
+  'problem.oj.hints.price': (p: { points: number }) => `Trừ ${p.points} điểm`,
+  'problem.oj.hints.reveal': (p: { points: number }) => `Mở gợi ý, trừ ${p.points} điểm`,
+  'problem.oj.hints.revealed': (p: { points: number }) => `Đã mở, trừ ${p.points} điểm`,
+  'problem.oj.hints.author': 'Bạn là tác giả nên đọc không mất điểm.',
+  'problem.oj.hints.locked': 'Nội dung ẩn tới khi bạn mở.',
+
+  'problem.oj.subs.caption': 'Lượt nộp của bạn, mới nhất ở trên',
+  'problem.oj.subs.loading': 'Đang tải lượt nộp',
+  'problem.oj.subs.error-title': 'Không tải được lượt nộp',
+  'problem.oj.subs.empty':
+    'Bạn chưa nộp lượt nào. Mở game, làm tới khi các mục tiêu xanh rồi bấm Nộp.',
+  'problem.oj.subs.col-at': 'Lúc nộp',
+  'problem.oj.subs.col-verdict': 'Kết quả',
+  'problem.oj.subs.col-goals': 'Mục tiêu',
+  'problem.oj.subs.col-score': 'Điểm',
+  'problem.oj.subs.col-duration': 'Thời gian',
+  'problem.oj.subs.col-moves': 'Số lệnh',
+  'problem.oj.subs.col-hints': 'Gợi ý',
+  'problem.oj.subs.goals-met': 'Đạt',
+  'problem.oj.subs.goals-missed': 'Chưa đạt',
+  'problem.oj.subs.more': 'Trang này chỉ hiện 10 lượt mới nhất.',
 } as const satisfies Surface<'problem'>;
 
-export const problemIntentionalThree = {} as const satisfies IntentionalThree;
+export const problemIntentionalThree = {
+  'problem.oj.game':
+    '2026-10-03: đúng ba game có từ vựng chủ đề để bộ chọn đổi qua lại (k8s, git, cicd). GameId có sáu thành viên; ba game còn lại chưa có plugin bài. Game thứ tư có plugin làm nhóm này thành bốn, lúc đó xoá dòng miễn trừ này.',
+  'problem.oj.viewer':
+    '2026-10-03: ProblemViewerStatus là union đóng ba thành viên (solved, attempted, untouched) trong packages/games, và Record ở problem-labels.ts giữ hai bên khớp. Thành viên thứ tư phải sửa union trước.',
+  'problem.oj.duration':
+    '2026-10-03: formatDuration có đúng ba hình dạng đầu ra vì một khoảng thời gian chỉ rơi vào ba ca: dưới một phút, tròn phút, và có dư giây. Đây là ba nhánh của một phép chia, không phải một phân loại ba.',
+} as const satisfies IntentionalThree;
 

@@ -1,4 +1,6 @@
+import type { ComponentProps } from 'react';
 import { renderCopy, type CopyRef, type StaticTextKey } from '@devops-platform/copy';
+import type { Difficulty } from '@devops-platform/ui';
 import {
   type ProblemDifficulty,
   type ProblemOrderKey,
@@ -11,35 +13,19 @@ import {
  * Nhãn + cách định dạng cho trang bài tập OJ. Hàm THUẦN, không JSX, để cả phần
  * hiển thị lẫn test dùng chung được.
  *
- * ## Chữ không còn ở đây, chỉ còn nhánh và bảng khoá
+ * Mọi chuỗi người dùng đọc nằm ở `packages/copy/src/surfaces/problem.ts`
+ * (`problem.oj.*`). Thứ ở lại đây là bảng ÁNH XẠ giá trị sang khoá và các hàm
+ * CHỌN, và hàm chọn trả về `CopyRef` (`{ key, params }`) chứ không trả câu đã
+ * ghép: bộ dò của `packages/copy` đọc bản đồ, nên mọi nhánh là một mục tĩnh mà
+ * cổng gạch ngang và cổng mất dấu soi tới được, kể cả nhánh không test nào gọi.
  *
- * Mọi chuỗi người dùng đọc đã sang `packages/copy/src/surfaces/catalog.ts`.
- * Thứ ở lại là ba bảng ÁNH XẠ giá trị sang khoá, hai bảng ánh xạ giá trị sang
- * biến thể `Badge`, và các hàm CHỌN, và các hàm chọn trả về `CopyRef`
- * (`{ key, params }`) chứ không trả câu đã ghép, theo §1.6 của
- * `contracts/p16-copy.md`.
- *
- * Lý do là cơ học chứ không phải phong cách: một hàm ghép câu tại chỗ thì cổng
- * gạch ngang dài và cổng mất dấu chỉ soi được nhánh mà test gọi tới, còn nhánh
- * kia đi thẳng ra người dùng không qua cổng nào. `formatAcceptance` có đúng hai
- * nhánh và một trong hai là câu dễ sai nhất của cả màn (xem dưới), nên đây
- * chính là chỗ luật đó mua được thứ gì đó thật.
- *
- * ⛔ KHÔNG viết lại `PROBLEM_TOPIC_LABELS` / `PROBLEM_DIFFICULTY_LABELS` ở đây,
- * và cũng không kéo chúng sang `packages/copy`: hai bảng đó là SSOT nằm trong
- * hợp đồng (`packages/games/src/k8s/problem.ts`), §5.1 cấm trích chữ ra khỏi
- * package đó, và §8 của `phase-16.md` đặt nó ngoài phạm vi. File này chỉ nhập
- * chúng vào chỗ dùng.
+ * ⛔ KHÔNG viết lại `PROBLEM_TOPIC_LABELS` / `PROBLEM_DIFFICULTY_LABELS` ở đây.
+ * Hai bảng đó là SSOT nằm trong hợp đồng (`packages/games/src/k8s/problem.ts`).
  */
 
 /**
  * Dựng một bảng `giá trị -> khoá` thành bảng `giá trị -> chữ`, một lần lúc nạp
- * module.
- *
- * Bảng KHOÁ là SSOT; bảng chữ là thứ suy ra từ nó, nên không có hai nguồn để
- * lệch nhau. Nó tồn tại vì `FilterChecklist` và `SelectItem` nhận
- * `Record<T, string>`, và bắt mỗi nơi gọi tự dựng lại phép ánh xạ này là chép
- * cùng một vòng lặp ra bốn chỗ.
+ * module. Bảng KHOÁ là SSOT; bảng chữ suy ra từ nó.
  */
 function labelsFrom<T extends string>(
   keys: Readonly<Record<T, StaticTextKey>>,
@@ -47,12 +33,10 @@ function labelsFrom<T extends string>(
   const out = {} as Record<T, string>;
   /*
     `Object.entries` khai kiểu khoá là `string`, và TypeScript từ chối ép thẳng
-    `string` sang `T` vì `T` có thể hẹp hơn. Bắc qua `unknown` một lần, ở đúng
-    một chỗ: lúc chạy thì khoá của `keys` ĐÚNG là `T` theo chính kiểu tham số,
-    nên phép ép này không giấu một khả năng nào có thật.
+    sang `T`. Bắc qua `unknown` một lần, ở đúng một chỗ: lúc chạy thì khoá của
+    `keys` ĐÚNG là `T` theo chính kiểu tham số.
 
-    ⚠ Lỗi này chỉ đỏ ở `next build`, KHÔNG đỏ ở `turbo run typecheck`. Hai pha
-    dùng hai cấu hình khác nhau, nên `typecheck` xanh không thay được `build`.
+    ⚠ Lỗi này chỉ đỏ ở `next build`, KHÔNG đỏ ở `turbo run typecheck`.
   */
   for (const [value, key] of Object.entries(keys) as unknown as readonly (readonly [
     T,
@@ -66,13 +50,8 @@ function labelsFrom<T extends string>(
 /**
  * Ba trạng thái của NGƯỜI ĐANG XEM, dạng mảng để dựng bộ lọc.
  *
- * Hợp đồng khai `ProblemViewerStatus` là một union nhưng KHÔNG kèm mảng hằng
- * như `PROBLEM_TOPICS`, nên mảng này phải khai ở đây. Hai cái gác giữ nó khỏi
- * trôi khi union đổi: `satisfies` chặn chiều "mảng có phần tử không thuộc
- * union", còn `Record<ProblemViewerStatus, StaticTextKey>` của bảng khoá ngay dưới
- * chặn chiều "union có thành viên mảng chưa liệt kê", thêm một trạng thái thứ
- * tư vào hợp đồng sẽ làm bảng khoá đỏ ngay, chứ không lặng lẽ biến mất khỏi bộ
- * lọc.
+ * `satisfies` chặn chiều "mảng có phần tử lạ", còn `Record<ProblemViewerStatus,
+ * StaticTextKey>` ngay dưới chặn chiều "union có thành viên chưa liệt kê".
  */
 export const PROBLEM_VIEWER_STATUSES = [
   'solved',
@@ -81,72 +60,55 @@ export const PROBLEM_VIEWER_STATUSES = [
 ] as const satisfies readonly ProblemViewerStatus[];
 
 export const PROBLEM_VIEWER_STATUS_KEYS = {
-  solved: 'catalog.problems.viewer.solved',
-  attempted: 'catalog.problems.viewer.attempted',
-  untouched: 'catalog.problems.viewer.untouched',
+  solved: 'problem.oj.viewer.solved',
+  attempted: 'problem.oj.viewer.attempted',
+  untouched: 'problem.oj.viewer.untouched',
 } as const satisfies Record<ProblemViewerStatus, StaticTextKey>;
 
 export const PROBLEM_VIEWER_STATUS_LABELS = labelsFrom(PROBLEM_VIEWER_STATUS_KEYS);
 
 /**
- * Biến thể `Badge` cho trạng thái người xem. Ba token trạng thái của
- * `globals.css` khớp 1-1 với ba giá trị, không phải ánh xạ mất mát nào.
+ * Thang độ khó của bài tập (bốn bậc) sang glyph `Difficulty` của `packages/ui`.
+ *
+ * Hai thang cùng có bốn bậc nên đây là ánh xạ 1-1, không mất mát. Glyph chỉ vẽ
+ * SỐ VẠCH; chữ của bậc vẫn đến từ `PROBLEM_DIFFICULTY_LABELS` của hợp đồng.
  */
-export const PROBLEM_VIEWER_STATUS_VARIANT: Readonly<
-  Record<ProblemViewerStatus, 'status-done' | 'status-progress' | 'status-todo'>
+export const PROBLEM_DIFFICULTY_LEVEL: Readonly<
+  Record<ProblemDifficulty, ComponentProps<typeof Difficulty>['level']>
 > = {
-  solved: 'status-done',
-  attempted: 'status-progress',
-  untouched: 'status-todo',
+  easy: 'basic',
+  medium: 'intermediate',
+  hard: 'advanced',
+  expert: 'expert',
 };
 
 /**
- * Biến thể `Badge` cho độ khó, bốn bậc, bốn token, không ánh xạ mất mát nào.
+ * Tỉ lệ giải dưới dạng phần trăm nguyên, hoặc `null` khi chưa ai thử.
  *
- * Bản đầu của lane này phải cho `expert` dùng chung nền với `hard` vì
- * `globals.css` mới có ba token (thang ba bậc của `packages/scenario`), và
- * `problem.ts` cấm ánh xạ ngầm giữa hai thang. Lead đã thêm
- * `--difficulty-expert` + biến thể `Badge` thứ tám (2026-09-08) nên chỗ chắp vá
- * đó biến mất: giữ lại nó bây giờ sẽ là hai bậc trùng màu mà không còn lý do.
- *
- * `Record<ProblemDifficulty, …>` giữ bảng này đầy đủ, thêm một bậc thứ năm vào
- * hợp đồng sẽ đỏ ở đây thay vì rơi về một biến thể mặc định nào đó.
+ * ⚠ "0%" và "chưa ai thử" là HAI câu khác nhau, và hợp đồng cho cả hai cùng một
+ * số 0 (`acceptanceRate` = 0 khi `attemptCount` = 0). In "0%" lúc chưa ai thử là
+ * nói rằng bài này ai cũng trượt: sai, và sai theo hướng làm người học né bài.
  */
-export const PROBLEM_DIFFICULTY_VARIANT: Readonly<
-  Record<
-    ProblemDifficulty,
-    'difficulty-basic' | 'difficulty-intermediate' | 'difficulty-advanced' | 'difficulty-expert'
-  >
-> = {
-  easy: 'difficulty-basic',
-  medium: 'difficulty-intermediate',
-  hard: 'difficulty-advanced',
-  expert: 'difficulty-expert',
-};
-
-/**
- * Tỉ lệ giải, dạng khoá.
- *
- * ⚠ Nhận cả `ProblemStats` chứ không chỉ `acceptanceRate`, vì "0%" và "chưa ai
- * thử" là HAI câu khác nhau và hợp đồng cho cả hai cùng một số 0
- * (`acceptanceRate` = 0 khi `attemptCount` = 0). In "0%" lúc chưa ai thử là nói
- * rằng bài này ai cũng trượt: một câu sai, và sai theo hướng làm người học né
- * bài.
- */
-export function formatAcceptance(stats: ProblemStats): CopyRef {
+export function acceptancePercent(stats: ProblemStats): number | null {
   if (stats.attemptCount === 0) {
-    return { key: 'catalog.problems.acceptance-none' };
+    return null;
   }
-  return {
-    key: 'catalog.problems.acceptance-percent',
-    params: { percent: Math.round(stats.acceptanceRate * 100) },
-  };
+  return Math.round(stats.acceptanceRate * 100);
 }
 
-/** Hạn giờ. `null` = không giới hạn, hợp đồng nói rõ không phải bài nào cũng nên chạy đua. */
+/** Tỉ lệ giải, dạng khoá. Cùng luật hai ca của `acceptancePercent`. */
+export function formatAcceptance(stats: ProblemStats): CopyRef {
+  const percent = acceptancePercent(stats);
+  if (percent === null) {
+    return { key: 'problem.oj.acceptance-none' };
+  }
+  return { key: 'problem.oj.acceptance-percent', params: { percent } };
+}
+
+/** Hạn giờ. `null` = không giới hạn: không phải bài nào cũng nên chạy đua. */
 export function formatTimeLimit(seconds: number | null): CopyRef {
   if (seconds === null) {
-    return { key: 'catalog.problems.time-unlimited' };
+    return { key: 'problem.oj.time-unlimited' };
   }
   return formatDuration(seconds);
 }
@@ -157,29 +119,25 @@ export function formatDuration(seconds: number): CopyRef {
   const minutes = Math.floor(safe / 60);
   const rest = safe % 60;
   if (minutes === 0) {
-    return { key: 'catalog.problems.duration.seconds', params: { seconds: rest } };
+    return { key: 'problem.oj.duration.seconds', params: { seconds: rest } };
   }
   if (rest === 0) {
-    return { key: 'catalog.problems.duration.minutes', params: { minutes } };
+    return { key: 'problem.oj.duration.minutes', params: { minutes } };
   }
-  return { key: 'catalog.problems.duration.both', params: { minutes, seconds: rest } };
+  return { key: 'problem.oj.duration.both', params: { minutes, seconds: rest } };
 }
 
 /**
  * Mốc thời gian ISO thành chữ tiếng Việt.
  *
  * CHỈ gọi trong component client (sau khi query trả về). Gọi lúc render máy chủ
- * sẽ định dạng theo múi giờ máy chủ rồi hydrate lại theo múi giờ trình duyệt,
- * một sai lệch React báo là hydration mismatch chứ không phải lỗi ngày giờ, nên
- * rất khó lần ra.
+ * sẽ định dạng theo múi giờ máy chủ rồi hydrate lại theo múi giờ trình duyệt.
  *
- * KHÔNG đi qua `packages/copy`: đầu ra là do `Intl.DateTimeFormat` sinh ra theo
- * locale, không phải một câu ai đó viết, nên bản đồ thông điệp không có gì để
- * giữ. Nhánh hỏng trả lại chính chuỗi đầu vào, cũng không phải chữ biên tập.
+ * KHÔNG đi qua `packages/copy`: đầu ra do `Intl.DateTimeFormat` sinh theo locale.
+ * Nhánh hỏng trả lại chính chuỗi đầu vào.
  *
  * ⚠ Trùng TÊN với `apps/web/src/lib/format-moment.ts`, và hai hàm KHÁC hành vi:
- * bản kia trả "không rõ" cho đầu vào hỏng. Gộp lại là việc đúng nên làm, nhưng
- * `lib/` nằm ngoài đường sở hữu của lane này. Đã ghi vào báo cáo chặng.
+ * bản kia trả "không rõ" cho đầu vào hỏng. Gộp lại là việc của chủ `lib/`.
  */
 export function formatMoment(iso: string): string {
   const at = new Date(iso);
@@ -190,108 +148,40 @@ export function formatMoment(iso: string): string {
 }
 
 /**
- * Nhãn của MỘT chủ đề, tra có phòng hờ — §18.A, và đây là chỗ phải đọc kỹ.
+ * Nhãn của MỘT chủ đề, tra có phòng hờ.
  *
- * ## Vì sao phép tra không còn toàn phần
+ * `ProblemBase.topics` là `ProblemTopicId = string`: tập đóng chuyển xuống từng
+ * plugin, nên không còn MỘT bảng nào phủ hết chủ đề của mọi game. Bảng nhãn
+ * truyền vào phải là bảng THEO `problem.gameId` (`problemTopicLabels`, dữ liệu
+ * lá, không kéo engine vào bundle; `engine-leak.test.ts` gác chuyện đó).
  *
- * `ProblemBase.topics` đổi từ union đóng chín chủ đề K8s sang
- * `ProblemTopicId = string`: tập đóng không biến mất, nó **chuyển chỗ** xuống
- * từng plugin (`GameProblemPlugin.topics`), nên không còn MỘT bảng nào phủ hết
- * chủ đề của mọi game. `PROBLEM_TOPIC_LABELS` vẫn đúng — nó chỉ không còn đủ.
- *
- * ⛔ KHÔNG vá bằng `as ProblemTopic`. Đó là một lời khai sai, và nó không đỏ ở
- * đâu cả: một bài Git mang chủ đề `branching` sẽ tra ra `undefined`, React vẽ
- * `undefined` thành CHỖ TRỐNG, nên màn hình hiện một `Badge` rỗng mà không lỗi,
- * không log, không test nào đỏ. Hỏng im lặng là hình dạng tệ nhất ở đây.
- *
- * ## Vì sao KHÔNG tra qua plugin của `gameId`, dù đó là phép tra ĐÚNG
- *
- * `problemPluginMeta(gameId).topics` cho nhãn chính xác cho mọi game, và
- * `author/problems/game-plugin-view.ts` đã đi đường đó. Nhưng nó kéo theo một
- * cái giá mà trang soạn bài trả được còn trang danh mục thì không:
- * `problemPluginMeta` đọc `PROBLEM_PLUGINS`, bảng đó `import`
- * `K8S_PROBLEM_PLUGIN` + `GIT_PROBLEM_PLUGIN`, và hai plugin đó `import`
- * `createSession` / `createGitSession` — tức **cả hai engine**.
- *
- * Đây không phải lo xa. PR #124 (2026-09-14) đo được đúng hình dạng đó: một
- * chunk 369.938 B chứa engine git nằm ở 7/38 route, và **5 trong 7 là route
- * `problems`** — chính hai trang dùng hàm này. Nó đẩy `/games/k8s/page` vượt
- * trần `bundle:check`. Tra qua plugin ở đây là mời nguyên khối đó quay lại, lần
- * này có chủ ý.
- *
- * ⚠ Và không cổng nào trong phép đo của lane này thấy được: `tsc`, `eslint`,
- * `vitest` đều mù với chuyện bundle — chỉ `bundle:check` thấy, mà nó chỉ chạy
- * SAU `next build`. Một lựa chọn "đúng hơn" ở đây sẽ xanh hết mọi ô rồi làm đỏ
- * một cổng mà lane này không chạy tới.
- *
- * ## ── MÓN NỢ NÀY ĐÃ ĐÓNG 2026-09-15 (§18.D) ──
- *
- * Đường thoát đã mở, đúng theo phương án một trong hai phương án ghi ở đây:
- * `packages/games` tách `git/problem-topics.ts` (mảng thuần, không chạm engine),
- * dựng `problem-topic-labels.ts` tra theo `gameId` từ DỮ LIỆU LÁ, và mở
- * `problemTopicLabels` ra barrel. Hai chỗ gọi — `problems-table.tsx` và
- * `[code]/problem-overview.tsx` — nay truyền bảng theo `problem.gameId` thay
- * cho `PROBLEM_TOPIC_LABELS` cố định.
- *
- * Ràng buộc bundle ở trên KHÔNG mất, nó chỉ chuyển thành một ô gác: vì chính
- * `tsc`/`eslint`/`vitest` mù với bundle, `packages/games/src/problem-topic-labels.test.ts`
- * đi theo đồ thị nhập tương đối và đỏ nếu đồ thị chạm bất kỳ module engine nào.
- * Đối chứng dương đã chạy: nối `problem-topic-labels.ts` qua
- * `git/problem-plugin.ts` làm ô đó đỏ và gọi đúng tên `git/problem-plugin.ts` +
- * `git/engine.ts`.
- *
- * ⚠ Lời khai cũ ở đây — *"`PERSISTABLE_GAMES` nói mọi bài trong DB đều là K8s,
- * nên mọi chủ đề đều tra ra nhãn thật"* — đã HẾT ĐÚNG từ migration 0015. Hằng
- * đó cũng đã xoá. Giữ lại câu này thay vì xoá đè, vì một chú thích không nói
- * mình từng sai ở đâu là một chú thích người sau vẫn tin.
- *
- * ## Vẫn còn hở: THANH LỌC chủ đề
- *
- * `problems-toolbar.tsx` còn liệt kê đúng chín chủ đề K8s (`PROBLEM_TOPICS`),
- * nên một bài Git hiện nhãn đúng trong bảng nhưng KHÔNG lọc theo chủ đề được.
- * Đó là một quyết định giao diện chứ không phải một phép tra: gộp cả mười bảy
- * chủ đề vào một danh sách phẳng đổi hẳn trải nghiệm lọc, và thanh lọc có lẽ
- * nên theo game đang chọn. Chưa làm, và chưa hỏi.
+ * ⛔ KHÔNG vá bằng `as ProblemTopic`: một chủ đề lạ sẽ tra ra `undefined`, React
+ * vẽ thành chỗ trống, và màn hình hiện một nhãn rỗng mà không lỗi nào báo.
+ * Chủ đề không có trong bảng thì hiện chính id của nó.
  */
 export function topicLabel(topic: ProblemTopicId, labels: Readonly<Record<string, string>>): string {
   return labels[topic] ?? topic;
 }
 
 /**
- * Danh sách chủ đề của một bài, ghép thành một câu cho ô bảng hẹp.
- *
- * Dấu phẩy là DẤU NỐI, không phải chữ biên tập, nên nó không vào bản đồ thông
- * điệp. Chữ của từng chủ đề đi qua `topicLabel` — một phép tra, một chỗ, nên ô
- * bảng và `Badge` của trang chi tiết không thể lệch nhau về cách xử chủ đề lạ.
- */
-export function joinTopics(
-  topics: readonly ProblemTopicId[],
-  labels: Readonly<Record<string, string>>,
-): string {
-  return topics.map((topic) => topicLabel(topic, labels)).join(', ');
-}
-
-/**
  * Khoá nhãn cho bốn khoá sắp xếp của hợp đồng.
  *
- * `Record<ProblemOrderKey, StaticTextKey>` chứ không phải một mảng cặp: thêm một khoá
- * vào `PROBLEM_ORDER_KEYS` mà quên nhãn sẽ đỏ ngay ở đây, thay vì hiện ra một
- * mục trống trong ô chọn. Và KHÔNG có `title`, hợp đồng loại nó vì collation
- * Postgres không khớp JavaScript với tiếng Việt có dấu, mà lệch thứ tự dưới
- * phân trang keyset nghĩa là mất dòng trong im lặng.
+ * KHÔNG có `title`: hợp đồng loại nó vì collation Postgres không khớp JavaScript
+ * với tiếng Việt có dấu, mà lệch thứ tự dưới phân trang keyset nghĩa là mất
+ * dòng trong im lặng.
  */
 export const PROBLEM_ORDER_KEY_LABELS = {
-  code: 'catalog.problems.order-code',
-  difficulty: 'catalog.problems.order-difficulty',
-  solverCount: 'catalog.problems.order-solvers',
-  createdAt: 'catalog.problems.order-created',
+  code: 'problem.oj.order.code',
+  difficulty: 'problem.oj.order.difficulty',
+  solverCount: 'problem.oj.order.solvers',
+  createdAt: 'problem.oj.order.created',
 } as const satisfies Record<ProblemOrderKey, StaticTextKey>;
 
 export const PROBLEM_ORDER_LABELS = labelsFrom(PROBLEM_ORDER_KEY_LABELS);
 
 export const PROBLEM_DIRECTION_KEY_LABELS = {
-  asc: 'catalog.problems.direction-asc',
-  desc: 'catalog.problems.direction-desc',
+  asc: 'problem.oj.direction.asc',
+  desc: 'problem.oj.direction.desc',
 } as const satisfies Record<'asc' | 'desc', StaticTextKey>;
 
 export const PROBLEM_DIRECTION_LABELS = labelsFrom(PROBLEM_DIRECTION_KEY_LABELS);

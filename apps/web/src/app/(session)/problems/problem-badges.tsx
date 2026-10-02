@@ -1,44 +1,87 @@
 import type { ReactElement } from 'react';
-import { Badge } from '@devops-platform/ui';
+import { Circle, CircleCheck, CircleDot } from 'lucide-react';
+import { Difficulty, cn } from '@devops-platform/ui';
 import {
   PROBLEM_DIFFICULTY_LABELS,
   type ProblemDifficulty,
   type ProblemViewerStatus,
 } from '@devops-platform/games';
-import {
-  PROBLEM_DIFFICULTY_VARIANT,
-  PROBLEM_VIEWER_STATUS_LABELS,
-  PROBLEM_VIEWER_STATUS_VARIANT,
-} from './problem-labels';
+import { PROBLEM_DIFFICULTY_LEVEL, PROBLEM_VIEWER_STATUS_LABELS } from './problem-labels';
 
 /**
- * Hai loại chip dùng ở CẢ trang danh sách và trang chi tiết. Để chung một chỗ
- * vì chúng phải trông giống hệt nhau ở hai nơi — hai bản sao sẽ lệch ở lần đầu
- * tiên ai đó chỉnh một bên.
+ * Hai dấu hiệu dùng ở CẢ trang danh sách và trang chi tiết. Để chung một chỗ vì
+ * chúng phải trông giống hệt nhau ở hai nơi: hai bản sao sẽ lệch ở lần đầu tiên
+ * ai đó chỉnh một bên.
  *
- * Không `'use client'`: cả hai là component TRÌNH BÀY thuần (không state,
- * không sự kiện), nên chúng chạy được ở cả hai phía và không tự kéo thêm gì
- * vào bundle trình duyệt.
+ * Không `'use client'`: cả hai là component trình bày thuần, chạy được ở cả hai
+ * phía và không kéo thêm gì vào bundle trình duyệt.
  */
 
 /**
- * Chip độ khó. Bốn bậc, bốn biến thể `Badge` — mỗi bậc có màu riêng VÀ số vạch
- * sóng riêng (1→4), nên hai người phân biệt được kể cả khi in đen trắng.
+ * Độ khó: glyph bốn vạch + chữ. Không mang màu (màu dành cho tuyến chủ đề), nên
+ * hai bậc phân biệt nhau bằng SỐ VẠCH và bằng chữ, kể cả khi in đen trắng.
  */
-export function DifficultyBadge({ value }: { readonly value: ProblemDifficulty }): ReactElement {
-  return <Badge variant={PROBLEM_DIFFICULTY_VARIANT[value]}>{PROBLEM_DIFFICULTY_LABELS[value]}</Badge>;
+export function ProblemDifficultyMark({
+  value,
+  className,
+}: {
+  readonly value: ProblemDifficulty;
+  readonly className?: string;
+}): ReactElement {
+  return (
+    <Difficulty
+      level={PROBLEM_DIFFICULTY_LEVEL[value]}
+      label={PROBLEM_DIFFICULTY_LABELS[value]}
+      showLabel
+      className={className}
+    />
+  );
 }
 
+const STATUS_ICON = {
+  solved: CircleCheck,
+  attempted: CircleDot,
+  untouched: Circle,
+} as const satisfies Record<ProblemViewerStatus, unknown>;
+
+const STATUS_TONE: Readonly<Record<ProblemViewerStatus, string>> = {
+  solved: 'text-success',
+  attempted: 'text-warning',
+  untouched: 'text-muted-foreground',
+};
+
 /**
- * Chip trạng thái của người đang xem.
+ * Kết quả của người đang xem: biểu tượng + chữ, không bao giờ chỉ màu.
  *
- * `null` (chưa đăng nhập) ⇒ KHÔNG render gì. Một chip "Chưa động tới" cho
- * người chưa đăng nhập là một câu khẳng định về họ mà máy chủ chưa từng nói —
+ * `null` (máy chủ không biết người xem là ai) ⇒ KHÔNG render gì. "Chưa làm" cho
+ * người chưa đăng nhập là một câu khẳng định về họ mà máy chủ chưa từng nói:
  * `untouched` nghĩa là "đã kiểm tra và bạn chưa thử", không phải "không biết".
+ *
+ * "Chưa qua" chứ không "WA": `attempted` gộp mọi lượt chưa AC, kể cả lượt không
+ * chạy tới nơi (CE). Gọi nó là WA là kết luận thay máy chủ một điều nó không nói.
  */
-export function ViewerStatusBadge({ value }: { readonly value: ProblemViewerStatus | null }): ReactElement | null {
+export function ViewerStatusMark({
+  value,
+  className,
+}: {
+  readonly value: ProblemViewerStatus | null;
+  readonly className?: string;
+}): ReactElement | null {
   if (value === null) {
     return null;
   }
-  return <Badge variant={PROBLEM_VIEWER_STATUS_VARIANT[value]}>{PROBLEM_VIEWER_STATUS_LABELS[value]}</Badge>;
+  const Icon = STATUS_ICON[value];
+  return (
+    <span
+      data-status={value}
+      className={cn(
+        'inline-flex items-center gap-1.5 font-mono text-xs font-medium whitespace-nowrap',
+        STATUS_TONE[value],
+        className,
+      )}
+    >
+      <Icon aria-hidden className="size-4 shrink-0" />
+      {PROBLEM_VIEWER_STATUS_LABELS[value]}
+    </span>
+  );
 }

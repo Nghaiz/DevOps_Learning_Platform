@@ -1,88 +1,159 @@
 'use client';
 
-import { useId, useState, type ReactElement } from 'react';
-import { X } from 'lucide-react';
+import { useId, useState, type ReactElement, type ReactNode } from 'react';
+import { Plus, X } from 'lucide-react';
 import { t } from '@devops-platform/copy';
-import { Badge, Button, Checkbox, Input, Label } from '@devops-platform/ui';
+import { Button, Chip, Input, LINE_CLASSES, LINE_CODE, cn } from '@devops-platform/ui';
+import type { GameId } from '@devops-platform/games';
+import { lineForTopic } from '../../../components/kit';
+import { gameName } from './problem-game';
 
 /**
- * Hai khối lọc dùng lại: danh sách ô đánh dấu cho tập ĐÓNG, và ô nhập tag cho
- * phân loại TỰ DO. Tách khỏi `problems-toolbar.tsx` vì thanh công cụ đã đủ dài,
- * và vì cả hai đều là component thuần giao diện có thể kiểm riêng.
+ * Các khối lọc của `/problems`: bộ chọn game (từ vựng chủ đề), nhóm chip cho tập
+ * ĐÓNG, và ô nhập tag cho phân loại TỰ DO. Tách khỏi `problems-toolbar.tsx` vì
+ * thanh lọc đã đủ dài, và vì đây là component giao diện thuần.
  */
 
 /**
- * Một nhóm ô đánh dấu nhiều lựa chọn.
+ * Một hàng lọc kiểu Thuỵ Sĩ: nhãn mono bên trái, nội dung bên phải. Cột trái là
+ * NHÃN, không phải điều hướng.
  *
- * `<fieldset>`/`<legend>` chứ không phải `<div>` + một dòng chữ: trình đọc màn
- * hình đọc `legend` TRƯỚC mỗi ô trong nhóm, nên người dùng nghe "Độ khó, Dễ"
- * thay vì một chuỗi mười ba ô rời rạc không biết ô nào thuộc nhóm nào.
- *
- * `Checkbox` (Radix) + `Label htmlFor` là mẫu đã dùng ở `/quiz`: `button` là
- * phần tử gán nhãn được, nên bấm vào chữ cũng bật ô và ô nhận focus bàn phím.
+ * `role="group"` + `aria-labelledby` chứ không phải `<div>` + một dòng chữ:
+ * trình đọc màn hình đọc tên nhóm trước mỗi chip, nên người dùng nghe "Độ khó,
+ * Dễ, nút bật tắt" thay vì một chuỗi chip rời không biết thuộc nhóm nào.
  */
-export function FilterChecklist<T extends string>(props: {
-  readonly legend: string;
-  readonly options: readonly T[];
-  readonly labels: Readonly<Record<T, string>>;
-  readonly selected: readonly T[];
-  readonly onToggle: (value: T) => void;
-  /** Câu giải thích LUẬT gộp khi chọn nhiều — chủ đề là HOẶC, tag là VÀ. */
+export function FilterRow(props: {
+  readonly label: string;
   readonly hint?: string;
-  /*
-   * `lockedReason` TỪNG ở đây và đã bị GỠ 2026-09-15.
-   *
-   * Nó khoá cả nhóm kèm lý do hiện trên màn, và nó có đúng MỘT chỗ gọi: khối
-   * chủ đề của `/problems`, cho những game mà `ProblemFilter.topics` chưa chở
-   * được. Hợp đồng nới xong thì chỗ gọi đó biến mất, và một prop không ai truyền
-   * là một nhánh không ai chạy.
-   *
-   * Nếu cần khoá lại một ngày nào đó: khoá bằng `disabled` của chính `Checkbox`,
-   * KHÔNG bằng `pointer-events` — phần tử bị `pointer-events: none` vẫn nhận
-   * focus bàn phím và vẫn đổi trạng thái bằng phím cách, tức nó chỉ khoá đúng
-   * người dùng chuột. Và khoá thì phải kèm lý do: một nhóm ô xám đi mà không nói
-   * vì sao là chế độ hỏng tệ nhất trong ba chế độ có thể.
-   */
+  readonly children: ReactNode;
 }): ReactElement {
-  const groupId = useId();
-
+  const labelId = useId();
   return (
-    <fieldset className="flex flex-col gap-2">
-      <legend className="text-xs font-medium text-muted-foreground">{props.legend}</legend>
-      {props.hint !== undefined && <p className="text-xs text-muted-foreground">{props.hint}</p>}
-      <div className="flex flex-wrap gap-x-4 gap-y-2">
-        {props.options.map((option) => {
-          const id = `${groupId}-${option}`;
-          return (
-            <div key={option} className="flex items-center gap-2">
-              <Checkbox
-                id={id}
-                checked={props.selected.includes(option)}
-                onCheckedChange={() => {
-                  props.onToggle(option);
-                }}
-              />
-              <Label htmlFor={id} className="cursor-pointer text-sm font-normal">
-                {props.labels[option]}
-              </Label>
-            </div>
-          );
-        })}
+    <div
+      role="group"
+      aria-labelledby={labelId}
+      className="grid gap-3 border-t border-border py-4 md:grid-cols-[11rem_minmax(0,1fr)] md:gap-6"
+    >
+      <div>
+        <p id={labelId} className="type-label text-muted-foreground">
+          {props.label}
+        </p>
+        {props.hint !== undefined && (
+          <p className="mt-1 text-xs text-muted-foreground">{props.hint}</p>
+        )}
       </div>
-    </fieldset>
+      <div className="flex min-w-0 flex-wrap items-center gap-2">{props.children}</div>
+    </div>
   );
 }
 
 /**
- * Ô lọc theo tag — tập MỞ, nên là ô nhập chứ không phải danh sách ô đánh dấu.
+ * Nhóm chip nhiều lựa chọn cho một tập ĐÓNG (độ khó, kết quả, chủ đề).
+ *
+ * `Chip` là nút bật tắt có `aria-pressed`, nên trạng thái đang chọn được đọc ra
+ * chứ không chỉ nhìn thấy qua màu nền đảo.
+ */
+export function ChipGroup<T extends string>(props: {
+  readonly label: string;
+  readonly hint?: string;
+  readonly options: readonly T[];
+  readonly labels: Readonly<Record<T, string>>;
+  readonly selected: readonly T[];
+  readonly onToggle: (value: T) => void;
+  /** Hình đặt trước chữ trong chip (glyph độ khó, biểu tượng kết quả). */
+  readonly decorate?: (value: T) => ReactNode;
+}): ReactElement {
+  return (
+    <FilterRow label={props.label} {...(props.hint !== undefined ? { hint: props.hint } : {})}>
+      {props.options.map((option) => (
+        <Chip
+          key={option}
+          selected={props.selected.includes(option)}
+          onClick={() => {
+            props.onToggle(option);
+          }}
+        >
+          {props.decorate?.(option)}
+          {props.labels[option]}
+        </Chip>
+      ))}
+    </FilterRow>
+  );
+}
+
+/**
+ * Bộ chọn game: điều khiển phân đoạn lớn, mỗi ô mang màu tuyến của game.
+ *
+ * Một lựa chọn duy nhất, KHÁC các nhóm chip bên dưới: từ vựng chủ đề của các game
+ * là các tập rời, nên "đang chọn" luôn là đúng một game. Nhãn của khối nói thẳng
+ * nó làm gì (đổi chủ đề), vì nó KHÔNG lọc bài theo game: `ProblemFilter` chưa có
+ * trường `gameId` (xem `problem-game.ts`). Một bộ chọn trông như bộ lọc cả trang
+ * mà chỉ đổi được từ vựng là một điều khiển nói dối.
+ */
+export function GameSwitch(props: {
+  readonly games: readonly GameId[];
+  readonly value: GameId;
+  readonly onChange: (value: GameId) => void;
+}): ReactElement {
+  return (
+    <FilterRow label={t('problem.oj.filter.game')} hint={t('problem.oj.filter.game-hint')}>
+      <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-3 lg:max-w-3xl">
+        {props.games.map((gameId) => {
+          const line = lineForTopic({ gameId });
+          const active = props.value === gameId;
+          const classes = line === 'ink' ? null : LINE_CLASSES[line];
+          return (
+            <button
+              key={gameId}
+              type="button"
+              aria-pressed={active}
+              onClick={() => {
+                props.onChange(gameId);
+              }}
+              className={cn(
+                'group flex h-14 items-center gap-3 border-2 px-4 text-left outline-none',
+                'transition-[background-color,color,transform] duration-[var(--motion-fast)] ease-out motion-safe:active:translate-y-px',
+                'focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+                classes === null
+                  ? active
+                    ? 'border-ink bg-ink text-ink-foreground'
+                    : 'border-ink bg-card text-foreground hover:bg-muted'
+                  : active
+                    ? cn(classes.border, classes.fill)
+                    : cn(classes.border, 'bg-card text-foreground hover:bg-muted'),
+              )}
+            >
+              <span
+                aria-hidden
+                className={cn(
+                  'inline-flex h-7 min-w-10 items-center justify-center px-1.5 font-mono text-xs font-semibold tracking-wider',
+                  active
+                    ? 'bg-background/20'
+                    : classes === null
+                      ? 'bg-ink text-ink-foreground'
+                      : classes.fill,
+                )}
+              >
+                {line === 'ink' ? gameId.toUpperCase() : LINE_CODE[line]}
+              </span>
+              <span className="type-title">{gameName(gameId)}</span>
+            </button>
+          );
+        })}
+      </div>
+    </FilterRow>
+  );
+}
+
+/**
+ * Ô lọc theo tag: tập MỞ, nên là ô nhập chứ không phải nhóm chip.
  *
  * Luật gộp ở đây là VÀ (bài phải có đủ mọi tag), cố ý khác luật HOẶC của chủ
- * đề — hợp đồng ghi rõ chỗ lệch đó, và câu `hint` bên dưới là cách người dùng
- * biết được nó mà không phải đoán từ kết quả trả về.
+ * đề; câu `hint` là cách người dùng biết được điều đó mà không phải đoán từ kết
+ * quả trả về.
  *
- * `<form onSubmit>` chứ không bắt phím `Enter` bằng tay: form cho Enter hoạt
- * động sẵn, cho nút "Thêm" hoạt động bằng cả chuột lẫn bàn phím, và không cần
- * `keydown` handler nào.
+ * `<form onSubmit>` chứ không bắt phím `Enter` bằng tay: form cho Enter hoạt động
+ * sẵn, cho nút "Thêm tag" hoạt động bằng cả chuột lẫn bàn phím.
  */
 export function TagFilter(props: {
   readonly tags: readonly string[];
@@ -93,57 +164,60 @@ export function TagFilter(props: {
   const [draft, setDraft] = useState('');
 
   return (
-    <div className="flex flex-col gap-2">
-      <Label htmlFor={inputId} className="text-xs font-medium text-muted-foreground">
-        {t('catalog.problems.tag-legend')}
-      </Label>
-      <p className="text-xs text-muted-foreground">{t('catalog.problems.tag-hint')}</p>
+    <FilterRow label={t('problem.oj.filter.tag')} hint={t('problem.oj.filter.tag-hint')}>
       <form
-        className="flex gap-2"
+        className="flex w-full max-w-sm gap-2"
         onSubmit={(event) => {
           event.preventDefault();
           props.onAdd(draft);
           setDraft('');
         }}
       >
+        <label htmlFor={inputId} className="sr-only">
+          {t('problem.oj.filter.tag')}
+        </label>
         <Input
           id={inputId}
           value={draft}
-          placeholder={t('catalog.problems.tag-placeholder')}
+          className="h-9"
+          placeholder={t('problem.oj.filter.tag-placeholder')}
           onChange={(event) => {
             setDraft(event.target.value);
           }}
         />
-        <Button type="submit" variant="outline" size="sm" disabled={draft.trim() === ''}>
-          {t('catalog.problems.tag-add')}
+        <Button
+          type="submit"
+          variant="outline"
+          size="sm"
+          disabled={draft.trim() === ''}
+          iconLeft={<Plus aria-hidden className="size-4" />}
+        >
+          {t('problem.oj.filter.tag-add')}
         </Button>
       </form>
-      {props.tags.length > 0 && (
-        <ul className="flex flex-wrap gap-2">
-          {props.tags.map((tag) => (
-            <li key={tag}>
-              <Badge variant="outline" icon={null} className="gap-1 pr-1">
-                {tag}
-                {/*
-                  Nút bỏ tag có `aria-label` riêng vì nhãn nhìn thấy được của nó
-                  là một dấu X — trình đọc màn hình nghe "nút" trống nếu không
-                  nói rõ nó bỏ tag NÀO trong nhiều tag giống nhau về hình.
-                */}
-                <button
-                  type="button"
-                  aria-label={t('catalog.problems.tag-remove', { tag })}
-                  className="rounded-sm p-0.5 text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-                  onClick={() => {
-                    props.onRemove(tag);
-                  }}
-                >
-                  <X aria-hidden className="size-3" />
-                </button>
-              </Badge>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
+      {props.tags.map((tag) => (
+        /*
+          Nút bỏ tag mang `aria-label` riêng vì phần nhìn thấy được chỉ là tên tag
+          và một dấu X: trình đọc màn hình phải nghe "Bỏ tag ingress", không phải
+          "ingress, nút".
+        */
+        <button
+          key={tag}
+          type="button"
+          aria-label={t('problem.oj.filter.tag-remove', { tag })}
+          onClick={() => {
+            props.onRemove(tag);
+          }}
+          className={cn(
+            'inline-flex h-8 animate-rise items-center gap-1.5 border border-ink bg-ink px-3 font-mono text-xs text-ink-foreground outline-none',
+            'transition-transform duration-[var(--motion-fast)] motion-safe:active:translate-y-px',
+            'focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+          )}
+        >
+          #{tag}
+          <X aria-hidden className="size-3.5" />
+        </button>
+      ))}
+    </FilterRow>
   );
 }
