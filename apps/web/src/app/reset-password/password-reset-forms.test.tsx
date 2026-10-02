@@ -19,10 +19,10 @@ describe('password reset forms use the real client contract', () => {
     fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'learner@example.test' } });
     fireEvent.click(screen.getByRole('button', { name: 'Gửi mã đặt lại mật khẩu' }));
     await screen.findByText('Chưa gửi được yêu cầu đặt lại mật khẩu.');
-    expect(screen.queryByText('Yêu cầu đã được tiếp nhận')).toBeNull();
+    expect(screen.queryByText('Đã nhận yêu cầu')).toBeNull();
     requests.requestPasswordReset.mockResolvedValue({ data: { status: true } });
     fireEvent.click(screen.getByRole('button', { name: 'Gửi mã đặt lại mật khẩu' }));
-    await screen.findByText('Yêu cầu đã được tiếp nhận');
+    await screen.findByText('Đã nhận yêu cầu');
     expect(requests.requestPasswordReset).toHaveBeenLastCalledWith({
       email: 'learner@example.test',
     });
@@ -56,6 +56,18 @@ describe('password reset forms use the real client contract', () => {
       token: 'pasted-code',
     });
     expect(screen.queryByLabelText('Mật khẩu mới')).toBeNull();
+    expect(screen.getByRole('link', { name: 'Đăng nhập bằng mật khẩu mới' }).getAttribute('href')).toBe(
+      '/login',
+    );
+  });
+
+  it('focuses the code field and never pre-fills it from the URL', () => {
+    window.history.replaceState(null, '', '/reset-password#token=from-url');
+    render(<ResetPasswordForm />);
+    const field = screen.getByLabelText('Mã đặt lại mật khẩu') as HTMLInputElement;
+    expect(document.activeElement).toBe(field);
+    expect(field.value).toBe('');
+    window.history.replaceState(null, '', '/');
   });
 
   it('keeps password fields when the server rejects an expired code', async () => {
@@ -71,6 +83,11 @@ describe('password reset forms use the real client contract', () => {
     await screen.findByText('Mã đặt lại mật khẩu không hợp lệ hoặc đã hết hạn.');
     expect((screen.getByLabelText('Mật khẩu mới') as HTMLInputElement).value).toBe(
       'New-password-123',
+    );
+    // The error sits under the code field and the field points at it.
+    const error = screen.getByRole('alert');
+    expect(screen.getByLabelText('Mã đặt lại mật khẩu').getAttribute('aria-describedby')).toContain(
+      error.id,
     );
     expect(screen.queryByText('Đã đổi mật khẩu')).toBeNull();
   });
@@ -100,6 +117,6 @@ describe('password reset forms use the real client contract', () => {
       ).toBe(false),
     );
     expect(screen.getByRole('alert').textContent).toContain('Không gọi được máy chủ');
-    expect(screen.queryByText('Yêu cầu đã được tiếp nhận')).toBeNull();
+    expect(screen.queryByText('Đã nhận yêu cầu')).toBeNull();
   });
 });

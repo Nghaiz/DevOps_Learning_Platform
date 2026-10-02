@@ -1,7 +1,23 @@
 import type { ReactNode } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { Input, Label, type InputProps } from '@devops-platform/ui';
+import { err } from '@devops-platform/copy';
 import type { ErrorEntry } from '@devops-platform/copy/types';
+
+/** Lớp chung của liên kết chữ trên bốn màn xác thực: gạch chân, vòng focus, không bo góc. */
+export const AUTH_LINK =
+  'text-brand underline underline-offset-4 outline-none hover:decoration-2 focus-visible:ring-2 focus-visible:ring-ring';
+
+/**
+ * Better Auth trả 429 khi vượt 3 lượt mỗi phút theo IP. Lỗi đó KHÁC sai thông
+ * tin: bảo người dùng gõ lại là kéo dài lệnh chặn.
+ */
+export function authFailureFor(
+  status: number | undefined,
+  fallback: 'auth.error.sign-in' | 'auth.error.sign-up',
+): ErrorEntry {
+  return status === 429 ? err('auth.error.rate-limit') : err(fallback);
+}
 
 /**
  * Lỗi của bốn màn xác thực, đặt NGAY DƯỚI ô nó nói tới (design-brief §5): biểu

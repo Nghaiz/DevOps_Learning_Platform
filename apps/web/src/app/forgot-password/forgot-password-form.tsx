@@ -2,20 +2,25 @@
 
 import { useEffect, useId, useState, type FormEvent } from 'react';
 import Link from 'next/link';
-import { Alert, AlertDescription, AlertTitle, Button, Input, Label } from '@devops-platform/ui';
+import { ArrowRight, MailCheck } from 'lucide-react';
+import { Button } from '@devops-platform/ui';
 import { err, t } from '@devops-platform/copy';
 import type { ErrorEntry } from '@devops-platform/copy/types';
 import { authClient } from '../../lib/auth-client';
-import { AuthFailure } from '../../components/shell/auth-failure';
+import { AUTH_LINK, AuthField } from '../../components/shell/auth-failure';
 
-/** The success response intentionally does not reveal whether an account exists. */
+/**
+ * Yêu cầu mã đặt lại mật khẩu. Câu báo thành công cố ý KHÔNG nói một địa chỉ có
+ * tài khoản hay không. 503 (đường gửi thư hỏng) phải hiện lỗi, không hiện "đã
+ * nhận": `password-reset-forms.test.tsx` ghim đúng hai ca đó.
+ */
 export function ForgotPasswordForm() {
   const fieldId = useId();
   const [email, setEmail] = useState('');
   const [submitted, setSubmitted] = useState<string | null>(null);
   const [failure, setFailure] = useState<ErrorEntry | null>(null);
   const [pending, setPending] = useState(false);
-  // Prevent native GET submission before the client event handler is attached.
+  // Chặn submit native (GET) trước khi handler được gắn.
   const [hydrated, setHydrated] = useState(false);
   useEffect(() => {
     setHydrated(true);
@@ -30,7 +35,7 @@ export function ForgotPasswordForm() {
     try {
       const result = await authClient.requestPasswordReset({ email: email.trim() });
       if (result.error) {
-        setFailure(err('auth.error.reset-request'));
+        setFailure(err(result.error.status === 429 ? 'auth.error.rate-limit' : 'auth.error.reset-request'));
       } else {
         setSubmitted(email.trim());
       }
@@ -42,43 +47,44 @@ export function ForgotPasswordForm() {
   }
 
   return (
-    <div className="flex flex-col gap-5">
-      <form onSubmit={onSubmit} className="flex flex-col gap-4" aria-busy={pending}>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor={`${fieldId}-email`}>{t('auth.field.email')}</Label>
-          <Input
-            id={`${fieldId}-email`}
-            type="email"
-            placeholder={t('auth.field.email-placeholder')}
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            required
-            autoComplete="email"
-            disabled={pending}
-          />
-        </div>
-        {failure === null ? null : <AuthFailure entry={failure} />}
-        <Button type="submit" disabled={!hydrated || pending}>
+    <div className="flex flex-col gap-8">
+      <form onSubmit={onSubmit} className="flex flex-col gap-5" aria-busy={pending}>
+        <AuthField
+          id={`${fieldId}-email`}
+          label={t('auth.field.email')}
+          type="email"
+          placeholder={t('auth.field.email-placeholder')}
+          value={email}
+          onChange={(event) => {
+            setEmail(event.target.value);
+          }}
+          required
+          autoComplete="email"
+          disabled={pending}
+          failure={failure}
+        />
+        <Button type="submit" size="lg" className="h-12 w-full" disabled={!hydrated || pending}>
           {t(pending ? 'auth.forgot.pending' : 'auth.forgot.submit')}
         </Button>
       </form>
 
       {submitted === null ? null : (
-        <Alert role="status">
-          <AlertTitle>{t('auth.forgot.success-title')}</AlertTitle>
-          <AlertDescription className="flex flex-col gap-2">
-            <span>{t('auth.forgot.success-body', { email: submitted })}</span>
-            <Link href="/reset-password" className="text-primary underline underline-offset-4">
-              {t('auth.forgot.next')}
-            </Link>
-          </AlertDescription>
-        </Alert>
+        <div role="status" className="flex animate-rise gap-4 border-t-4 border-success bg-card p-5">
+          <MailCheck aria-hidden="true" className="size-6 shrink-0 text-success" />
+          <div className="flex flex-col gap-3">
+            <p className="type-title">{t('auth.forgot.success-title')}</p>
+            <p className="text-sm text-muted-foreground">{t('auth.forgot.success-body', { email: submitted })}</p>
+            <Button asChild variant="ink" className="h-12 self-start">
+              <Link href="/reset-password">
+                {t('auth.forgot.next')}
+                <ArrowRight aria-hidden="true" />
+              </Link>
+            </Button>
+          </div>
+        </div>
       )}
 
-      <Link
-        href="/login"
-        className="rounded-sm self-start text-sm text-primary underline underline-offset-4 outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      >
+      <Link href="/login" className={`${AUTH_LINK} self-start text-sm`}>
         {t('auth.forgot.back')}
       </Link>
     </div>
