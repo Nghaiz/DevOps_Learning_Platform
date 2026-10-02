@@ -170,6 +170,8 @@ export const shell = {
 export const shellIntentionalThree = {
   'shell.theme.choice':
     '2026-09-10: đúng ba giá trị của union ThemeChoice khai tại packages/ui/src/theme/theme-provider.tsx (light, dark, system), và bảng CHOICES trong theme-toggle.tsx là danh sách đóng trên union đó.',
+  'shell.footer':
+    '2026-10-03: chân trang có đúng ba chỗ chữ: tên landmark cho trình đọc màn hình, một câu về đề tài, một dòng về nơi chạy máy ảo. Thêm một dòng nữa là thêm nội dung chưa ai yêu cầu.',
   'shell.account.role':
     '2026-10-03: đúng ba giá trị của ViewerRole (user, author, admin), thứ chính là pgEnum user_role ở server/db/schema.ts; vai trò thứ tư phải sửa enum DB trước.',
 } as const satisfies IntentionalThree;
