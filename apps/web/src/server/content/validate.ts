@@ -4,7 +4,7 @@ import type { ContentKind } from '@devops-platform/shared-types/authoring';
 import { scenarioSchema } from '@devops-platform/shared-types/scenario';
 import { labSchema } from '@devops-platform/shared-types/lab';
 import { playgroundSchema } from '@devops-platform/shared-types/playground';
-import type { ContentBodyRow } from '@devops-platform/scenario';
+import { ContentBlockError, parseContentBlocks, type ContentBodyRow } from '@devops-platform/scenario';
 import { shellcheckScript, type ShellcheckReport } from './shellcheck';
 
 /**
@@ -105,7 +105,7 @@ export function validateContentBody(kind: ContentKind, body: ContentBodyRow): re
         })),
         ignoredUpstreamFields: [],
       });
-      return parsed.success ? [] : issuesOf(parsed.error);
+      return [...(parsed.success ? [] : issuesOf(parsed.error)), ...markdownIssues(body)];
     }
     case 'lab': {
       const parsed = labSchema.safeParse({
@@ -126,13 +126,54 @@ export function validateContentBody(kind: ContentKind, body: ContentBodyRow): re
           hint: step.hint,
         })),
       });
-      return parsed.success ? [] : issuesOf(parsed.error);
+      return [...(parsed.success ? [] : issuesOf(parsed.error)), ...markdownIssues(body)];
     }
     case 'playground': {
       const parsed = playgroundSchema.safeParse({ ...common, ttlSeconds: item.ttlSeconds });
       return parsed.success ? [] : issuesOf(parsed.error);
     }
   }
+}
+
+/**
+ * Markdown của bài soạn trên giao diện phải parse được, và KHÔNG được tham chiếu
+ * sơ đồ `diagrams/…`.
+ *
+ * Parse hỏng (hậu tố `{{…}}` lạ, ảnh sơ đồ nằm giữa câu, alt quá ngắn) là lỗi
+ * NÉM ở `parseContentBlocks` — chạy ở trang bài học, tức một bài đã xuất bản
+ * như thế làm trang người học đổ. Chặn ở biên xuất bản thay vì để người học gặp.
+ *
+ * Sơ đồ TikZ chỉ có ở nội dung trên đĩa: SVG dựng lúc soạn bằng TeX
+ * (`scripts/diagrams/`) và CI kiểm, còn bài trong DB không có đường nào mang SVG
+ * theo (`ScenarioForLearner.diagrams` luôn rỗng) — người học sẽ chỉ thấy dòng alt.
+ */
+function markdownIssues(body: ContentBodyRow): readonly ContentIssue[] {
+  const sources: { path: string; markdown: unknown }[] = [
+    { path: 'intro.markdown', markdown: (body.intro as { markdown?: unknown } | null)?.markdown },
+    { path: 'finish.markdown', markdown: (body.finish as { markdown?: unknown } | null)?.markdown },
+    ...body.steps.map((step) => ({ path: `steps[${String(step.ordinal)}].markdown`, markdown: step.markdown })),
+  ];
+  const out: ContentIssue[] = [];
+  for (const { path, markdown } of sources) {
+    if (typeof markdown !== 'string') {
+      continue;
+    }
+    try {
+      if (parseContentBlocks(markdown).some((block) => block.kind === 'diagram')) {
+        out.push({
+          path,
+          message:
+            'bài soạn trên giao diện chưa dùng được sơ đồ diagrams/… (chỉ nội dung trong repo có SVG dựng sẵn); hãy dùng ảnh tải lên',
+        });
+      }
+    } catch (cause) {
+      if (!(cause instanceof ContentBlockError)) {
+        throw cause;
+      }
+      out.push({ path, message: cause.message });
+    }
+  }
+  return out;
 }
 
 /** Mọi script của một bài, kèm đường dẫn để cảnh báo trỏ đúng ô. */
