@@ -26,7 +26,7 @@ import { describeTrpcError } from '../../../../lib/trpc';
 import { formatDay, formatMoment } from '../../../../lib/format-moment';
 import { AdminDetailPage, AdminNote, LedgerSkeleton } from '../../../../components/admin/admin-page';
 import { ConfirmDialog } from '../../../../components/kit/confirm-dialog';
-import { ExamFormSheet } from '../../../../components/admin/exam-form-sheet';
+import { ExamFormSheet, useSheetServerError } from '../../../../components/admin/exam-form-sheet';
 import { ExamStateBadge } from '../../../../components/admin/exam-state-badge';
 import {
   describeExamWindow,
@@ -36,6 +36,9 @@ import {
 } from '../../../../components/admin/exam-form-model';
 
 type Exam = inferRouterOutputs<AppRouter>['exams']['get'];
+
+/** Đủ lâu để trình duyệt bắt đầu đọc blob, đủ ngắn để không giữ file trong bộ nhớ tab. */
+const CSV_REVOKE_DELAY_MS = 30_000;
 
 /**
  * `/admin/exams/:examId`: thông tin đầy đủ, bảng điểm, xuất CSV, sửa và xoá.
@@ -195,10 +198,17 @@ function CsvButton({ examId }: { readonly examId: string }): ReactElement {
       const anchor = document.createElement('a');
       anchor.href = url;
       anchor.download = file.fileName;
+      anchor.hidden = true;
+      // Gắn vào DOM trước khi bấm: Firefox bỏ qua `click()` trên một thẻ `<a>`
+      // chưa nằm trong tài liệu.
+      document.body.append(anchor);
       anchor.click();
-      // Thu hồi NGAY sau khi bấm: object URL không thu hồi giữ cả file trong bộ
-      // nhớ tab tới khi tab đóng, và người chấm tải bảng điểm nhiều lần.
-      URL.revokeObjectURL(url);
+      anchor.remove();
+      // Thu hồi ở lượt sau, không ngay sau `click()`: lượt tải bắt đầu bất đồng
+      // bộ, và thu hồi đồng bộ có thể cắt nó trước khi trình duyệt kịp đọc
+      // blob. Không thu hồi thì object URL giữ cả file trong bộ nhớ tab tới khi
+      // tab đóng, mà người chấm tải bảng điểm nhiều lần.
+      window.setTimeout(() => URL.revokeObjectURL(url), CSV_REVOKE_DELAY_MS);
       toast({ variant: 'success', title: t('admin.exams.csv-done', { file: file.fileName }) });
     } catch (error: unknown) {
       const failure = err('admin.error.exam-csv', { reason: describeTrpcError(error) });
@@ -225,7 +235,7 @@ function EditExamSheet(props: {
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
 }): ReactElement {
-  const [serverError, setServerError] = useState<string | null>(null);
+  const [serverError, setServerError] = useSheetServerError(props.open);
   const { toast } = useToast();
   const utils = api.useUtils();
 
@@ -256,12 +266,7 @@ function EditExamSheet(props: {
   return (
     <ExamFormSheet
       open={props.open}
-      onOpenChange={(next) => {
-        props.onOpenChange(next);
-        if (!next) {
-          setServerError(null);
-        }
-      }}
+      onOpenChange={props.onOpenChange}
       title={t('admin.exams.form.edit-title', { title: props.exam.title })}
       initial={examToForm(props.exam)}
       attemptCount={props.exam.attemptCount}

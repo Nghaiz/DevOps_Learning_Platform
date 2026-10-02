@@ -1,6 +1,17 @@
 'use client';
 
-import { useCallback, useId, useRef, useState, type FormEvent, type ReactElement, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type FormEvent,
+  type KeyboardEvent,
+  type ReactElement,
+  type ReactNode,
+} from 'react';
 import { Check } from 'lucide-react';
 import { t } from '@devops-platform/copy';
 import {
@@ -22,10 +33,13 @@ import {
   EXAM_MAX_PROBLEMS,
   EXAM_TITLE_MAX_LENGTH,
   buildExamInput,
+  isExamFormDirty,
   parseProblemCodes,
   stepErrors,
   validateExamForm,
+  type ExamBadDates,
   type ExamComposeInput,
+  type ExamFormErrors,
   type ExamFormField,
   type ExamFormStep,
   type ExamFormValues,
@@ -55,6 +69,22 @@ const STRATEGIES: readonly ExamSeedStrategy[] = ['fixed', 'per-student'];
  *
  * Một bước bấm được khi mọi bước trước nó không còn lỗi. Ở chế độ sửa mọi bước
  * đã hợp lệ từ đầu, nên người sửa nhảy thẳng tới bước cần sửa.
+ *
+ * ## ⛔ "Tiếp" và "Lưu" là HAI phần tử, mỗi cái một `key`
+ *
+ * Bản trước vẽ hai nút ở cùng một khe JSX. React giữ nguyên nút DOM và chỉ đổi
+ * thuộc tính: cú bấm "Tiếp" ở bước 2 cập nhật state ngay trong lượt dispatch
+ * của sự kiện click, `type` của CHÍNH nút đang được bấm lật thành `submit`
+ * trước khi trình duyệt chạy hành vi kích hoạt, và form bị nộp. Ở chế độ sửa
+ * đó là một lượt `exams.update` không ai bấm. Nay hai nút mang `key` khác nhau
+ * (nút "Tiếp" bị gỡ khỏi cây thay vì đổi `type`) và "Tiếp" còn tự
+ * `preventDefault()`. `exam-form.dom.test.tsx` gác cả hai.
+ *
+ * ## Enter
+ *
+ * Ở bước giữa form KHÔNG có nút submit nào, nên trình duyệt không nộp ngầm khi
+ * bấm Enter trong một ô. `onKeyDown` của form tự đổi Enter thành "Tiếp". Ở
+ * bước cuối nút "Lưu" có mặt và Enter đi đường nộp ngầm bình thường.
  */
 export function ExamForm(props: {
   readonly initial: ExamFormValues;
@@ -66,15 +96,20 @@ export function ExamForm(props: {
   readonly serverError: string | null;
   readonly onSubmit: (input: ExamComposeInput) => void;
   readonly onCancel: () => void;
+  /** Báo cho tấm bao ngoài biết form đã khác lúc mở chưa, để hỏi trước khi đóng. */
+  readonly onDirtyChange?: (dirty: boolean) => void;
 }): ReactElement {
   const [values, setValues] = useState<ExamFormValues>(props.initial);
+  const [badDates, setBadDates] = useState<ExamBadDates>({});
+  const opensRef = useRef<HTMLInputElement>(null);
+  const closesRef = useRef<HTMLInputElement>(null);
   const [current, setCurrent] = useState<number>(0);
   const [attempted, setAttempted] = useState<ReadonlySet<ExamFormStep>>(new Set());
   const headingRefs = useRef<(HTMLHeadingElement | null)[]>([]);
   const baseId = useId();
   const fieldId = (field: ExamFormField): string => `${baseId}-${field}`;
 
-  const errors = validateExamForm(values);
+  const errors = validateExamForm(values, badDates);
   const step = EXAM_FORM_STEPS[current] as ExamFormStep;
   const isLast = current === EXAM_FORM_STEPS.length - 1;
   const strategyLocked = props.attemptCount > 0;
@@ -89,6 +124,35 @@ export function ExamForm(props: {
     setValues((prev) => ({ ...prev, [key]: value }));
   }, []);
 
+  const dirty = isExamFormDirty(values, props.initial);
+  const { onDirtyChange } = props;
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
+
+  /**
+   * Đọc cờ gõ-dở của hai ô ngày giờ NGAY LÚC kiểm. Gõ dở từ một ô trống không
+   * bắn sự kiện `input` nào (value vẫn là ""), nên state `badDates` chỉ là bản
+   * cập nhật theo `change`/`blur`; lúc bấm "Tiếp", Enter hay "Lưu" thì hỏi
+   * thẳng DOM.
+   */
+  const readBadDates = useCallback((): ExamBadDates => {
+    const fresh: ExamBadDates = {
+      opensAt: opensRef.current?.validity.badInput === true,
+      closesAt: closesRef.current?.validity.badInput === true,
+    };
+    setBadDates((prev) => (prev.opensAt === fresh.opensAt && prev.closesAt === fresh.closesAt ? prev : fresh));
+    return fresh;
+  }, []);
+
+  const onDateChange = useCallback(
+    (key: 'opensAt' | 'closesAt') => (event: ChangeEvent<HTMLInputElement>) => {
+      update(key, event.target.value);
+      readBadDates();
+    },
+    [readBadDates, update],
+  );
+
   const goTo = useCallback((index: number) => {
     setCurrent(index);
     // Sang bước khác thì đưa tiêu điểm lên tiêu đề bước: trình đọc màn hình đọc
@@ -97,43 +161,49 @@ export function ExamForm(props: {
   }, []);
 
   const focusFirstError = useCallback(
-    (target: ExamFormStep) => {
-      const field = stepErrors(validateExamForm(values), target)[0];
+    (fresh: ExamFormErrors, target: ExamFormStep) => {
+      const field = stepErrors(fresh, target)[0];
       if (field !== undefined) {
         requestAnimationFrame(() => document.getElementById(fieldId(field))?.focus());
       }
     },
     // `fieldId` chỉ phụ thuộc `baseId`, ổn định suốt vòng đời form.
-    [values, baseId],
+    [baseId],
   );
 
   const reachable = (index: number): boolean =>
     EXAM_FORM_STEPS.slice(0, index).every((candidate) => stepErrors(errors, candidate).length === 0);
 
   const next = useCallback(() => {
+    if (isLast) {
+      return;
+    }
+    const fresh = validateExamForm(values, readBadDates());
     setAttempted((prev) => new Set(prev).add(step));
-    if (stepErrors(errors, step).length > 0) {
-      focusFirstError(step);
+    if (stepErrors(fresh, step).length > 0) {
+      focusFirstError(fresh, step);
       return;
     }
     goTo(current + 1);
-  }, [current, errors, focusFirstError, goTo, step]);
+  }, [current, focusFirstError, goTo, isLast, readBadDates, step, values]);
 
   const onSubmit = useCallback(
     (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
       if (!isLast) {
-        // Enter ở bước giữa nghĩa là "Tiếp", không phải "lưu cả form".
+        // Ở bước giữa không có nút submit nào, nên nhánh này chỉ là lưới an
+        // toàn: một lượt nộp lọt tới đây vẫn có nghĩa là "Tiếp".
         next();
         return;
       }
+      const fresh = validateExamForm(values, readBadDates());
       setAttempted(new Set(EXAM_FORM_STEPS));
-      const firstBad = EXAM_FORM_STEPS.findIndex((candidate) => stepErrors(errors, candidate).length > 0);
+      const firstBad = EXAM_FORM_STEPS.findIndex((candidate) => stepErrors(fresh, candidate).length > 0);
       if (firstBad !== -1) {
         if (firstBad !== current) {
           goTo(firstBad);
         }
-        focusFirstError(EXAM_FORM_STEPS[firstBad] as ExamFormStep);
+        focusFirstError(fresh, EXAM_FORM_STEPS[firstBad] as ExamFormStep);
         return;
       }
       const input = buildExamInput(values);
@@ -141,13 +211,28 @@ export function ExamForm(props: {
         props.onSubmit(input);
       }
     },
-    [current, errors, focusFirstError, goTo, isLast, next, values, props.onSubmit],
+    [current, focusFirstError, goTo, isLast, next, readBadDates, values, props.onSubmit],
+  );
+
+  /** Enter trong một ô một dòng ở bước giữa = "Tiếp". Ô nhiều dòng giữ Enter để xuống dòng. */
+  const onKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLFormElement>) => {
+      if (event.key !== 'Enter' || isLast || event.nativeEvent.isComposing) {
+        return;
+      }
+      if (!(event.target instanceof HTMLInputElement)) {
+        return;
+      }
+      event.preventDefault();
+      next();
+    },
+    [isLast, next],
   );
 
   const codes = parseProblemCodes(values.problems);
 
   return (
-    <form onSubmit={onSubmit} noValidate className="flex flex-col gap-6">
+    <form onSubmit={onSubmit} onKeyDown={onKeyDown} noValidate className="flex flex-col gap-6">
       <StepBar
         current={current}
         attempted={attempted}
@@ -222,10 +307,12 @@ export function ExamForm(props: {
               error={shownError('opensAt')}
             >
               <Input
+                ref={opensRef}
                 id={fieldId('opensAt')}
                 type="datetime-local"
                 value={values.opensAt}
-                onChange={(event) => update('opensAt', event.target.value)}
+                onChange={onDateChange('opensAt')}
+                onBlur={readBadDates}
                 aria-invalid={shownError('opensAt') === undefined ? undefined : true}
                 aria-describedby={`${fieldId('opensAt')}-note`}
               />
@@ -237,10 +324,12 @@ export function ExamForm(props: {
               error={shownError('closesAt')}
             >
               <Input
+                ref={closesRef}
                 id={fieldId('closesAt')}
                 type="datetime-local"
                 value={values.closesAt}
-                onChange={(event) => update('closesAt', event.target.value)}
+                onChange={onDateChange('closesAt')}
+                onBlur={readBadDates}
                 aria-invalid={shownError('closesAt') === undefined ? undefined : true}
                 aria-describedby={`${fieldId('closesAt')}-note`}
               />
@@ -327,6 +416,7 @@ export function ExamForm(props: {
         )}
         {isLast ? (
           <Button
+            key="submit"
             type="submit"
             loading={props.pending}
             onClick={(event) => {
@@ -340,7 +430,15 @@ export function ExamForm(props: {
             {props.submitLabel}
           </Button>
         ) : (
-          <Button type="button" variant="ink" onClick={next}>
+          <Button
+            key="next"
+            type="button"
+            variant="ink"
+            onClick={(event) => {
+              event.preventDefault();
+              next();
+            }}
+          >
             {t('admin.exams.form.next')}
           </Button>
         )}

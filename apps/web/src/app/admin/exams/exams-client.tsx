@@ -22,7 +22,7 @@ import type { AppRouter } from '../../../server/trpc/routers/app-router';
 import { api } from '../../../lib/trpc-react';
 import { describeTrpcError } from '../../../lib/trpc';
 import { AdminNote, AdminPage, LedgerSkeleton } from '../../../components/admin/admin-page';
-import { ExamFormSheet } from '../../../components/admin/exam-form-sheet';
+import { ExamFormSheet, useSheetServerError } from '../../../components/admin/exam-form-sheet';
 import {
   describeExamWindow,
   emptyExamForm,
@@ -100,7 +100,7 @@ function CreateExamSheet(props: {
   readonly onOpenChange: (open: boolean) => void;
   readonly onCreated: () => void;
 }): ReactElement {
-  const [serverError, setServerError] = useState<string | null>(null);
+  const [serverError, setServerError] = useSheetServerError(props.open);
   const { toast } = useToast();
   const utils = api.useUtils();
 
@@ -132,12 +132,7 @@ function CreateExamSheet(props: {
   return (
     <ExamFormSheet
       open={props.open}
-      onOpenChange={(next) => {
-        props.onOpenChange(next);
-        if (!next) {
-          setServerError(null);
-        }
-      }}
+      onOpenChange={props.onOpenChange}
       title={t('admin.exams.form.create-title')}
       initial={emptyExamForm()}
       attemptCount={0}

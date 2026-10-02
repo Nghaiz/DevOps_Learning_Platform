@@ -76,4 +76,37 @@ describe('Table', () => {
         'ngang. Xem bảng số đo ở chú thích của `Table` trong table.tsx.',
     ).toBe(true);
   });
+
+  /**
+   * Tiêu đề HÀNG không được mang kiểu tiêu đề cột. Kiểu cột (`type-label` viết
+   * hoa mono, `whitespace-nowrap`, `sticky`, nền muted) từng rơi vào mọi
+   * `<TableHead scope="row">`: tên kỳ thi, tên sinh viên, mốc giờ lượt nộp
+   * thành dải chữ hoa không xuống dòng.
+   */
+  it('scope="row" vẽ như ô nội dung, scope="col" giữ kiểu tiêu đề cột', () => {
+    render(
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead scope="col">Kỳ thi</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          <TableRow>
+            <TableHead scope="row">Kiểm tra giữa kỳ Kubernetes nhóm 3</TableHead>
+          </TableRow>
+        </TableBody>
+      </Table>,
+    );
+
+    const col = screen.getByRole('columnheader', { name: 'Kỳ thi' });
+    const row = screen.getByRole('rowheader', { name: 'Kiểm tra giữa kỳ Kubernetes nhóm 3' });
+    expect(col.getAttribute('scope')).toBe('col');
+    expect(row.getAttribute('scope')).toBe('row');
+    for (const header of ['type-label', 'whitespace-nowrap', 'sticky', 'bg-muted']) {
+      expect(col.classList.contains(header), `tiêu đề cột thiếu ${header}`).toBe(true);
+      expect(row.classList.contains(header), `tiêu đề hàng không được mang ${header}`).toBe(false);
+    }
+    expect(row.classList.contains('text-foreground')).toBe(true);
+  });
 });

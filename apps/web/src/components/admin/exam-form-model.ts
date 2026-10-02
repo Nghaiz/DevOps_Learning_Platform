@@ -58,6 +58,16 @@ export interface ExamFormValues {
 
 export type ExamFormErrors = Partial<Readonly<Record<ExamFormField, string>>>;
 
+/**
+ * Hai ô ngày giờ mà trình duyệt đang giữ một giá trị gõ DỞ.
+ *
+ * ⚠ `datetime-local` gõ dở (có ngày mà chưa có giờ) trả `value === ""`, y hệt ô
+ * để trống. Chỉ `input.validity.badInput` phân biệt được hai ca. Không có cờ
+ * này thì một mốc gõ hỏng đi thẳng vào `toIsoOrNull("")` thành `null`, tức là
+ * "mở ngay" / "không hạn chung": kỳ thi mở sớm mà không ai được báo.
+ */
+export type ExamBadDates = Partial<Readonly<Record<'opensAt' | 'closesAt', boolean>>>;
+
 /** Input của `exams.create`; `exams.update` là cái này cộng `examId`. */
 export interface ExamComposeInput {
   readonly classId: string;
@@ -163,7 +173,7 @@ function parseDuration(text: string): number | null {
  * là sinh viên báo "em không vào thi được". Người ra đề nên thấy câu đó ngay
  * ở bước Thời gian, không phải sau khi bấm lưu ở bước cuối.
  */
-export function validateExamForm(values: ExamFormValues): ExamFormErrors {
+export function validateExamForm(values: ExamFormValues, badDates: ExamBadDates = {}): ExamFormErrors {
   const errors: Partial<Record<ExamFormField, string>> = {};
 
   if (values.title.trim() === '') {
@@ -178,10 +188,10 @@ export function validateExamForm(values: ExamFormValues): ExamFormErrors {
 
   const opens = toIsoOrNull(values.opensAt);
   const closes = toIsoOrNull(values.closesAt);
-  if (opens === undefined) {
+  if (opens === undefined || badDates.opensAt === true) {
     errors.opensAt = t('admin.exams.form.error.date');
   }
-  if (closes === undefined) {
+  if (closes === undefined || badDates.closesAt === true) {
     errors.closesAt = t('admin.exams.form.error.date');
   } else if (
     typeof opens === 'string' &&
@@ -218,6 +228,14 @@ function describeProblemCodesError(codes: readonly string[]): string | null {
     seen.add(code);
   }
   return null;
+}
+
+/**
+ * Form đã khác giá trị lúc mở chưa. Đóng tấm khi form đã khác thì phải hỏi
+ * trước: Radix gỡ nội dung lúc đóng và bản nháp mất hẳn.
+ */
+export function isExamFormDirty(values: ExamFormValues, initial: ExamFormValues): boolean {
+  return (Object.keys(initial) as (keyof ExamFormValues)[]).some((key) => values[key] !== initial[key]);
 }
 
 /** Các ô có lỗi thuộc một bước, theo thứ tự ô trên màn hình. */

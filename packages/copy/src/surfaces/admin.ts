@@ -554,6 +554,9 @@ export const admin = {
   'admin.exams.form.submit-create': 'Tạo kỳ thi',
   'admin.exams.form.submit-update': 'Lưu thay đổi',
   'admin.exams.form.step-error': (p: { step: string }): string => `Bước ${p.step} còn chỗ cần sửa.`,
+  'admin.exams.form.discard-title': 'Bỏ bản nháp?',
+  'admin.exams.form.discard-body': 'Đóng bây giờ thì những gì bạn vừa điền trong form không được giữ lại.',
+  'admin.exams.form.discard-confirm': 'Bỏ bản nháp',
 
   // Lỗi tại ô, nói cách sửa chứ không nói "không hợp lệ".
   'admin.exams.form.error.title': 'Đặt tên cho kỳ thi.',

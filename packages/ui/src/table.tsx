@@ -78,10 +78,31 @@ export function TableRow({ className, ...props }: ComponentProps<'tr'>) {
   );
 }
 
-export function TableHead({ className, ...props }: ComponentProps<'th'>) {
+/**
+ * Ô tiêu đề. Hai vai, phân theo `scope`:
+ *
+ * - **Tiêu đề cột** (mặc định, hoặc `scope="col"`): nền muted, chữ nhãn mono
+ *   viết hoa, không xuống dòng, dính đầu khi bảng cuộn dọc.
+ * - **Tiêu đề hàng** (`scope="row"`): tên kỳ thi, tên sinh viên, mốc giờ của
+ *   một lượt nộp. Nó là NỘI DUNG của hàng, chỉ khác `<td>` ở ngữ nghĩa, nên vẽ
+ *   y như một ô thường: chữ thường, xuống dòng được, không dính, không nền.
+ *   Kiểu cột mà rơi vào đây thì tên dài thành một dải chữ hoa không gãy dòng.
+ */
+export function TableHead({ className, scope, ...props }: ComponentProps<'th'>) {
+  if (scope === 'row') {
+    return (
+      <th
+        data-slot="table-row-head"
+        scope="row"
+        className={cn('p-3 text-left align-middle font-normal text-foreground', className)}
+        {...props}
+      />
+    );
+  }
   return (
     <th
       data-slot="table-head"
+      scope={scope}
       className={cn(
         /*
          * Ô tiêu đề dính đầu khi KHỐI CUỘN cuộn dọc (nơi gọi đặt `max-h-*` lên

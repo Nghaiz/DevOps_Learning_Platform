@@ -8,6 +8,7 @@ import {
   emptyExamForm,
   examToForm,
   examWindowState,
+  isExamFormDirty,
   parseProblemCodes,
   stepErrors,
   toIsoOrNull,
@@ -120,6 +121,18 @@ describe('toIsoOrNull', () => {
     expect(validateExamForm(filled({ opensAt: 'hôm qua' })).opensAt).toBeDefined();
   });
 
+  /**
+   * `datetime-local` gõ dở trả `value === ""`, y như ô trống. Cờ `badInput` của
+   * trình duyệt là thứ duy nhất phân biệt, và nó phải thành lỗi, không thành
+   * `null` ("mở ngay").
+   */
+  it('ô ngày giờ gõ dở (badInput) là lỗi dù value rỗng', () => {
+    expect(validateExamForm(filled({ opensAt: '' })).opensAt).toBeUndefined();
+    expect(validateExamForm(filled({ opensAt: '' }), { opensAt: true }).opensAt).toBeDefined();
+    expect(validateExamForm(filled({ closesAt: '' }), { closesAt: true }).closesAt).toBeDefined();
+    expect(validateExamForm(filled(), { opensAt: false, closesAt: false })).toEqual({});
+  });
+
   it('đi vòng qua toLocalInput không đổi mốc (theo giờ máy chạy test)', () => {
     const iso = toIsoOrNull('2026-10-05T09:30');
     expect(typeof iso).toBe('string');
@@ -194,5 +207,15 @@ describe('describeExamWindow', () => {
     expect(describeExamWindow({ opensAt: 'a', closesAt: null }, fmt)).toBe('Từ [a], không hạn chung');
     expect(describeExamWindow({ opensAt: null, closesAt: 'b' }, fmt)).toBe('Mở ngay, tới [b]');
     expect(describeExamWindow({ opensAt: 'a', closesAt: 'b' }, fmt)).toBe('[a] tới [b]');
+  });
+});
+
+describe('isExamFormDirty', () => {
+  it('chưa sửa gì thì không bẩn, sửa một ô thì bẩn, sửa rồi trả về như cũ thì hết bẩn', () => {
+    const initial = filled();
+    expect(isExamFormDirty({ ...initial }, initial)).toBe(false);
+    expect(isExamFormDirty({ ...initial, title: 'Cuối kỳ' }, initial)).toBe(true);
+    expect(isExamFormDirty({ ...initial, strategy: 'per-student' }, initial)).toBe(true);
+    expect(isExamFormDirty({ ...initial, title: initial.title }, initial)).toBe(false);
   });
 });

@@ -55,10 +55,21 @@ export function ConfirmDialog(props: {
   /** Nội dung phụ (ô chọn vai trò) đặt giữa mô tả và khối mất mát. */
   readonly children?: ReactNode;
 }): ReactElement {
-  const { blockedReason, error, loss } = props;
+  const { blockedReason, error, loss, confirming, onOpenChange } = props;
 
   return (
-    <Dialog open={props.open} onOpenChange={props.onOpenChange}>
+    <Dialog
+      open={props.open}
+      onOpenChange={(next) => {
+        // Đang gửi thì không đóng được bằng X, Esc hay bấm ra ngoài: hộp đóng
+        // giữa chừng thì câu trả lời của máy chủ (nhất là câu lỗi) không còn
+        // chỗ nào để hiện, và người dùng không biết việc đã xong hay chưa.
+        if (!next && confirming) {
+          return;
+        }
+        onOpenChange(next);
+      }}
+    >
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>{props.title}</DialogTitle>
