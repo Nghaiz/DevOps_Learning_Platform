@@ -25,7 +25,9 @@ export const normalizeText = (s) => s.replace(LEADING_BOM, '').replace(/\r\n/g, 
 
 function fontFiles() {
   const out = [];
-  for (const family of readdirSync(join(DIAGRAMS_DIR, FONT_DIR)).sort()) {
+  // Chỉ các thư mục họ font; README.md nằm cạnh chúng thì bỏ qua.
+  const families = readdirSync(join(DIAGRAMS_DIR, FONT_DIR), { withFileTypes: true }).filter((d) => d.isDirectory());
+  for (const family of families.map((d) => d.name).sort()) {
     for (const f of readdirSync(join(DIAGRAMS_DIR, FONT_DIR, family)).sort()) {
       if (/\.(ttf|otf)$/i.test(f)) out.push(`${FONT_DIR}/${family}/${f}`);
     }
