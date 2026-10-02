@@ -6,66 +6,14 @@
  * TRÒ. Việc hợp nhất hai hệ token là một thay đổi thiết kế riêng — xem chú
  * thích ở `globals.css`.
  */
-:root {
-  --background: var(--workspace-background);
-  --foreground: var(--workspace-foreground);
-  --card: var(--workspace-card);
-  --card-foreground: var(--workspace-foreground);
-  --popover: var(--workspace-card);
-  --popover-foreground: var(--workspace-foreground);
-  --primary: var(--workspace-primary);
-  --primary-foreground: var(--workspace-primary-foreground);
-  --secondary: var(--workspace-secondary);
-  --secondary-foreground: var(--workspace-secondary-foreground);
-  --muted: var(--workspace-secondary);
-  --muted-foreground: var(--workspace-muted-foreground);
-  --accent: var(--workspace-accent);
-  --accent-foreground: var(--workspace-accent-foreground);
-  --border: var(--workspace-border);
-  --input: var(--workspace-input);
-  --ring: var(--workspace-primary);
-  --workspace-sidebar: 224px;
-  --workspace-header: 68px;
-  --art-surface: var(--art-surface-default);
-  /*
-   * Mực chữ của nhãn trên tấm nền artwork, TÁCH khỏi `color` của chính tấm nền.
-   *
-   * `color` ở đó là `currentColor` mà SVG artwork vẽ theo (stroke/fill với
-   * opacity .08–.6), nên làm tối nó để đạt tương phản sẽ đổi luôn hình vẽ. Nhãn
-   * là chữ thật và phải qua ngưỡng AA; nét artwork là trang trí (`aria-hidden`)
-   * và không bị đo. Hai việc khác nhau ⇒ hai biến.
-   *
-   * Khai ở `:root` để biến luôn phân giải được kể cả khi markup đổi và nhãn
-   * không còn nằm trong `.practice-game-art` — một `var()` không phân giải sẽ
-   * rơi về màu kế thừa, và đó đúng là cách lỗi tương phản quay lại trong im lặng.
-   */
-  --art-label: var(--art-ink-k8s);
-}
+
 /*
  * GIỮ khối này dù mọi dòng nay giống hệt `:root`: nếu xoá, `--background` chỉ
  * còn được gán ở `<html>`, nên một `.dark` đặt trên phần tử CON sẽ đổi được
  * `--workspace-*` mà không đổi được vai trò đã gán bên trên — nền sáng, chữ
  * sáng. Gán lại tại đúng phần tử mang `.dark` là thứ khép lại lỗ đó.
  */
-.dark {
-  --background: var(--workspace-background);
-  --foreground: var(--workspace-foreground);
-  --card: var(--workspace-card);
-  --card-foreground: var(--workspace-foreground);
-  --popover: var(--workspace-card);
-  --popover-foreground: var(--workspace-foreground);
-  --primary: var(--workspace-primary);
-  --primary-foreground: var(--workspace-primary-foreground);
-  --secondary: var(--workspace-secondary);
-  --secondary-foreground: var(--workspace-secondary-foreground);
-  --muted: var(--workspace-secondary);
-  --muted-foreground: var(--workspace-muted-foreground);
-  --accent: var(--workspace-accent);
-  --accent-foreground: var(--workspace-accent-foreground);
-  --border: var(--workspace-border);
-  --input: var(--workspace-input);
-  --ring: var(--workspace-primary);
-}
+
 .practice-shell {
   min-height: 100dvh;
   padding-left: var(--workspace-sidebar);

@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import type { Metadata } from 'next';
 import { headers } from 'next/headers';
-import { Be_Vietnam_Pro } from 'next/font/google';
+import { Archivo, Be_Vietnam_Pro, JetBrains_Mono } from 'next/font/google';
 import { THEME_INIT_SCRIPT, ThemeProvider, Toaster, TooltipProvider } from '@devops-platform/ui';
 import { MotionProvider } from '@devops-platform/motion/provider';
 import { t } from '@devops-platform/copy';
@@ -73,6 +73,25 @@ const beVietnamPro = Be_Vietnam_Pro({
 });
 
 /**
+ * Archivo: chữ tiêu đề kiểu biển ga (design-brief §2.5). Variable font, mở trục
+ * `wdth` để tiện ích `type-poster` / `type-display` kéo rộng chữ bằng
+ * `font-stretch`. Có subset `vietnamese` (đã kiểm font-data của next/font).
+ */
+const archivo = Archivo({
+  subsets: ['latin', 'vietnamese'],
+  axes: ['wdth'],
+  variable: '--font-archivo',
+  display: 'swap',
+});
+
+/** JetBrains Mono: mã lệnh và nhãn mono in hoa. */
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ['latin', 'vietnamese'],
+  variable: '--font-jetbrains-mono',
+  display: 'swap',
+});
+
+/**
  * `nonce` đọc từ header `x-nonce` mà `src/proxy.ts` gắn vào mỗi request (luật 9
  * — CSP `script-src` dùng nonce thay vì `unsafe-inline`). Next tự gắn nonce này vào
  * script inline nó tự chèn khi thấy header CSP có `nonce-...` trên response.
@@ -123,7 +142,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         };
 
   return (
-    <html lang="vi" className={beVietnamPro.variable} suppressHydrationWarning>
+    <html lang="vi" className={`${beVietnamPro.variable} ${archivo.variable} ${jetbrainsMono.variable}`} suppressHydrationWarning>
       <head>
         <script nonce={nonce} dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>

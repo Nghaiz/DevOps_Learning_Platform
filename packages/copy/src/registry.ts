@@ -27,6 +27,7 @@ import { catalog, catalogIntentionalThree } from './surfaces/catalog.ts';
 import { common, commonIntentionalThree } from './surfaces/common.ts';
 import { error, errorIntentionalThree } from './surfaces/error.ts';
 import { exam, examIntentionalThree } from './surfaces/exam.ts';
+import { games, gamesIntentionalThree } from './surfaces/games.ts';
 import { home, homeIntentionalThree } from './surfaces/home.ts';
 import { me, meIntentionalThree } from './surfaces/me.ts';
 import { problem, problemIntentionalThree } from './surfaces/problem.ts';
@@ -53,6 +54,7 @@ export const SURFACES = {
   problem,
   me,
   exam,
+  games,
 } as const;
 
 /**
@@ -77,6 +79,7 @@ export const SURFACE_PREFIXES = {
   problem: ['problem'],
   me: ['me'],
   exam: ['exam'],
+  games: ['games'],
 } as const satisfies Readonly<Record<keyof typeof SURFACES, readonly string[]>>;
 
 /**
@@ -100,6 +103,7 @@ export const MESSAGES = {
   ...problem,
   ...me,
   ...exam,
+  ...games,
 } as const;
 
 export type CopyKey = keyof typeof MESSAGES;
@@ -123,6 +127,7 @@ export const INTENTIONAL_THREE: IntentionalThree = {
   ...problemIntentionalThree,
   ...meIntentionalThree,
   ...examIntentionalThree,
+  ...gamesIntentionalThree,
 };
 
 /**
@@ -142,4 +147,5 @@ export const SURFACE_INTENTIONAL_THREE = {
   problem: problemIntentionalThree,
   me: meIntentionalThree,
   exam: examIntentionalThree,
+  games: gamesIntentionalThree,
 } as const satisfies Readonly<Record<keyof typeof SURFACES, IntentionalThree>>;
