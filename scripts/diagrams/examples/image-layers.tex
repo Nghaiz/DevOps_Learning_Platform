@@ -1,0 +1,14 @@
+% Mô tả: Lớp image xếp chồng: bốn lớp chỉ đọc của image, trên cùng là lớp ghi được của container
+\usetikzlibrary{decorations.pathreplacing}
+\begin{tikzpicture}[layer width=6.4cm]
+  \node[layer=muted] (l1) {FROM debian:12-slim \hfill\dlpmuted{74 MB}};
+  \node[layer=blue, stacked on=l1] (l2) {RUN apt-get install -y curl \hfill\dlpmuted{18 MB}};
+  \node[layer=blue, stacked on=l2] (l3) {COPY app/ /srv/app \hfill\dlpmuted{2 MB}};
+  \node[layer=blue, stacked on=l3] (l4) {CMD ["./run.sh"] \hfill\dlpmuted{0 B}};
+  \node[layer=amber, stacked on=l4, yshift=5pt, dashed, font=\small] (rw) {lớp ghi được của container};
+
+  \draw[decorate, decoration={brace, amplitude=5pt}, draw=dlpmuted]
+    ([xshift=6pt]l4.north east) -- ([xshift=6pt]l1.south east)
+    node[midway, right=8pt, align=left, font=\small] {image \dlpcode{app:1.4}\\\dlpmuted{chỉ đọc, dùng chung}};
+  \node[note, right=12pt of rw, align=left] {mất khi\\\dlpcode{docker rm}};
+\end{tikzpicture}

@@ -36,7 +36,10 @@ export function writePreview() {
     // sẽ phải làm nếu một sơ đồ xuất hiện hai lần trên cùng trang.
     const copy = (tag) => (prefix ? parts.body.split(prefix).join(`${prefix}${tag}-`) : parts.body);
     const fig = (cls, svg) => `<figure class="${cls}">${svg}<figcaption>${esc(caption)} · <code>${esc(name)}</code></figcaption></figure>`;
-    return `<div class="row">\n${fig('t-light', parts.body)}\n${fig('t-dark', copy('dk'))}\n${fig('t-bare', copy('bare'))}\n</div>`;
+    return {
+      themed: `<div class="row">\n${fig('t-light', parts.body)}\n${fig('t-dark', copy('dk'))}\n</div>`,
+      bare: fig('t-bare', copy('bare')),
+    };
   });
   const html = `<!doctype html>
 <html lang="vi">
@@ -46,7 +49,7 @@ export function writePreview() {
 <style>
 body{margin:0;padding:24px;font:15px/1.5 system-ui,sans-serif;background:#d9d6cc}
 h1{font-size:18px;margin:0 0 4px} p{margin:0 0 16px;max-width:90ch}
-.head,.row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:12px;align-items:start}
+.head,.row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:12px;align-items:start}
 .head div{font-weight:600}
 figure{margin:0;padding:16px;border-radius:8px}
 figure svg{display:block;max-width:100%;height:auto;margin:0 auto}
@@ -63,9 +66,13 @@ ${themeCss(palette, '.t-dark', 'dark')}
 </head>
 <body>
 <h1>dlp-diagram: ví dụ</h1>
-<p>Sinh bởi scripts/diagrams/preview.mjs, đừng sửa tay. Cột 1 và 2 có CSS theme cho class <code>dia-f-*</code>/<code>dia-s-*</code>; cột 3 không có CSS nào, tức là màu fallback ghi sẵn trong thuộc tính.</p>
-<div class="head"><div>Nền sáng ${light.surface}</div><div>Nền tối ${dark.surface}</div><div>Không CSS (fallback)</div></div>
-${rows.join('\n')}
+<p>Sinh bởi scripts/diagrams/preview.mjs, đừng sửa tay. Hai cột đầu có CSS theme cho class <code>dia-f-*</code>/<code>dia-s-*</code> (hàm <code>themeCss</code> trong preview.mjs); phần cuối không có CSS nào, tức là màu fallback ghi sẵn trong thuộc tính.</p>
+<div class="head"><div>Nền sáng ${light.surface}</div><div>Nền tối ${dark.surface}</div></div>
+${rows.map((r) => r.themed).join('\n')}
+<h1>Không CSS: màu fallback ghi trong thuộc tính</h1>
+<div class="row">
+${rows.map((r) => r.bare).join('\n')}
+</div>
 </body>
 </html>
 `;

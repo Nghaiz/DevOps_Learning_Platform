@@ -7,7 +7,7 @@ import { idPrefix } from './sources.mjs';
 /** 1pt (đơn vị viewBox của dvisvgm, = 1/72 in) → px CSS (1/96 in). */
 const PT_TO_PX = 96 / 72;
 
-export const DVISVGM_ARGS = ['--no-fonts', '--optimize=all', '--precision=3', '--bbox=papersize', '--relative'];
+export const DVISVGM_ARGS = ['--no-fonts', '--optimize=all', '--precision=2', '--bbox=papersize', '--relative'];
 
 /**
  * Đưa các dòng `\usetikzlibrary{…}` của tác giả lên preamble. Trong thân, dòng đó thành `%`

@@ -31,12 +31,16 @@
 \newcommand\dlpcode[1]{{\ttfamily #1}}
 \newcommand\dlpmuted[1]{{\color{dlpmuted}#1}}
 \newcommand\dlpsha[1]{{\ttfamily\small\color{dlpmuted}#1}}
+% Dòng tiêu đề của thẻ: \node[card=blue] {\dlptitle{Service}ClusterIP\\…};
+% (Không làm bằng `execute at begin node`: TikZ chạy nó NGOÀI phần gom dòng của align, tiêu đề lạc dòng.)
+\newcommand\dlptitle[1]{\textbf{#1}\\}
 
 % ---------------------------------------------------------------- Tham số
 \def\dlp@tint{0.12}              % độ đục lớp màu trên nền giấy
 \newcommand\dlplayerwidth{5.4cm} % bề rộng chữ của một lớp image (đổi bằng khoá layer width)
 \newcommand\dlptreeindent{0.5cm}
 \newcommand\dlptreerow{0.56cm}
+\newcommand\dlptimerow{0.8}     % khoảng cách hàng của dòng thời gian, KHÔNG đơn vị (= cm)
 \def\dlp@none{none}
 
 % Tên style ngắn cho dễ viết, nên phải chắc TikZ chưa dùng tên đó (một bản TikZ sau có thể thêm).
@@ -59,7 +63,8 @@
   box/.style={rectangle, rounded corners=3pt, dlp stroke=#1, dlp tint=#1, text=dlpink,
     inner xsep=7pt, inner ysep=5pt, minimum height=2.2em, align=center},
   box/.default=none,
-  card/.style 2 args={box=#1, align=left, execute at begin node={\textbf{#2}\\[1pt]}},
+  card/.style={box=#1, align=left},
+  card/.default=none,
   % --- Lớp image xếp chồng: \node[layer=green, stacked on=l1] (l2) {RUN …};
   layer/.style={rectangle, dlp stroke=#1, dlp tint=#1, text=dlpink, font=\ttfamily\small,
     text width=\dlplayerwidth, inner xsep=6pt, minimum height=1.9em, align=left},
@@ -117,9 +122,23 @@
   dlp tree edge/.style={draw=dlpmuted, line width=0.6pt},
 }
 
-% ---------------------------------------------------------------- Vạch chia trên trục thời gian
-% \dlptick{<x>}{<nhãn>}: vạch ở (x,0) và nhãn bên dưới.
-\newcommand\dlptick[2]{\draw[draw=dlpmuted, line width=0.6pt] (#1,0) -- ++(0,-3pt)
+% ---------------------------------------------------------------- Dòng thời gian
+% Toạ độ KHÔNG đơn vị: x = thời gian (1 = 1cm), hàng 0 ở trên cùng, hàng tăng dần xuống dưới.
+% Đừng trộn có/không đơn vị: TikZ đọc (2,-1cm) thành (2pt,-1cm).
+%   \dlprow{<hàng>}{<tên>}                         nhãn bên trái một hàng
+%   \dlpspan[<màu>]{<hàng>}{<từ>}{<đến>}{<chữ>}    một đoạn (pod sống, probe chạy…)
+%   \dlpevent[<màu>]{<hàng>}{<x>}                  một chấm sự kiện, ngay trên thanh của hàng
+%   \dlpaxis{<số hàng>}{<dài>}{<nhãn>}             trục dưới hàng cuối; sau đó \dlptick{<x>}{<nhãn>}
+\newcommand\dlprow[2]{\node[anchor=east, font=\small, text=dlpink, inner sep=1pt]
+  at (-0.2,{-(#1)*\dlptimerow}) {#2};}
+\newcommand\dlpspan[5][blue]{\path[bar=#1] (#3,{-(#2)*\dlptimerow-0.26}) rectangle (#4,{-(#2)*\dlptimerow+0.26});
+  \node[font=\small, text=dlpink, inner sep=1pt] at ({((#3)+(#4))/2},{-(#2)*\dlptimerow}) {#5};}
+% Chấm nằm ngay TRÊN mép thanh, không đè lên chữ của thanh.
+\newcommand\dlpevent[3][blue]{\node[event=#1] at (#3,{-(#2)*\dlptimerow+0.38}) {};}
+\def\dlp@axisy{0}
+\newcommand\dlpaxis[3]{\gdef\dlp@axisy{{-((#1)-1)*\dlptimerow-0.6}}%
+  \draw[axis] (0,\dlp@axisy) -- (#2,\dlp@axisy) node[note, right] {#3};}
+\newcommand\dlptick[2]{\draw[draw=dlpmuted, line width=0.6pt] (#1,\dlp@axisy) -- ++(0,-0.1)
   node[below, note] {#2};}
 
 % ---------------------------------------------------------------- Cây thư mục
