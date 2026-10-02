@@ -173,7 +173,7 @@ export function WorkspacePanel({
           </div>
         ) : (
           <span className="flex min-w-0 items-center gap-3 px-2">
-            {(sideBySide ? [EDITOR_TAB, TERMINAL_TAB] : [TERMINAL_TAB]).map((tab) => {
+            {(sideBySide ? listWorkspaceTabs(true) : listWorkspaceTabs(false)).map((tab) => {
               const Icon = TAB_ICON[tab];
               return (
                 <span key={tab} className="flex h-7 shrink-0 items-center gap-1.5 type-label text-muted-foreground">

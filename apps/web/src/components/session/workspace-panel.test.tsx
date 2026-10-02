@@ -38,7 +38,7 @@ function render(overrides: Partial<WorkspacePanelProps> = {}): string {
     terminal: <span>{TERMINAL_MARK}</span>,
     activeTab: 'editor',
     onActivate: () => undefined,
-    popOutUrl: null,
+    onPopOut: null,
     ...overrides,
   };
   return renderToStaticMarkup(<WorkspacePanel {...props} />);
@@ -297,7 +297,7 @@ describe('thanh tab', () => {
    * được, còn trình đọc màn hình thì nghe "tab 1 trên 1".
    */
   it('bài không có editor: KHÔNG có tablist, nhưng thanh và nút pop-out vẫn còn', () => {
-    const html = render({ editor: undefined, activeTab: 'terminal', popOutUrl: '/session/abc/terminal' });
+    const html = render({ editor: undefined, activeTab: 'terminal', onPopOut: () => undefined });
     expect(tagsWithRole(html, 'tablist')).toHaveLength(0);
     expect(tagsWithRole(html, 'tab')).toHaveLength(0);
     expect(tagsWithRole(html, 'tabpanel')).toHaveLength(0);
@@ -369,13 +369,25 @@ describe('thanh tab', () => {
 });
 
 describe('nút mở ra cửa sổ riêng', () => {
-  it('ẩn khi popOutUrl là null', () => {
-    expect(render({ popOutUrl: null })).not.toContain('Mở tab này ra cửa sổ riêng');
+  it('ẩn khi onPopOut là null', () => {
+    expect(render({ onPopOut: null })).not.toContain('Mở terminal ra cửa sổ riêng');
   });
 
-  it('hiện với rel an toàn khi có URL', () => {
-    const html = render({ popOutUrl: '/session/abc/terminal' });
-    expect(html).toContain('href="/session/abc/terminal"');
-    expect(html).toContain('rel="noopener noreferrer"');
+  it('là NÚT (bàn giao kết nối), không phải liên kết mở thẳng một WebSocket thứ hai', () => {
+    // Gateway cho đúng một WebSocket mỗi phiên: một <a target=_blank> trần làm hai bên giật khe nhau.
+    const html = render({ onPopOut: () => undefined });
+    expect(html).toContain('Mở terminal ra cửa sổ riêng');
+    expect(html).not.toContain('href="/session/');
+  });
+});
+
+describe('bố cục song song (M2)', () => {
+  it('bài có editor có nút chuyển bố cục, aria-pressed=false mặc định', () => {
+    const html = render();
+    expect(html).toContain('aria-pressed="false"');
+  });
+
+  it('bài không có editor KHÔNG có nút chuyển bố cục', () => {
+    expect(render({ editor: undefined, activeTab: 'terminal' })).not.toContain('aria-pressed');
   });
 });
