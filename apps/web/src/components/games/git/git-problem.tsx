@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useRef, useState, type ReactElement } from 'react';
 import { toVerdictView, type GitEngineSession, type VerdictView } from '@devops-platform/games';
 
+import { t } from '@devops-platform/copy';
 import { GitStatusScreen } from './git-status-screen';
 import { GitLevelScreen } from './git-level-screen';
 import { useHintReveal } from '../../../lib/use-hint-reveal';
@@ -283,7 +284,7 @@ function GitProblemBody({ code }: { readonly code: string }): ReactElement {
       level={gitOjLevel(problem)}
       // Bài OJ theo định nghĩa là bài KHÔNG dạy, nên không có ngăn bài giảng.
       theory={null}
-      exitLabel="← Trang bài tập"
+      exitLabel={t('games.git.play.back-problems')}
       onExit={() => {
         window.location.assign(`/problems/${encodeURIComponent(problem.code)}`);
       }}

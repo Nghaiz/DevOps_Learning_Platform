@@ -22,6 +22,7 @@ import {
   type WorldSpec,
 } from '@devops-platform/games';
 
+import { t } from '@devops-platform/copy';
 import { GitLevelBuilder } from './builder/git-builder';
 import { CommandBar, OutputLog } from './git-console';
 import { ArrowLeft, FlaskConical, Hammer, Terminal } from 'lucide-react';
@@ -141,7 +142,7 @@ export function GitSandbox({
     }
     const next = withOrigin(spec);
     if (next === null) {
-      setProblem('Kho chưa có commit nào nên origin không có gì để trỏ vào. Tạo một commit trước.');
+      setProblem(t('games.git.sandbox.origin-empty'));
       return;
     }
     rebuild(next);
@@ -150,7 +151,7 @@ export function GitSandbox({
   const doImport = useCallback(() => {
     const parsed = importSandboxJson(importText);
     if (parsed === null) {
-      setProblem('Không đọc được chuỗi này. Nó phải là một bản xuất của chính màn sandbox.');
+      setProblem(t('games.git.sandbox.import-bad'));
       return;
     }
     // Đi qua `worldToSpec` chứ không giữ thẳng `GitWorld`: phiên dựng từ
@@ -178,15 +179,17 @@ export function GitSandbox({
     <div className="git-odyssey git-play-screen git-sandbox" data-chapter="2">
       <header className="git-play-header">
         <button type="button" onClick={onExit} className="git-button">
-          <ArrowLeft size={16} /> Bản đồ
+          <ArrowLeft size={16} aria-hidden="true" /> {t('games.git.sandbox.back')}
         </button>
         <div className="git-play-title">
-          <p className="git-eyebrow">GIT ODYSSEY / XƯỞNG SÁNG TẠO</p>
-          <h1>Sandbox · Kiến tạo lịch sử của bạn</h1>
+          <p className="git-eyebrow">
+            <span className="git-line-code">GIT</span> {t('games.git.sandbox.kicker')}
+          </p>
+          <h1>{t('games.git.sandbox.title')}</h1>
         </div>
         <span className="ml-auto">
           <SandboxButton onClick={toggleBuilder}>
-            {builderOpen ? 'Đóng Level Builder' : 'Mở Level Builder'}
+            {builderOpen ? t('games.git.sandbox.builder-close') : t('games.git.sandbox.builder-open')}
           </SandboxButton>
         </span>
       </header>
@@ -194,9 +197,9 @@ export function GitSandbox({
       <div className="git-mission-strip">
         <FlaskConical size={16} />
         <p>
-          Thử nghiệm không giới hạn. Tạo nhánh, dựng lịch sử và thiết kế nhiệm vụ của riêng bạn.
+          {t('games.git.sandbox.strip')}
         </p>
-        <span>CHẾ ĐỘ TỰ DO</span>
+        <span>{t('games.git.sandbox.mode')}</span>
       </div>
       <div className="git-play-body">
         <div className="git-play-world">
@@ -213,7 +216,7 @@ export function GitSandbox({
                 onSelect: setSelected,
                 onHover: setHovered,
               },
-              label: 'Đồ thị commit của sandbox',
+              label: t('games.git.sandbox.scene-label'),
             }}
           />
         </div>
@@ -239,17 +242,17 @@ export function GitSandbox({
            * vào surface `shell.` sẽ là copy của trò chơi nằm trong bản đồ của
            * vỏ ứng dụng — chính thứ đầu file `surfaces/shell.ts` cấm.
            */
-          aria-label="Bảng công cụ sandbox"
+          aria-label={t('games.git.sandbox.panel-aria')}
           data-testid="git-sandbox-panel"
         >
           <div className="git-builder-heading">
             <Hammer size={23} />
             <span>
-              <strong>{builderOpen ? 'Level Builder' : 'Phòng thí nghiệm'}</strong>
+              <strong>{builderOpen ? t('games.git.sandbox.panel-builder') : t('games.git.sandbox.panel-lab')}</strong>
               <small>
                 {builderOpen
-                  ? 'Thiết kế · Chơi thử · Xuất bản nháp'
-                  : 'Thiết lập thế giới và khám phá Git'}
+                  ? t('games.git.sandbox.panel-builder-sub')
+                  : t('games.git.sandbox.panel-lab-sub')}
               </small>
             </span>
           </div>
@@ -264,10 +267,10 @@ export function GitSandbox({
 
           <section aria-labelledby="sandbox-kich-ban">
             <h2 id="sandbox-kich-ban" className="mb-2 text-sm font-semibold text-foreground">
-              Kịch bản khởi tạo
+              {t('games.git.sandbox.scenario')}
             </h2>
             <label htmlFor="sandbox-scenario" className="sr-only">
-              Chọn kịch bản khởi tạo
+              {t('games.git.sandbox.scenario-select')}
             </label>
             <select
               id="sandbox-scenario"
@@ -277,7 +280,7 @@ export function GitSandbox({
                 setScenario(next);
                 rebuild(sandboxSpec(next));
               }}
-              className="w-full rounded-md border border-input bg-card px-3 py-2 text-xs text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+              className="w-full border border-input bg-card px-3 py-2 text-xs text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
             >
               {SANDBOX_SCENARIOS.map((s) => (
                 <option key={s} value={s}>
@@ -286,14 +289,13 @@ export function GitSandbox({
               ))}
             </select>
             <p className="mt-2 text-xs text-muted-foreground">
-              Đổi kịch bản, bật/tắt origin, hay nhập một cây đều dựng lại kho — và việc đó xoá ngăn
-              xếp hoàn tác.
+              {t('games.git.sandbox.rebuild-note')}
             </p>
           </section>
 
           <section aria-labelledby="sandbox-thao-tac" className="flex flex-col gap-2">
             <h2 id="sandbox-thao-tac" className="text-sm font-semibold text-foreground">
-              Thao tác
+              {t('games.git.sandbox.actions')}
             </h2>
             <div className="flex flex-wrap gap-2">
               <SandboxButton
@@ -301,24 +303,24 @@ export function GitSandbox({
                   rebuild(spec);
                 }}
               >
-                Đặt lại
+                {t('games.git.sandbox.reset')}
               </SandboxButton>
-              <SandboxButton onClick={undo}>Hoàn tác một bước</SandboxButton>
+              <SandboxButton onClick={undo}>{t('games.git.sandbox.undo')}</SandboxButton>
               <SandboxButton onClick={toggleOrigin} disabled={!hasOrigin && !canEnableOrigin}>
-                {hasOrigin ? 'Tắt origin' : 'Bật origin'}
+                {hasOrigin ? t('games.git.sandbox.origin-off') : t('games.git.sandbox.origin-on')}
               </SandboxButton>
             </div>
             <p className="text-xs text-muted-foreground" data-testid="git-sandbox-origin-state">
-              origin: {hasOrigin ? 'đang bật' : 'đang tắt'}
+              {hasOrigin ? t('games.git.sandbox.origin-state-on') : t('games.git.sandbox.origin-state-off')}
             </p>
           </section>
 
           <section aria-labelledby="sandbox-xuat">
             <h2 id="sandbox-xuat" className="mb-2 text-sm font-semibold text-foreground">
-              Xuất cây
+              {t('games.git.sandbox.export')}
             </h2>
             <label htmlFor="sandbox-export" className="sr-only">
-              Chuỗi JSON của cây hiện tại
+              {t('games.git.sandbox.export-aria')}
             </label>
             <textarea
               id="sandbox-export"
@@ -326,16 +328,16 @@ export function GitSandbox({
               readOnly
               rows={6}
               value={exported}
-              className="w-full rounded-md border border-input bg-muted p-2 font-mono text-[10px] text-muted-foreground"
+              className="w-full border border-input bg-muted p-2 font-mono text-[10px] text-muted-foreground"
             />
           </section>
 
           <section aria-labelledby="sandbox-nhap">
             <h2 id="sandbox-nhap" className="mb-2 text-sm font-semibold text-foreground">
-              Nhập cây
+              {t('games.git.sandbox.import')}
             </h2>
             <label htmlFor="sandbox-import" className="sr-only">
-              Dán chuỗi JSON của một cây đã xuất
+              {t('games.git.sandbox.import-aria')}
             </label>
             <textarea
               id="sandbox-import"
@@ -345,12 +347,12 @@ export function GitSandbox({
               onChange={(e) => {
                 setImportText(e.target.value);
               }}
-              placeholder="Dán chuỗi đã xuất vào đây"
-              className="w-full rounded-md border border-input bg-card p-2 font-mono text-[10px] text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+              placeholder={t('games.git.sandbox.import-placeholder')}
+              className="w-full border border-input bg-card p-2 font-mono text-[10px] text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
             />
             <div className="mt-2">
               <SandboxButton onClick={doImport} disabled={importText.trim().length === 0}>
-                Nhập
+                {t('games.git.sandbox.import-run')}
               </SandboxButton>
             </div>
             {problem !== null && (
@@ -369,12 +371,9 @@ export function GitSandbox({
       <div className="git-terminal">
         <header>
           <span>
-            <i />
-            <i />
-            <i />
-            <Terminal size={14} /> TERMINAL <small>~/sandbox</small>
+            <Terminal size={14} aria-hidden="true" /> {t('games.git.play.terminal')} <small>~/sandbox</small>
           </span>
-          <span>{session.getStatus().movesUsed} lệnh</span>
+          <span>{t('games.git.play.moves', { n: session.getStatus().movesUsed })}</span>
         </header>
         <OutputLog output={session.getOutput()} />
         <CommandBar
@@ -383,8 +382,8 @@ export function GitSandbox({
             setFeedback({
               tone: outcome.result.error ? 'error' : 'success',
               text: outcome.result.error
-                ? 'Lệnh chưa thực hiện được. Xem terminal.'
-                : command + ' · Đã thực hiện',
+                ? t('games.git.play.ran-error')
+                : t('games.git.play.ran', { command }),
             });
             redraw();
           }}
