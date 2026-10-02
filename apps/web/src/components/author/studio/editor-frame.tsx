@@ -56,7 +56,7 @@ export function StudioEditorFrame(props: {
   const hasNotice = props.notice !== undefined && props.notice !== null && props.notice !== false;
   const modes = props.modes ?? [];
   const body = (
-    <div className="grid gap-10 py-8 lg:grid-cols-[minmax(0,1fr)_20rem] xl:grid-cols-[minmax(0,1fr)_22rem]">
+    <div className="grid gap-10 py-8 [--split-sticky-top:9.5rem] lg:grid-cols-[minmax(0,1fr)_20rem] xl:grid-cols-[minmax(0,1fr)_22rem]">
       <div className="min-w-0">{props.children}</div>
       <InspectorRail label={t('author.studio.rail.label')}>{props.rail}</InspectorRail>
     </div>

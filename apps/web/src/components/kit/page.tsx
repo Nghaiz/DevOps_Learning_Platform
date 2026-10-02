@@ -188,7 +188,8 @@ export function Section({
 
 /**
  * Bố cục Thuỵ Sĩ lệch 4/8: cột nhãn dính bên trái (số + tiêu đề), nội dung bên
- * phải. Cột trái là NHÃN, không phải điều hướng.
+ * phải. Cột trái là NHÃN, không phải điều hướng. Vùng nào có thanh dính riêng
+ * (trình soạn của Xưởng) đặt biến `--split-sticky-top` để nhãn dính ngay dưới nó.
  */
 export function Split({
   index,
@@ -203,7 +204,7 @@ export function Split({
 }) {
   return (
     <div className="grid gap-6 border-t border-border py-8 lg:grid-cols-[minmax(0,4fr)_minmax(0,8fr)]">
-      <div className="lg:sticky lg:top-24 lg:self-start">
+      <div className="lg:sticky lg:top-[var(--split-sticky-top,6rem)] lg:self-start">
         {index && <p className="font-mono text-sm text-muted-foreground tabular-nums">{index}</p>}
         <h2 className="mt-1 type-title">{title}</h2>
         {aside && <div className="mt-3 text-sm text-muted-foreground">{aside}</div>}
