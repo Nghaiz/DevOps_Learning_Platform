@@ -14,6 +14,9 @@ export interface ToneClasses {
   readonly bar: string;
   /** Giá trị cho biến --row-tint của `interactive-row`. */
   readonly tint: string;
+  /** Khối đang mở TRÊN HEADER chrome (tối ở cả hai theme): tone ink phải đảo sang nền giấy. */
+  readonly headerFill: string;
+  readonly headerBar: string;
 }
 
 export const SECTION_TONE: Readonly<Record<SectionTone, ToneClasses>> = {
@@ -22,35 +25,47 @@ export const SECTION_TONE: Readonly<Record<SectionTone, ToneClasses>> = {
     ink: 'text-brand',
     bar: 'bg-primary',
     tint: 'var(--primary)',
+    headerFill: 'bg-primary text-primary-foreground',
+    headerBar: 'bg-primary',
   },
   docker: {
     fill: 'bg-line-docker text-line-docker-foreground',
     ink: 'text-line-docker-ink',
     bar: 'bg-line-docker',
     tint: 'var(--line-docker)',
+    headerFill: 'bg-line-docker text-line-docker-foreground',
+    headerBar: 'bg-line-docker',
   },
   iac: {
     fill: 'bg-line-iac text-line-iac-foreground',
     ink: 'text-line-iac-ink',
     bar: 'bg-line-iac',
     tint: 'var(--line-iac)',
+    headerFill: 'bg-line-iac text-line-iac-foreground',
+    headerBar: 'bg-line-iac',
   },
   signal: {
     fill: 'bg-signal text-signal-foreground',
     ink: 'text-foreground',
     bar: 'bg-signal',
     tint: 'var(--signal)',
+    headerFill: 'bg-signal text-signal-foreground',
+    headerBar: 'bg-signal',
   },
   cicd: {
     fill: 'bg-line-cicd text-line-cicd-foreground',
     ink: 'text-line-cicd-ink',
     bar: 'bg-line-cicd',
     tint: 'var(--line-cicd)',
+    headerFill: 'bg-line-cicd text-line-cicd-foreground',
+    headerBar: 'bg-line-cicd',
   },
   ink: {
-    fill: 'bg-ink text-ink-foreground',
+    fill: 'bg-chrome text-chrome-foreground',
     ink: 'text-foreground',
-    bar: 'bg-ink',
+    bar: 'bg-chrome',
     tint: 'var(--foreground)',
+    headerFill: 'bg-chrome-foreground text-chrome',
+    headerBar: 'bg-chrome-foreground',
   },
 };

@@ -179,7 +179,7 @@ function SectionItem({
         className={cn(
           'relative flex items-center gap-2 pl-3 text-[0.95rem] font-semibold whitespace-nowrap transition-colors xl:pl-4',
           hasMany ? 'pr-1' : 'pr-3 xl:pr-4',
-          isCurrent ? tone.fill : 'text-chrome-foreground/85 hover:text-chrome-foreground',
+          isCurrent ? tone.headerFill : 'text-chrome-foreground/85 hover:text-chrome-foreground',
           !isCurrent && isOpen && 'bg-chrome-foreground/10 text-chrome-foreground',
         )}
       >
@@ -187,7 +187,7 @@ function SectionItem({
         {isCurrent && (
           <span
             aria-hidden="true"
-            className={cn('absolute -bottom-[7px] left-1/2 z-10 size-3.5 -translate-x-1/2 rotate-45', tone.bar)}
+            className={cn('absolute -bottom-[7px] left-1/2 z-10 size-3.5 -translate-x-1/2 rotate-45', tone.headerBar)}
           />
         )}
       </Link>
@@ -200,7 +200,7 @@ function SectionItem({
           onClick={onToggle}
           className={cn(
             'flex w-7 items-center justify-center transition-colors',
-            isCurrent ? tone.fill : 'text-chrome-foreground/70 hover:text-chrome-foreground',
+            isCurrent ? tone.headerFill : 'text-chrome-foreground/70 hover:text-chrome-foreground',
           )}
         >
           <ChevronDown
