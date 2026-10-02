@@ -44,15 +44,15 @@ test.describe('luồng 3 — quiz', { tag: '@flow' }, () => {
         'và mọi phép kiểm hình thức vẫn xanh trên nó.',
     ).toBeGreaterThan(0);
 
-    // Chọn ô đầu tiên của mỗi câu. `QuestionCard` gom lựa chọn theo `Card`, nên
-    // đi theo card là cách duy nhất chọn ĐÚNG MỘT ô cho mỗi câu thay vì chọn
+    // Chọn ô đầu tiên của mỗi câu. Mỗi câu là MỘT `<li data-testid="quiz-question">`
+    // chứa đúng các ô của nó, nên đi theo khối đó là cách duy nhất chọn ĐÚNG MỘT ô cho mỗi câu thay vì chọn
     // hết mọi ô trên trang (sai với câu một-đáp-án và vô nghĩa với câu nhiều).
-    const questions = page.getByRole('heading', { level: 2 });
+    const questions = page.getByTestId('quiz-question');
     const questionCount = await questions.count();
-    expect(questionCount, 'Không có câu hỏi nào (heading cấp 2).').toBeGreaterThan(0);
+    expect(questionCount, 'Không có câu hỏi nào (data-testid=quiz-question).').toBeGreaterThan(0);
 
     for (let i = 0; i < questionCount; i += 1) {
-      const card = page.locator('div').filter({ has: questions.nth(i) }).last();
+      const card = questions.nth(i);
       const first = card.getByRole('radio').or(card.getByRole('checkbox')).first();
       if (await first.count()) {
         await first.click();
@@ -80,7 +80,7 @@ test.describe('luồng 3 — quiz', { tag: '@flow' }, () => {
     // ── 4. Chấm: banner điểm + nhãn từng câu ────────────────────────────────
     await expect(
       page.getByText(/^(Đạt|Chưa đạt) \(mốc \d+%\)$/),
-      'Nộp bài xong nhưng không thấy banner điểm. `ScoreBanner` là chỗ DUY NHẤT ' +
+      'Nộp bài xong nhưng không thấy banner điểm. `ScoreBlock` là chỗ DUY NHẤT ' +
         'trang nói kết quả tổng.',
     ).toBeVisible({ timeout: 60_000 });
 
@@ -104,7 +104,7 @@ test.describe('luồng 3 — quiz', { tag: '@flow' }, () => {
     // Giải thích là TUỲ NỘI DUNG (người soạn có thể để trống), nên vắng nó
     // không phải lỗi của FE. Ghi nhận vào báo cáo thay vì đỏ mập mờ, và cũng
     // KHÔNG lặng lẽ coi như đã kiểm.
-    const explanations = page.locator('p.rounded-md.bg-muted');
+    const explanations = page.getByTestId('quiz-explanation');
     if ((await explanations.count()) === 0) {
       test.info().annotations.push({
         type: 'chua-do',

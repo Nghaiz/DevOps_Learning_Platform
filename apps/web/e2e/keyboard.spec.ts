@@ -477,34 +477,31 @@ test.describe('bàn phím — đi hết luồng chính', () => {
     });
   }
 
-  test('ô tìm kiếm chỉ đưa control đang hiện vào vòng Tab khi mở và đóng', async ({ page }) => {
+  test('ô tìm của danh mục nằm trong vòng Tab, có tên, và nút xoá dọn được từ khoá', async ({ page }) => {
+    // Ô tìm của danh mục là một ô nhập luôn hiện (không còn nút mở/đóng kiểu
+    // gooey). Thứ cần giữ: tới được bằng Tab, mang tên đọc được, và nút xoá
+    // hiện ra khi có chữ rồi dọn được chữ chỉ bằng bàn phím.
     await openScreen(page, '/lessons', 'user');
     await parkMouse(page);
-    const search = page.getByRole('search');
-    const opener = search.getByRole('button', { name: 'Mở ô tìm kiếm', exact: true });
-    const close = search.getByRole('button', { name: 'Đóng ô tìm kiếm', exact: true });
-    await expect(opener).toBeVisible();
-    await expect(close).toHaveCount(0);
-    for (let i = 0; i < 30; i += 1) {
+    const search = page.getByRole('search', { name: 'Tìm trong danh sách bài học', exact: true });
+    const input = search.getByRole('searchbox', { name: 'Tìm theo tên', exact: true });
+    await expect(input).toBeVisible();
+    let reached = false;
+    for (let i = 0; i < 40 && !reached; i += 1) {
       await page.keyboard.press('Tab');
-      if ((await activeInfo(page))?.label === 'Mở ô tìm kiếm') break;
+      reached = await input.evaluate((el) => el === document.activeElement);
     }
-    await expect(opener).toBeFocused();
+    expect(
+      reached,
+      'Tab 40 lần trên /lessons không tới được ô tìm: ô nằm ngoài vòng Tab, hoặc bị che sau một phần tử nuốt phím.',
+    ).toBe(true);
+    await page.keyboard.type('pod');
+    const clear = page.getByRole('button', { name: 'Xoá bộ lọc', exact: true });
+    await expect(clear, 'Có từ khoá mà không hiện nút Xoá bộ lọc.').toBeVisible();
+    await clear.focus();
     await page.keyboard.press('Enter');
-    const input = search.getByRole('textbox', { name: 'Ô nhập từ khoá', exact: true });
-    await expect(input).toBeFocused();
-    await page.keyboard.press('Tab');
-    await expect(close).toBeFocused();
-    await page.keyboard.press('Shift+Tab');
-    await expect(input).toBeFocused();
-    await page.keyboard.press('Tab');
-    await page.keyboard.press('Enter');
-    await expect(opener).toBeFocused();
-    await expect(close).toHaveCount(0);
-    await page.keyboard.press('Tab');
-    const next = await activeInfo(page);
-    expect(next).not.toBeNull();
-    expect(next?.label).not.toMatch(/Đóng ô tìm kiếm|Ô nhập từ khoá/);
+    await expect(input).toHaveValue('');
+    await expect(clear).toHaveCount(0);
   });
 
   test('mở bài học đầu tiên từ /lessons chỉ bằng bàn phím', async ({ page }) => {

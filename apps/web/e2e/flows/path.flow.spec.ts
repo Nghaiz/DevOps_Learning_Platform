@@ -58,7 +58,7 @@ test.describe('luồng 4 — lộ trình', { tag: '@flow' }, () => {
       Đọc qua `t()` thì phép kiểm nói đúng điều nó muốn nói: "trang hiện ĐÚNG
       câu mà bản đồ copy khai cho trạng thái này", bất kể câu đó là gì hôm nay.
     */
-    const lockedCards = page.locator('ol > li').filter({ hasText: t('catalog.path.state-locked') });
+    const lockedCards = page.locator('ol > li').filter({ hasText: t('catalog.path.state.locked') });
     const lockedCount = await lockedCards.count();
     if (lockedCount > 0) {
       await expect(
