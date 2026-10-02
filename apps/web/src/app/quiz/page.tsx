@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { t } from '@devops-platform/copy';
 import { redirect } from 'next/navigation';
 import { readCanAuthor, readViewerSession } from '../../components/catalog/viewer-role.server';
+import { readCatalogCounts } from '../../components/marketing/catalog-stats.server';
 import { QuizClient } from './quiz-client';
 
 export const metadata: Metadata = {
@@ -9,16 +10,9 @@ export const metadata: Metadata = {
 };
 
 /**
- * Chỉ mục `/quiz` — màn hình MỚI ở 13.C (D12 liệt kê nó trong phạm vi chốt).
- *
- * Trước phase này chỉ có `/quiz/[id]`: bộ câu hỏi tồn tại, `quiz.list` tồn tại,
- * nhưng không có màn hình nào gọi nó — người học chỉ tới được một quiz qua một
- * lộ trình, hoặc qua việc gõ tay id vào thanh địa chỉ.
- *
- * Auth gác Ở ĐÂY chứ không ở `layout.tsx`, đúng khuôn `/paths` và `/labs`:
- * `quiz/layout.tsx` chỉ cấp `TrpcQueryProvider`, còn `/quiz/[id]` tự gọi
- * `getSession` vì nó cần `userId` thật. Gác thêm ở layout sẽ là một lượt đụng
- * DB thứ hai cho mỗi lần mở một quiz.
+ * Chỉ mục `/quiz`. Auth gác Ở ĐÂY chứ không ở `layout.tsx`, đúng khuôn `/paths`
+ * và `/labs`: `/quiz/[id]` tự gọi `getSession` vì nó cần `userId` thật, nên gác
+ * thêm ở layout là một lượt đụng DB thứ hai cho mỗi lần mở một bộ câu hỏi.
  */
 export default async function QuizIndexPage() {
   const session = await readViewerSession();
@@ -27,5 +21,6 @@ export default async function QuizIndexPage() {
     redirect('/login');
   }
 
-  return <QuizClient canAuthor={await readCanAuthor()} />;
+  const [canAuthor, counts] = await Promise.all([readCanAuthor(), readCatalogCounts()]);
+  return <QuizClient canAuthor={canAuthor} total={counts.quizzes} />;
 }

@@ -235,7 +235,7 @@ export const catalog = {
   'catalog.empty.filter.body': 'Bỏ bớt điều kiện xem.',
 
   'catalog.empty.search.title': (p: { noun: string }) =>
-    `Chưa thấy ${p.noun} nào khớp trong phần đã tải`,
+    `Chưa thấy ${p.noun} nào khớp từ khoá trong phần đã tải`,
   'catalog.empty.search.body': (p: { loaded: number }) =>
     `Mới tìm trong ${p.loaded} mục. Bấm Xem thêm rồi tìm lại, hoặc xoá từ khoá.`,
 
