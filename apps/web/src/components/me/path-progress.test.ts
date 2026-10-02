@@ -7,7 +7,12 @@ import { summarizePathProgress } from './path-progress';
  */
 describe('summarizePathProgress', () => {
   it('đang dở: nói đúng số phần đã đạt, KHÔNG làm tròn lên thành xong', () => {
-    const summary = summarizePathProgress({ passedCount: 2, itemCount: 5, nextItemId: 'k8s-pod' });
+    const summary = summarizePathProgress({
+      passedCount: 2,
+      itemCount: 5,
+      nextItemId: 'k8s-pod',
+      nextTitle: 'Pod đầu tiên',
+    });
 
     expect(summary.label).toBe('Đã đạt 2/5 phần');
     expect(summary.value).toBe(2);

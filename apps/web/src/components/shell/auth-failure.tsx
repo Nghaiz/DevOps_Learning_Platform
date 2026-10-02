@@ -29,7 +29,7 @@ export function authFailureFor(
  * `role="alert"`: trình đọc màn hình đọc lỗi ngay khi nó xuất hiện, không phải
  * chờ người dùng Tab tới.
  */
-export function AuthFailure({ entry, id }: { readonly entry: ErrorEntry; readonly id?: string }) {
+export function AuthFailure({ entry, id }: { readonly entry: ErrorEntry; readonly id?: string | undefined }) {
   return (
     <div id={id} role="alert" className="flex animate-rise items-start gap-2.5 text-sm">
       <AlertTriangle aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-destructive" />
@@ -62,7 +62,7 @@ export function AuthField({
   readonly label: string;
   readonly hint?: ReactNode;
   readonly failure?: ErrorEntry | null;
-  readonly describedBy?: string;
+  readonly describedBy?: string | undefined;
 }) {
   const hintId = hint === undefined ? undefined : `${id}-hint`;
   const failureId = failure ? `${id}-error` : undefined;
