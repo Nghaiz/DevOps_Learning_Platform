@@ -46,6 +46,20 @@ export interface TerminalHandle {
    * đã bị huỷ (component unmount) ⇒ no-op im lặng. Không ném ở ca nào.
    */
   fit(): void;
+  /**
+   * H2 — `false` chặn người dùng GÕ và DÁN vào PTY; `true` mở lại. FE gọi theo
+   * pha: chỉ `ready` mới nên gõ được (lúc đang nối, byte gõ vào sẽ xếp hàng H5
+   * rồi bắn ra hàng loạt khi mở — lệnh tự chạy mà người học không nhớ đã gõ).
+   *
+   * KHÔNG chặn `sendInput` ở trên: đó là đường `{{exec}}`, và quyết định khi nào
+   * cho bấm nó là của FE (`terminal === null` ⇒ disable nút). Chọn + copy chữ vẫn
+   * chạy khi đang tắt.
+   *
+   * Trạng thái thuộc về TERMINAL (sống qua mọi lần nối lại), không thuộc về kết
+   * nối: gọi qua một handle cũ vẫn có tác dụng, giống `fit`/`focus`. Mặc định là
+   * bật. Terminal đã huỷ ⇒ no-op.
+   */
+  setInputEnabled(enabled: boolean): void;
 }
 
 export interface TerminalSurfaceProps {
@@ -261,6 +275,7 @@ export function TerminalSurface(props: TerminalSurfaceProps): React.ReactElement
       sendInput: (data) => connection.sendInput(data),
       focus: () => coreRef.current?.focus(),
       fit: () => coreRef.current?.fit(),
+      setInputEnabled: (enabled) => coreRef.current?.setInputEnabled(enabled),
     });
 
     return () => {
