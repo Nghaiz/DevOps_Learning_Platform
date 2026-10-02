@@ -37,19 +37,16 @@ export default async function GitGamePage({
   readonly searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const params = await searchParams;
-  const raw = params.level;
-  const requested = typeof raw === 'string' && raw.length > 0 ? raw : null;
-  const initialLevelId =
-    requested !== null && (GIT_LEVEL_IDS as readonly string[]).includes(requested)
-      ? requested
-      : null;
 
   /*
-   * `?problem=` — chế độ làm bài OJ. KHÔNG lọc qua một danh sách nào, khác hẳn
-   * `?level=` ngay trên: tập level là một hằng biên dịch nên lọc được tại đây, còn
-   * tập bài sống trong DB và đi kèm một tầm nhìn theo người xem (bài `draft` không
-   * hiện với người học, kể cả khi biết URL). Mã sai rơi xuống `problems.byCode` và
-   * nhận `NOT_FOUND` ở đúng chỗ cổng tầm nhìn đang đứng.
+   * `?level=` KHÔNG đọc ở đây nữa (đợt dựng lại PTIT): `GitGame` đọc nó bằng
+   * `useSearchParams()` và tự ghi nó bằng `history.pushState`, nên URL là nguồn
+   * duy nhất của màn đang chơi và nút Back chạy mà không xin lại trang.
+   *
+   * Chế độ làm bài OJ thì KHÔNG lọc qua một danh sách nào: tập bài sống trong DB
+   * và đi kèm một tầm nhìn theo người xem (bài `draft` không hiện với người học,
+   * kể cả khi biết URL). Mã sai rơi xuống `problems.byCode` và nhận `NOT_FOUND` ở
+   * đúng chỗ cổng tầm nhìn đang đứng.
    *
    * ⚠ DÒNG ĐỌC THAM SỐ NGAY DƯỚI LÀ THỨ MỘT Ô GÁC ĐI TÌM BẰNG CÁCH ĐỌC FILE NÀY.
    *
@@ -71,9 +68,8 @@ export default async function GitGamePage({
 
   return (
     <GitGame
-      key={`${initialProblemCode ?? initialLevelId ?? 'campaign'}-${params.mode === 'builder' ? 'builder' : 'play'}`}
+      key={`${initialProblemCode ?? 'campaign'}-${params.mode === 'builder' ? 'builder' : 'play'}`}
       theory={theory}
-      initialLevelId={initialLevelId}
       initialProblemCode={initialProblemCode}
       initialBuilderOpen={params.mode === 'builder'}
     />

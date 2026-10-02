@@ -1,48 +1,50 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import {
-  ArrowRight,
-  Check,
-  Compass,
-  Flag,
-  FlaskConical,
-  GitBranch,
-  Play,
-  Shield,
-  Sparkles,
-  Trophy,
-} from 'lucide-react';
-import { GIT_LEVELS } from '@devops-platform/games';
-import { GitWorldArt } from './git-world-art';
+import { useEffect, useState, type ReactElement } from 'react';
+import { ArrowLeft, FlaskConical, Play } from 'lucide-react';
+import Link from 'next/link';
+import { t } from '@devops-platform/copy';
+import { GIT_LEVELS, type GitLevel } from '@devops-platform/games';
+import { Button, Difficulty, Meter, TopicBadge, type LineMarkerState } from '@devops-platform/ui';
+import { Board, BoardRow, PageContainer, PosterHeader, RouteLine, Split, type RouteStation } from '../../kit';
 import { readGitProgress, type GitProgress } from './git-progress';
-import './git-odyssey.css';
 
-export const GIT_REGIONS = {
-  1: {
-    name: 'Quần đảo khởi nguyên',
-    subtitle: 'Nắn lịch sử',
-    description: 'Rẽ nhánh, kết nối những commit và làm chủ dòng thời gian của bạn.',
-    icon: GitBranch,
-  },
-  2: {
-    name: 'Thành phố kết nối',
-    subtitle: 'Làm việc nhóm',
-    description: 'Đồng bộ hai thế giới. Phối hợp với đồng đội và đưa thay đổi về đúng nơi.',
-    icon: Compass,
-  },
-  3: {
-    name: 'Vùng thời gian thất lạc',
-    subtitle: 'Cứu hộ',
-    description: 'Lần theo dấu vết, tìm lại commit và giải cứu những lịch sử tưởng đã mất.',
-    icon: Shield,
-  },
+/**
+ * Trang chọn màn của Phòng thí nghiệm Git: ba chương là ba đoạn tuyến, mỗi màn
+ * là một ga. Bấm một dòng là VÀO màn luôn (bản cũ chỉ chọn rồi bắt bấm thêm một
+ * nút "Bắt đầu nhiệm vụ" ở khung bên).
+ *
+ * Trang nằm trên nền của site (sáng/tối theo theme), không trong vũ trụ tối của
+ * màn chơi: đây là một trang danh mục, màn chơi mới là "phòng lab".
+ */
+
+const DIFFICULTY_LABEL = {
+  basic: t('common.difficulty.beginner'),
+  intermediate: t('common.difficulty.intermediate'),
+  advanced: t('common.difficulty.advanced'),
 } as const;
-const DIFFICULTY = {
-  basic: 'Nhập môn',
-  intermediate: 'Thử thách',
-  advanced: 'Chuyên sâu',
-} as const;
+
+const CHAPTERS = [1, 2, 3] as const;
+
+export function gitChapterName(chapter: 1 | 2 | 3): string {
+  return t(`games.git.chapter.${chapter}.name`);
+}
+
+function stateOf(
+  progress: GitProgress,
+  level: GitLevel,
+  nextId: string | null,
+): { readonly marker: LineMarkerState; readonly label: string; readonly isNext: boolean } {
+  const entry = progress[level.id];
+  if (entry?.completed === true) return { marker: 'done', label: t('games.state.done'), isNext: false };
+  const isNext = level.id === nextId;
+  return {
+    marker: isNext ? 'current' : 'todo',
+    label:
+      entry !== undefined ? t('games.state.playing') : isNext ? t('games.state.next') : t('games.state.new'),
+    isNext,
+  };
+}
 
 export function GitCampaign({
   onPick,
@@ -50,196 +52,166 @@ export function GitCampaign({
 }: {
   readonly onPick: (id: string) => void;
   readonly onSandbox: () => void;
-}) {
-  const [chapter, setChapter] = useState<1 | 2 | 3>(1);
-  const [selectedId, setSelectedId] = useState(GIT_LEVELS[0]?.id ?? '');
+}): ReactElement {
+  /* Đọc sau khi mount: máy chủ không có `localStorage`. */
   const [progress, setProgress] = useState<GitProgress>({});
   useEffect(() => {
     setProgress(readGitProgress());
   }, []);
-  const region = GIT_REGIONS[chapter];
-  const levels = GIT_LEVELS.filter((level) => level.chapter === chapter);
-  const selected = levels.find((level) => level.id === selectedId) ?? levels[0];
-  const completed = GIT_LEVELS.filter((level) => progress[level.id]?.completed).length;
-  const next = GIT_LEVELS.find((level) => !progress[level.id]?.completed) ?? GIT_LEVELS[0];
-  const Icon = region.icon;
+
+  const total = GIT_LEVELS.length;
+  const done = GIT_LEVELS.filter((level) => progress[level.id]?.completed === true).length;
+  const next = GIT_LEVELS.find((level) => progress[level.id]?.completed !== true) ?? null;
+  const nextId = next?.id ?? null;
+
+  const stations: RouteStation[] = CHAPTERS.map((chapter) => {
+    const items = GIT_LEVELS.filter((level) => level.chapter === chapter);
+    const chapterDone = items.filter((level) => progress[level.id]?.completed === true).length;
+    return {
+      id: `git-chapter-${String(chapter)}`,
+      label: `0${String(chapter)} ${gitChapterName(chapter)}`,
+      line: 'git',
+      state:
+        chapterDone === items.length ? 'done' : items.some((level) => level.id === nextId) ? 'current' : 'todo',
+      href: `#git-chapter-${String(chapter)}`,
+    };
+  });
+
+  let order = 0;
+
   return (
-    <div className="git-odyssey git-campaign" data-chapter={chapter}>
-      <header className="git-campaign-nav">
-        <div className="git-wordmark">
-          <span className="git-brand-icon">
-            <GitBranch size={22} />
-          </span>
-          <span>
-            GIT <b>ODYSSEY</b>
-            <small>HỌC GIT · CHƠI ĐỂ HIỂU</small>
-          </span>
-        </div>
-        <div className="git-nav-actions">
-          <span className="git-campaign-score">
-            <Trophy size={16} /> {completed}/{GIT_LEVELS.length} trạm
-          </span>
-          <button className="git-button" onClick={onSandbox}>
-            <FlaskConical size={16} /> Sandbox & Builder
-          </button>
-        </div>
-      </header>
-      <section className="git-campaign-hero">
-        <div className="git-hero-copy">
-          <p className="git-eyebrow">
-            <Sparkles size={14} /> CUỘC PHIÊU LƯU QUA NHỮNG DÒNG LỊCH SỬ
-          </p>
-          <h1>
-            Mỗi nhánh rẽ.
-            <br />
-            <em>Một khả năng mới.</em>
-          </h1>
-          <p>
-            Biến lệnh Git thành những bước khám phá. Kết nối commit, chinh phục nhiệm vụ và tự tay
-            kiến tạo lịch sử.
-          </p>
-          <button className="git-button git-button-primary" onClick={() => next && onPick(next.id)}>
-            <Play size={17} fill="currentColor" />{' '}
-            {completed === 0
-              ? 'Bắt đầu hành trình'
-              : completed === GIT_LEVELS.length
-                ? 'Khám phá lại'
-                : 'Đến trạm tiếp theo'}
-            <ArrowRight size={17} />
-          </button>
-          <div className="git-hero-facts">
-            <span>
-              <i /> {GIT_LEVELS.length} nhiệm vụ
-            </span>
-            <span>03 vùng khám phá</span>
-            <span>Chơi ngay trên trình duyệt</span>
+    <>
+      <PosterHeader
+        section="games"
+        kicker={t('games.git.campaign.kicker', { levels: total, chapters: CHAPTERS.length })}
+        title={t('games.git.name')}
+        lead={t('games.git.campaign.lead')}
+        switcher={false}
+        aside={
+          <div className="flex flex-col gap-4 border-2 border-current p-5 md:p-6">
+            <div className="flex items-center gap-3">
+              <TopicBadge line="git" />
+              <p className="font-mono text-sm tabular-nums">{t('games.chapter.progress', { done, total })}</p>
+            </div>
+            <Meter
+              value={done}
+              max={total}
+              segments={total}
+              tone="git"
+              label={t('games.band.progress.aria', { name: t('games.git.name') })}
+            />
+            {next === null ? (
+              <p className="text-sm">{t('games.git.campaign.all-done', { total })}</p>
+            ) : (
+              <Button
+                size="lg"
+                variant="ink"
+                className="h-auto min-h-12 justify-start py-3 text-left whitespace-normal"
+                iconLeft={<Play aria-hidden="true" />}
+                onClick={() => {
+                  onPick(next.id);
+                }}
+              >
+                {done === 0 && progress[next.id] === undefined
+                  ? t('games.git.campaign.start', { title: next.title })
+                  : t('games.git.campaign.continue', { title: next.title })}
+              </Button>
+            )}
           </div>
+        }
+      >
+        <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-3">
+          <Button
+            variant="outline"
+            onClick={onSandbox}
+            className="border-current"
+            iconLeft={<FlaskConical aria-hidden="true" />}
+          >
+            {t('games.git.campaign.sandbox')}
+          </Button>
+          <p className="text-sm opacity-90">{t('games.git.campaign.sandbox-sub')}</p>
         </div>
-        <GitWorldArt chapter={chapter} />
-      </section>
-      <nav className="git-region-tabs" aria-label="Vùng khám phá">
-        {([1, 2, 3] as const).map((number) => {
-          const WorldIcon = GIT_REGIONS[number].icon;
-          const done = GIT_LEVELS.filter(
-            (level) => level.chapter === number && progress[level.id]?.completed,
-          ).length;
-          const count = GIT_LEVELS.filter((level) => level.chapter === number).length;
+        <Link
+          href="/games"
+          className="mt-5 inline-flex items-center gap-2 font-mono text-sm underline-offset-4 hover:underline"
+        >
+          <ArrowLeft className="size-4" aria-hidden="true" />
+          {t('games.k8s.campaign.back')}
+        </Link>
+      </PosterHeader>
+
+      <PageContainer className="pt-10 pb-4">
+        <RouteLine
+          stations={stations}
+          label={t('games.k8s.campaign.chapters')}
+          stateLabel={(state) =>
+            state === 'done' ? t('games.state.done') : state === 'current' ? t('games.state.next') : t('games.state.new')
+          }
+        />
+      </PageContainer>
+
+      <PageContainer className="pb-16">
+        {CHAPTERS.map((chapter) => {
+          const items = GIT_LEVELS.filter((level) => level.chapter === chapter);
+          const chapterDone = items.filter((level) => progress[level.id]?.completed === true).length;
           return (
-            <button
-              key={number}
-              data-chapter={number}
-              aria-pressed={chapter === number}
-              onClick={() => {
-                setChapter(number);
-                setSelectedId(GIT_LEVELS.find((level) => level.chapter === number)?.id ?? '');
-              }}
-            >
-              <span className="git-region-symbol">
-                <WorldIcon size={21} />
-              </span>
-              <span>
-                <small>
-                  VÙNG 0{number} · {done}/{count}
-                </small>
-                <strong>{GIT_REGIONS[number].name}</strong>
-              </span>
-              <ArrowRight size={18} />
-            </button>
+            <div key={chapter} id={`git-chapter-${String(chapter)}`} className="scroll-mt-24">
+              <Split
+                index={`0${String(chapter)}`}
+                title={gitChapterName(chapter)}
+                aside={
+                  <>
+                    <p>{t(`games.git.chapter.${chapter}.blurb`)}</p>
+                    <p className="mt-3 font-mono tabular-nums">
+                      {t('games.chapter.progress', { done: chapterDone, total: items.length })}
+                    </p>
+                  </>
+                }
+              >
+                <Board label={t('games.git.chapter.title', { n: chapter, name: gitChapterName(chapter) })}>
+                  {items.map((level) => {
+                    order += 1;
+                    const state = stateOf(progress, level, nextId);
+                    return (
+                      <BoardRow
+                        key={level.id}
+                        index={order}
+                        order={order}
+                        line="git"
+                        lineState={state.marker}
+                        title={level.title}
+                        sub={level.mission}
+                        meta={
+                          <>
+                            <span className="font-mono text-xs text-muted-foreground tabular-nums">
+                              {t('games.git.campaign.objectives', { n: level.objectives.length })}
+                            </span>
+                            <Difficulty level={level.difficulty} label={DIFFICULTY_LABEL[level.difficulty]} />
+                          </>
+                        }
+                        state={
+                          <span
+                            className={
+                              state.isNext
+                                ? 'bg-signal px-2 py-1 type-label text-signal-foreground'
+                                : 'px-2 py-1 type-label text-muted-foreground'
+                            }
+                          >
+                            {state.label}
+                          </span>
+                        }
+                        onClick={() => {
+                          onPick(level.id);
+                        }}
+                      />
+                    );
+                  })}
+                </Board>
+              </Split>
+            </div>
           );
         })}
-      </nav>
-      <section className="git-expedition">
-        <div className="git-map-panel">
-          <header>
-            <div>
-              <p className="git-eyebrow">
-                CHƯƠNG 0{chapter} / {region.subtitle}
-              </p>
-              <h2>
-                <Icon size={23} /> {region.name}
-              </h2>
-            </div>
-            <span className="git-map-label">BẢN ĐỒ HÀNH TRÌNH</span>
-          </header>
-          <p className="git-region-description">{region.description}</p>
-          <ol className="git-route-list">
-            {levels.map((level, i) => {
-              const done = progress[level.id]?.completed === true;
-              return (
-                <li key={level.id} data-selected={selected?.id === level.id} data-completed={done}>
-                  <button
-                    onClick={() => setSelectedId(level.id)}
-                    aria-pressed={selected?.id === level.id}
-                  >
-                    <span className="git-route-node">
-                      {done ? <Check size={20} /> : String(i + 1).padStart(2, '0')}
-                    </span>
-                    <span className="git-route-copy">
-                      <strong>{level.title}</strong>
-                      <small>
-                        {DIFFICULTY[level.difficulty]}
-                        <span>·</span>
-                        {level.objectives.length} mục tiêu
-                      </small>
-                    </span>
-                    <span className="git-route-status">
-                      {done ? 'Đã chinh phục' : progress[level.id] ? 'Đã ghé thăm' : 'Khám phá'}
-                      <ArrowRight size={15} />
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ol>
-        </div>
-        {selected && (
-          <aside className="git-mission-preview" key={selected.id}>
-            <div className="git-preview-art">
-              <GitWorldArt chapter={chapter} />
-              <span className="git-preview-badge">
-                <Flag size={14} /> TRẠM {String(levels.indexOf(selected) + 1).padStart(2, '0')}
-              </span>
-            </div>
-            <div className="git-preview-body">
-              <p className="git-eyebrow">NHIỆM VỤ CỦA BẠN</p>
-              <h2>{selected.title}</h2>
-              <p>{selected.mission}</p>
-              <ul>
-                {selected.objectives.map((objective) => (
-                  <li key={objective.id}>
-                    <span className="git-objective-dot" />
-                    {objective.label}
-                    {!objective.required && <small>Thưởng</small>}
-                  </li>
-                ))}
-              </ul>
-              <div className="git-preview-skills">
-                {(selected.allowedCommands ?? ['status', 'branch', 'commit'])
-                  .slice(0, 5)
-                  .map((command) => (
-                    <code key={command}>git {command}</code>
-                  ))}
-              </div>
-              <button className="git-button git-button-primary" onClick={() => onPick(selected.id)}>
-                <Play size={16} />
-                {progress[selected.id]?.completed ? 'Chơi lại nhiệm vụ' : 'Bắt đầu nhiệm vụ'}
-                <ArrowRight size={17} />
-              </button>
-              <small className="git-preview-note">
-                Mỗi lượt bắt đầu từ kho ban đầu · Mốc hoàn thành lưu trên máy
-              </small>
-            </div>
-          </aside>
-        )}
-      </section>
-      <footer className="git-campaign-footer">
-        <span>
-          <GitBranch size={15} /> Tạo nhánh. Thử nghiệm. Học từ mỗi bước.
-        </span>
-        <button onClick={onSandbox}>
-          Tự xây thế giới trong Sandbox <ArrowRight size={14} />
-        </button>
-      </footer>
-    </div>
+      </PageContainer>
+    </>
   );
 }

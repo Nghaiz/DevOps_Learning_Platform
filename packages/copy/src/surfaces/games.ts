@@ -154,6 +154,102 @@ export const games = {
   'games.k8s.chapter.6.blurb': 'Probe, NetworkPolicy, RBAC, HPA. Chẩn đoán trên cụm gần với thật.',
   'games.k8s.chapter.other': 'Chương khác',
 
+  // ── /games/git: trang chọn màn ─────────────────────────────────────────────
+  'games.git.campaign.kicker': (p: { levels: number; chapters: number }) =>
+    `Trò chơi · GIT · ${String(p.levels)} màn · ${String(p.chapters)} chương`,
+  'games.git.campaign.lead':
+    'Gõ lệnh git thật trên một kho mô phỏng chạy trong trình duyệt. Đồ thị commit vẽ lại sau từng lệnh, và mỗi lượt chơi bắt đầu lại từ kho ban đầu.',
+  'games.git.campaign.start': (p: { title: string }) => `Bắt đầu: ${p.title}`,
+  'games.git.campaign.continue': (p: { title: string }) => `Tiếp tục: ${p.title}`,
+  'games.git.campaign.all-done': (p: { total: number }) =>
+    `Bạn đã qua cả ${String(p.total)} màn. Chọn màn bất kỳ để chơi lại.`,
+  'games.git.campaign.sandbox': 'Sandbox & Builder',
+  'games.git.campaign.sandbox-sub': 'Kho trống để gõ lệnh tự do, kèm trình dựng màn chơi cho tác giả.',
+  'games.git.campaign.objectives': (p: { n: number }) => `${String(p.n)} mục tiêu`,
+  'games.git.chapter.1.name': 'Nắn lịch sử',
+  'games.git.chapter.1.blurb': 'Commit, nhánh, merge và rebase. Đọc đồ thị trước khi sửa nó.',
+  'games.git.chapter.2.name': 'Làm việc nhóm',
+  'games.git.chapter.2.blurb': 'Remote, fetch, pull, push, và những lần hai người cùng sửa một chỗ.',
+  'games.git.chapter.3.name': 'Cứu hộ',
+  'games.git.chapter.3.blurb': 'reflog, reset, cherry-pick. Tìm lại commit tưởng đã mất.',
+  'games.git.chapter.title': (p: { n: number; name: string }) => `Chương ${String(p.n)} · ${p.name}`,
+
+  // ── Git: màn chờ và màn lỗi của chế độ làm bài ─────────────────────────────
+  'games.git.status.loading-title': 'Đang chuẩn bị kho Git',
+  'games.git.status.error-title': 'Chưa mở được bài này',
+  'games.git.status.loading-oj': 'Đang nạp đề bài OJ…',
+  'games.git.status.retry': 'Thử lại',
+  'games.git.status.back': 'Về bài tập',
+
+  // ── Git: màn chơi ──────────────────────────────────────────────────────────
+  'games.git.play.back': 'Danh sách màn',
+  'games.git.play.back-builder': 'Về Builder',
+  'games.git.play.crumb-oj': 'Bài OJ',
+  'games.git.play.crumb-trial': 'Chơi thử',
+  'games.git.play.moves': (p: { n: number }) => `${String(p.n)} lệnh`,
+  'games.git.play.run-solution': 'Chạy lời giải mẫu',
+  'games.git.play.verdict': (p: { passed: number; total: number }) =>
+    `Mục tiêu ${String(p.passed)}/${String(p.total)}`,
+  'games.git.play.verdict-done': (p: { passed: number; total: number }) =>
+    `Xong ${String(p.passed)}/${String(p.total)}`,
+  'games.git.play.server-graded': 'Chấm trên máy chủ',
+  'games.git.play.loading-3d': 'Đang nạp cảnh 3D…',
+  'games.git.play.scene-label': (p: { title: string }) => `Đồ thị commit của màn ${p.title}`,
+  'games.git.play.ran': (p: { command: string }) => `${p.command} · đã chạy`,
+  'games.git.play.ran-error': 'Lệnh chưa chạy được. Đọc thông báo ở terminal.',
+  'games.git.play.undo-done': 'Đã hoàn tác một bước.',
+  'games.git.play.undo-none': 'Chưa có bước nào để hoàn tác.',
+  'games.git.play.redo-done': 'Đã làm lại một bước.',
+  'games.git.play.redo-none': 'Chưa có bước nào để làm lại.',
+  'games.git.play.undo': 'Hoàn tác',
+  'games.git.play.redo': 'Làm lại',
+  'games.git.play.terminal': 'Terminal',
+
+  'games.git.win.aria': 'Đã qua màn',
+  'games.git.win.kicker': 'Đã qua màn',
+  'games.git.win.title': 'Kho đã đúng hình cần có.',
+  'games.git.win.summary': (p: { passed: number; total: number; moves: number }) =>
+    `Đạt ${String(p.passed)}/${String(p.total)} mục tiêu sau ${String(p.moves)} lệnh.`,
+  'games.git.win.stay': 'Ở lại xem kho',
+  'games.git.win.next': 'Màn tiếp',
+  'games.git.win.back': 'Về danh sách màn',
+  'games.git.win.back-builder': 'Về Builder',
+
+  'games.git.panel.aria': 'Đề bài và cẩm nang',
+  'games.git.panel.tabs': 'Nội dung bên cạnh màn chơi',
+  'games.git.panel.mission': 'Nhiệm vụ',
+  'games.git.panel.mission-oj': 'Đề bài',
+  'games.git.panel.guide': 'Cẩm nang',
+  'games.git.panel.refs': 'Refs',
+  'games.git.panel.goal': 'Cần làm',
+  'games.git.panel.goal-oj': 'Đề bài OJ',
+  'games.git.panel.progress': 'Tiến độ mục tiêu',
+  'games.git.panel.objectives': 'Mục tiêu',
+  'games.git.panel.criteria': 'Tiêu chí chấm',
+  'games.git.panel.bonus': 'Thưởng',
+  'games.git.panel.met': 'đã đạt',
+  'games.git.panel.unmet': 'chưa đạt',
+  'games.git.panel.on-server': 'chấm ở máy chủ',
+  'games.git.panel.last-result': 'Kết quả lần nộp gần nhất',
+  'games.git.panel.no-result': 'Chưa nộp lần nào. Làm xong đề bài rồi bấm Nộp bài.',
+  'games.git.panel.hints': 'Gợi ý',
+  'games.git.panel.no-hints': 'Màn này không có gợi ý.',
+  'games.git.panel.hint-open': (p: { n: number }) => `Mở gợi ý ${String(p.n)}`,
+  'games.git.panel.hint-pending': 'Đang mở…',
+  'games.git.panel.hint-error': (p: { message: string }) => `Không mở được: ${p.message}`,
+  'games.git.panel.guide-kicker': 'Cẩm nang',
+  'games.git.panel.guide-title': 'Lệnh của màn này',
+  'games.git.panel.keys':
+    'Gõ lệnh ở terminal rồi Enter. Mũi tên lên/xuống xem lại lệnh cũ, Ctrl/Cmd + Z để hoàn tác.',
+  'games.git.panel.tools': 'Lệnh dùng trong màn',
+  'games.git.panel.no-tools': 'Tra cú pháp ở nút Thư viện lệnh dưới terminal.',
+  'games.git.panel.theory': (p: { title: string; minutes: number }) =>
+    `${p.title} · ${String(p.minutes)} phút đọc`,
+  'games.git.panel.refs-kicker': 'Định vị trong kho',
+  'games.git.panel.refs-title': 'HEAD đang ở đâu',
+  'games.git.panel.detached': 'Detached HEAD: bạn đang đứng thẳng trên một commit, không trên nhánh nào.',
+  'games.git.panel.attached': 'HEAD đi theo nhánh hiện tại. Bấm một ref để tìm commit của nó trên đồ thị.',
+
   // ── /games/cicd: trang chọn màn ────────────────────────────────────────────
   'games.cicd.campaign.kicker': (p: { levels: number; chapters: number }) =>
     `Trò chơi · CI · ${String(p.levels)} màn · ${String(p.chapters)} chương`,
