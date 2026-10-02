@@ -1,0 +1,26 @@
+% Mô tả: DAG commit của git: nhánh feature tách từ main, commit merge có hai cha, HEAD trỏ vào main
+\begin{tikzpicture}
+  \node[commit, label={below:\dlpsha{a1f3}}] (a) at (0,0) {};
+  \node[commit, label={below:\dlpsha{b72e}}] (b) at (1.7,0) {};
+  \node[commit, label={below:\dlpsha{c09d}}] (c) at (3.4,0) {};
+  \node[commit=green, label={above:\dlpsha{f4a1}}] (f1) at (3.4,1.3) {};
+  \node[commit=green, label={above:\dlpsha{f8c6}}] (f2) at (5.1,1.3) {};
+  \node[commit, label={below:\dlpsha{m5e0}}] (m) at (6.8,0) {};
+  \node[ghost commit, label={below:\dlpmuted{\small commit kế tiếp}}] (g) at (9.3,0) {};
+
+  \draw[parent] (b) -- (a);
+  \draw[parent] (c) -- (b);
+  \draw[parent] (f1) -- (b);
+  \draw[parent] (f2) -- (f1);
+  \draw[parent] (m) -- (c);
+  \draw[parent] (m) -- (f2);
+  \draw[parent, dashed] (g) -- (m);
+
+  \node[ref, above right=5mm and 1mm of m] (main) {main};
+  \node[ref=amber, right=5mm of main] (head) {HEAD};
+  \node[ref=green, above=7mm of f2] (feat) {feature/đăng-nhập};
+  \draw[pointer] (main) -- (m);
+  \draw[pointer=amber] (head) -- (main);
+  \draw[pointer=green] (feat) -- (f2);
+  \node[note, anchor=north west] at (0,-0.75) {mũi tên đi từ commit con về commit cha, đúng chiều git lưu};
+\end{tikzpicture}
