@@ -81,7 +81,10 @@ export function StudioEditorFrame(props: {
             {body}
           </>
         ) : (
-          <Tabs value={props.mode ?? modes[0]?.value ?? ''} onValueChange={props.onModeChange}>
+          <Tabs
+            value={props.mode ?? modes[0]?.value ?? ''}
+            {...(props.onModeChange === undefined ? {} : { onValueChange: props.onModeChange })}
+          >
             {bar(
               <TabsList
                 aria-label={t('author.studio.modes.label')}

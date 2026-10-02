@@ -77,11 +77,9 @@ export function AuthorListClient(): ReactElement {
     <>
       <PosterHeader
         section="studio"
-        kicker={
-          query.isSuccess
-            ? t('author.list.kicker', { total: counts.all, drafts: counts.draft })
-            : undefined
-        }
+        {...(query.isSuccess
+          ? { kicker: t('author.list.kicker', { total: counts.all, drafts: counts.draft }) }
+          : {})}
         title={t('author.list.title')}
         lead={t('author.list.lead')}
         aside={newButton}
@@ -132,7 +130,7 @@ export function AuthorListClient(): ReactElement {
                         })
                       : t('author.studio.list.no-match', { query: search.trim() })
                   }
-                  description={needle === '' ? t('author.list.filter.empty.body') : undefined}
+                  {...(needle === '' ? { description: t('author.list.filter.empty.body') } : {})}
                 />
               ) : (
                 <Board label={t('author.list.board-label')}>

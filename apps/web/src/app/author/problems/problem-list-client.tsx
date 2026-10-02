@@ -140,14 +140,16 @@ export function ProblemListClient(): ReactElement {
                           ? t('author.problem.list.empty-title')
                           : t('author.problem.list.empty-filtered', { state: t(filterLabelKey(filter)) })
                     }
-                    description={query === '' ? t('author.problem.list.empty-body') : undefined}
-                    action={
-                      query === '' ? (
-                        <Button asChild>
-                          <Link href="/author/problems/new">{t('author.problem.list.empty-cta')}</Link>
-                        </Button>
-                      ) : undefined
-                    }
+                    {...(query === ''
+                      ? {
+                          description: t('author.problem.list.empty-body'),
+                          action: (
+                            <Button asChild>
+                              <Link href="/author/problems/new">{t('author.problem.list.empty-cta')}</Link>
+                            </Button>
+                          ),
+                        }
+                      : {})}
                   />
                 ) : (
                   <Board label={t('author.problem.list.board-label')}>
