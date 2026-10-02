@@ -2,148 +2,159 @@
 
 import { errText, t } from '@devops-platform/copy';
 import dynamic from 'next/dynamic';
-import { useCallback, useEffect, useState, type ReactElement } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react';
 import { LoaderCircle } from 'lucide-react';
 import { buildSessionWsUrl, type ServerControl } from '@devops-platform/terminal';
 import { Button } from '@devops-platform/ui';
+import { useWindowHandoff } from '../../../../components/session/terminal-handoff';
 import { useResolvedTerminalTheme } from '../../../../components/session/use-resolved-terminal-theme';
+import { api } from '../../../../lib/trpc-react';
 
 /**
- * C7 — cửa sổ terminal TOÀN MÀN HÌNH cho `/session/<id>/terminal`.
+ * Cửa sổ terminal riêng cho `/session/<id>/terminal`.
  *
- * ## Vì sao dùng lại `terminal-surface-lazy`, không viết đường nạp thứ hai
+ * ## Bàn giao (H3)
  *
- * `@xterm/xterm` chạm `document` ngay lúc import module, nên nó phải đi qua
- * `next/dynamic({ ssr: false })`, và `ssr: false` PHẢI nằm trong một Client
- * Component (Next 16 ném khi thấy nó trong Server Component). Khuôn đúng đã có
- * ở `components/session/terminal-pane.tsx`; đích nạp là MỘT file dùng chung
- * (`terminal-surface-lazy.tsx`) đúng để bốn route chia nhau một chunk xterm.
- * Thêm một đích thứ hai ở đây là thêm một bản sao vài trăm KB, và một chỗ nữa
- * để `onEscapeFocus` mặc định trôi khỏi bản gốc.
+ * Gateway cho đúng MỘT WebSocket mỗi phiên. Cửa sổ này báo `claim` qua kênh bàn
+ * giao trước khi nối, nên trang học tự ngắt và hiện "Đang mở ở cửa sổ riêng".
+ * Trang đòi lại ⇒ cửa sổ này thả kết nối và nói terminal đã về tab bài học.
  *
- * ## Vì sao `fixed inset-0` chứ không phải một layout riêng
+ * ## Tự thử lại
  *
- * "Không vỏ ứng dụng, không nav" — nhưng vỏ nằm ở `app/layout.tsx` (root
- * layout), và App Router KHÔNG cho một route bỏ qua root layout trừ khi cả cây
- * được tách thành nhiều root layout. Đó là một sửa đổi ở `app/layout.tsx`, thứ
- * lane này không sở hữu. Lớp phủ `fixed inset-0 z-50` che kín viewport và nằm
- * TRÊN thanh đầu trang (`z-40`), nên kết quả nhìn thấy đúng như yêu cầu.
+ * Lượt nối đầu có thể tới trước khi trang kịp thả khe (gateway trả 429 lúc bắt
+ * tay, trình duyệt chỉ thấy `1006`). Nên `1006` được thử lại theo backoff vài
+ * lần trước khi hiện màn "kết nối đã đóng". Shell thoát hay server báo lỗi thì
+ * không thử lại: đó là phán quyết, không phải tranh khe.
  *
- * ⚠ Giới hạn đã biết của cách này: thanh đầu trang vẫn còn trong DOM, nên nó
- * vẫn nằm trong vòng `Tab` phía sau lớp phủ. Đã ghi vào report cho lead — sửa
- * đúng là tách root layout, và đó là việc của lane sở hữu vỏ.
- *
- * ## ⚠ Một phiên chỉ có MỘT WebSocket
- *
- * `GATEWAY_MAX_WS_PER_SESSION = 1` (§C6). Trang này mở kết nối của riêng nó,
- * nên mở nó trong lúc tab bài học vẫn đang nối là hai client tranh một khe.
- * Đây là ràng buộc hạ tầng, không phải thứ trang này che được — nên khi kết nối
- * đóng, màn hình dưới đây nói thẳng lý do đó thay vì lặng lẽ thử lại mãi.
+ * Route này immersive (`immersive-routes.ts`), nên không cần lớp phủ `fixed`.
  */
-const TerminalSurfaceLazy = dynamic(
-  () => import('../../../../components/session/terminal-surface-lazy'),
-  {
-    ssr: false,
-    loading: () => (
-      <p role="status" className="flex items-center gap-2 p-6 text-xs text-muted-foreground">
-        <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />
-        {t('session.terminal.booting')}
-      </p>
-    ),
-  },
-);
+const TerminalSurfaceLazy = dynamic(() => import('../../../../components/session/terminal-surface-lazy'), {
+  ssr: false,
+  loading: () => (
+    <p role="status" className="flex items-center gap-2 p-6 font-mono text-xs text-muted-foreground">
+      <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />
+      {t('session.terminal.booting')}
+    </p>
+  ),
+});
 
 const ARIA_LABEL = t('session.terminal.aria-label-window');
+/** Lịch thử lại khi gặp `1006` (tranh khe với trang học đang thả). */
+const RETRY_SCHEDULE_MS = [1_000, 2_000, 4_000, 8_000] as const;
+const CLOSE_ABNORMAL = 1006;
 
 type WindowPhase =
   | { readonly kind: 'connecting' }
   | { readonly kind: 'ready' }
+  | { readonly kind: 'retrying'; readonly seconds: number }
   | { readonly kind: 'stopped'; readonly detail: string };
 
 export function TerminalWindowClient({ sessionId }: { readonly sessionId: string }): ReactElement {
-  const theme = useResolvedTerminalTheme(undefined);
+  const me = api.me.get.useQuery({});
+  const theme = useResolvedTerminalTheme(me.data?.preferences.terminalTheme ?? null);
+  const handoff = useWindowHandoff(sessionId);
   const [phase, setPhase] = useState<WindowPhase>({ kind: 'connecting' });
-
-  /**
-   * `wsUrl` tính trong effect, không tính lúc dựng state: `globalThis.location`
-   * không tồn tại ở lượt render phía server, và một giá trị khác nhau giữa
-   * server với client cho cùng một cây là lỗi hydrate.
-   *
-   * `connectionKey` là cần câu nối lại (xem `TerminalSurfaceProps`): `null` =
-   * chưa nối. Tăng giá trị = yêu cầu mở lại.
-   */
   const [wsUrl, setWsUrl] = useState('');
   const [connectionKey, setConnectionKey] = useState<number | null>(null);
+  const retries = useRef(0);
+  const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const connect = useCallback(() => {
+    handoff.claim();
+    setPhase({ kind: 'connecting' });
+    setConnectionKey((key) => (key ?? 0) + 1);
+  }, [handoff]);
+
+  // `wsUrl` tính trong effect: `location` không có ở lượt render phía server.
   useEffect(() => {
     setWsUrl(buildSessionWsUrl(globalThis.location.origin, sessionId));
-    setConnectionKey(1);
+    connect();
+    return () => {
+      if (retryTimer.current !== null) clearTimeout(retryTimer.current);
+    };
+    // Chỉ chạy khi đổi phiên: `connect` đổi danh tính theo `handoff` mỗi lượt render.
   }, [sessionId]);
+
+  // Trang đã đòi lại terminal: thả kết nối của cửa sổ này.
+  useEffect(() => {
+    if (handoff.state === 'returned') {
+      if (retryTimer.current !== null) clearTimeout(retryTimer.current);
+      setConnectionKey(null);
+    }
+  }, [handoff.state]);
 
   const onControl = useCallback((message: ServerControl) => {
     switch (message.type) {
       case 'ready':
+        retries.current = 0;
         setPhase({ kind: 'ready' });
         return;
       case 'error':
-        // Contract §5: KHÔNG parse chuỗi này — chỉ hiện lại cho người đọc.
+        // Contract §5: không parse chuỗi này, chỉ hiện lại.
         setPhase({ kind: 'stopped', detail: message.message });
         return;
       case 'exit':
-        setPhase({
-          kind: 'stopped',
-          detail: t('session.window.exited', { code: message.exitCode }),
-        });
+        setPhase({ kind: 'stopped', detail: t('session.window.exited', { code: message.exitCode }) });
         return;
       default:
-        // 'expiring' — cửa sổ này không quản vòng đời phiên, tab bài học mới có
-        // nút gia hạn. Không dựng một đồng hồ thứ hai ở đây: hai nơi cùng đếm
-        // một hạn là hai con số sẽ lệch nhau.
+        // 'expiring': cửa sổ này không quản vòng đời phiên, tab bài học mới có nút gia hạn.
         return;
     }
   }, []);
 
-  const onClose = useCallback((code: number) => {
-    setConnectionKey(null);
-    setPhase({ kind: 'stopped', detail: errText('session.window.closed', { code }) });
-  }, []);
+  const onClose = useCallback(
+    (code: number) => {
+      setConnectionKey(null);
+      const delay = RETRY_SCHEDULE_MS[retries.current];
+      if (code === CLOSE_ABNORMAL && delay !== undefined) {
+        retries.current += 1;
+        setPhase({ kind: 'retrying', seconds: Math.round(delay / 1000) });
+        retryTimer.current = setTimeout(() => {
+          setPhase({ kind: 'connecting' });
+          setConnectionKey((key) => (key ?? 0) + 1);
+        }, delay);
+        return;
+      }
+      handoff.release();
+      setPhase({ kind: 'stopped', detail: errText('session.window.closed', { code }) });
+    },
+    [handoff],
+  );
 
   const reconnect = useCallback(() => {
-    setPhase({ kind: 'connecting' });
-    setConnectionKey((key) => (key ?? 0) + 1);
-  }, []);
+    retries.current = 0;
+    connect();
+  }, [connect]);
+
+  const returned = handoff.state === 'returned';
+  const stopped = phase.kind === 'stopped' || returned;
 
   return (
-    // `fixed inset-0 z-50` — che kín viewport, nằm trên thanh đầu trang (z-40).
-    // Xem lý lẽ đầy đủ ở chú thích đầu file.
-    <div className="fixed inset-0 z-50 flex flex-col bg-card">
-      <div className="flex h-8 shrink-0 items-center gap-2 border-b border-border px-3 text-xs">
-        <span className="truncate font-medium text-foreground">
-          {t('session.window.title', { sessionId })}
-        </span>
-        {phase.kind === 'connecting' ? (
-          <span role="status" className="ml-auto flex items-center gap-1.5 text-muted-foreground">
+    <div className="dark flex h-dvh flex-col bg-background text-foreground [color-scheme:dark]">
+      <div className="flex h-9 shrink-0 items-center gap-2 border-b border-border bg-chrome px-3 text-chrome-foreground">
+        <h1 className="truncate font-mono text-xs">{t('session.window.title', { sessionId })}</h1>
+        {!stopped && phase.kind !== 'ready' && (
+          <span role="status" className="ml-auto flex items-center gap-1.5 font-mono text-xs text-chrome-muted">
             <LoaderCircle aria-hidden="true" className="size-3.5 animate-spin" />
-            {t('session.window.connecting')}
+            {phase.kind === 'retrying' ? t('session.window.retrying', { seconds: phase.seconds }) : t('session.window.connecting')}
           </span>
-        ) : null}
+        )}
       </div>
 
-      {phase.kind === 'stopped' ? (
-        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
+      {stopped ? (
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 px-6 text-center">
           <p role="status" className="max-w-md text-sm text-muted-foreground">
-            {phase.detail}
+            {returned ? t('session.window.returned') : phase.kind === 'stopped' ? phase.detail : null}
           </p>
-          <Button size="sm" variant="outline" onClick={reconnect}>
-            {t('session.window.reconnect')}
+          <Button size="sm" variant="ink" onClick={reconnect}>
+            {returned ? t('session.window.take-back') : t('session.window.reconnect')}
           </Button>
         </div>
       ) : (
         <div className="min-h-0 flex-1">
-          {/* `connectionKey === null` ⇒ chưa/không nối; surface tự hiểu giá trị này. */}
           <TerminalSurfaceLazy
             wsUrl={wsUrl}
-            connectionKey={connectionKey}
+            connectionKey={wsUrl === '' ? null : connectionKey}
             theme={theme}
             ariaLabel={ARIA_LABEL}
             onControl={onControl}

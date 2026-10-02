@@ -1,57 +1,54 @@
 'use client';
 
-import Link from 'next/link';
+import { useCallback, useState, type ReactElement } from 'react';
 import { t } from '@devops-platform/copy';
-import { Alert, AlertDescription } from '@devops-platform/ui';
+import { TopicBadge } from '@devops-platform/ui';
 import {
+  NoticeStrip,
   SessionControls,
-  ShellFallbackNotice,
+  SessionStatusPill,
   TerminalPane,
+  WorkspaceBar,
   WorkspacePanel,
+  resolveShellFallbackNotice,
   useResolvedTerminalTheme,
+  useTerminalHandoff,
+  type PracticeNotice,
 } from '../../../components/session';
 import { useWorkspaceTabs } from '../../../components/session/use-workspace-tabs';
+import { lineForTopic } from '../../../lib/topic-line';
 import { api } from '../../../lib/trpc-react';
 import { describeTrpcError } from '../../../lib/trpc';
 import { usePlaygroundSession } from './use-playground-session';
 
-export function PlaygroundClient({
-  playgroundId,
-  userId,
-}: {
-  playgroundId: string;
-  userId: string;
-}): React.ReactElement {
+/**
+ * Sân chơi: một sandbox trống, terminal chiếm TRỌN phần còn lại của màn hình.
+ *
+ * M4: trang là immersive (không header ứng dụng), nên gốc tự lấy `h-dvh` rồi chia
+ * cho thanh trên + khoang terminal. Bản trước dựa vào `<main>` là một cột flex
+ * `flex-1`, mà ở route immersive `<main>` không còn là cột flex nữa, nên terminal
+ * co về chiều cao nội dung.
+ */
+export function PlaygroundClient({ playgroundId, userId }: { playgroundId: string; userId: string }): ReactElement {
   const query = api.playgrounds.get.useQuery({ playgroundId });
   const session = usePlaygroundSession(playgroundId, userId);
+  const handoff = useTerminalHandoff(session.state.sessionId);
+  const [popupBlocked, setPopupBlocked] = useState(false);
 
   const me = api.me.get.useQuery({});
   const terminalTheme = useResolvedTerminalTheme(me.data?.preferences.terminalTheme ?? null);
 
-  // Chỉ hỏi khi chưa có phiên — sau khi phiên mở, "còn N chỗ" không quyết định
-  // gì nữa. Đọc thẳng `data`, không lưu vào state (no-derived-fields).
   const capacity = api.capacity.get.useQuery(
     {},
     { refetchInterval: 15_000, enabled: session.state.sessionId === null },
   );
 
-  /*
-    ⚠ TRÊN mọi `return` sớm bên dưới — đặt sau chúng là số hook đổi giữa hai
-    lượt render.
+  // TRÊN mọi `return` sớm. Sân chơi không có tab Editor và không có khối `{{exec}}`.
+  const tabs = useWorkspaceTabs({ terminal: session.terminal, hasEditor: false, sessionId: session.state.sessionId });
 
-    Sân chơi không có tab Editor: nó không có `ContentView`, không có `onExec`,
-    và chưa bao giờ wire `IdePane`. Cái nó nhận từ `WorkspacePanel` là khung
-    khoang + nút mở ra cửa sổ riêng (§C7) — `exec` ở đây không có call-site nào,
-    và đó là đúng, không phải thiếu sót.
-
-    Vì chỉ còn MỘT mục, panel bỏ hẳn thanh tablist (§Y4) và thanh trên cùng chỉ
-    còn một nhãn tĩnh + nút mở-ra-cửa-sổ-riêng.
-  */
-  const tabs = useWorkspaceTabs({
-    terminal: session.terminal,
-    hasEditor: false,
-    sessionId: session.state.sessionId,
-  });
+  const onPopOut = useCallback(() => {
+    setPopupBlocked(!handoff.popOut());
+  }, [handoff]);
 
   if (query.isPending) {
     return <Centered>{t('session.playground.loading')}</Centered>;
@@ -62,37 +59,32 @@ export function PlaygroundClient({
 
   const { playground, profile, unsupportedCapabilities } = query.data;
   const ttlMinutes = Math.round(playground.ttlSeconds / 60);
+  const sessionId = session.state.sessionId;
+  const line = lineForTopic({ topic: playground.topic ?? null, id: playground.id });
 
-  // Gốc trang KHÔNG mang `h-screen`/`min-h-screen`: vỏ ứng dụng đã dựng
-  // `<main class="flex min-h-0 flex-1 flex-col">` BÊN DƯỚI một thanh đầu trang,
-  // nên 100vh ở đây cao hơn phần còn lại đúng bằng chiều cao thanh đó và đẻ ra
-  // một thanh cuộn thừa trên mọi trang có terminal. `flex-1 min-h-0` lấy đúng
-  // phần còn lại — không con số nào phải khớp tay với chiều cao thanh đầu trang.
+  const shellNotice = resolveShellFallbackNotice({
+    sessionId,
+    preferencesApplied: session.preferencesApplied,
+    shell: me.data?.preferences.defaultShell ?? null,
+  });
+  const notices: PracticeNotice[] = [
+    ...(session.startError === null ? [] : [{ id: `start:${session.startError}`, tone: 'destructive' as const, text: session.startError }]),
+    ...(unsupportedCapabilities.length > 0
+      ? [{ id: 'unsupported', tone: 'warning' as const, text: t('session.playground.unsupported', { capabilities: unsupportedCapabilities.join(', ') }) }]
+      : []),
+    ...(shellNotice === null ? [] : [{ id: `shell:${sessionId ?? ''}`, tone: 'warning' as const, text: shellNotice.lines.join(' ') }]),
+    ...(popupBlocked ? [{ id: 'popup', tone: 'warning' as const, text: t('session.overlay.popup-blocked') }] : []),
+  ];
+
   return (
-    <div className="flex min-h-0 flex-1 flex-col bg-background text-foreground">
-      <header className="flex flex-wrap items-center gap-3 border-b border-border bg-card px-4 py-2">
-        <Link href="/playgrounds" className="text-sm text-muted-foreground hover:text-foreground">
-          {t('session.playground.back')}
-        </Link>
-        <h1 className="text-sm font-semibold">{playground.title}</h1>
-
-        {/*
-          AC 8.E — người học phải biết phiên sống bao lâu TRƯỚC KHI bấm "Bắt
-          đầu", không phải sau. Con số đi qua `ttlSeconds` của C5 (badge "Phiên
-          kéo dài N phút") chứ không còn là một badge chép tay ở trang này: bốn
-          trình học phải nói cùng một câu về cùng một thứ.
-
-          Sau khi phiên mở, đồng hồ THẬT của `SessionControls` thay chỗ nó (hiện
-          dưới 10 phút) — con số của nội dung khi đó không còn là sự thật, vì
-          "Thêm giờ" đã có thể đẩy hạn đi rồi.
-        */}
-        {/*
-          `profile` tới từ `playgrounds.get` — cùng `playground.capabilities` mà
-          `start` đưa cho `createSandboxSession`, tức cùng cái pod sắp tạo. Thiếu
-          nó thì một sân chơi Kubernetes đếm theo trần của bài thường, và prop
-          này TUỲ CHỌN nên chỗ thiếu biên dịch sạch trong khi màn hình nói sai.
-        */}
-        <div className="ml-auto">
+    <div className="flex h-dvh min-h-0 flex-col overflow-hidden bg-background text-foreground">
+      <WorkspaceBar
+        backHref="/playgrounds"
+        backLabel={t('session.playground.back')}
+        title={playground.title}
+        {...(line === 'ink' ? {} : { badge: <TopicBadge line={line} size="sm" /> })}
+        controls={
+          /* TTL hiện TRƯỚC khi bắt đầu (AC 8.E); `profile` từ `playgrounds.get`. */
           <SessionControls
             session={session}
             actions={{ start: session.start, end: session.end, extend: session.extend }}
@@ -100,49 +92,16 @@ export function PlaygroundClient({
             capacity={capacity.data ?? null}
             profile={profile}
           />
-        </div>
-      </header>
-
-      {unsupportedCapabilities.length > 0 && (
-        <Alert variant="warning" className="rounded-none border-x-0 border-t-0">
-          <AlertDescription className="text-foreground">
-            {t('session.playground.unsupported', {
-              capabilities: unsupportedCapabilities.join(', '),
-            })}
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {session.startError !== null && (
-        <Alert variant="destructive" className="rounded-none border-x-0 border-t-0">
-          <AlertDescription className="text-foreground">{session.startError}</AlertDescription>
-        </Alert>
-      )}
-
-      {/*
-        D7 — `preferencesApplied` là thứ DUY NHẤT nói cho người học biết phiên
-        này bỏ qua shell họ đã chọn. Không có băng này, đường "cold" (pool cạn,
-        pod chưa cấp lúc start trả lời) im lặng đưa họ về shell mặc định của máy.
-      */}
-      <ShellFallbackNotice
-        sessionId={session.state.sessionId}
-        preferencesApplied={session.preferencesApplied}
-        shell={me.data?.preferences.defaultShell ?? null}
+        }
       />
-
+      <NoticeStrip notices={notices} />
       <div className="min-h-0 flex-1">
-        {/*
-          §Y4 — không `WorkspaceSplit` ở đây: sân chơi không có khoang nội dung
-          nào để chia đôi với, nên panel chiếm trọn bề rộng. Nhánh hẹp vẫn được
-          lo: `TerminalPane` tự đổi thành `NarrowScreenNotice` dưới 768px.
-
-          Không `editor` — cùng lý do đã ghi ở `lab-client.tsx`.
-        */}
         <WorkspacePanel
           terminal={
             <TerminalPane
               session={session}
               theme={terminalTheme}
+              handoff={handoff}
               placeholder={
                 <span className="flex max-w-md flex-col gap-3">
                   {playground.description !== null && <span>{playground.description}</span>}
@@ -153,7 +112,8 @@ export function PlaygroundClient({
           }
           activeTab={tabs.activeTab}
           onActivate={tabs.onActivate}
-          popOutUrl={tabs.popOutUrl}
+          onPopOut={sessionId === null ? null : onPopOut}
+          status={<SessionStatusPill phase={session.state.phase} />}
           storageKey="dlp-playground-workspace"
         />
       </div>
@@ -161,20 +121,10 @@ export function PlaygroundClient({
   );
 }
 
-function Centered({
-  children,
-  tone,
-}: {
-  children: React.ReactNode;
-  tone?: 'error';
-}): React.ReactElement {
-  // `flex-1 min-h-0` chứ không `min-h-screen`: căn giữa theo phần vỏ chừa lại,
-  // không theo cả màn hình (xem chú thích ở gốc trang).
+function Centered({ children, tone }: { children: React.ReactNode; tone?: 'error' }): ReactElement {
   return (
-    <div className="flex min-h-0 flex-1 items-center justify-center bg-background px-6">
-      <p className={tone === 'error' ? 'text-sm text-destructive' : 'text-sm text-muted-foreground'}>
-        {children}
-      </p>
+    <div className="flex h-dvh items-center justify-center bg-background px-6">
+      <p className={tone === 'error' ? 'text-sm text-destructive' : 'text-sm text-muted-foreground'}>{children}</p>
     </div>
   );
 }
