@@ -1,10 +1,11 @@
 'use client';
 
+import Link from 'next/link';
 import { useState, type ReactElement } from 'react';
+import { SquareTerminal } from 'lucide-react';
 import { err, t } from '@devops-platform/copy';
 import type { ErrorEntry } from '@devops-platform/copy/types';
 import {
-  Badge,
   Button,
   CursorPager,
   Dialog,
@@ -16,97 +17,68 @@ import {
   DialogTitle,
   EmptyState,
   ErrorState,
-  Skeleton,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  StatusDot,
 } from '@devops-platform/ui';
 import { api } from '../../lib/trpc-react';
 import { describeTrpcError, trpcErrorCode } from '../../lib/trpc';
-import { describeProfileCapacity, useCapacity } from '../shell';
-import {
-  describeEndSessionError,
-  describeMySessionStatus,
-  describeSessionExpiry,
-  shortSessionId,
-} from './session-summary';
 import { formatMoment } from '../../lib/format-moment';
-import { MeSection } from './me-section';
+import { Board, BoardSkeleton, staggerStyle } from '../kit';
+import { useCapacity } from '../shell';
+import { describeEndSessionError, describeMySessionStatus, describeSessionExpiry } from './session-summary';
 import { useCursorPages } from './use-cursor-pages';
 import { describeEmptyPage, shouldShowPager, type HistoryPageState } from './history-page-notice';
 
+interface PendingEnd {
+  readonly id: string;
+  readonly openedAt: string;
+}
+
 /**
- * "Phiên đang mở" — `me.activeSessions` + kết thúc sớm bằng `me.endSession`.
+ * "Phiên đang mở": `me.activeSessions` trên bảng tuyến, kết thúc sớm bằng
+ * `me.endSession` sau một hộp xác nhận.
  *
- * ## Kết thúc một phiên GIẢI PHÓNG một chỗ, nên con số chỗ phải đổi theo
+ * ## Đường "mở lại" chỉ có terminal, và đó là giới hạn của dữ liệu
  *
- * `me.endSession` gọi `ReapSession`, orchestrator gỡ pod khỏi `pool:claimed`,
- * và đó chính là mẫu số của `capacity.get`. Để lại "còn 4 chỗ" sau khi vừa trả
- * một chỗ là hiện một con số đã sai ngay lúc người dùng nhìn nó.
+ * `JsonSession` không mang bài học, lab hay sân chơi nào đã mở phiên (chỉ id,
+ * trạng thái, pod, mốc giờ). Liên kết duy nhất nói thật là `/session/<id>/terminal`,
+ * cửa sổ terminal gắn vào ĐÚNG máy đó. Trỏ sang `/labs/<id>` sẽ mở một lần thử
+ * MỚI chứ không nối lại phiên này.
  *
- * ⛔ Nhưng KHÔNG poll `capacity.get` lần thứ hai ở đây: `CapacityProvider` của
- * vỏ đã giữ đúng một nguồn cho cả cây (thanh đầu trang, `SessionControls`, và
- * chỗ này), và bốn nơi tự poll riêng là bốn con số lệch nhau trên cùng một màn
- * hình. Đường đúng là `useCapacity().refetch()` — đọc lại CÙNG state đó.
+ * ## Id phiên không hiện ra màn hình
  *
- * ## Không có máy trạng thái WebSocket nào ở đây
+ * Mỗi dòng gọi tên bằng mốc giờ mở máy; id chỉ nằm trong `href` và trong đối số
+ * của `endSession`.
  *
- * Đây là danh sách phiên phía SERVER (`ListSessions`), không phải một kết nối
- * đang mở. `SessionControls`/`TerminalPane` của C5 là UI phiên duy nhất có WS,
- * và trang này cố ý không chạm tới chúng.
+ * ## Kết thúc phiên trả một chỗ, nên số chỗ ở thanh đầu trang phải đổi theo
+ *
+ * `useCapacity().refetch()` đọc lại CÙNG nguồn mà vỏ ứng dụng giữ, không poll
+ * `capacity.get` lần thứ hai.
  */
 export function ActiveSessions(): ReactElement {
   const pages = useCursorPages();
-  const sessions = api.me.activeSessions.useQuery(
-    pages.cursor === undefined ? {} : { cursor: pages.cursor },
-  );
+  const sessions = api.me.activeSessions.useQuery(pages.cursor === undefined ? {} : { cursor: pages.cursor });
   const utils = api.useUtils();
   const capacity = useCapacity();
 
-  const [pendingId, setPendingId] = useState<string | null>(null);
+  const [pending, setPending] = useState<PendingEnd | null>(null);
   const [endError, setEndError] = useState<ErrorEntry | null>(null);
 
   const endSession = api.me.endSession.useMutation({
     onSuccess: async () => {
-      setPendingId(null);
+      setPending(null);
       setEndError(null);
-      // Về trang 1 TRƯỚC khi nạp lại: cursor là id của phiên cuối trang trước,
-      // và phiên đó có thể chính là phiên vừa bị thu hồi. Giữ nó là hỏi server
-      // một câu về một hàng không còn tồn tại.
+      // Về trang 1 TRƯỚC khi nạp lại: cursor có thể chính là phiên vừa bị thu hồi.
       pages.goFirst();
-      // Một chỗ vừa được trả lại — số "còn N chỗ" ở thanh đầu trang và ở đây
-      // phải đổi ngay, không chờ hết nhịp 15s của provider.
       capacity.refetch();
       await utils.me.activeSessions.invalidate();
     },
     onError: (error) => {
+      setPending(null);
       setEndError(describeEndSessionError(trpcErrorCode(error), describeTrpcError(error)));
     },
   });
 
-  /*
-    Trần đọc từ ResourceQuota theo profile (`5135cf9`), không còn
-    `softCapacity` viết tay. Không truyền profile ⇒ profile MẶC ĐỊNH: trang này
-    liệt kê phiên của mọi loại bài nên không có một profile nào để nói riêng, và
-    câu chữ của vỏ đã tự thu hẹp về "cho bài thường".
-
-    Hai ca `null` gộp làm một ở đây, có chủ ý: chưa có payload (`capacity.data
-    === null`) và có payload nhưng quota đọc lỗi đều nghĩa là ta KHÔNG biết —
-    khác nhau ở nguyên nhân, giống nhau ở việc không được bịa một con số.
-  */
-  const reading = capacity.data === null ? null : describeProfileCapacity(capacity.data);
-  const capacityUnknown = capacity.data !== null && reading === null;
   const now = Date.now();
-
-  /**
-   * Cùng luật với ba tab lịch sử (`history-page-notice.ts`): một trang rỗng
-   * KHÔNG được nuốt pager. `ListSessions` không lọc dòng nào nên `skipped` luôn
-   * 0 ở đây — nhưng ca "đang ở trang 2, vừa kết thúc nốt phiên cuối" thì trang
-   * rỗng mà vẫn cần đường VỀ trang đầu, và luật cũ đã cắt mất đường đó.
-   */
   const shape: HistoryPageState = {
     page: pages.page,
     itemCount: sessions.data?.items.length ?? 0,
@@ -117,35 +89,8 @@ export function ActiveSessions(): ReactElement {
     description: t('me.sessions.empty-description'),
   });
 
-  const listError = sessions.isError
-    ? err('me.error.sessions-load', { reason: describeTrpcError(sessions.error) })
-    : null;
-
   return (
-    <MeSection
-      id="phien-dang-mo"
-      title={t('me.sessions.title')}
-      badge={
-        <>
-          {/*
-            `null` = CHƯA BIẾT, khác hẳn "biết là đã đầy" (xem `readProfileCapacity`).
-            Chưa có payload thì không vẽ gì; có payload mà quota đọc lỗi thì NÓI RA
-            là chưa rõ — ⛔ không lấp bằng `softCapacity`, chính con số đó đã in
-            "Còn 14 chỗ" trong lúc server trả 429.
-          */}
-          {reading !== null && (
-            <Badge variant={capacityBadgeVariant(reading.tone)} title={reading.detail}>
-              {reading.label}
-            </Badge>
-          )}
-          {capacityUnknown && (
-            <Badge variant="outline" title={t('me.capacity.unknown-detail')}>
-              {t('me.capacity.unknown')}
-            </Badge>
-          )}
-        </>
-      }
-    >
+    <div className="flex flex-col gap-4">
       {endError !== null && (
         <ErrorState
           title={endError.what}
@@ -157,115 +102,108 @@ export function ActiveSessions(): ReactElement {
         />
       )}
 
-      {sessions.isPending && <Skeleton className="h-32 w-full" />}
+      {sessions.isPending && <BoardSkeleton rows={2} label={t('me.sessions.loading')} />}
 
-      {listError !== null && (
-        <ErrorState
-          title={listError.what}
-          message={listError.next}
-          onRetry={() => void sessions.refetch()}
+      {sessions.isError && (
+        <SessionsLoadError
+          error={sessions.error}
           retrying={sessions.isFetching}
+          onRetry={() => void sessions.refetch()}
         />
       )}
 
-      {sessions.isSuccess && (
-        <>
-          {emptyNotice !== null ? (
-            <EmptyState title={emptyNotice.title} description={emptyNotice.description} />
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t('me.sessions.col.id')}</TableHead>
-                  <TableHead>{t('me.sessions.col.status')}</TableHead>
-                  <TableHead>{t('me.sessions.col.opened')}</TableHead>
-                  <TableHead>{t('me.sessions.col.expires')}</TableHead>
-                  <TableHead>
-                    <span className="sr-only">{t('me.sessions.col.actions')}</span>
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sessions.data.items.map((session) => {
-                  const status = describeMySessionStatus(session.status);
-                  return (
-                    <TableRow key={session.id}>
-                      <TableCell className="font-mono text-xs">{session.id}</TableCell>
-                      <TableCell>
-                        <Badge variant={status.variant}>{status.label}</Badge>
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap text-muted-foreground">
-                        {formatMoment(session.createdAt)}
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap text-muted-foreground">
-                        {describeSessionExpiry(session.expiresAt, now)}
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setEndError(null);
-                            setPendingId(session.id);
-                          }}
-                        >
-                          {t('me.sessions.end')}
+      {sessions.isSuccess &&
+        (emptyNotice !== null ? (
+          <EmptyState title={emptyNotice.title} description={emptyNotice.description} />
+        ) : (
+          <Board label={t('me.sessions.board')}>
+            {sessions.data.items.map((session, order) => {
+              const status = describeMySessionStatus(session.status);
+              const openedAt = formatMoment(session.createdAt);
+              return (
+                <li
+                  key={session.id}
+                  className="stagger animate-rise border-b border-border last:border-b-0"
+                  style={staggerStyle(order)}
+                >
+                  <div className="flex flex-col gap-4 px-2 py-5 md:flex-row md:items-center md:px-4">
+                    <span className="w-10 shrink-0 font-mono text-sm text-muted-foreground tabular-nums">
+                      {String(order + 1).padStart(2, '0')}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block type-title">{t('me.sessions.row-title', { time: openedAt })}</span>
+                      <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+                        <span className="inline-flex items-center gap-2 text-foreground">
+                          <StatusDot tone={status.live ? 'live' : 'idle'} />
+                          {status.label}
+                        </span>
+                        <span className="font-mono tabular-nums">
+                          {describeSessionExpiry(session.expiresAt, now)}
+                        </span>
+                      </span>
+                    </span>
+                    <span className="flex shrink-0 flex-wrap gap-2">
+                      {status.live && (
+                        <Button asChild variant="ink">
+                          <Link href={`/session/${encodeURIComponent(session.id)}/terminal`}>
+                            <SquareTerminal aria-hidden="true" />
+                            {t('me.sessions.resume')}
+                          </Link>
                         </Button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          )}
+                      )}
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setEndError(null);
+                          setPending({ id: session.id, openedAt });
+                        }}
+                      >
+                        {t('me.sessions.end')}
+                      </Button>
+                    </span>
+                  </div>
+                </li>
+              );
+            })}
+          </Board>
+        ))}
 
-          {shouldShowPager(shape) && (
-            <CursorPager
-              hasNext={sessions.data.nextCursor !== null}
-              onNext={() => {
-                pages.goNext(sessions.data.nextCursor);
-              }}
-              onReset={pages.goFirst}
-              page={pages.page}
-              loading={sessions.isFetching}
-            />
-          )}
-        </>
+      {sessions.isSuccess && shouldShowPager(shape) && (
+        <CursorPager
+          hasNext={sessions.data.nextCursor !== null}
+          onNext={() => {
+            pages.goNext(sessions.data.nextCursor);
+          }}
+          onReset={pages.goFirst}
+          page={pages.page}
+          loading={sessions.isFetching}
+        />
       )}
 
       <Dialog
-        open={pendingId !== null}
+        open={pending !== null}
         onOpenChange={(open) => {
           if (!open) {
-            setPendingId(null);
+            setPending(null);
           }
         }}
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>
-              {t('me.sessions.confirm-title', {
-                id: pendingId === null ? '' : shortSessionId(pendingId),
-              })}
-            </DialogTitle>
+            <DialogTitle>{t('me.sessions.confirm-title', { time: pending?.openedAt ?? '' })}</DialogTitle>
             <DialogDescription>{t('me.sessions.confirm-description')}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <DialogClose asChild>
               <Button variant="ghost">{t('me.sessions.confirm-keep')}</Button>
             </DialogClose>
-            {/*
-              Luật hai kênh của §2: `destructive` lúc nghỉ là viền + chữ, đảo
-              sang nền đặc khi hover, và `Button` của `packages/ui` tự gắn icon
-              `TriangleAlert`. 1.06:1 giữa `--primary` và `--destructive` là lý
-              do icon bắt buộc, không phải trang trí.
-            */}
+            {/* `destructive` tự gắn icon cảnh báo: màu đỏ một mình không đủ phân biệt. */}
             <Button
               variant="destructive"
               loading={endSession.isPending}
               onClick={() => {
-                if (pendingId !== null) {
-                  endSession.mutate({ sessionId: pendingId });
+                if (pending !== null) {
+                  endSession.mutate({ sessionId: pending.id });
                 }
               }}
             >
@@ -274,14 +212,15 @@ export function ActiveSessions(): ReactElement {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </MeSection>
+    </div>
   );
 }
 
-/** Màu badge sức chứa — cùng ba mức `CapacityTone` của vỏ, không tự đặt ngưỡng mới. */
-function capacityBadgeVariant(tone: 'ok' | 'low' | 'full'): 'secondary' | 'warning' | 'destructive' {
-  if (tone === 'full') {
-    return 'destructive';
-  }
-  return tone === 'low' ? 'warning' : 'secondary';
+function SessionsLoadError(props: {
+  readonly error: unknown;
+  readonly retrying: boolean;
+  readonly onRetry: () => void;
+}): ReactElement {
+  const entry = err('me.error.sessions-load', { reason: describeTrpcError(props.error) });
+  return <ErrorState title={entry.what} message={entry.next} onRetry={props.onRetry} retrying={props.retrying} />;
 }

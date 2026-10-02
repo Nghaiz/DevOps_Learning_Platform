@@ -2,55 +2,130 @@
 
 import Link from 'next/link';
 import type { ReactElement } from 'react';
+import { Settings } from 'lucide-react';
 import { t } from '@devops-platform/copy';
-import { Button } from '@devops-platform/ui';
+import { Button, Num } from '@devops-platform/ui';
+import { api } from '../../lib/trpc-react';
+import { PageContainer, Split, ToolHeader } from '../../components/kit';
+import { describeProfileCapacity, useCapacity, useViewer } from '../../components/shell';
+import { WithNums, numSlot } from '../../components/admin/with-nums';
 import { ActiveSessions } from '../../components/me/active-sessions';
 import { HistoryTabs } from '../../components/me/history-tabs';
 import { LearningNow } from '../../components/me/learning-now';
-import { MePageHeader } from '../../components/me/me-section';
 
 /**
- * Trang "Của tôi" (13.E mục 17-19).
+ * `/me` "Bàn học": đầu trang mang tên người học, rồi ba khối Split đánh số:
+ * đang học, phiên đang mở, lịch sử.
  *
- * ## ⛔ Không `<main>` ở đây — hợp đồng C6bis
+ * ⛔ Không `<main>` (hợp đồng C6bis): vỏ ứng dụng sở hữu landmark đó.
+ * ⛔ Không hàng thẻ số (design-brief §0.4): hai con số của trang nằm trong câu
+ * dẫn, in bằng `Num`.
  *
- * `components/shell/app-shell.tsx` dựng đúng MỘT `<main id="noi-dung">` bọc mọi
- * route. Trang tự dựng cái thứ hai là hai landmark lồng nhau: sai HTML, và axe
- * của 13.H đỏ `landmark-unique` — một ô AC của lane khác đỏ vì việc của lane
- * này. `landmark-contract.test.ts` quét tĩnh mã nguồn để chặn tái phát.
- *
- * ## Mọi con số tiến độ TÍNH LÚC ĐỌC (mục 19)
- *
- * P8/P10 cấm lưu field suy ra được, và mục 19 kéo luật đó sang FE: trang này
- * KHÔNG giữ state riêng cho bất kỳ con số nào rồi khẳng định từ bản sao đó. Mỗi
- * section đọc payload của lượt query hiện tại và đưa thẳng vào một hàm thuần
- * (`summarizePathProgress`, `summarizeLessonProgress`, `summarizeLabAttempt`,
- * `summarizeQuizAttempt`) — mỗi hàm có test riêng cho đúng những câu chữ nó
- * khẳng định, theo khuôn `summarizeProgress` mà nợ P2 để lại.
- *
- * ## Bố cục: bốn khối, mỗi khối một câu hỏi
- *
- * "tôi đang học gì" → `LearningNow` · "tôi đang chiếm mấy chỗ" → `ActiveSessions`
- * (kết thúc được từ đây) · "tôi đã làm gì" → `HistoryTabs`. Ba khối tách file vì
- * mỗi khối mang query + trạng thái riêng, và gộp lại thì file này vượt xa ngưỡng
- * 200 dòng của `code-conventions.md`.
+ * Câu dẫn đọc CÙNG khoá query với hai khối bên dưới (`paths.mine({})`,
+ * `me.activeSessions({})`), nên react-query gộp làm một lượt gọi; không có bản
+ * sao nào của hai con số.
  */
 export function MeClient(): ReactElement {
+  const viewer = useViewer();
+
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 p-6">
-      <MePageHeader
-        title={t('me.page.me-title')}
-        description={t('me.page.me-subtitle')}
-        action={
-          <Button asChild variant="outline" size="sm">
-            <Link href="/settings">{t('me.page.me-settings-link')}</Link>
+    <>
+      <ToolHeader
+        kicker={t('me.desk.kicker')}
+        title={viewer?.name ?? t('me.desk.title-fallback')}
+        actions={
+          <Button asChild variant="outline">
+            <Link href="/settings">
+              <Settings aria-hidden="true" />
+              {t('me.desk.settings')}
+            </Link>
           </Button>
         }
       />
+      <PageContainer className="pb-16">
+        <DeskLead />
+        <Split index="01" title={t('me.learning.title')} aside={t('me.learning.aside')}>
+          <LearningNow />
+        </Split>
+        <Split index="02" title={t('me.sessions.title')} aside={<SessionsAside />}>
+          <ActiveSessions />
+        </Split>
+        <Split index="03" title={t('me.history.title')} aside={t('me.history.aside')}>
+          <HistoryTabs />
+        </Split>
+      </PageContainer>
+    </>
+  );
+}
 
-      <LearningNow />
-      <ActiveSessions />
-      <HistoryTabs />
-    </div>
+/** Hai câu dẫn, mỗi câu chỉ hiện khi con số của nó đã đọc được. */
+function DeskLead(): ReactElement {
+  const paths = api.paths.mine.useQuery({});
+  const sessions = api.me.activeSessions.useQuery({});
+
+  const pathCount = paths.data?.items.length ?? null;
+  const sessionCount = sessions.data?.items.length ?? null;
+  const moreSessions = sessions.data?.nextCursor != null;
+
+  return (
+    <p className="max-w-3xl py-8 type-lead text-muted-foreground" aria-live="polite">
+      {pathCount !== null &&
+        (pathCount === 0 ? (
+          t('me.desk.paths-none')
+        ) : (
+          <WithNums
+            text={t('me.desk.paths-count', { n: numSlot(0) })}
+            nums={[
+              <Num key="paths" tone="primary" className="text-foreground">
+                {pathCount}
+              </Num>,
+            ]}
+          />
+        ))}{' '}
+      {sessionCount !== null &&
+        (sessionCount === 0 ? (
+          t('me.desk.sessions-none')
+        ) : (
+          <WithNums
+            text={
+              moreSessions
+                ? t('me.desk.sessions-at-least', { n: numSlot(0) })
+                : t('me.desk.sessions-count', { n: numSlot(0) })
+            }
+            nums={[
+              <Num key="sessions" className="text-foreground">
+                {sessionCount}
+              </Num>,
+            ]}
+          />
+        ))}
+    </p>
+  );
+}
+
+/**
+ * Sức chứa của lớp đi cạnh danh sách phiên: kết thúc một phiên là trả một chỗ.
+ * `null` = CHƯA BIẾT (quota đọc lỗi), khác hẳn "đã đầy"; không lấp bằng một số đoán.
+ */
+function SessionsAside(): ReactElement {
+  const capacity = useCapacity();
+  const reading = capacity.data === null ? null : describeProfileCapacity(capacity.data);
+  const unknown = capacity.data !== null && reading === null;
+  return (
+    <>
+      <p>{t('me.sessions.aside')}</p>
+      {reading !== null && (
+        <p className="mt-3">
+          <span className="block font-medium text-foreground">{reading.label}</span>
+          <span className="mt-1 block">{reading.detail}</span>
+        </p>
+      )}
+      {unknown && (
+        <p className="mt-3">
+          <span className="block font-medium text-foreground">{t('me.capacity.unknown')}</span>
+          <span className="mt-1 block">{t('me.capacity.unknown-detail')}</span>
+        </p>
+      )}
+    </>
   );
 }

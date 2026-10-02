@@ -8,7 +8,6 @@ import {
   CursorPager,
   EmptyState,
   ErrorState,
-  Skeleton,
   Table,
   TableBody,
   TableCell,
@@ -22,72 +21,56 @@ import {
 } from '@devops-platform/ui';
 import { api } from '../../lib/trpc-react';
 import { describeTrpcError } from '../../lib/trpc';
+import { formatMoment } from '../../lib/format-moment';
+import { BoardSkeleton, StationMarker, lineForTopic } from '../kit';
 import { summarizeLabAttempt, summarizeQuizAttempt } from './attempt-summary';
 import { summarizeLessonProgress } from './lesson-progress';
-import { formatMoment } from '../../lib/format-moment';
-import { MeSection } from './me-section';
 import { useCursorPages } from './use-cursor-pages';
-import {
-  describeEmptyPage,
-  shouldShowPager,
-  type HistoryNotice,
-  type HistoryPageState,
-} from './history-page-notice';
+import { describeEmptyPage, shouldShowPager, type HistoryNotice, type HistoryPageState } from './history-page-notice';
 
 /**
- * Lịch sử học: bài học · lab · quiz.
+ * Lịch sử: bài học · lab · trắc nghiệm, mỗi tab một sổ cái (design-brief §4.4)
+ * phân trang bằng cursor.
  *
- * ## Vì sao ba danh sách nằm trong Tabs chứ không xếp chồng nhau
+ * Radix Tabs KHÔNG render tab đang ẩn, nên `useQuery` của mỗi tab chỉ chạy khi
+ * người dùng mở tab đó: `me.listLabAttempts` tính điểm cho từng lần thử, và nạp
+ * cả ba danh sách lúc vào trang là ba lượt đọc nặng cho thứ phần lớn người dùng
+ * không mở.
  *
- * Radix Tabs KHÔNG render tab đang ẩn, nên `useQuery` trong mỗi tab chỉ bắn khi
- * người dùng mở tab đó. Xếp chồng cả ba sẽ nạp ba danh sách phân trang ngay lúc
- * vào `/me` — và `me.listLabAttempts` nạp thêm `lab_task_results` + định nghĩa
- * lab cho TỪNG lần thử trong trang để tính điểm. Đó là ba lượt đọc nặng cho một
- * trang mà phần lớn người dùng chỉ nhìn hai dòng đầu.
- *
- * ## Mọi điểm số ở đây đều TÍNH lúc đọc
- *
- * `lab_attempts` không có cột `percent`/`status`/`duration`; `quiz_attempts`
- * không có cột `score`. Server tính lại ở mỗi lượt query bằng `computeLabScore`
- * / `gradeQuiz`, và trang này chỉ đọc payload của lượt hiện tại — không
- * `useState` nào giữ một bản sao rồi khẳng định từ nó (13.E mục 19).
+ * Mọi điểm số TÍNH lúc đọc ở server; trang này không giữ bản sao nào.
  */
 export function HistoryTabs(): ReactElement {
   return (
-    <MeSection id="lich-su" title={t('me.history.title')}>
-      <Tabs defaultValue="lessons">
-        <TabsList>
-          <TabsTrigger value="lessons">{t('me.history.tab.lessons')}</TabsTrigger>
-          <TabsTrigger value="labs">{t('me.history.tab.labs')}</TabsTrigger>
-          <TabsTrigger value="quizzes">{t('me.history.tab.quizzes')}</TabsTrigger>
-        </TabsList>
-        <TabsContent value="lessons">
-          <LessonHistory />
-        </TabsContent>
-        <TabsContent value="labs">
-          <LabHistory />
-        </TabsContent>
-        <TabsContent value="quizzes">
-          <QuizHistory />
-        </TabsContent>
-      </Tabs>
-    </MeSection>
+    <Tabs defaultValue="lessons">
+      <TabsList>
+        <TabsTrigger value="lessons">{t('me.history.tab.lessons')}</TabsTrigger>
+        <TabsTrigger value="labs">{t('me.history.tab.labs')}</TabsTrigger>
+        <TabsTrigger value="quizzes">{t('me.history.tab.quizzes')}</TabsTrigger>
+      </TabsList>
+      <TabsContent value="lessons">
+        <LessonHistory />
+      </TabsContent>
+      <TabsContent value="labs">
+        <LabHistory />
+      </TabsContent>
+      <TabsContent value="quizzes">
+        <QuizHistory />
+      </TabsContent>
+    </Tabs>
   );
 }
 
+const TITLE_LINK =
+  'inline-flex items-center gap-3 font-medium underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring';
+
 function LessonHistory(): ReactElement {
   const pages = useCursorPages();
-  const progress = api.me.listProgress.useQuery(
-    pages.cursor === undefined ? {} : { cursor: pages.cursor },
-  );
+  const progress = api.me.listProgress.useQuery(pages.cursor === undefined ? {} : { cursor: pages.cursor });
 
   return (
     <HistoryFrame
       state={progress}
-      blank={{
-        title: t('me.lessons.blank-title'),
-        description: t('me.lessons.blank-description'),
-      }}
+      blank={{ title: t('me.lessons.blank-title'), description: t('me.lessons.blank-description') }}
       page={{
         page: pages.page,
         itemCount: progress.data?.items.length ?? 0,
@@ -115,27 +98,22 @@ function LessonHistory(): ReactElement {
         </TableHeader>
         <TableBody>
           {(progress.data?.items ?? []).map((row) => {
-            const summary = summarizeLessonProgress({
-              stepIndex: row.stepIndex,
-              completedAt: row.completedAt,
-            });
+            const summary = summarizeLessonProgress({ stepIndex: row.stepIndex, completedAt: row.completedAt });
             return (
               <TableRow key={row.id}>
                 <TableCell>
-                  <Link
-                    href={`/lessons/${row.lessonId}`}
-                    className="rounded-md font-mono text-xs outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    {row.lessonId}
+                  <Link href={`/lessons/${encodeURIComponent(row.lessonId)}`} className={TITLE_LINK}>
+                    <StationMarker line={lineForTopic({ id: row.lessonId })} />
+                    <LessonTitle lessonId={row.lessonId} />
                   </Link>
                 </TableCell>
-                <TableCell className="flex flex-wrap items-center gap-2">
-                  <Badge variant={summary.variant}>{summary.label}</Badge>
-                  {summary.detail !== null && (
-                    <span className="text-xs text-muted-foreground">{summary.detail}</span>
-                  )}
+                <TableCell>
+                  <span className="flex flex-wrap items-center gap-2">
+                    <Badge variant={summary.variant}>{summary.label}</Badge>
+                    {summary.detail !== null && <span className="text-sm text-muted-foreground">{summary.detail}</span>}
+                  </span>
                 </TableCell>
-                <TableCell className="whitespace-nowrap text-muted-foreground">
+                <TableCell className="font-mono text-sm whitespace-nowrap text-muted-foreground tabular-nums">
                   {formatMoment(row.updatedAt)}
                 </TableCell>
               </TableRow>
@@ -147,25 +125,35 @@ function LessonHistory(): ReactElement {
   );
 }
 
+/**
+ * Tên bài học. `me.listProgress` chỉ trả `lessonId` (dòng `progress` không giữ
+ * tên), nên mỗi dòng đọc tên qua `lessons.get`. Id thô không bao giờ hiện ra:
+ * đang tải thì nói đang tải, đọc hỏng thì nói nội dung không còn đọc được.
+ */
+function LessonTitle({ lessonId }: { readonly lessonId: string }): ReactElement {
+  const lesson = api.lessons.get.useQuery({ scenarioId: lessonId }, { retry: false, staleTime: 5 * 60_000 });
+  if (lesson.isSuccess) {
+    return <span>{lesson.data.scenario.title ?? t('me.history.unreadable')}</span>;
+  }
+  if (lesson.isError) {
+    return <span className="text-muted-foreground">{t('me.history.unreadable')}</span>;
+  }
+  return <span className="text-muted-foreground">{t('me.history.title-loading')}</span>;
+}
+
 function LabHistory(): ReactElement {
   const pages = useCursorPages();
-  const attempts = api.me.listLabAttempts.useQuery(
-    pages.cursor === undefined ? {} : { cursor: pages.cursor },
-  );
+  const attempts = api.me.listLabAttempts.useQuery(pages.cursor === undefined ? {} : { cursor: pages.cursor });
 
   return (
     <HistoryFrame
       state={attempts}
-      blank={{
-        title: t('me.labs.blank-title'),
-        description: t('me.labs.blank-description'),
-      }}
+      blank={{ title: t('me.labs.blank-title'), description: t('me.labs.blank-description') }}
       page={{
         page: pages.page,
         itemCount: attempts.data?.items.length ?? 0,
         hasNext: attempts.data?.nextCursor != null,
-        // `me.listLabAttempts` bỏ dòng có lab đã bị gỡ — trang có thể sạch trơn
-        // trong khi lịch sử vẫn còn ở trang sau. Xem `history-page-notice.ts`.
+        // `me.listLabAttempts` bỏ dòng có lab đã bị gỡ; xem `history-page-notice.ts`.
         skipped: attempts.data?.skipped ?? 0,
       }}
       pager={
@@ -200,21 +188,19 @@ function LabHistory(): ReactElement {
             return (
               <TableRow key={item.attempt.id}>
                 <TableCell>
-                  <Link
-                    href={`/labs/${item.labId}`}
-                    className="rounded-md outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    {item.labTitle ?? item.labId}
+                  <Link href={`/labs/${encodeURIComponent(item.labId)}`} className={TITLE_LINK}>
+                    <StationMarker line={lineForTopic({ id: item.labId })} />
+                    {item.labTitle}
                   </Link>
                 </TableCell>
                 <TableCell>
                   <Badge variant={summary.statusVariant}>{summary.statusLabel}</Badge>
                 </TableCell>
-                <TableCell className="text-muted-foreground">{summary.scoreLabel}</TableCell>
-                <TableCell className="whitespace-nowrap text-muted-foreground">
+                <TableCell className="font-mono text-sm tabular-nums">{summary.scoreLabel}</TableCell>
+                <TableCell className="font-mono text-sm whitespace-nowrap text-muted-foreground tabular-nums">
                   {summary.durationLabel}
                 </TableCell>
-                <TableCell className="whitespace-nowrap text-muted-foreground">
+                <TableCell className="font-mono text-sm whitespace-nowrap text-muted-foreground tabular-nums">
                   {formatMoment(item.attempt.startedAt)}
                 </TableCell>
               </TableRow>
@@ -228,17 +214,12 @@ function LabHistory(): ReactElement {
 
 function QuizHistory(): ReactElement {
   const pages = useCursorPages();
-  const attempts = api.me.listQuizAttempts.useQuery(
-    pages.cursor === undefined ? {} : { cursor: pages.cursor },
-  );
+  const attempts = api.me.listQuizAttempts.useQuery(pages.cursor === undefined ? {} : { cursor: pages.cursor });
 
   return (
     <HistoryFrame
       state={attempts}
-      blank={{
-        title: t('me.quizzes.blank-title'),
-        description: t('me.quizzes.blank-description'),
-      }}
+      blank={{ title: t('me.quizzes.blank-title'), description: t('me.quizzes.blank-description') }}
       page={{
         page: pages.page,
         itemCount: attempts.data?.items.length ?? 0,
@@ -271,18 +252,16 @@ function QuizHistory(): ReactElement {
             return (
               <TableRow key={item.attemptId}>
                 <TableCell>
-                  <Link
-                    href={`/quiz/${item.quizId}`}
-                    className="rounded-md outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    {item.quizTitle ?? item.quizId}
+                  <Link href={`/quiz/${encodeURIComponent(item.quizId)}`} className={TITLE_LINK}>
+                    <StationMarker line={lineForTopic({ id: item.quizId })} />
+                    {item.quizTitle ?? t('me.history.unreadable')}
                   </Link>
                 </TableCell>
                 <TableCell>
                   <Badge variant={summary.statusVariant}>{summary.statusLabel}</Badge>
                 </TableCell>
-                <TableCell className="text-muted-foreground">{summary.scoreLabel}</TableCell>
-                <TableCell className="whitespace-nowrap text-muted-foreground">
+                <TableCell className="font-mono text-sm tabular-nums">{summary.scoreLabel}</TableCell>
+                <TableCell className="font-mono text-sm whitespace-nowrap text-muted-foreground tabular-nums">
                   {formatMoment(item.submittedAt)}
                 </TableCell>
               </TableRow>
@@ -295,15 +274,11 @@ function QuizHistory(): ReactElement {
 }
 
 /**
- * Bốn trạng thái dùng chung của một tab lịch sử: đang tải · lỗi · rỗng · có dữ
- * liệu. Gom vào một chỗ để ba tab không trôi khỏi nhau về cách báo lỗi — và để
- * không tab nào "quên" trạng thái rỗng rồi hiện một cái bảng không có dòng nào.
+ * Bốn trạng thái dùng chung của một tab: đang tải · lỗi · rỗng · có dữ liệu.
  *
- * ⚠ Trạng thái rỗng KHÔNG còn là một `ReactNode` cố định do tab truyền xuống.
- * Câu đúng phụ thuộc vào trang hiện tại (`page`), còn trang sau hay không
- * (`hasNext`) và tầng đọc đã bỏ bao nhiêu dòng (`skipped`) — `describeEmptyPage`
- * là nơi duy nhất biết ba thứ đó ghép lại thành câu nào. Tab chỉ đưa `blank`,
- * tức câu cho ca "thật sự chưa có gì".
+ * Câu cho trang rỗng KHÔNG cố định: `describeEmptyPage` biết trang hiện tại, còn
+ * trang sau hay không, và tầng đọc đã bỏ bao nhiêu dòng. Pager đi kèm cả trang
+ * rỗng, vì giấu nó là cắt đường sang trang sau và đường về trang đầu.
  */
 function HistoryFrame(props: {
   readonly state: {
@@ -321,16 +296,17 @@ function HistoryFrame(props: {
   const { state, page, blank, pager, children } = props;
 
   if (state.isPending) {
-    return <Skeleton className="mt-4 h-40 w-full" />;
+    return (
+      <div className="mt-6">
+        <BoardSkeleton rows={4} label={t('me.history.loading')} />
+      </div>
+    );
   }
 
   if (state.isError) {
-    // Hai nửa vào hai khe RIÊNG: `what` là tiêu đề, `next` là câu dưới. Ghép
-    // chúng rồi đổ cả cục vào `message` sẽ để `title` rơi về mặc định của
-    // `ErrorState`, thứ nói một chuyện khác với chuyện vừa hỏng.
     const entry = err('me.error.history-load', { reason: describeTrpcError(state.error) });
     return (
-      <div className="mt-4">
+      <div className="mt-6">
         <ErrorState
           title={entry.what}
           message={entry.next}
@@ -342,18 +318,10 @@ function HistoryFrame(props: {
   }
 
   const notice = describeEmptyPage(page, blank);
-  // Pager đi kèm CẢ hai nhánh: giấu nó ở trang rỗng là cắt luôn đường sang
-  // trang sau và đường về trang đầu — xem `shouldShowPager`.
-  const nav = shouldShowPager(page) ? pager : null;
-
   return (
-    <div className="mt-4 flex flex-col gap-3">
-      {notice === null ? (
-        children
-      ) : (
-        <EmptyState title={notice.title} description={notice.description} />
-      )}
-      {nav}
+    <div className="mt-6 flex flex-col gap-4">
+      {notice === null ? children : <EmptyState title={notice.title} description={notice.description} />}
+      {shouldShowPager(page) ? pager : null}
     </div>
   );
 }

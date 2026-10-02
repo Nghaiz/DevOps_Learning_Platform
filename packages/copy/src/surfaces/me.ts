@@ -34,55 +34,56 @@ import type { ErrorEntry, IntentionalThree, Surface } from '../types.ts';
  * có nó và một khoá chỉ dùng ở đúng một surface thuộc về surface đó (§1.7).
  */
 export const me = {
-  // ── Hai màn: tiêu đề tài liệu, tiêu đề trang, câu dẫn ─────────────────────
-  /*
-    `metadata.title` vào bản đồ theo §1.7 ("`<title>` và meta description").
-    Dấu phân cách là dấu chấm giữa, không phải gạch ngang dài: mười `page.tsx`
-    khác trong ứng dụng vẫn dùng gạch ngang dài, nhưng chúng nằm ngoài glob
-    của lane này.
-  */
-  'me.page.me-document-title': 'Của tôi · DevOps Learning Platform',
-  'me.page.me-title': 'Của tôi',
-  'me.page.me-subtitle': 'Lộ trình đang dở, phiên đang mở, và lịch sử học của bạn.',
-  'me.page.me-settings-link': 'Cài đặt',
-  'me.page.settings-document-title': 'Hồ sơ và cài đặt · DevOps Learning Platform',
-  'me.page.settings-title': 'Hồ sơ và cài đặt',
-  'me.page.settings-subtitle': 'Tên hiển thị, mật khẩu, và tuỳ chọn cho phiên sandbox của bạn.',
-  'me.page.settings-back': 'Về trang Của tôi',
+  // ── Hai màn: tiêu đề tài liệu ─────────────────────────────────────────────
+  'me.page.me-document-title': 'Bàn học · PTIT DevOps Lab',
+  'me.page.settings-document-title': 'Cài đặt · PTIT DevOps Lab',
 
-  // ── `/me` · lộ trình đang dở ──────────────────────────────────────────────
-  'me.learning.title': 'Lộ trình đang dở',
-  'me.learning.empty-title': 'Chưa có lộ trình nào đang dở',
-  'me.learning.empty-description':
-    'Mục này chỉ hiện lộ trình bạn đã đạt ít nhất một phần và chưa đạt hết.',
-  'me.learning.empty-action': 'Xem lộ trình',
+  // ── `/me` · đầu trang "Bàn học" ───────────────────────────────────────────
+  /*
+    Không có hàng thẻ số (design-brief §0.4). Hai con số của trang nằm trong hai
+    câu dẫn, in bằng `Num` qua chỗ giữ `numSlot`, nên mỗi câu là MỘT mục của bản
+    đồ chứ không phải ba mảnh ghép.
+  */
+  'me.desk.kicker': 'Bàn học',
+  'me.desk.title-fallback': 'Bàn học của bạn',
+  'me.desk.settings': 'Cài đặt',
+  'me.desk.paths-count': (p: { n: string }) => `Bạn đang học dở ${p.n} lộ trình.`,
+  'me.desk.paths-none': 'Chưa có lộ trình nào học dở.',
+  'me.desk.sessions-count': (p: { n: string }) => `Đang mở ${p.n} phiên máy.`,
+  'me.desk.sessions-at-least': (p: { n: string }) => `Đang mở ít nhất ${p.n} phiên máy.`,
+  'me.desk.sessions-none': 'Không có phiên máy nào đang mở.',
+
+  // ── `/me` · đang học ──────────────────────────────────────────────────────
+  'me.learning.title': 'Đang học',
+  'me.learning.aside': 'Lộ trình bạn đã đạt ít nhất một phần mà chưa đạt hết.',
+  'me.learning.loading': 'Đang tải lộ trình học dở',
+  'me.learning.empty-title': 'Chưa có lộ trình nào học dở',
+  'me.learning.empty-description': 'Lộ trình hiện ở đây sau khi bạn đạt phần đầu tiên của nó.',
+  'me.learning.empty-action': 'Chọn lộ trình',
+  'me.learning.route-aria': (p: { title: string }) => `Sơ đồ tuyến của lộ trình ${p.title}`,
 
   // ── Nhãn tiến độ lộ trình (`path-progress.ts`) ────────────────────────────
   'me.path.no-items': 'Lộ trình chưa có phần nào',
-  'me.path.passed': (p: { passed: number; total: number }) =>
-    `Đã đạt ${String(p.passed)}/${String(p.total)} phần`,
-  'me.path.next-item': (p: { id: string }) => `Phần tiếp theo: ${p.id}`,
+  'me.path.passed': (p: { passed: string; total: string }) => `Đã đạt ${p.passed}/${p.total} phần`,
+  'me.path.next-item': (p: { name: string }) => `Làm tiếp: ${p.name}`,
   'me.path.all-passed': 'Đã đạt tất cả các phần',
-  /*
-    Câu cũ nối hai vế bằng một gạch ngang dài. Tách thành hai câu: vế sau là
-    một chỉ dẫn hành động, nên nó xứng đáng một câu riêng.
-  */
   'me.path.locked': 'Không còn phần nào đang mở. Đạt phần trước đó để mở khoá.',
 
   // ── `/me` · phiên đang mở ─────────────────────────────────────────────────
   'me.sessions.title': 'Phiên đang mở',
-  'me.sessions.empty-title': 'Bạn không có phiên nào đang mở',
+  'me.sessions.aside':
+    'Mỗi phiên giữ một máy sandbox. Kết thúc phiên không dùng nữa để trả chỗ cho người khác.',
+  'me.sessions.board': 'Danh sách phiên máy đang mở',
+  'me.sessions.loading': 'Đang tải danh sách phiên',
+  'me.sessions.empty-title': 'Không có phiên nào đang mở',
   'me.sessions.empty-description':
-    'Phiên được tạo khi bạn bắt đầu một bài học, lab hoặc playground, và tự hết hạn khi tới giờ.',
+    'Phiên được tạo khi bạn bắt đầu một bài học, lab hoặc sân chơi, và tự hết hạn khi tới giờ.',
+  'me.sessions.row-title': (p: { time: string }) => `Máy mở lúc ${p.time}`,
+  'me.sessions.resume': 'Mở terminal',
   'me.sessions.end': 'Kết thúc',
-  'me.sessions.col.id': 'Phiên',
-  'me.sessions.col.status': 'Trạng thái',
-  'me.sessions.col.opened': 'Mở lúc',
-  'me.sessions.col.expires': 'Hạn',
-  'me.sessions.col.actions': 'Hành động',
-  'me.sessions.confirm-title': (p: { id: string }) => `Kết thúc phiên ${p.id}?`,
+  'me.sessions.confirm-title': (p: { time: string }) => `Kết thúc phiên mở lúc ${p.time}?`,
   'me.sessions.confirm-description':
-    'Máy sandbox bị thu hồi ngay và mọi thứ chưa lưu trong đó sẽ mất. Chỗ này được trả lại cho lớp, và bạn mở phiên mới bất cứ lúc nào.',
+    'Máy sandbox bị thu hồi ngay và mọi thứ chưa lưu trong đó sẽ mất. Chỗ này được trả lại cho lớp, và bạn mở phiên mới lúc nào cũng được.',
   'me.sessions.confirm-keep': 'Để nguyên',
   'me.sessions.confirm-end': 'Kết thúc phiên',
 
@@ -111,11 +112,15 @@ export const me = {
   'me.expiry.now': 'hết hạn ngay bây giờ',
   'me.expiry.overdue': 'đã quá hạn, đang được dọn',
 
-  // ── `/me` · lịch sử học ───────────────────────────────────────────────────
-  'me.history.title': 'Lịch sử học',
+  // ── `/me` · lịch sử ───────────────────────────────────────────────────────
+  'me.history.title': 'Lịch sử',
+  'me.history.aside': 'Mới nhất ở trên. Điểm tính lại mỗi lần bạn mở trang.',
   'me.history.tab.lessons': 'Bài học',
   'me.history.tab.labs': 'Lab',
-  'me.history.tab.quizzes': 'Quiz',
+  'me.history.tab.quizzes': 'Trắc nghiệm',
+  'me.history.loading': 'Đang tải lịch sử',
+  'me.history.title-loading': 'Đang tải tên bài…',
+  'me.history.unreadable': 'Nội dung này không còn đọc được',
 
   /*
     Một trang RỖNG có ba nguyên nhân và giao diện cũ chỉ biết một. Câu được ghép
@@ -186,6 +191,20 @@ export const me = {
   'me.quizzes.score': (p: { correct: number; total: number; percent: number }) =>
     `${String(p.correct)}/${String(p.total)} câu đúng · ${String(p.percent)}%`,
 
+  // ── `/settings` · đầu trang và trạng thái lưu của từng khối ───────────────
+  'me.settings.kicker': 'Tài khoản',
+  'me.settings.title': 'Cài đặt',
+  'me.settings.back': 'Về bàn học',
+  'me.settings.loading': 'Đang tải hồ sơ…',
+  /*
+    Mỗi khối lưu riêng, nên mỗi khối tự nói nó đang ở đâu. Bốn trạng thái vì có
+    bốn ca thật: còn nháp chưa lưu, đang gửi, đã lưu, gửi hỏng.
+  */
+  'me.save.dirty': 'Chưa lưu',
+  'me.save.saving': 'Đang lưu…',
+  'me.save.saved': 'Đã lưu',
+  'me.save.failed': 'Lưu không được',
+
   // ── `/settings` · hồ sơ ───────────────────────────────────────────────────
   'me.profile.title': 'Hồ sơ',
   'me.profile.description': 'Tên này hiện trên bảng xếp hạng khi bạn cho phép.',
@@ -193,7 +212,6 @@ export const me = {
   'me.profile.name-empty': 'Tên không được để trống. Nhập ít nhất một ký tự.',
   'me.profile.email-label': 'Email',
   'me.profile.role-label': 'Vai trò',
-  'me.profile.saved': 'Đã lưu tên hiển thị.',
   'me.profile.save': 'Lưu tên',
 
   /*
@@ -225,7 +243,6 @@ export const me = {
 
   // ── `/settings` · tuỳ chọn ────────────────────────────────────────────────
   'me.preferences.title': 'Tuỳ chọn',
-  'me.preferences.dirty': 'Chưa lưu',
   'me.preferences.description':
     'Áp dụng cho phiên và terminal bạn mở sau khi lưu, không đổi thứ đang chạy.',
   'me.preferences.shell-label': 'Shell mặc định',
@@ -233,7 +250,6 @@ export const me = {
   'me.preferences.theme-follow': 'Theo giao diện trang',
   'me.preferences.leaderboard-label': 'Hiện tên tôi trên bảng xếp hạng',
   'me.preferences.save': 'Lưu tuỳ chọn',
-  'me.preferences.saved': 'Đã lưu tuỳ chọn.',
 
   'me.shell.bash': 'bash',
   'me.shell.zsh': 'zsh',
@@ -253,7 +269,7 @@ export const me = {
   'me.notice.shell-next-session': (p: { fallback: string }) =>
     `Shell được ghi vào máy ở lần mở phiên TIẾP THEO, không phải ngay bây giờ. Nếu lúc đó máy chưa kịp được cấp, lần mở đó bỏ qua tuỳ chọn và bạn nhận ${p.fallback} mặc định của máy. Mở lại phiên là áp được.`,
   'me.notice.shell-active-sessions': (p: { howMany: string }) =>
-    `Bạn đang có ${p.howMany} phiên chạy. Chúng giữ shell cũ cho tới khi kết thúc. Kết thúc phiên ở trang "Của tôi" rồi mở lại nếu muốn dùng ngay.`,
+    `Bạn đang có ${p.howMany} phiên chạy. Chúng giữ shell cũ cho tới khi kết thúc. Kết thúc phiên ở Bàn học rồi mở lại nếu muốn dùng ngay.`,
   /*
     `nextCursor !== null` nghĩa là con số đếm được là SÀN chứ không phải tổng.
     Nói "2 phiên" khi thật ra có 7 là một câu sai ở đúng ca cảnh báo này quan

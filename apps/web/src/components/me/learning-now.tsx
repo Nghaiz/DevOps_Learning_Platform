@@ -3,144 +3,138 @@
 import Link from 'next/link';
 import type { ReactElement } from 'react';
 import { err, t } from '@devops-platform/copy';
-import {
-  Button,
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  EmptyState,
-  ErrorState,
-  ProgressBar,
-  Skeleton,
-} from '@devops-platform/ui';
+import { Button, EmptyState, ErrorState, Meter, Num, Skeleton } from '@devops-platform/ui';
 import { api } from '../../lib/trpc-react';
 import { describeTrpcError } from '../../lib/trpc';
-import { MeSection } from './me-section';
+import { BoardSkeleton, RouteLine, lineForTopic, staggerStyle, type RouteStation } from '../kit';
+import { WithNums, numSlot } from '../admin/with-nums';
+import { buildPathItemViews, stationStateLabel } from '../../app/paths/[id]/path-view';
 import { summarizePathProgress } from './path-progress';
 
 /**
- * "Đang học" — lộ trình còn dở, đọc từ `paths.mine`.
+ * "Đang học": mỗi lộ trình học dở là một sơ đồ tuyến (design-brief §4.5).
  *
- * ⚠ `paths.mine` KHÔNG trả mọi lộ trình của tôi: nó lọc `passedCount > 0 &&
- * passedCount < itemCount`, tức chỉ những lộ trình ĐÃ BẮT ĐẦU và CHƯA XONG.
- * Tiêu đề và trạng thái rỗng phải nói đúng tập đó — gọi nó là "lộ trình của
- * tôi" sẽ làm người vừa đăng ký (chưa đạt phần nào) tưởng hệ thống mất dữ liệu
- * của họ.
+ * ⚠ `paths.mine` chỉ trả lộ trình ĐÃ BẮT ĐẦU và CHƯA XONG (`passedCount > 0 &&
+ * passedCount < itemCount`), không có cursor và không có danh sách ga. Danh sách
+ * ga (tên, trạng thái từng phần) đọc từ `paths.get` của TỪNG lộ trình; tập này
+ * nhỏ (chỉ lộ trình đang dở) nên mỗi dòng một lượt đọc là chấp nhận được.
  *
- * Nó cũng KHÔNG có cursor (`noCursorListInputSchema`) — lọc diễn ra SAU khi DB
- * đã cắt `limit`, nên một keyset ở tầng SQL sẽ sinh những trang vơi bất định
- * (chú thích ở `server/trpc/init.ts`). Vì vậy không có `CursorPager` ở đây, và
- * đó là quyết định của server chứ không phải một thiếu sót của trang này.
+ * Mọi con số TÍNH lúc đọc từ payload hiện tại (13.E mục 19), không giữ bản sao.
  */
 export function LearningNow(): ReactElement {
   const paths = api.paths.mine.useQuery({});
 
+  if (paths.isPending) {
+    return <BoardSkeleton rows={2} label={t('me.learning.loading')} />;
+  }
+
+  if (paths.isError) {
+    const entry = err('me.error.paths-load', { reason: describeTrpcError(paths.error) });
+    return (
+      <ErrorState
+        title={entry.what}
+        message={entry.next}
+        onRetry={() => void paths.refetch()}
+        retrying={paths.isFetching}
+      />
+    );
+  }
+
+  if (paths.data.items.length === 0) {
+    return (
+      <EmptyState
+        title={t('me.learning.empty-title')}
+        description={t('me.learning.empty-description')}
+        action={
+          <Button asChild variant="outline">
+            <Link href="/paths">{t('me.learning.empty-action')}</Link>
+          </Button>
+        }
+      />
+    );
+  }
+
   return (
-    <MeSection id="dang-hoc" title={t('me.learning.title')}>
-      {paths.isPending && (
-        <div className="flex flex-col gap-3">
-          <Skeleton className="h-24 w-full" />
-          <Skeleton className="h-24 w-full" />
-        </div>
-      )}
-
-      {paths.isError && <PathsError error={paths.error} onRetry={paths.refetch} retrying={paths.isFetching} />}
-
-      {paths.isSuccess &&
-        (paths.data.items.length === 0 ? (
-          <EmptyState
-            title={t('me.learning.empty-title')}
-            description={t('me.learning.empty-description')}
-            action={
-              <Button asChild variant="outline" size="sm">
-                <Link href="/paths">{t('me.learning.empty-action')}</Link>
-              </Button>
-            }
-          />
-        ) : (
-          <ul className="flex flex-col gap-3">
-            {paths.data.items.map((item) => (
-              <li key={item.id}>
-                <PathCard
-                  id={item.id}
-                  title={item.title}
-                  passedCount={item.passedCount}
-                  itemCount={item.itemCount}
-                  nextItemId={item.nextItemId}
-                />
-              </li>
-            ))}
-          </ul>
-        ))}
-    </MeSection>
+    <ol className="border-y border-border">
+      {paths.data.items.map((item, order) => (
+        <PathRoute key={item.id} path={item} order={order} />
+      ))}
+    </ol>
   );
 }
 
-/**
- * Hai nửa của `ErrorEntry` vào hai khe RIÊNG của `ErrorState`, không ghép.
- *
- * Ghép chúng lại thành một chuỗi ở nơi gọi là bỏ đúng sự phân biệt mà tầng kiểu
- * vừa ép ra: `what` là chuyện gì hỏng, `next` là làm gì tiếp, và người đọc quét
- * tiêu đề trước rồi mới đọc câu dưới.
- */
-function PathsError(props: {
-  readonly error: unknown;
-  readonly onRetry: () => unknown;
-  readonly retrying: boolean;
+function PathRoute(props: {
+  readonly order: number;
+  readonly path: {
+    readonly id: string;
+    readonly title: string;
+    readonly passedCount: number;
+    readonly itemCount: number;
+    readonly nextItemId: string | null;
+  };
 }): ReactElement {
-  const entry = err('me.error.paths-load', { reason: describeTrpcError(props.error) });
-  return (
-    <ErrorState
-      title={entry.what}
-      message={entry.next}
-      onRetry={() => void props.onRetry()}
-      retrying={props.retrying}
-    />
-  );
-}
-
-function PathCard(props: {
-  readonly id: string;
-  readonly title: string;
-  readonly passedCount: number;
-  readonly itemCount: number;
-  readonly nextItemId: string | null;
-}): ReactElement {
-  // TÍNH lúc render từ payload của lượt đọc hiện tại — không `useState`, không
-  // `useMemo` giữ một bản sao rồi khẳng định từ nó (13.E mục 19).
+  const { path, order } = props;
+  const detail = api.paths.get.useQuery({ pathId: path.id });
+  const views = detail.data ? buildPathItemViews(detail.data.items, detail.data.nextItemId) : null;
   const summary = summarizePathProgress({
-    passedCount: props.passedCount,
-    itemCount: props.itemCount,
-    nextItemId: props.nextItemId,
+    passedCount: path.passedCount,
+    itemCount: path.itemCount,
+    nextItemId: path.nextItemId,
+    nextTitle: views?.find((view) => view.isNext)?.title ?? null,
   });
+  const line = lineForTopic({ id: path.id });
+  const tone = line === 'ink' ? 'default' : line;
+  const stations: RouteStation[] =
+    views?.map((view) => ({
+      id: view.key,
+      label: view.title,
+      line: view.line,
+      state: view.marker,
+      ...(view.href === null ? {} : { href: view.href }),
+    })) ?? [];
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>
-          <Link
-            href={`/paths/${props.id}`}
-            className="rounded-md outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            {props.title}
-          </Link>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-2">
-        <ProgressBar value={summary.value} max={summary.max} label={summary.label} />
-        {summary.nextLabel !== null && (
-          <p
-            className={
-              summary.nextIsItemId
-                ? 'font-mono text-xs break-all text-muted-foreground'
-                : 'text-xs text-muted-foreground'
-            }
-          >
-            {summary.nextLabel}
-          </p>
+    <li className="stagger animate-rise border-b border-border py-7 last:border-b-0" style={staggerStyle(order)}>
+      <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
+        <Link
+          href={`/paths/${encodeURIComponent(path.id)}`}
+          className="type-title underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          {path.title}
+        </Link>
+        <p className="text-sm text-muted-foreground">
+          {path.itemCount === 0 ? (
+            summary.label
+          ) : (
+            <WithNums
+              text={t('me.path.passed', { passed: numSlot(0), total: numSlot(1) })}
+              nums={[
+                <Num key="passed" tone={tone} className="text-lg">
+                  {path.passedCount}
+                </Num>,
+                <Num key="total" className="text-lg">
+                  {path.itemCount}
+                </Num>,
+              ]}
+            />
+          )}
+        </p>
+      </div>
+      <div className="mt-5">
+        {stations.length > 0 ? (
+          <RouteLine
+            stations={stations}
+            label={t('me.learning.route-aria', { title: path.title })}
+            stateLabel={stationStateLabel}
+          />
+        ) : detail.isPending ? (
+          <Skeleton className="h-12 w-full" />
+        ) : (
+          // Không đọc được danh sách ga: vẫn còn hai con số thật của `paths.mine`.
+          <Meter value={summary.value} max={summary.max} segments={path.itemCount} label={summary.label} />
         )}
-      </CardContent>
-    </Card>
+      </div>
+      {summary.nextLabel !== null && <p className="mt-3 text-sm text-foreground">{summary.nextLabel}</p>}
+    </li>
   );
 }
