@@ -552,11 +552,20 @@ phải "bỏ quên".
 | `ContentView`/`SplitPane`/`StepNav`/`ProgressBar` | giữ API cũ (P2/2.D) — nơi gọi (trang bài học) bọc `Skeleton` NGOÀI cụm | n/a (bài học luôn có ít nhất một bước; danh sách rỗng là lỗi dữ liệu, chặn từ trước khi render) | nơi gọi bọc `ErrorState` NGOÀI cụm — tầng primitive không có trạng thái lỗi riêng | `StepNav` tự tính disable nút Trước/Tiếp theo vị trí `activeKey` |
 | `SearchTabs` | n/a (lọc chạy ở nơi gọi; khung chờ thuộc về danh sách BÊN DƯỚI, không thuộc thanh tìm) | n/a (thanh tìm luôn có ít nhất một tab; "không có kết quả" hiện bằng `EmptyState` của danh sách) | n/a (không I/O — nó chỉ phát `onSearch`/`onTabChange`) | n/a (gói ngoài `gooey-search-tabs@0.2.0` không có prop `disabled`; nơi gọi cần khoá thì không render nó — xem §4f) |
 | `ResourceIcon` | n/a (glyph tĩnh, không có pha tải) | n/a | n/a (`kind` là union đóng 26 giá trị nên không có nhánh "không biết loại") | n/a (không tương tác — không nhận focus, không có handler) |
+| `Chip` | n/a (bật/tắt tức thời; danh sách bên dưới tự hiện khung chờ) | n/a (nhãn bắt buộc; `count={0}` vẫn hiện số 0 — "lọc này không có gì" là thông tin) | n/a (không I/O) | `disabled` (native) |
+| `TopicBadge` | n/a (glyph tĩnh) | n/a (`line` là union đóng chín tuyến; chủ đề không rõ thì nơi gọi dùng `Badge variant="line"` không `line` ⇒ tuyến mực) | n/a | n/a (không tương tác) |
+| `LineMarker` | n/a (glyph tĩnh) | n/a | n/a | `state="locked"` (ô rỗng viền xám, mờ) — không phải control nên không có `disabled` |
+| `Difficulty` | n/a (glyph tĩnh) | n/a (`level` là union đóng bốn mức) | n/a | n/a (không tương tác) |
+| `StatusDot` | `tone="live"` nhấp nháy cho phiên đang chạy | `tone="idle"` | `tone="bad"` | n/a (không tương tác; luôn đứng cạnh chữ nói cùng trạng thái) |
+| `Meter` | n/a (vẽ từ `value`/`max` đã có; nơi gọi đặt `Skeleton` khi chưa có số) | `value=0` ⇒ thước rỗng; `max<=0` ⇒ thước rỗng, `aria-valuemax=0` | n/a (không I/O; giá trị ngoài [0, max] bị kẹp, không ném) | n/a (chỉ đọc) |
+| `Num` | n/a (số nằm trong câu; câu chờ tải thì nơi gọi thay cả câu bằng `Skeleton`) | n/a | n/a | n/a (không tương tác) |
+| `Sheet` (+Trigger/Content/Title/Description/Close) | nội dung bên trong tự quản (Skeleton nếu cần) | n/a | n/a | `SheetTrigger asChild` nhận `disabled` từ control con |
+| `Popover` (+Trigger/Content) | nội dung bên trong tự quản | n/a | n/a | `PopoverTrigger asChild` nhận `disabled` từ control con |
 
 ### 4b. `Button` — biến thể, `asChild`/`loading`, icon
 
 ```ts
-variant: 'primary' | 'secondary' | 'outline' | 'ghost' | 'destructive' | 'link'; // mặc định 'primary'
+variant: 'primary' | 'ink' | 'secondary' | 'outline' | 'ghost' | 'destructive' | 'link'; // mặc định 'primary'
 size: 'sm' | 'md' | 'lg' | 'icon'; // mặc định 'md'
 asChild?: boolean; // Radix Slot — render root là phần tử con (vd. <a>) thay vì <button>
 loading?: boolean; // disabled + Spinner đè giữa, giữ nguyên bề rộng nút
@@ -616,6 +625,25 @@ làm suite đỏ, chứ không trôi qua.
 Khi `loading`, icon nằm CÙNG nhánh với nhãn nên `text-transparent` của nút nuốt
 luôn màu nét của chúng. Đúng ý: cả cụm icon + nhãn mờ đi sau Spinner đè lên, thay
 vì icon còn nổi lên cạnh một cái nhãn đã tàng hình.
+
+#### Bản dựng lại PTIT (2026-10) — hình dạng và vi tương tác
+
+Nguồn: `plans/fe-ptit-rebuild/design-brief.md` + `contracts/ui-kit.md` §B.
+
+- **Vuông.** Bo góc đi qua `rounded-control` (nút, ô nhập, chip, badge, tab) và
+  `rounded-surface` (dialog, popover, menu, select, toast). Cả hai ra 0 trong app
+  và ra bậc bo cũ bên trong `.arena-root` của game K8s, nên game không đổi hình.
+- **Bóng chỉ ở lớp nổi.** `shadow-float` cho dialog, sheet, popover, dropdown,
+  select, tooltip, toast. Trong trang không còn `shadow-elevation-*` nào.
+- **`ink`** = khối mực đảo màu. `secondary` nay là nền `muted`; `outline` viền
+  mực, hover tô muted; `link` chữ `--brand` (đỏ an toàn cho chữ), gạch chân hiện
+  khi hover.
+- **`destructive`** = nền pha nhạt `bg-destructive/10` + viền `/50` + chữ đỏ +
+  icon `TriangleAlert`; hover đảo sang nền đặc. Vẫn khác `primary` bằng CẤU TRÚC
+  (khối đặc không viền / khối nhạt có viền + icon), xem §1c.
+- **Vi tương tác:** nhấn ⇒ lún 1px (`motion-safe:active:translate-y-px`); có
+  `iconRight` ⇒ icon nhích 2px khi hover (`group/button`). Cả hai sau
+  `motion-safe:`.
 
 ### 4c. `Badge` — bảy biến thể NGỮ NGHĨA, mỗi cái một hình riêng
 

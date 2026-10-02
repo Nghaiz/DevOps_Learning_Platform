@@ -34,12 +34,16 @@ describe('Skeleton — chuyển động', () => {
     ).toEqual([]);
   });
 
-  it('mặt khối là gradient bằng token, không phải một mảng xám phẳng', () => {
+  /**
+   * Bản dựng lại cấm gradient làm thẩm mỹ (design-brief §2.7) và cấm bo góc
+   * (§0.1): khối chờ là một ô `bg-muted` phẳng, vuông.
+   */
+  it('mặt khối là ô muted PHẲNG và vuông — không gradient, không bo góc', () => {
     const { container } = render(<Skeleton className="h-4 w-32" />);
     const classes = ((container.firstElementChild as HTMLElement).getAttribute('class') ?? '').split(/\s+/);
-    expect(classes).toContain('bg-linear-to-r');
-    expect(classes).toContain('from-muted');
-    expect(classes).toContain('to-muted');
+    expect(classes).toContain('bg-muted');
+    expect(classes.filter((name) => /^(bg-linear|bg-gradient|from-|via-|to-)/.test(name))).toEqual([]);
+    expect(classes.filter((name) => name.startsWith('rounded-'))).toEqual([]);
   });
 
   it('không phát ra màu hardcode', () => {

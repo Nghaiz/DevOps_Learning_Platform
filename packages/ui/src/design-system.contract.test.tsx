@@ -231,6 +231,9 @@ const NOT_IN_CHECKLIST: Readonly<Record<string, string>> = {
   RESOURCE_ICON: 'bảng DỮ LIỆU kind → glyph, không render gì; hợp đồng của nó là resource-icon.contract.test.ts',
   RESOURCE_KINDS: 'hằng mảng 26 khoá, mirror của union ở @devops-platform/games',
   RESOURCE_KIND_ACCENT: 'bảng DỮ LIỆU kind → tên token --kind-*, không render gì',
+  LINE_IDS: 'hằng mảng chín tuyến chủ đề (lines.ts), không render gì',
+  LINE_CODE: 'bảng DỮ LIỆU tuyến → mã ba chữ in trên biển, không render gì',
+  LINE_CLASSES: 'bảng DỮ LIỆU tuyến → chuỗi class literal, không render gì',
 };
 
 /** Tên export mà tài liệu PHẢI mô tả. */

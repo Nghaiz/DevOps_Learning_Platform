@@ -44,6 +44,7 @@ type PropsOf<C> = C extends (props: infer P) => unknown ? P : never;
  * xoá một nhánh khỏi union làm ĐÚNG dòng đó đỏ, chỉ tên biến thể đã mất.
  */
 const _buttonVariantPrimary: UI.ButtonVariant = 'primary';
+const _buttonVariantInk: UI.ButtonVariant = 'ink';
 const _buttonVariantSecondary: UI.ButtonVariant = 'secondary';
 const _buttonVariantOutline: UI.ButtonVariant = 'outline';
 const _buttonVariantGhost: UI.ButtonVariant = 'ghost';
@@ -76,6 +77,49 @@ const _badgeVariantSuccess: UI.BadgeVariant = 'success';
 const _badgeVariantWarning: UI.BadgeVariant = 'warning';
 const _badgeVariantDestructive: UI.BadgeVariant = 'destructive';
 const _badgeVariantOutline: UI.BadgeVariant = 'outline';
+const _badgeVariantLine: UI.BadgeVariant = 'line';
+const _badgeLineProps: UI.BadgeProps = { variant: 'line', line: 'docker', children: 'Docker' };
+
+// ─── Bản dựng lại PTIT — tuyến chủ đề + primitive mới (hợp đồng ui-kit §B) ────
+
+/** Chín tuyến, đúng thứ tự + đúng mã của hợp đồng. Thêm/bớt một tuyến thì dòng này đỏ ở runtime. */
+const _lineDocker: UI.LineId = 'docker';
+const _lineIac: UI.LineId = 'iac';
+
+const _chipProps: UI.ChipProps = {
+  selected: true,
+  onClick: () => {},
+  children: 'Docker',
+  count: 4,
+  size: 'sm',
+};
+/** Hợp đồng: `onClick` và `children` không có dấu `?`. */
+const _chipRequired: Requires<UI.ChipProps, 'onClick' | 'children'> = { onClick: true, children: true };
+
+const _topicBadgeProps: UI.TopicBadgeProps = { line: 'k8s', label: 'Kubernetes', size: 'md' };
+const _topicBadgeRequired: Requires<UI.TopicBadgeProps, 'line'> = { line: true };
+
+const _lineMarkerProps: UI.LineMarkerProps = { line: 'git', state: 'current' };
+const _lineMarkerStates: readonly UI.LineMarkerState[] = ['todo', 'current', 'done', 'locked'];
+
+const _difficultyProps: UI.DifficultyProps = { level: 'expert', showLabel: true, label: 'Rất khó' };
+const _difficultyLevels: readonly UI.DifficultyLevel[] = ['basic', 'intermediate', 'advanced', 'expert'];
+const _difficultyRequired: Requires<UI.DifficultyProps, 'level'> = { level: true };
+
+const _statusDotTones: readonly UI.StatusDotTone[] = ['ok', 'warn', 'bad', 'idle', 'live'];
+const _statusDotRequired: Requires<UI.StatusDotProps, 'tone'> = { tone: true };
+
+const _meterProps: UI.MeterProps = { value: 18, max: 30, segments: 10, tone: 'docker', label: 'Sức chứa' };
+const _meterToneStatus: UI.MeterTone = 'destructive';
+/** Hợp đồng: `value`, `max`, `label` bắt buộc — thước không có chữ nào khác ngoài tên trợ năng. */
+const _meterRequired: Requires<UI.MeterProps, 'value' | 'max' | 'label'> = { value: true, max: true, label: true };
+
+const _numProps: UI.NumProps = { children: 12, tone: 'primary' };
+const _numRequired: Requires<UI.NumProps, 'children'> = { children: true };
+
+const _sheetSides: readonly UI.SheetSide[] = ['right', 'bottom', 'full'];
+const _sheetContentProps: UI.SheetContentProps = { side: 'full', closeLabel: 'Đóng menu' };
+const _sheetProps: UI.SheetProps = { side: 'right', children: null };
 
 // ─── SearchTabs / ResourceIcon — P16 ─────────────────────────────────────────
 
@@ -296,6 +340,23 @@ const C2_EXPORTS = [
   // phải mô tả chúng, và cổng ở `design-system.contract.test.tsx` giữ điều đó.
   'SearchTabs',
   'ResourceIcon',
+  // ── Bản dựng lại PTIT (plans/fe-ptit-rebuild/contracts/ui-kit.md §B) ─────
+  'Chip',
+  'TopicBadge',
+  'LineMarker',
+  'Difficulty',
+  'StatusDot',
+  'Meter',
+  'Num',
+  'Sheet',
+  'SheetTrigger',
+  'SheetContent',
+  'SheetTitle',
+  'SheetDescription',
+  'SheetClose',
+  'Popover',
+  'PopoverTrigger',
+  'PopoverContent',
 ] as const;
 
 /** Export có thật nhưng KHÔNG nằm trong bảng C2 — hợp lệ, phải khai ở đây. */
@@ -319,6 +380,15 @@ const NON_C2_EXPORTS = [
   'RESOURCE_ICON',
   'RESOURCE_KINDS',
   'RESOURCE_KIND_ACCENT',
+  /*
+   * Ba bảng DỮ LIỆU của `lines.ts`: danh sách tuyến, mã in trên biển, và bảng
+   * class LITERAL theo tuyến. `LINE_CLASSES` được export vì Tailwind chỉ sinh
+   * luật cho class đọc thấy nguyên văn — kit ở apps/web cần màu tuyến cho
+   * BoardRow/RouteLine, và tự ghép `'bg-line-' + id` ra một class không có luật.
+   */
+  'LINE_IDS',
+  'LINE_CODE',
+  'LINE_CLASSES',
 ] as const;
 
 describe('C2 — bề mặt export của packages/ui', () => {
@@ -363,12 +433,13 @@ describe('C2 — chữ ký ràng buộc ở tầng kiểu', () => {
   it('các hằng biến thể giữ đúng giá trị chuỗi C2 quy định', () => {
     expect([
       _buttonVariantPrimary,
+      _buttonVariantInk,
       _buttonVariantSecondary,
       _buttonVariantOutline,
       _buttonVariantGhost,
       _buttonVariantDestructive,
       _buttonVariantLink,
-    ]).toEqual(['primary', 'secondary', 'outline', 'ghost', 'destructive', 'link']);
+    ]).toEqual(['primary', 'ink', 'secondary', 'outline', 'ghost', 'destructive', 'link']);
     expect([_buttonSizeSm, _buttonSizeMd, _buttonSizeLg, _buttonSizeIcon]).toEqual(['sm', 'md', 'lg', 'icon']);
     expect([
       _badgeVariantDefault,
@@ -377,7 +448,9 @@ describe('C2 — chữ ký ràng buộc ở tầng kiểu', () => {
       _badgeVariantWarning,
       _badgeVariantDestructive,
       _badgeVariantOutline,
-    ]).toEqual(['default', 'secondary', 'success', 'warning', 'destructive', 'outline']);
+      _badgeVariantLine,
+    ]).toEqual(['default', 'secondary', 'success', 'warning', 'destructive', 'outline', 'line']);
+    expect(_badgeLineProps.line).toBe('docker');
     expect([_alertVariantDefault, _alertVariantWarning, _alertVariantDestructive, _alertVariantSuccess]).toEqual(
       ['default', 'warning', 'destructive', 'success'],
     );
@@ -420,5 +493,60 @@ describe('C2 — chữ ký ràng buộc ở tầng kiểu', () => {
     ).toBe(true);
     expect(Object.values(_searchTabsRequired).every(Boolean)).toBe(true);
     expect(_resourceIconRequired.kind).toBe(true);
+    expect(
+      [
+        _chipRequired,
+        _topicBadgeRequired,
+        _difficultyRequired,
+        _statusDotRequired,
+        _meterRequired,
+        _numRequired,
+      ].every((flags) => Object.values(flags).every(Boolean)),
+    ).toBe(true);
+  });
+});
+
+describe('ui-kit §B — tuyến chủ đề và primitive mới', () => {
+  it('LINE_IDS / LINE_CODE đúng chín tuyến và đúng mã của hợp đồng', () => {
+    expect(UI.LINE_IDS).toEqual(['linux', 'docker', 'k8s', 'git', 'cicd', 'net', 'obs', 'sec', 'iac']);
+    expect(UI.LINE_CODE).toEqual({
+      linux: 'LNX',
+      docker: 'DKR',
+      k8s: 'K8S',
+      git: 'GIT',
+      cicd: 'CI',
+      net: 'NET',
+      obs: 'OBS',
+      sec: 'SEC',
+      iac: 'IAC',
+    });
+    expect([_lineDocker, _lineIac]).toEqual(['docker', 'iac']);
+  });
+
+  it('LINE_CLASSES có đủ bốn khe cho MỌI tuyến, là chuỗi literal đúng tên token', () => {
+    for (const line of UI.LINE_IDS) {
+      expect(UI.LINE_CLASSES[line]).toEqual({
+        fill: `bg-line-${line} text-line-${line}-foreground`,
+        bg: `bg-line-${line}`,
+        border: `border-line-${line}`,
+        ink: `text-line-${line}-ink`,
+      });
+    }
+  });
+
+  it('object prop mẫu của primitive mới giữ đúng hình dạng hợp đồng', () => {
+    expect(_chipProps.count).toBe(4);
+    expect(_topicBadgeProps.line).toBe('k8s');
+    expect(_lineMarkerProps.state).toBe('current');
+    expect(_lineMarkerStates).toHaveLength(4);
+    expect(_difficultyProps.level).toBe('expert');
+    expect(_difficultyLevels).toHaveLength(4);
+    expect(_statusDotTones).toHaveLength(5);
+    expect(_meterProps.segments).toBe(10);
+    expect(_meterToneStatus).toBe('destructive');
+    expect(_numProps.tone).toBe('primary');
+    expect(_sheetSides).toEqual(['right', 'bottom', 'full']);
+    expect(_sheetContentProps.side).toBe('full');
+    expect(_sheetProps.side).toBe('right');
   });
 });
