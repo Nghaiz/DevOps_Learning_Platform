@@ -115,3 +115,12 @@ content/quizzes/**     text eol=lf
 # là commit X") thành sai. CI (Linux) vẫn LF nên vẫn xanh — tức lỗi này KHÔNG có
 # cổng nào bắt được, y hệt bốn sự cố EOL ở trên.
 content/scenarios/** -text
+
+# Bài học FIRST-PARTY (`dlp-*`) KHÔNG phải tấm gương upstream: không có byte nào
+# phải khớp với ai. Nếu để chúng ăn theo `-text` ở trên thì một `verify.sh` soạn
+# trên Windows (`core.autocrlf=true`) được commit nguyên CRLF, và bash chấm bài
+# chết ở mọi dòng với `$'\r': command not found` — lỗi chỉ hiện trên sandbox,
+# không hiện ở máy soạn. `text=auto` (không phải `text`) để một ảnh PNG trong
+# `assets/` vẫn được nhận là nhị phân. Đứng SAU `-text` vì dòng khớp cuối thắng.
+# Cổng thật: `packages/scenario/src/content-lf.test.ts`.
+content/scenarios/dlp-*/** text=auto eol=lf
