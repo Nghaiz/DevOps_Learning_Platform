@@ -1,39 +1,37 @@
 # Smoke lab `smoke-fixture-broken` — TRƯỢT
 
 - Tiêu đề: Fixture của content-smoke: CỐ Ý hỏng
-- Lúc chạy: 2026-10-02T22:56:47.924Z · tổng 61.5s
-- Image: `ghcr.io/nghaiz/dlp-sandbox-base:sha-6f19cbe` · profile: `(mặc định)` · pod: `smoke-lab-smoke-fixture-broken-3e3caa`
-- Hạ tầng: pod Ready 10.8s · dockerd 4.4s · terminal 15.2s · loadavg node: 8.91 9.16 7.65 4/1650 966
+- Lúc chạy: 2026-10-02T23:08:19.688Z · tổng 68.5s
+- Image: `ghcr.io/nghaiz/dlp-sandbox-base:sha-6f19cbe` · profile: `(mặc định)` · pod: `smoke-lab-smoke-fixture-broken-90d161`
+- Hạ tầng: pod Ready 7.4s · dockerd 7.5s · terminal 14.7s · loadavg node: 15.70 11.63 9.57 13/1816 1115
 
-## Độ lệch (6)
+## Độ lệch (4)
 
 - **task:always-pass** `pre-pass` — verify ĐẠT trước khi người học làm gì — nó không phân biệt được trước/sau
 - **task:no-solution** `missing-solution` — thiếu task-no-solution/solution.sh (§C2: BẮT BUỘC)
 - **task:wrong-answer** `post-fail` — verify TRƯỢT sau khi đã làm (exit 1): ✗ /root/fx/answer.txt chứa 42 (hiện: '41')
-- **final:make-file** `regress` — verify TRƯỢT sau khi đã làm (exit 1): ✗ /root/fx/a.txt tồn tại
-- **final:no-solution** `regress` — verify TRƯỢT sau khi đã làm (exit 1): ✗ /root/fx/c.txt tồn tại
-- **final:wrong-answer** `regress` — verify TRƯỢT sau khi đã làm (exit 1): ✗ /root/fx/answer.txt chứa 42 (hiện: '41')
+- **final:make-file** `regress` — task đã đạt ở lượt của nó, nay TRƯỢT sau khi giải các task khác: ✗ /root/fx/a.txt tồn tại
 
 ## Từng bước
 
 | Đơn vị | Verify trước (phải trượt) | Thao tác | Verify sau (phải đạt) |
 |---|---|---|---|
 | setup — Dựng cảnh | — | — | — |
-| task:make-file — Tạo a.txt (đúng, nhưng sẽ bị task sau phá) | exit 1 · 0.8s 0/1✓ | 1 lệnh · 3.7s | exit 0 · 1.0s 1/1✓ |
-| task:clobber — Tạo b.txt (lời giải xoá luôn a.txt) | exit 1 · 1.6s 0/1✓ | 1 lệnh · 1.4s | exit 0 · 0.9s 1/1✓ |
-| task:always-pass — Verify không kiểm gì | exit 0 · 0.9s 1/1✓ ⚠ | 1 lệnh · 1.4s | exit 0 · 0.6s 1/1✓ |
-| task:no-solution — Thiếu solution.sh | exit 1 · 0.6s 0/1✓ | — | — |
-| task:wrong-answer — Lời giải làm sai yêu cầu | exit 1 · 0.8s 0/1✓ | 1 lệnh · 1.4s | exit 1 · 1.7s 0/1✓ ⚠ |
+| task:make-file — Tạo a.txt (đúng, nhưng sẽ bị task sau phá) | exit 1 · 0.8s 0/1✓ | 1 lệnh · 0.5s | exit 0 · 0.7s 1/1✓ |
+| task:clobber — Tạo b.txt (lời giải xoá luôn a.txt) | exit 1 · 0.7s 0/1✓ | 1 lệnh · 0.6s | exit 0 · 1.5s 1/1✓ |
+| task:always-pass — Verify không kiểm gì | exit 0 · 2.3s 1/1✓ ⚠ | 1 lệnh · 0.6s | exit 0 · 1.4s 1/1✓ |
+| task:no-solution — Thiếu solution.sh | exit 1 · 2.8s 0/1✓ | — | — |
+| task:wrong-answer — Lời giải làm sai yêu cầu | exit 1 · 1.1s 0/1✓ | 1 lệnh · 0.6s | exit 1 · 1.0s 0/1✓ ⚠ |
 
 ## Chấm lại mọi task sau khi giải xong
 
 | Task | Kết quả |
 |---|---|
-| make-file | exit 1 · 3.8s 0/1✓ ⚠ |
-| clobber | exit 0 · 1.4s 1/1✓ |
-| always-pass | exit 0 · 0.9s 1/1✓ |
-| no-solution | exit 1 · 0.7s 0/1✓ ⚠ |
-| wrong-answer | exit 1 · 0.7s 0/1✓ ⚠ |
+| make-file | exit 1 · 1.2s 0/1✓ ⚠ |
+| clobber | exit 0 · 1.3s 1/1✓ |
+| always-pass | exit 0 · 1.4s 1/1✓ |
+| no-solution | exit 1 · 2.9s 0/1✓ ⚠ |
+| wrong-answer | exit 1 · 1.3s 0/1✓ ⚠ |
 
 ## Chi tiết các đơn vị có vấn đề
 
@@ -45,7 +43,7 @@ verify trước — exit 1, 0.8s:
 ✗ /root/fx/a.txt tồn tại
 ```
 
-verify sau — exit 0, 1.0s:
+verify sau — exit 0, 0.7s:
 
 ```text
 ✓ /root/fx/a.txt tồn tại
@@ -53,13 +51,13 @@ verify sau — exit 0, 1.0s:
 
 ### task:always-pass — Verify không kiểm gì
 
-verify trước — exit 0, 0.9s:
+verify trước — exit 0, 2.3s:
 
 ```text
 ✓ luôn đạt
 ```
 
-verify sau — exit 0, 0.6s:
+verify sau — exit 0, 1.4s:
 
 ```text
 ✓ luôn đạt
@@ -67,7 +65,7 @@ verify sau — exit 0, 0.6s:
 
 ### task:no-solution — Thiếu solution.sh
 
-verify trước — exit 1, 0.6s:
+verify trước — exit 1, 2.8s:
 
 ```text
 ✗ /root/fx/c.txt tồn tại
@@ -75,13 +73,13 @@ verify trước — exit 1, 0.6s:
 
 ### task:wrong-answer — Lời giải làm sai yêu cầu
 
-verify trước — exit 1, 0.8s:
+verify trước — exit 1, 1.1s:
 
 ```text
 ✗ /root/fx/answer.txt chứa 42 (hiện: '')
 ```
 
-verify sau — exit 1, 1.7s:
+verify sau — exit 1, 1.0s:
 
 ```text
 ✗ /root/fx/answer.txt chứa 42 (hiện: '41')

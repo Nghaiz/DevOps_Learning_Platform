@@ -5,17 +5,19 @@
   "contentDir": "D:\\NCKH\\dlp-labs-e\\scripts\\content-smoke\\fixtures\\labs\\smoke-fixture-ok",
   "image": "ghcr.io/nghaiz/dlp-sandbox-base:sha-6f19cbe",
   "profile": "",
-  "pod": "smoke-lab-smoke-fixture-ok-6379ea",
-  "startedAt": "2026-10-02T22:55:41.963Z",
-  "durationMs": 52796,
+  "pod": "smoke-lab-smoke-fixture-ok-31011e",
+  "startedAt": "2026-10-02T23:08:19.691Z",
+  "durationMs": 55392,
   "verdict": "pass",
   "deviations": [],
   "warnings": [],
   "infra": {
-    "podReadyMs": 8991,
-    "dockerReadyMs": 6766,
-    "terminalMs": 17376,
-    "loadavg": "9.18 9.36 7.58 2/1647 961"
+    "podReadyMs": 9378,
+    "dockerReadyMs": 6331,
+    "agent": true,
+    "terminalMs": 14049,
+    "execBaselineMs": 2260,
+    "loadavg": "16.42 11.56 9.52 6/1837 950"
   },
   "units": [
     {
@@ -25,13 +27,13 @@
         {
           "kind": "background",
           "exitCode": 0,
-          "durationMs": 1745,
+          "durationMs": 1148,
           "output": ""
         },
         {
           "kind": "background-wait",
           "exitCode": 0,
-          "durationMs": 2261,
+          "durationMs": 813,
           "output": ""
         }
       ],
@@ -48,7 +50,8 @@
         "expect": "fail",
         "exitCode": 1,
         "passed": false,
-        "durationMs": 1256,
+        "durationMs": 879,
+        "podMs": 0,
         "slow": false,
         "criteria": [
           {
@@ -70,17 +73,18 @@
           "code": "#!/bin/bash\nset -euo pipefail\necho 'xin chao' > /root/fixture/greeting.txt\n",
           "rc": 0,
           "cwd": "/root",
-          "durationMs": 2682,
+          "durationMs": 375,
           "timedOut": false,
           "shellErrors": [],
-          "output": "❯  bash /root/.dlp-smoke/solutions/task-write-greeting.sh\n  dlp   ~                                                                                                                                                                                22:57:57\n❯"
+          "output": "❯  bash /root/.dlp-smoke/solutions/task-write-greeting.sh\n  dlp   ~                                                                                                                                                                                23:10:40\n❯"
         }
       ],
       "post": {
         "expect": "pass",
         "exitCode": 0,
         "passed": true,
-        "durationMs": 1392,
+        "durationMs": 814,
+        "podMs": 0,
         "slow": false,
         "criteria": [
           {
@@ -106,7 +110,8 @@
         "expect": "fail",
         "exitCode": 1,
         "passed": false,
-        "durationMs": 1273,
+        "durationMs": 1302,
+        "podMs": 0,
         "slow": false,
         "criteria": [
           {
@@ -132,17 +137,18 @@
           "code": "#!/bin/bash\nset -euo pipefail\nsed -i 's/^mode=.*/mode=published/' /root/fixture/config.ini\nchmod 600 /root/fixture/config.ini\n",
           "rc": 0,
           "cwd": "/root",
-          "durationMs": 1579,
+          "durationMs": 828,
           "timedOut": false,
           "shellErrors": [],
-          "output": "❯  bash /root/.dlp-smoke/solutions/task-publish-config.sh\n  dlp   ~                                                                                                                                                                                22:58:03\n❯"
+          "output": "❯  bash /root/.dlp-smoke/solutions/task-publish-config.sh\n  dlp   ~                                                                                                                                                                                23:10:43\n❯"
         }
       ],
       "post": {
         "expect": "pass",
         "exitCode": 0,
         "passed": true,
-        "durationMs": 1375,
+        "durationMs": 1543,
+        "podMs": 0,
         "slow": false,
         "criteria": [
           {
@@ -171,7 +177,8 @@
       "expect": "pass",
       "exitCode": 0,
       "passed": true,
-      "durationMs": 991,
+      "durationMs": 1162,
+      "podMs": 0,
       "slow": false,
       "criteria": [
         {
@@ -192,7 +199,8 @@
       "expect": "pass",
       "exitCode": 0,
       "passed": true,
-      "durationMs": 1242,
+      "durationMs": 1656,
+      "podMs": 0,
       "slow": false,
       "criteria": [
         {
