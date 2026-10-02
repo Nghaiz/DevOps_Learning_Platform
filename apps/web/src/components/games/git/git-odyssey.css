@@ -518,9 +518,9 @@
 }
 .git-panel-tabs {
   display: flex;
-  padding: 8px 12px 0;
+  padding: 0;
   border-bottom: 1px solid var(--git-border);
-  gap: 3px;
+  gap: 0;
 }
 .git-panel-tabs button {
   flex: 1;
@@ -531,11 +531,19 @@
   padding: 13px 5px;
   font-size: 11px;
   color: var(--git-muted);
-  border-bottom: 2px solid transparent;
+  font-weight: 600;
+  transition:
+    background 0.14s cubic-bezier(0.2, 0.8, 0.2, 1),
+    color 0.14s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
+.git-panel-tabs button:hover {
+  color: var(--git-ink);
+  background: var(--git-raised);
+}
+/* Tab đang mở = khối đặc màu chương, không phải gạch chân (design-brief §0.3). */
 .git-panel-tabs [aria-pressed='true'] {
-  color: var(--git-zone);
-  border-bottom-color: var(--git-zone);
+  color: var(--git-abyss);
+  background: var(--git-zone);
 }
 .git-panel-content {
   padding: 23px;
@@ -712,7 +720,7 @@
 }
 .git-ref-list button[data-current='true'] {
   border-color: var(--git-zone);
-  background: color-mix(in srgb, var(--git-zone) 7%, transparent);
+  background: color-mix(in srgb, var(--git-zone) 14%, transparent);
 }
 .git-ref-list button:hover {
   background: var(--git-raised);
