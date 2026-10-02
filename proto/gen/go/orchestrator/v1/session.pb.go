@@ -179,7 +179,18 @@ type Session struct {
 	// Kubernetes-trong-pod cần nhiều RAM hơn LimitRange mặc định). RỖNG = profile
 	// MẶC ĐỊNH: pod không mang resources tường minh, LimitRange của namespace là
 	// nơi DUY NHẤT quyết định requests/limits — y hệt hành vi trước P7 7.C.
-	Profile       string `protobuf:"bytes,10,opt,name=profile,proto3" json:"profile,omitempty"`
+	Profile string `protobuf:"bytes,10,opt,name=profile,proto3" json:"profile,omitempty"`
+	// Mốc trần cứng của phiên = `created_at + HARD_CAP` (cấu hình phía server).
+	// TÍNH LÚC ĐỌC từ config, KHÔNG lưu — cùng khuôn `soft_capacity`. Rỗng khi
+	// `created_at` rỗng.
+	//
+	// `ExtendSession` không bao giờ đẩy `expires_at` quá mốc này (`extend.lua`),
+	// nên đây là tuổi thọ TỐI ĐA của phiên. BFF dùng nó làm `exp` của sandbox
+	// token và `Max-Age` của cookie: `expires_at` lúc mint chỉ là hạn tới heartbeat
+	// đầu, và token hết hạn theo nó thì mọi lượt nối lại sau ~1h trả 401 trong khi
+	// phiên vẫn sống. HARD_CAP chỉ có ở orchestrator — field này là đường duy nhất
+	// để client biết mà không nhân bản cấu hình.
+	HardCapAt     *timestamppb.Timestamp `protobuf:"bytes,11,opt,name=hard_cap_at,json=hardCapAt,proto3" json:"hard_cap_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -282,6 +293,13 @@ func (x *Session) GetProfile() string {
 		return x.Profile
 	}
 	return ""
+}
+
+func (x *Session) GetHardCapAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.HardCapAt
+	}
+	return nil
 }
 
 type CreateSessionRequest struct {
@@ -1387,7 +1405,7 @@ var File_orchestrator_v1_session_proto protoreflect.FileDescriptor
 
 const file_orchestrator_v1_session_proto_rawDesc = "" +
 	"\n" +
-	"\x1dorchestrator/v1/session.proto\x12\x0forchestrator.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\x81\x03\n" +
+	"\x1dorchestrator/v1/session.proto\x12\x0forchestrator.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xbd\x03\n" +
 	"\aSession\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x126\n" +
@@ -1401,7 +1419,8 @@ const file_orchestrator_v1_session_proto_rawDesc = "" +
 	"created_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x12\x1a\n" +
 	"\brevision\x18\t \x01(\x03R\brevision\x12\x18\n" +
 	"\aprofile\x18\n" +
-	" \x01(\tR\aprofile\"\xc5\x01\n" +
+	" \x01(\tR\aprofile\x12:\n" +
+	"\vhard_cap_at\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\thardCapAt\"\xc5\x01\n" +
 	"\x14CreateSessionRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x120\n" +
 	"\x04tier\x18\x02 \x01(\x0e2\x1c.orchestrator.v1.SandboxTierR\x04tier\x12\x1f\n" +
@@ -1534,34 +1553,35 @@ var file_orchestrator_v1_session_proto_depIdxs = []int32{
 	19, // 1: orchestrator.v1.Session.expires_at:type_name -> google.protobuf.Timestamp
 	0,  // 2: orchestrator.v1.Session.tier:type_name -> orchestrator.v1.SandboxTier
 	19, // 3: orchestrator.v1.Session.created_at:type_name -> google.protobuf.Timestamp
-	0,  // 4: orchestrator.v1.CreateSessionRequest.tier:type_name -> orchestrator.v1.SandboxTier
-	2,  // 5: orchestrator.v1.CreateSessionResponse.session:type_name -> orchestrator.v1.Session
-	2,  // 6: orchestrator.v1.ClaimSessionResponse.session:type_name -> orchestrator.v1.Session
-	2,  // 7: orchestrator.v1.GetSessionResponse.session:type_name -> orchestrator.v1.Session
-	2,  // 8: orchestrator.v1.ReapSessionResponse.session:type_name -> orchestrator.v1.Session
-	2,  // 9: orchestrator.v1.ExtendSessionResponse.session:type_name -> orchestrator.v1.Session
-	18, // 10: orchestrator.v1.GetCapacityResponse.profile_capacity:type_name -> orchestrator.v1.GetCapacityResponse.ProfileCapacityEntry
-	2,  // 11: orchestrator.v1.ListSessionsResponse.sessions:type_name -> orchestrator.v1.Session
-	15, // 12: orchestrator.v1.GetCapacityResponse.ProfileCapacityEntry.value:type_name -> orchestrator.v1.ProfileCapacity
-	3,  // 13: orchestrator.v1.SessionService.CreateSession:input_type -> orchestrator.v1.CreateSessionRequest
-	5,  // 14: orchestrator.v1.SessionService.ClaimSession:input_type -> orchestrator.v1.ClaimSessionRequest
-	7,  // 15: orchestrator.v1.SessionService.GetSession:input_type -> orchestrator.v1.GetSessionRequest
-	11, // 16: orchestrator.v1.SessionService.ExtendSession:input_type -> orchestrator.v1.ExtendSessionRequest
-	9,  // 17: orchestrator.v1.SessionService.ReapSession:input_type -> orchestrator.v1.ReapSessionRequest
-	13, // 18: orchestrator.v1.SessionService.GetCapacity:input_type -> orchestrator.v1.GetCapacityRequest
-	16, // 19: orchestrator.v1.SessionService.ListSessions:input_type -> orchestrator.v1.ListSessionsRequest
-	4,  // 20: orchestrator.v1.SessionService.CreateSession:output_type -> orchestrator.v1.CreateSessionResponse
-	6,  // 21: orchestrator.v1.SessionService.ClaimSession:output_type -> orchestrator.v1.ClaimSessionResponse
-	8,  // 22: orchestrator.v1.SessionService.GetSession:output_type -> orchestrator.v1.GetSessionResponse
-	12, // 23: orchestrator.v1.SessionService.ExtendSession:output_type -> orchestrator.v1.ExtendSessionResponse
-	10, // 24: orchestrator.v1.SessionService.ReapSession:output_type -> orchestrator.v1.ReapSessionResponse
-	14, // 25: orchestrator.v1.SessionService.GetCapacity:output_type -> orchestrator.v1.GetCapacityResponse
-	17, // 26: orchestrator.v1.SessionService.ListSessions:output_type -> orchestrator.v1.ListSessionsResponse
-	20, // [20:27] is the sub-list for method output_type
-	13, // [13:20] is the sub-list for method input_type
-	13, // [13:13] is the sub-list for extension type_name
-	13, // [13:13] is the sub-list for extension extendee
-	0,  // [0:13] is the sub-list for field type_name
+	19, // 4: orchestrator.v1.Session.hard_cap_at:type_name -> google.protobuf.Timestamp
+	0,  // 5: orchestrator.v1.CreateSessionRequest.tier:type_name -> orchestrator.v1.SandboxTier
+	2,  // 6: orchestrator.v1.CreateSessionResponse.session:type_name -> orchestrator.v1.Session
+	2,  // 7: orchestrator.v1.ClaimSessionResponse.session:type_name -> orchestrator.v1.Session
+	2,  // 8: orchestrator.v1.GetSessionResponse.session:type_name -> orchestrator.v1.Session
+	2,  // 9: orchestrator.v1.ReapSessionResponse.session:type_name -> orchestrator.v1.Session
+	2,  // 10: orchestrator.v1.ExtendSessionResponse.session:type_name -> orchestrator.v1.Session
+	18, // 11: orchestrator.v1.GetCapacityResponse.profile_capacity:type_name -> orchestrator.v1.GetCapacityResponse.ProfileCapacityEntry
+	2,  // 12: orchestrator.v1.ListSessionsResponse.sessions:type_name -> orchestrator.v1.Session
+	15, // 13: orchestrator.v1.GetCapacityResponse.ProfileCapacityEntry.value:type_name -> orchestrator.v1.ProfileCapacity
+	3,  // 14: orchestrator.v1.SessionService.CreateSession:input_type -> orchestrator.v1.CreateSessionRequest
+	5,  // 15: orchestrator.v1.SessionService.ClaimSession:input_type -> orchestrator.v1.ClaimSessionRequest
+	7,  // 16: orchestrator.v1.SessionService.GetSession:input_type -> orchestrator.v1.GetSessionRequest
+	11, // 17: orchestrator.v1.SessionService.ExtendSession:input_type -> orchestrator.v1.ExtendSessionRequest
+	9,  // 18: orchestrator.v1.SessionService.ReapSession:input_type -> orchestrator.v1.ReapSessionRequest
+	13, // 19: orchestrator.v1.SessionService.GetCapacity:input_type -> orchestrator.v1.GetCapacityRequest
+	16, // 20: orchestrator.v1.SessionService.ListSessions:input_type -> orchestrator.v1.ListSessionsRequest
+	4,  // 21: orchestrator.v1.SessionService.CreateSession:output_type -> orchestrator.v1.CreateSessionResponse
+	6,  // 22: orchestrator.v1.SessionService.ClaimSession:output_type -> orchestrator.v1.ClaimSessionResponse
+	8,  // 23: orchestrator.v1.SessionService.GetSession:output_type -> orchestrator.v1.GetSessionResponse
+	12, // 24: orchestrator.v1.SessionService.ExtendSession:output_type -> orchestrator.v1.ExtendSessionResponse
+	10, // 25: orchestrator.v1.SessionService.ReapSession:output_type -> orchestrator.v1.ReapSessionResponse
+	14, // 26: orchestrator.v1.SessionService.GetCapacity:output_type -> orchestrator.v1.GetCapacityResponse
+	17, // 27: orchestrator.v1.SessionService.ListSessions:output_type -> orchestrator.v1.ListSessionsResponse
+	21, // [21:28] is the sub-list for method output_type
+	14, // [14:21] is the sub-list for method input_type
+	14, // [14:14] is the sub-list for extension type_name
+	14, // [14:14] is the sub-list for extension extendee
+	0,  // [0:14] is the sub-list for field type_name
 }
 
 func init() { file_orchestrator_v1_session_proto_init() }

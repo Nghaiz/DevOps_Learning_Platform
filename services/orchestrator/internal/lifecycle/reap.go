@@ -219,7 +219,7 @@ func (s *Service) Reap(
 		slog.String("session_user_id", sess.UserID),
 		slog.Bool("already_reaped", alreadyReaped))
 
-	return sess.ToProto(), nil
+	return sess.ToProto(s.cfg.HardCap), nil
 }
 
 // cleanupPod xoá pod và mọi dấu vết của nó trong Redis. Idempotent ở mọi bước.

@@ -66,6 +66,18 @@ message Session {
   // MẶC ĐỊNH: pod không mang resources tường minh, LimitRange của namespace là
   // nơi DUY NHẤT quyết định requests/limits — y hệt hành vi trước P7 7.C.
   string profile = 10;
+
+  // Mốc trần cứng của phiên = `created_at + HARD_CAP` (cấu hình phía server).
+  // TÍNH LÚC ĐỌC từ config, KHÔNG lưu — cùng khuôn `soft_capacity`. Rỗng khi
+  // `created_at` rỗng.
+  //
+  // `ExtendSession` không bao giờ đẩy `expires_at` quá mốc này (`extend.lua`),
+  // nên đây là tuổi thọ TỐI ĐA của phiên. BFF dùng nó làm `exp` của sandbox
+  // token và `Max-Age` của cookie: `expires_at` lúc mint chỉ là hạn tới heartbeat
+  // đầu, và token hết hạn theo nó thì mọi lượt nối lại sau ~1h trả 401 trong khi
+  // phiên vẫn sống. HARD_CAP chỉ có ở orchestrator — field này là đường duy nhất
+  // để client biết mà không nhân bản cấu hình.
+  google.protobuf.Timestamp hard_cap_at = 11;
 }
 
 message CreateSessionRequest {
