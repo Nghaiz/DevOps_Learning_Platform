@@ -166,6 +166,48 @@ describe('handshake', () => {
   });
 });
 
+describe('H1 — resize lúc CONNECTING không được rơi mất', () => {
+  /**
+   * `initialSize` là ảnh chụp lúc `openConnection` — TRƯỚC khi font tải xong
+   * (font-display:block). Lượt refit sau font bắn `resize` khi socket còn
+   * CONNECTING; bản cũ bỏ nó, trong khi `terminal-core` đã ghi `lastNotified`
+   * nên sẽ không bao giờ gửi lại. Pod sống trọn phiên ở kích thước sai.
+   */
+  it('resize trước `open` ⇒ `init` mang kích thước MỚI NHẤT, không có frame resize thừa', () => {
+    const { connection, socket } = setup({ cols: 81, rows: 18 });
+    connection.sendResize({ cols: 90, rows: 20 });
+    connection.sendResize({ cols: 76, rows: 20 });
+    expect(socket.sent).toHaveLength(0);
+
+    socket.open();
+    expect(socket.sent).toEqual([JSON.stringify({ type: 'init', cols: 76, rows: 20 })]);
+  });
+
+  it('`onOpen` báo đúng kích thước `init` đã mang đi (đã clamp) — mốc dedup cho kết nối này', () => {
+    FakeSocket.instances = [];
+    const onOpen = vi.fn();
+    const connection = openConnection({
+      url: 'wss://lab.example/ws/session/s1',
+      initialSize: { cols: 80, rows: 24 },
+      onControl: () => undefined,
+      onBinary: () => undefined,
+      onClose: () => undefined,
+      onOpen,
+      socketFactory: (url, protocols) => new FakeSocket(url, protocols) as unknown as WebSocket,
+    });
+    connection.sendResize({ cols: 5000, rows: 30 });
+    FakeSocket.instances[0]?.open();
+    expect(onOpen).toHaveBeenCalledExactlyOnceWith({ cols: 1000, rows: 30 });
+  });
+
+  it('ĐỐI CHỨNG: resize SAU `open` vẫn đi thành frame `resize` riêng', () => {
+    const { connection, socket } = setup();
+    socket.open();
+    connection.sendResize({ cols: 100, rows: 30 });
+    expect(socket.sent[1]).toBe(JSON.stringify({ type: 'resize', cols: 100, rows: 30 }));
+  });
+});
+
 describe('stdin — contract §1 bẫy 1', () => {
   it('gửi stdin dưới dạng BINARY, không phải text frame', () => {
     // `term.onData` trả string; gửi thẳng thành text frame và server đọc nó như

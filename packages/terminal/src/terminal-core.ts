@@ -65,6 +65,13 @@ export interface TerminalCore {
    * kích thước không đổi ⇒ KHÔNG phát.
    */
   refitAfterFontLoad(): void;
+  /**
+   * H1 — đặt lại mốc dedup `resize` về kích thước mà server VỪA nhận qua `init`
+   * của một kết nối mới. Mốc cũ thuộc về kết nối trước; giữ nó thì một lượt đổi
+   * cỡ trùng mốc cũ bị dedup trong khi pod đang ở số của `init`. Đã `dispose()` ⇒
+   * no-op.
+   */
+  syncResizeBaseline(size: TerminalDimensions): void;
   setTheme(name: ThemeName): void;
   search(query: string): void;
   write(chunk: Uint8Array): void;
@@ -405,6 +412,13 @@ export function createTerminalCore(options: TerminalCoreOptions): TerminalCore {
         return;
       }
       notifyResize(size);
+    },
+
+    syncResizeBaseline(size: TerminalDimensions): void {
+      if (disposed) {
+        return;
+      }
+      lastNotified = { cols: size.cols, rows: size.rows };
     },
 
     setTheme(name: ThemeName): void {
