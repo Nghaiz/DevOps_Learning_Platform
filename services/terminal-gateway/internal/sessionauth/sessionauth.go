@@ -127,31 +127,84 @@ func (d Deps) CheckOrigin(r *http.Request) *Denial {
 	}
 }
 
+// maxSessionCookies là trần số cookie `dlp_sandbox` được thử trên MỘT request.
+//
+// Mỗi phiên có cookie riêng (`Path=/ws/session/<id>`, `Path=/ide/session/<id>`),
+// nên request bình thường mang đúng một cookie; thêm một nữa khi cookie `Path=/ws`
+// hay `Path=/ide` rộng của bản cũ chưa hết Max-Age. Bốn là dư cho cả hai, và chặn
+// một header nhồi hàng trăm cookie biến thành hàng trăm lượt verify chữ ký.
+const maxSessionCookies = 4
+
+// pickToken là bước c+d: chọn token CẤP CHO `sessionID` trong mọi cookie cùng tên.
+//
+// ⛔ VÌ SAO KHÔNG `r.Cookie(CookieName)`: nó trả cookie ĐẦU TIÊN, và trình duyệt có
+// thể gửi nhiều cookie cùng tên — cookie theo phiên cùng cookie path rộng của bản
+// cũ. RFC 6265 §5.4 xếp path dài lên trước nên thường cookie đầu là đúng, nhưng
+// thứ tự header là việc của user-agent/proxy, không phải hợp đồng của ta: đặt
+// ngược thứ tự là 403 cho đúng người đang cầm đúng chìa. Nên chọn theo `sid`.
+//
+// Ngữ nghĩa mã trả về giữ nguyên bản một-cookie: không cookie nào ⇒ 401 thiếu
+// cookie; không token nào verify được ⇒ 401 token hỏng; có token hợp lệ nhưng
+// không token nào cấp cho phiên này ⇒ trả token hợp lệ ĐẦU TIÊN để bước e từ chối
+// 403 như cũ.
+func (d Deps) pickToken(ctx context.Context, r *http.Request, sessionID string) (*authz.Claims, *Denial) {
+	var (
+		tried      int
+		firstValid *authz.Claims
+		firstErr   error
+	)
+	for _, c := range r.CookiesNamed(CookieName) {
+		if c.Value == "" {
+			continue
+		}
+		if tried == maxSessionCookies {
+			break
+		}
+		tried++
+		claims, err := d.Verifier.Verify(ctx, c.Value)
+		if err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		if claims.SessionID == sessionID {
+			return claims, nil
+		}
+		if firstValid == nil {
+			firstValid = claims
+		}
+	}
+
+	switch {
+	case tried == 0:
+		return nil, &Denial{
+			Status:  http.StatusUnauthorized,
+			Code:    CodeUnauthenticated,
+			Message: "thiếu cookie " + CookieName,
+		}
+	case firstValid == nil:
+		return nil, &Denial{
+			Status:   http.StatusUnauthorized,
+			Code:     CodeUnauthenticated,
+			Message:  "token không hợp lệ",
+			LogAttrs: []string{"reason", firstErr.Error()},
+		}
+	default:
+		return firstValid, nil
+	}
+}
+
 // CheckSession chạy bước c→h và trả session đã xác thực.
 //
 // Ba đường ra, phân biệt được: qua (Result, nil, nil) · bị từ chối có kết luận
 // (nil, *Denial, nil) · lỗi hạ tầng (nil, nil, error) — caller ánh xạ vế thứ ba
 // sang `fail`/500 của chính nó, vì chỉ nó biết series metric nào phải tăng.
 func (d Deps) CheckSession(ctx context.Context, r *http.Request, sessionID string) (*Result, *Denial, error) {
-	// ---- c. Cookie ------------------------------------------------------
-	cookie, err := r.Cookie(CookieName)
-	if err != nil || cookie.Value == "" {
-		return nil, &Denial{
-			Status:  http.StatusUnauthorized,
-			Code:    CodeUnauthenticated,
-			Message: "thiếu cookie " + CookieName,
-		}, nil
-	}
-
-	// ---- d. Token hợp lệ ------------------------------------------------
-	claims, err := d.Verifier.Verify(ctx, cookie.Value)
-	if err != nil {
-		return nil, &Denial{
-			Status:   http.StatusUnauthorized,
-			Code:     CodeUnauthenticated,
-			Message:  "token không hợp lệ",
-			LogAttrs: []string{"reason", err.Error()},
-		}, nil
+	// ---- c + d. Cookie và token hợp lệ ----------------------------------
+	claims, denial := d.pickToken(ctx, r, sessionID)
+	if denial != nil {
+		return nil, denial, nil
 	}
 
 	// ---- e. token.sid == {id} -------------------------------------------
