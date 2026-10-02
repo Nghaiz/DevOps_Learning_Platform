@@ -371,6 +371,7 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
       {selected !== undefined && (
         <TaskDetail
           display={selected}
+          diagrams={lab.diagrams}
           outcome={checkOutcomes[selected.task.id] ?? null}
           canCheck={attemptId !== null && !submitted && !setupPending}
           disabledReason={
@@ -598,6 +599,7 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
 /** Đề bài + gợi ý + nút chấm của MỘT nhiệm vụ đang chọn. */
 function TaskDetail({
   display,
+  diagrams,
   outcome,
   canCheck,
   disabledReason,
@@ -606,6 +608,8 @@ function TaskDetail({
   execEnabled,
 }: {
   display: TaskDisplay;
+  /** Sơ đồ của lab (`LabForLearner.diagrams`) — task chỉ tham chiếu, map nằm ở cấp lab. */
+  diagrams: Readonly<Record<string, { readonly svg: string }>>;
   outcome: CheckOutcome | null;
   canCheck: boolean;
   disabledReason: string | null;
@@ -631,18 +635,12 @@ function TaskDetail({
       </div>
 
       <ContentView
+        diagrams={diagrams}
         blocks={parseContentBlocks(display.task.markdown)}
         resolveAssetUrl={() => null}
         onExec={onExec}
         execEnabled={execEnabled}
       />
-
-      {display.task.hint !== null && (
-        <details className="mt-3 text-xs text-muted-foreground">
-          <summary className="cursor-pointer font-medium">{t('session.lab.hint')}</summary>
-          <p className="mt-1">{display.task.hint}</p>
-        </details>
-      )}
 
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <Button

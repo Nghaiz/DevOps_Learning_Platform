@@ -1,4 +1,14 @@
-import type { Lab, LabAttemptStatus, LabScore } from '@devops-platform/shared-types/lab';
+import type { Lab, LabAttemptStatus, LabScore, LabTask } from '@devops-platform/shared-types/lab';
+
+/**
+ * Phần của một lab mà phép tính điểm thật sự đọc: id + trọng số từng task, và
+ * mốc đạt. Kiểu CẤU TRÚC thay vì `Lab`, để cả DTO đầy đủ (server) lẫn
+ * `LabForLearner` (trình duyệt, không mang script chấm) cùng tính được điểm
+ * bằng MỘT hàm — một bản chép cho client là nguồn sự thật thứ hai.
+ */
+export type ScorableLab = Pick<Lab, 'passThresholdPercent'> & {
+  readonly tasks: readonly Pick<LabTask, 'id' | 'weight'>[];
+};
 
 /**
  * Bốn hàm THUẦN tính điểm một lần thử lab — KHÔNG chạm DB, KHÔNG chạm mạng.
@@ -69,7 +79,7 @@ export function latestResultPerTask<T extends { taskId: string; checkedAt: Insta
  * "79%" và trượt, không phải "80%" rồi vẫn trượt.
  */
 export function computeLabScore(
-  lab: Lab,
+  lab: ScorableLab,
   results: readonly { taskId: string; exitCode: number; checkedAt: Instant }[],
 ): LabScore {
   const latest = latestResultPerTask(results);
@@ -102,7 +112,7 @@ export function computeLabScore(
  * của mình, xem `labSchema.passThresholdPercent`).
  */
 export function computeLabStatus(
-  lab: Lab,
+  lab: Pick<ScorableLab, 'passThresholdPercent'>,
   score: LabScore,
   submittedAt: Date | null,
 ): LabAttemptStatus {
