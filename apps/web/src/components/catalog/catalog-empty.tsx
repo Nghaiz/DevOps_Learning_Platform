@@ -7,29 +7,16 @@ import { Button, EmptyState } from '@devops-platform/ui';
 import { describeCatalogEmpty, type CatalogKind } from './catalog-labels';
 
 /**
- * Trạng thái rỗng của trang danh mục.
- *
- * Câu chữ và lựa chọn hành động là hàm THUẦN (`describeCatalogEmpty`) có test
- * riêng; component này chỉ dịch quyết định đó thành nút/link. Tách ra vì thứ dễ
- * sai ở đây là *nói gì với ai*, và điều đó phải kiểm được mà không cần dựng DOM
- * (`apps/web` chạy vitest ở môi trường node theo mặc định).
- *
- * ## `loaded` khác `0`, và đó là ca mới của 16.C
- *
- * Trước lượt này, "lưới rỗng" chỉ có một nghĩa: server trả về 0 mục. Từ khi có ô
- * tìm, nó có hai nghĩa, và hai nghĩa đó đòi hai câu khác nhau. `loaded` (số mục
- * server trả về TRƯỚC khi ô tìm lọc) là thứ duy nhất phân biệt được chúng, nên
- * nó là prop bắt buộc chứ không phải tuỳ chọn: bỏ sót nó sẽ làm mọi lượt tìm
- * hụt đọc thành "kho chưa có gì".
+ * Trạng thái rỗng của danh mục: thứ đang thiếu + một việc làm tiếp. Câu chữ và
+ * hành động chọn ở `describeCatalogEmpty` (hàm thuần, có test); file này chỉ nối
+ * hành động vào nút.
  */
 export function CatalogEmptyState(props: {
   readonly kind: CatalogKind;
   readonly page: number;
   readonly hasActiveFilter: boolean;
   readonly canAuthor: boolean;
-  /** Từ khoá ĐÃ CHUẨN HOÁ. `''` = ô tìm rỗng. */
   readonly query: string;
-  /** Số mục server trả về trang này, TRƯỚC khi ô tìm lọc. */
   readonly loaded: number;
   readonly hasNext: boolean;
   readonly onClearFilters: () => void;
@@ -50,35 +37,35 @@ export function CatalogEmptyState(props: {
   switch (empty.action.kind) {
     case 'clear-filter':
       action = (
-        <Button variant="outline" size="sm" onClick={props.onClearFilters}>
+        <Button variant="outline" onClick={props.onClearFilters}>
           {t('catalog.action.clear-filter')}
         </Button>
       );
       break;
     case 'clear-search':
       action = (
-        <Button variant="outline" size="sm" onClick={props.onClearSearch}>
+        <Button variant="outline" onClick={props.onClearSearch}>
           {t('catalog.action.clear-search')}
         </Button>
       );
       break;
     case 'first-page':
       action = (
-        <Button variant="outline" size="sm" onClick={props.onFirstPage}>
+        <Button variant="outline" onClick={props.onFirstPage}>
           {t('catalog.action.first-page')}
         </Button>
       );
       break;
     case 'author':
       action = (
-        <Button variant="primary" size="sm" asChild>
+        <Button variant="primary" asChild>
           <Link href="/author">{t('catalog.action.author')}</Link>
         </Button>
       );
       break;
     case 'browse':
       action = (
-        <Button variant="outline" size="sm" asChild>
+        <Button variant="outline" asChild>
           <Link href={empty.action.href}>{renderCopy({ key: empty.action.labelKey })}</Link>
         </Button>
       );

@@ -1,19 +1,17 @@
 'use client';
 
-import { useMemo } from 'react';
 import type { inferRouterOutputs } from '@trpc/server';
 import { t } from '@devops-platform/copy';
 import type { AppRouter } from '../../server/trpc/routers/app-router';
 import { api } from '../../lib/trpc-react';
-import { describeTrpcError, trpcErrorCode } from '../../lib/trpc';
-import { CatalogPage, CatalogScopeNotes } from '../../components/catalog/catalog-page';
-import { CatalogCard, CatalogGrid, CatalogGridSkeleton } from '../../components/catalog/catalog-grid';
+import { BoardMeta, BoardRow, PageContainer } from '../../components/kit';
+import { CatalogPoster } from '../../components/catalog/catalog-poster';
 import { CatalogToolbar } from '../../components/catalog/catalog-toolbar';
-import { CatalogEmptyState } from '../../components/catalog/catalog-empty';
-import { CatalogError } from '../../components/catalog/catalog-error';
-import { CatalogPager } from '../../components/catalog/catalog-pager';
-import type { CatalogMetaItem } from '../../components/catalog/catalog-grid';
+import { CatalogResults } from '../../components/catalog/catalog-results';
+import { LeaderboardFlag, RowDifficulty, contentLine } from '../../components/catalog/catalog-row';
+import { describeLoadedScope, tierLabel } from '../../components/catalog/catalog-labels';
 import { buildCatalogListInput } from '../../components/catalog/catalog-input';
+import { combineCatalogPages } from '../../components/catalog/catalog-pages';
 import { searchPage } from '../../components/catalog/catalog-search';
 import { useCatalogControls } from '../../components/catalog/use-catalog-controls';
 import {
@@ -25,27 +23,8 @@ import {
   sortPage,
   type SortOption,
 } from '../../components/catalog/catalog-sort';
-import { catalogErrorTitle, catalogLead, catalogTitle, tierLabel } from '../../components/catalog/catalog-labels';
 
 type LabRow = inferRouterOutputs<AppRouter>['labs']['list']['items'][number];
-
-/** Bốn ô thông tin của thẻ lab. `estimatedMinutes` có thể `null`; xem ghi chú cùng tên ở `lessons-client.tsx`. */
-function labMeta(item: LabRow): readonly CatalogMetaItem[] {
-  const meta: CatalogMetaItem[] = [
-    { icon: 'tasks', label: t('unit.task', { n: item.taskCount }) },
-    { icon: 'threshold', label: t('catalog.meta.threshold', { percent: item.passThresholdPercent }) },
-  ];
-  if (item.estimatedMinutes !== null) {
-    meta.push({ icon: 'duration', label: t('catalog.meta.duration', { minutes: item.estimatedMinutes }) });
-  }
-  meta.push({ icon: 'sandbox', label: tierLabel(item.tier) });
-  return meta;
-}
-
-/** Xem `lessonSearchFields` ở `lessons-client.tsx` về việc vì sao tập trường này bằng đúng thứ hiện trên thẻ. */
-function labSearchFields(item: LabRow): readonly (string | null)[] {
-  return [item.title, item.description, ...item.capabilities];
-}
 
 const SORT_OPTIONS: readonly SortOption<LabRow>[] = [
   { key: 'title', label: t('catalog.sort.title'), compare: compareTitle },
@@ -54,117 +33,99 @@ const SORT_OPTIONS: readonly SortOption<LabRow>[] = [
   { key: 'tasks', label: t('catalog.sort.tasks'), compare: compareCount((item) => item.taskCount) },
 ];
 
-/**
- * Trang danh sách `/labs`, cùng khuôn `lessons-client.tsx`, gồm cả ràng buộc
- * `useQuery` (không `useInfiniteQuery`), lọc ở SERVER, và ô tìm chỉ soi trang
- * đang tải. Lý lẽ đầy đủ nằm ở bản gốc, không chép lại ở đây.
- *
- * Khác lessons ở một điểm đáng giữ: `labs.list` KHÔNG trả
- * `unsupportedCapabilities` cho từng mục (chỉ `labs.get` mới trả). Cảnh báo năng
- * lực thật sự, thứ chặn một lượt chạy TRƯỚC khi nó hỏng, nằm ở `/labs/[id]`,
- * trước nút "Bắt đầu". Trang này chỉ hiện các nhãn năng lực lab YÊU CẦU, không
- * tự phán "hỗ trợ hay không": phán đoán đó là logic phía server
- * (`server/lessons/catalog.ts`) và dựng lại nó ở đây sẽ là một nguồn sự thật thứ
- * hai, trôi khỏi bản gốc ở lần đầu tiên ai đó đổi danh sách năng lực đã đo.
- */
-export function LabsClient({ canAuthor }: { readonly canAuthor: boolean }): React.ReactElement {
-  const controls = useCatalogControls();
-  const query = api.labs.list.useQuery(buildCatalogListInput(controls.filters, controls.cursor));
+function labSearchFields(item: LabRow): readonly (string | null)[] {
+  return [item.title, item.description, ...item.capabilities];
+}
 
-  const sortOption = findSortOption(SORT_OPTIONS, controls.sortKey);
-  const loaded = query.data?.items ?? [];
-  const items = useMemo(
-    () => sortPage(searchPage(query.data?.items ?? [], controls.normalizedSearch, labSearchFields), sortOption),
-    [query.data, controls.normalizedSearch, sortOption],
+/**
+ * Trang danh sách `/labs`. Cùng khuôn với `/lessons` (xem chú thích ở
+ * `lessons-client.tsx`): `useQueries` theo ngăn xếp cursor, lọc chủ đề/độ khó/
+ * sandbox ở server, tìm và sắp xếp trên phần đã tải.
+ *
+ * Lab không có tiến độ trong payload danh sách, nên dòng không có trạng thái
+ * học; cờ "Có xếp hạng" đứng ở khe trạng thái.
+ */
+export function LabsClient({
+  canAuthor,
+  total,
+}: {
+  readonly canAuthor: boolean;
+  readonly total: number | null;
+}): React.ReactElement {
+  const controls = useCatalogControls();
+  const results = api.useQueries((q) =>
+    controls.cursors.map((cursor) => q.labs.list(buildCatalogListInput(controls.filters, cursor))),
   );
-  const hasNext = query.data?.nextCursor != null;
+  const pages = combineCatalogPages(results);
+  const loaded = pages.status === 'success' ? pages.items : [];
+  const items = sortPage(
+    searchPage(loaded, controls.normalizedSearch, labSearchFields),
+    findSortOption(SORT_OPTIONS, controls.sortKey),
+  );
+  const hasNext = pages.status === 'success' && pages.hasNext;
 
   return (
-    <CatalogPage title={catalogTitle('labs')} description={catalogLead('labs')}>
-      <CatalogToolbar
-        kind="labs"
-        fields={['difficulty', 'tier']}
-        filters={controls.filters}
-        onDifficulty={controls.setDifficulty}
-        onTier={controls.setTier}
-        onClearFilters={controls.clearFilters}
-        sortKey={controls.sortKey}
-        sortOptions={SORT_OPTIONS}
-        onSort={controls.setSortKey}
-        search={controls.search}
-        onSearch={controls.setSearch}
-        shown={query.isSuccess ? items.length : null}
-        hasNext={hasNext}
-        disabled={query.isPending}
-      />
-
-      {query.isPending && <CatalogGridSkeleton />}
-
-      {query.isError && (
-        <CatalogError
-          title={catalogErrorTitle('labs')}
-          message={describeTrpcError(query.error)}
-          errorCode={trpcErrorCode(query.error)}
-          retrying={query.isFetching}
-          page={controls.page}
-          onRetry={() => void query.refetch()}
-          onFirstPage={controls.goFirst}
-        />
-      )}
-
-      {query.isSuccess && items.length === 0 && (
-        <CatalogEmptyState
+    <>
+      <CatalogPoster kind="labs" count={total} />
+      <PageContainer className="py-10 md:py-12">
+        <CatalogToolbar
           kind="labs"
-          page={controls.page}
-          hasActiveFilter={controls.hasActiveFilter}
-          canAuthor={canAuthor}
-          query={controls.normalizedSearch}
-          loaded={loaded.length}
-          hasNext={hasNext}
+          fields={['topic', 'difficulty', 'tier']}
+          filters={controls.filters}
+          onTopic={controls.setTopic}
+          onDifficulty={controls.setDifficulty}
+          onTier={controls.setTier}
           onClearFilters={controls.clearFilters}
-          onClearSearch={controls.clearSearch}
-          onFirstPage={controls.goFirst}
+          sortKey={controls.sortKey}
+          sortOptions={SORT_OPTIONS}
+          onSort={controls.setSortKey}
+          search={controls.search}
+          onSearch={controls.setSearch}
+          scopeNote={describeLoadedScope({
+            kind: 'labs',
+            loaded: loaded.length,
+            hasNext,
+            searching: controls.hasSearch,
+            sorting: controls.isSorted,
+          })}
+          disabled={pages.status === 'pending'}
         />
-      )}
-
-      {query.isSuccess && items.length > 0 && (
-        <>
-          <CatalogGrid>
-            {items.map((item) => (
-              <CatalogCard
+        <div className="mt-8">
+          <CatalogResults
+            kind="labs"
+            pages={pages}
+            shown={items.length}
+            controls={controls}
+            canAuthor={canAuthor}
+            onRetry={(index) => void results[index]?.refetch()}
+            isFetching={(index) => results[index]?.isFetching ?? false}
+          >
+            {items.map((item, index) => (
+              <BoardRow
                 key={item.id}
                 href={`/labs/${item.id}`}
+                index={index + 1}
+                order={index}
+                line={contentLine(item)}
                 title={item.title}
-                description={item.description}
-                difficulty={item.difficulty}
-                {...(item.leaderboard
-                  ? { flag: { icon: 'leaderboard' as const, label: t('catalog.flag.leaderboard') } }
-                  : {})}
-                meta={labMeta(item)}
-                tags={item.capabilities}
+                sub={item.description ?? undefined}
+                meta={
+                  <>
+                    <RowDifficulty level={item.difficulty} />
+                    <BoardMeta>{t('unit.task', { n: item.taskCount })}</BoardMeta>
+                    <BoardMeta>{t('catalog.meta.threshold', { percent: item.passThresholdPercent })}</BoardMeta>
+                    {item.estimatedMinutes !== null && (
+                      <BoardMeta>{t('catalog.meta.duration', { minutes: item.estimatedMinutes })}</BoardMeta>
+                    )}
+                    <BoardMeta>{tierLabel(item.tier)}</BoardMeta>
+                  </>
+                }
+                state={item.leaderboard ? <LeaderboardFlag /> : undefined}
               />
             ))}
-          </CatalogGrid>
-
-          <CatalogScopeNotes
-            kind="labs"
-            page={controls.page}
-            shown={items.length}
-            loaded={loaded.length}
-            hasNext={hasNext}
-            sortKey={controls.sortKey}
-            query={controls.normalizedSearch}
-          />
-
-          <CatalogPager
-            hasNext={hasNext}
-            onNext={() => controls.goNext(query.data.nextCursor)}
-            onReset={controls.goFirst}
-            page={controls.page}
-            loading={query.isFetching}
-          />
-        </>
-      )}
-    </CatalogPage>
+          </CatalogResults>
+        </div>
+      </PageContainer>
+    </>
   );
 }

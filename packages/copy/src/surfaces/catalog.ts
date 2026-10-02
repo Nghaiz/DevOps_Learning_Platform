@@ -883,6 +883,12 @@ export const catalogIntentionalThree = {
     '2026-09-10: đúng ba runtime tồn tại trong hợp đồng dữ liệu SandboxTierName (sysbox, gvisor, kata), kiểm tại packages/shared-types/src/scenario.ts. Hạng thứ tư nào cũng phải sửa schema trước, và lúc đó nhóm này thôi là ba.',
   'catalog.status':
     '2026-09-10: đúng ba trạng thái tồn tại trong PROGRESS_STATUSES tại apps/web/src/server/trpc/routers/lessons.ts dòng 61 (not-started, in-progress, completed). Trang danh mục đọc thẳng giá trị đó, nên nhóm này bằng đúng miền dữ liệu chứ không phải một lựa chọn trình bày.',
+  'catalog.path.kind':
+    '2026-10-03: PATH_ITEM_KINDS là union đóng ba thành viên (lesson, lab, quiz) tại packages/shared-types/src/path.ts, và Record<PathItemKind, StaticTextKey> ở path-view.ts giữ hai bên khớp. Loại thứ tư phải sửa enum trước.',
+  'catalog.path.state':
+    '2026-10-03: PATH_ITEM_STATES là union đóng ba thành viên (locked, available, passed) tại packages/shared-types/src/path.ts; server tính trạng thái, màn này chỉ thuật lại, nên nhóm bằng đúng miền dữ liệu.',
+  'catalog.quiz.reveal':
+    '2026-10-03: ChoiceReveal ở app/quiz/[id]/answer-view.ts có bốn vai trò và vai trò none cố ý không có nhãn (nó là trạng thái trước khi nộp). Ba nhãn còn lại là đúng ba vai trò lộ ra sau khi chấm.',
   'catalog.error-hint':
     '2026-09-10: đúng ba câu vì CatalogErrorKind là union đóng ba nhánh (retryable, stale-cursor, unknown) tại apps/web/src/components/catalog/catalog-error-kind.ts. Hai lớp lỗi đòi hành động ngược nhau và nhánh thứ ba cố ý nói ít; thêm một câu thứ tư là thêm một nhánh phân loại, không phải thêm một câu.',
   'catalog.problems.game':
