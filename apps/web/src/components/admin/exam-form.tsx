@@ -104,7 +104,6 @@ export function ExamForm(props: {
       }
     },
     // `fieldId` chỉ phụ thuộc `baseId`, ổn định suốt vòng đời form.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [values, baseId],
   );
 
@@ -142,8 +141,6 @@ export function ExamForm(props: {
         props.onSubmit(input);
       }
     },
-    // `props.onSubmit` là hàm của nơi gọi; đọc qua `props` để không bắt bản cũ.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [current, errors, focusFirstError, goTo, isLast, next, values, props.onSubmit],
   );
 

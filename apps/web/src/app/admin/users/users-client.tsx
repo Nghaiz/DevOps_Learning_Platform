@@ -7,6 +7,7 @@ import { err, t } from '@devops-platform/copy';
 import {
   Badge,
   Button,
+  Chip,
   CursorPager,
   EmptyState,
   ErrorState,
@@ -126,10 +127,15 @@ export function AdminUsersClient({ actorId }: { readonly actorId: string }): Rea
           >
             {t('admin.users.search-submit')}
           </Button>
+          {/*
+            Bộ lọc đang áp là một chip ĐANG BẬT; bấm để tắt. Đúng ngữ nghĩa nút
+            bật tắt (`aria-pressed`) của `Chip`: tắt chip là bỏ lọc.
+          */}
           {appliedQuery === '' ? null : (
-            <Button type="button" variant="ghost" onClick={clearFilter} iconLeft={<X aria-hidden="true" />}>
-              {t('admin.users.clear-filter')}
-            </Button>
+            <Chip selected onClick={clearFilter} title={t('admin.users.clear-filter')}>
+              {t('admin.users.filter-chip', { query: appliedQuery })}
+              <X aria-hidden="true" className="size-3.5" />
+            </Chip>
           )}
         </form>
 
