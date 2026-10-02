@@ -251,6 +251,22 @@ export const games = {
   'games.git.panel.detached': 'Detached HEAD: bạn đang đứng thẳng trên một commit, không trên nhánh nào.',
   'games.git.panel.attached': 'HEAD đi theo nhánh hiện tại. Bấm một ref để tìm commit của nó trên đồ thị.',
 
+  // ── Git: chế độ làm bài OJ ─────────────────────────────────────────────────
+  'games.git.oj.no-testcase':
+    'Bài này chưa có testcase nên chưa chấm được. Bạn vẫn chơi và luyện tay được; nhờ báo giúp tác giả bài.',
+  'games.git.oj.loading': 'Đang nạp đề bài và dựng kho Git…',
+  'games.git.oj.load-error': (p: { code: string; reason: string }) => `Không mở được bài ${p.code}: ${p.reason}`,
+  'games.git.oj.no-data': 'không có dữ liệu',
+  'games.git.oj.submitting': 'Đang chấm…',
+  'games.git.oj.submit': 'Nộp bài',
+  'games.git.oj.hidden-case': 'Testcase ẩn, chưa hiện tên',
+  'games.git.oj.submit-error': (p: { message: string }) => `Chưa nộp được: ${p.message}`,
+  'games.git.oj.ce': (p: { reason: string }) => `CE: ${p.reason}`,
+  'games.git.oj.ce-default': 'lượt chơi không chạy tới nơi nên chưa chấm được.',
+  'games.git.oj.ac': (p: { passed: number; total: number }) =>
+    `AC (${String(p.passed)}/${String(p.total)}): qua hết testcase.`,
+  'games.git.oj.wa': (p: { passed: number; total: number }) => `WA (${String(p.passed)}/${String(p.total)})`,
+
   // ── Git: bản đồ commit 2D ──────────────────────────────────────────────────
   'games.git.map.aria': 'Bản đồ lịch sử Git',
   'games.git.map.title': 'Đồ thị commit',
@@ -381,6 +397,39 @@ export const games = {
   'games.cicd.panel.tools': 'Bảng núm',
   'games.cicd.panel.learn': 'Bài học',
   'games.cicd.panel.minimap': 'Bản đồ',
+
+  // ── /games/cicd/<màn>: thân màn chơi ───────────────────────────────────────
+  'games.cicd.play.scene-label': (p: { title: string }) => `Đồ thị đường ống của màn ${p.title}`,
+  'games.cicd.play.yaml-label': (p: { title: string }) => `Workflow YAML của màn ${p.title}`,
+  'games.cicd.play.inspector-title': 'Thông số job',
+  'games.cicd.play.editor-title': 'Ô soạn workflow',
+  'games.cicd.play.run-first': (p: { passes: number }) =>
+    `Bấm Chạy thử để mô phỏng ${String(p.passes)} lượt và xem ba trục.`,
+  'games.cicd.play.hints': 'Gợi ý',
+  'games.cicd.play.hint-open': (p: { n: number; total: number }) =>
+    `Mở gợi ý ${String(p.n)}/${String(p.total)}`,
+  'games.cicd.play.no-hints-open': 'Chưa mở gợi ý nào.',
+  'games.cicd.play.hint-error': (p: { message: string }) => `Chưa lấy được gợi ý: ${p.message}`,
+  'games.cicd.play.hint-pending': 'Đang lấy gợi ý…',
+  'games.cicd.play.theory': (p: { title: string; minutes: number }) =>
+    `Bài lý thuyết: ${p.title} · ${String(p.minutes)} phút`,
+  'games.cicd.play.no-minimap': 'Chưa có đồ thị để thu nhỏ.',
+  'games.cicd.play.submit-aria': 'Nộp bài',
+  'games.cicd.play.no-submit':
+    'Chưa nộp lần nào. Ba trục ở trên là của lượt chạy thử, không phải điểm bài.',
+  'games.cicd.play.history-aria': 'Lịch sử các lượt chạy',
+  'games.cicd.play.history': (p: { n: number }) => `Lịch sử (${String(p.n)})`,
+  'games.cicd.play.history-empty': 'Chưa chạy lượt nào.',
+  'games.cicd.play.h.parse': (p: { n: number }) => `Không quét được YAML (${String(p.n)} lỗi)`,
+  'games.cicd.play.h.engine': 'Workflow không chạy được',
+  'games.cicd.play.h.shape': 'Job không khớp màn, chưa chấm',
+  'games.cicd.play.h.cd': 'Chính sách CD không hợp lệ',
+  'games.cicd.play.h.empty': 'Chưa có job nào để chạy',
+  'games.cicd.play.h.won': 'Đạt',
+  'games.cicd.play.h.lost': 'Chưa đạt',
+  'games.cicd.play.h.ran': 'Đã chạy',
+  'games.cicd.play.h.throughput': (p: { v: string }) => `② ${p.v}/giờ`,
+  'games.cicd.play.h.runner': (p: { v: string }) => `③ ${p.v} runner-phút`,
 } as const;
 
 export const gamesIntentionalThree: IntentionalThree = {};

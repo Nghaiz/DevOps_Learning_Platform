@@ -28,6 +28,7 @@
 
 import { useEffect, useState, type ReactElement, type ReactNode, type RefObject } from 'react';
 import { PanelLeftOpen } from 'lucide-react';
+import { t } from '@devops-platform/copy';
 import { cn } from '@devops-platform/ui';
 
 import { YamlEditor } from '../../shared/yaml-editor';
@@ -91,14 +92,14 @@ export function CicdEditorDrawer({
         className="pointer-events-auto absolute top-1/2 left-0 flex -translate-y-1/2 items-center gap-1 bg-ink px-2 py-4 text-xs font-semibold text-ink-foreground shadow-float transition-[padding] hover:pl-3 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none motion-reduce:transition-none"
       >
         <PanelLeftOpen className="size-4" aria-hidden="true" />
-        Ô soạn
+        {t('games.cicd.panel.editor')}
       </button>
     );
   }
 
   return (
     <CicdHudPanel
-      title="Ô soạn workflow"
+      title={t('games.cicd.play.editor-title')}
       onClose={onClose}
       testId="cicd-panel-editor"
       className={cn(
