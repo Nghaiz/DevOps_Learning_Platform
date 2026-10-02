@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import type { Lab, LabTask, LabTaskResult } from '@devops-platform/shared-types/lab';
+import {
+  toLabForLearner,
+  type Lab,
+  type LabForLearner,
+  type LabTask,
+  type LabTaskResult,
+} from '@devops-platform/shared-types/lab';
 import { summarizeLabScore } from './score-summary';
 
 /**
@@ -23,8 +29,9 @@ function task(over: Partial<LabTask> = {}): LabTask {
   };
 }
 
-function lab(over: Partial<Lab> = {}): Lab {
-  return {
+/** Trang lab nhận `LabForLearner` (không script chấm) — fixture đi đúng đường đó. */
+function lab(over: Partial<Lab> = {}): LabForLearner {
+  return toLabForLearner({
     id: 'lab-demo',
     title: 'Lab demo',
     description: null,
@@ -43,7 +50,7 @@ function lab(over: Partial<Lab> = {}): Lab {
     passThresholdPercent: 80,
     leaderboard: false,
     ...over,
-  };
+  });
 }
 
 function result(over: Partial<LabTaskResult> = {}): LabTaskResult {

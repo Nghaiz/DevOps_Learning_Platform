@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { rethrowContentSourceError } from '../../content/source-errors';
 import {
+  CONTENT_TOPICS,
   SANDBOX_TIER_NAMES,
   SCENARIO_CAPABILITIES,
   scenarioIdSchema,
@@ -58,6 +59,7 @@ const listPlaygroundsInput = listInputSchema
   .extend({
     tier: z.enum(SANDBOX_TIER_NAMES).optional(),
     capability: z.enum(SCENARIO_CAPABILITIES).optional(),
+    topic: z.enum(CONTENT_TOPICS).optional(),
   })
   .strict();
 
@@ -73,7 +75,7 @@ export const playgroundsRouter = createTRPCRouter({
       const result = await playgroundSource().listPlaygroundsPage({
         limit: input.limit,
         cursor: input.cursor,
-        filter: { tier: input.tier, capability: input.capability },
+        filter: { tier: input.tier, capability: input.capability, topic: input.topic },
       });
       return { items: result.items, limit: input.limit, nextCursor: result.nextCursor };
     } catch (cause) {

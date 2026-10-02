@@ -3,7 +3,7 @@
 // voi "the chunking context does not support external modules". Cung ly do
 // `parseContentBlocks` phai vao qua `./content-blocks`.
 import { latestResultPerTask } from '@devops-platform/scenario/lab-score';
-import type { Lab, LabTask, LabTaskResult } from '@devops-platform/shared-types/lab';
+import type { LabTaskForLearner, LabTaskResult } from '@devops-platform/shared-types/lab';
 
 /**
  * Trạng thái hiển thị của một task, suy từ MẢNG `LabTaskResult[]` mà
@@ -22,8 +22,8 @@ import type { Lab, LabTask, LabTaskResult } from '@devops-platform/shared-types/
  */
 export type TaskCheckState = 'not-attempted' | 'passed' | 'failed';
 
-export interface TaskDisplay {
-  readonly task: LabTask;
+export interface TaskDisplay<T extends { readonly id: string } = LabTaskForLearner> {
+  readonly task: T;
   readonly state: TaskCheckState;
   readonly lastExitCode: number | null;
   readonly lastOutput: string | null;
@@ -41,10 +41,10 @@ export interface TaskDisplay {
  */
 export type WireLabTaskResult = Omit<LabTaskResult, 'checkedAt'> & { checkedAt: Date | string };
 
-export function buildTaskDisplays(
-  lab: Pick<Lab, 'tasks'>,
+export function buildTaskDisplays<T extends { readonly id: string }>(
+  lab: { readonly tasks: readonly T[] },
   results: readonly WireLabTaskResult[],
-): TaskDisplay[] {
+): TaskDisplay<T>[] {
   // `new Date(...)` chuẩn hoá CẢ HAI ca (chuỗi ISO qua HTTP thật, lẫn `Date`
   // thật khi gọi trực tiếp trong test) — bỏ qua bước này thì
   // `latestResultPerTask` gọi `.getTime()` trên một string và NÉM ngay lượt
@@ -66,6 +66,6 @@ export function buildTaskDisplays(
 }
 
 /** AC 8.C — "làm rõ tasks nào chưa từng được chấm trước khi nộp bài". */
-export function uncheckedTaskCount(displays: readonly TaskDisplay[]): number {
+export function uncheckedTaskCount(displays: readonly TaskDisplay<{ readonly id: string }>[]): number {
   return displays.filter((d) => d.state === 'not-attempted').length;
 }
