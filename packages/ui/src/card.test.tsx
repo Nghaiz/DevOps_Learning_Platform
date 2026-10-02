@@ -112,7 +112,6 @@ describe('Card — tấm phẳng và phản hồi tương tác', () => {
     expect(classes, 'lún trần ⇒ vẫn giật dưới prefers-reduced-motion').not.toContain('active:translate-y-px');
   });
 });
-});
 
 /**
  * Cung màu độ khó — design §3 ("một cung màu ở góc thay cho viền trái phẳng").
