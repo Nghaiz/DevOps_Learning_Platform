@@ -1,0 +1,5 @@
+# Ảnh chụp lúc test trình duyệt ĐỎ — vitest 5 ghi vào `.vitest/attachments/`
+# (bản cũ ghi vào `.vitest-attachments/`, mục đã có ở .gitignore gốc). Sinh lại
+# được ở mỗi lượt chạy; một lượt đỏ đẻ ra hàng chục PNG. File ở đây chứ không ở
+# gốc vì gốc nằm ngoài đường sở hữu của lane terminal — gộp lên gốc khi tiện.
+/.vitest/
