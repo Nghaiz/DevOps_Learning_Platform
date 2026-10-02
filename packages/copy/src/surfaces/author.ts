@@ -173,7 +173,7 @@ export const author = {
 
   'author.edit.tab.compose': 'Soạn',
   'author.edit.tab.preview': 'Xem trước',
-  'author.edit.tab.assets': 'Tệp đính kèm',
+  'author.edit.tab.assets': 'Tệp',
   'author.edit.tab.publish': 'Xuất bản',
 
   'author.edit.body-error.title': 'Không nạp được nội dung bài',
@@ -707,23 +707,38 @@ export const author = {
   'author.preview-panel-day-la-chinh-khung-noi-dung-cua-trinh-hoc-nut-chay-tren-khoi-code-bi-vo-hie':
     'Đây là chính khung nội dung của trình học. Nút chạy trên khối code bị vô hiệu hoá vì xem trước không dựng sandbox, đúng như trình học khi người dùng chưa bắt đầu phiên.',
   'author.preview-phases-buoc': (p: { stepIndex1: string }) => `Bước ${p.stepIndex1}`,
-  'author.publish-panel-1-kiem-tra-truoc': '1. Kiểm tra trước',
+  // Cột kiểm của `/author/[id]`: ba điều kiện trước khi người học thấy bài.
+  'author.rail.saved.ok': 'Màn hình khớp bản đã lưu',
+  'author.rail.saved.todo': 'Còn thay đổi chưa lưu',
+  'author.rail.check-clean': 'Kiểm tra định dạng: sạch',
+  'author.rail.check-blocked': 'Kiểm tra định dạng: còn lỗi chặn',
+  'author.rail.check-never': 'Chưa chạy Kiểm tra trên bản đã lưu',
+  'author.rail.open-publish': 'Mở chế độ Xuất bản',
+  'author.rail.trial.idle': 'Chưa chạy thử lần nào',
+  'author.rail.trial.running': 'Đang chạy thử trong sandbox',
+  'author.rail.trial.passed': 'Lượt chạy thử gần nhất đạt',
+  'author.rail.trial.failed': 'Lượt chạy thử gần nhất trượt',
+  'author.publish.section.check': 'Kiểm tra trước',
+  'author.publish.section.run': 'Chạy thử rồi xuất bản',
+  'author.publish.section.trial': 'Kết quả chạy thử',
+  'author.publish.section.archive': 'Lưu trữ',
+  'author.publish.passed': 'Đã xuất bản',
+  'author.publish.check.blocked': 'Lỗi định dạng dưới đây chặn xuất bản. Bấm vào một dòng để tới ô cần sửa.',
+  'author.publish.archive-loss':
+    'Người học không mở được bài này nữa và bài biến khỏi danh mục. Tiến độ và điểm đã có vẫn giữ nguyên.',
   'author.publish-panel-kiem-tra-khong-doi-trang-thai-bai-va-khong-ton-sandbox-nao-no-chay-dung-sch':
     'Kiểm tra các trường của bài và cảnh báo shellcheck cho từng script. Bài vẫn ở trạng thái hiện tại và chưa tạo sandbox.',
   'author.publish-panel-kiem-tra': 'Kiểm tra',
-  'author.publish-panel-2-xuat-ban': '2. Xuất bản',
   'author.publish-panel-xuat-ban-dung-mot-sandbox-that-va-chay-lan-luot-moi-script-cua-bai-viec-nay':
     'Xuất bản dựng sandbox và chạy lần lượt các script của bài. Việc này có thể mất vài phút. Bạn có thể đóng tab rồi quay lại xem kết quả.',
   'author.publish-panel-nut-xuat-ban-dang-tat-vi-luot-kiem-tra-con-loi-dinh-dang-o-tren-sua-roi-kie':
     'Nút Xuất bản đang tắt vì lượt kiểm tra còn lỗi định dạng ở trên. Sửa rồi kiểm tra lại.',
-  'author.publish-panel-3-ket-qua-chay-thu': '3. Kết quả chạy thử',
   'author.publish-panel-luu-tru-bai-nay': 'Lưu trữ bài này?',
   'author.publish-panel-bai-se-bien-khoi-danh-muc-nguoi-hoc-tien-do-va-diem-da-co-khong-bi-xoa-nen':
     'Bài sẽ được ẩn khỏi danh mục người học. Tiến độ và điểm đã có được giữ lại.',
   'author.publish-panel-dinh-dang-hop-le': 'Định dạng hợp lệ',
   'author.publish-panel-bai-qua-dung-schema-ma-luot-xuat-ban-se-dung':
     'Các trường của bài đã đủ điều kiện để chạy thử khi xuất bản.',
-  'author.publish-panel-loi-dinh-dang-chan-xuat-ban': 'lỗi định dạng, chặn xuất bản',
   'author.publish-panel-shellcheck': 'Shellcheck:',
   'author.publish-panel-canh-bao-shellcheck-khong-bao-gio-chan-xuat-ban':
     'Cảnh báo shellcheck không bao giờ chặn xuất bản.',
