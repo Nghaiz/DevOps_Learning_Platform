@@ -104,9 +104,7 @@ export function CaptureStep({
           </dd>
         </div>
         <div className="flex items-baseline justify-between gap-3 py-2.5">
-          <dt className="type-label text-muted-foreground">
-            {t('author.builder.capture.target')}
-          </dt>
+          <dt className="type-label text-muted-foreground">{t('author.builder.capture.target')}</dt>
           <dd key={`target-${String(shots.target)}`} className="animate-rise text-sm">
             {target === null ? (
               <span className="text-muted-foreground">{t('author.builder.capture.unset')}</span>

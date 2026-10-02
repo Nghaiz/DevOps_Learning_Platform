@@ -133,13 +133,7 @@ export interface CheckStepProps {
   readonly onRun: () => void;
 }
 
-export function CheckStep({
-  index,
-  issues,
-  report,
-  blocked,
-  onRun,
-}: CheckStepProps): ReactElement {
+export function CheckStep({ index, issues, report, blocked, onRun }: CheckStepProps): ReactElement {
   // Khoá báo cáo theo số lượt chạy: bấm kiểm lại một bản nháp không đổi vẫn
   // phát lại hiệu ứng, nên người soạn thấy phép kiểm đã chạy lại thật.
   const [runs, setRuns] = useState(0);

@@ -19,12 +19,7 @@
  */
 
 import type { TextKey } from '@devops-platform/copy';
-import type {
-  BuilderLimit,
-  Difficulty,
-  DraftIssueCode,
-  LevelDraft,
-} from '@devops-platform/games';
+import type { BuilderLimit, Difficulty, DraftIssueCode, LevelDraft } from '@devops-platform/games';
 
 import type { ProblemSaveIssueCode, ProblemSaveLossCode } from './draft-to-problem';
 

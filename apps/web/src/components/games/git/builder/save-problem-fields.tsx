@@ -97,7 +97,10 @@ export function PenaltyLedger({
       <ol className="flex flex-col divide-y divide-border border-y border-border">
         {hints.map((hint, index) => (
           <li key={`penalty-${String(index)}`} className="flex items-center gap-3 py-2">
-            <span aria-hidden className="w-6 shrink-0 font-mono text-xs text-muted-foreground tabular-nums">
+            <span
+              aria-hidden
+              className="w-6 shrink-0 font-mono text-xs text-muted-foreground tabular-nums"
+            >
               {String(index + 1).padStart(2, '0')}
             </span>
             <Label

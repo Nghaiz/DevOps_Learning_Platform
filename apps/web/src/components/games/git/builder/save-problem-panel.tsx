@@ -142,10 +142,7 @@ export function SaveProblemPanel({ draft }: { readonly draft: LevelDraft }): Rea
 
   return (
     <div className="flex flex-col gap-4">
-      <p
-        className="text-sm leading-relaxed text-foreground"
-        data-testid="git-builder-save-scope"
-      >
+      <p className="text-sm leading-relaxed text-foreground" data-testid="git-builder-save-scope">
         {t('author.builder.save.scope')}
       </p>
 
@@ -187,7 +184,9 @@ export function SaveProblemPanel({ draft }: { readonly draft: LevelDraft }): Rea
           {t('author.builder.save.slug')}
         </span>
         {slug === '' ? (
-          <span className="text-sm text-muted-foreground">{t('author.builder.save.slug-empty')}</span>
+          <span className="text-sm text-muted-foreground">
+            {t('author.builder.save.slug-empty')}
+          </span>
         ) : (
           <code className="min-w-0 truncate font-mono text-sm text-foreground">{slug}</code>
         )}

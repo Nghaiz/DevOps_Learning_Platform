@@ -21,16 +21,22 @@ import { Checkbox, Input, Label, Textarea, cn } from '@devops-platform/ui';
 interface FieldBase {
   readonly id: string;
   readonly label: string;
-  readonly hint?: string;
+  readonly hint?: string | undefined;
   /** Nhãn và nội dung đọc như mã: tên tham số, lệnh, JSON. */
-  readonly mono?: boolean;
+  readonly mono?: boolean | undefined;
 }
 
 function hintIdOf(id: string, hint: string | undefined): string | undefined {
   return hint === undefined ? undefined : `${id}-hint`;
 }
 
-function FieldHint({ id, text }: { readonly id: string | undefined; readonly text?: string }) {
+function FieldHint({
+  id,
+  text,
+}: {
+  readonly id: string | undefined;
+  readonly text: string | undefined;
+}) {
   if (id === undefined || text === undefined) return null;
   return (
     <p id={id} className="text-xs leading-relaxed text-muted-foreground">
@@ -227,8 +233,8 @@ export interface CheckFieldProps {
   readonly label: string;
   readonly checked: boolean;
   readonly onChange: (next: boolean) => void;
-  readonly disabled?: boolean;
-  readonly mono?: boolean;
+  readonly disabled?: boolean | undefined;
+  readonly mono?: boolean | undefined;
 }
 
 export function CheckField({

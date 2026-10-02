@@ -35,12 +35,7 @@ export interface ArgEditorProps {
   readonly onChange: (next: GitObjective) => void;
 }
 
-export function ArgEditor({
-  idPrefix,
-  index,
-  objective,
-  onChange,
-}: ArgEditorProps): ReactElement {
+export function ArgEditor({ idPrefix, index, objective, onChange }: ArgEditorProps): ReactElement {
   const specs = PREDICATE_ARGS[objective.check];
   const missing = missingArgs(objective.check, objective.args);
 
