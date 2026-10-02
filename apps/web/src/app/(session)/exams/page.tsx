@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { t } from '@devops-platform/copy';
 
 import { readViewerSession } from '../../../components/catalog/viewer-role.server';
+import { PosterHeader } from '../../../components/kit';
 import { ExamsClient } from './exams-client';
 
 export const metadata: Metadata = {
@@ -25,5 +26,15 @@ export default async function ExamsPage() {
   if ((await readViewerSession()) === null) {
     redirect('/login');
   }
-  return <ExamsClient />;
+  return (
+    <>
+      <PosterHeader
+        section="judge"
+        kicker={t('exam.kicker')}
+        title={t('exam.title')}
+        lead={t('exam.lead')}
+      />
+      <ExamsClient />
+    </>
+  );
 }

@@ -2,12 +2,20 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react';
-import { t } from '@devops-platform/copy';
+import { Flag, Play } from 'lucide-react';
+import { renderCopy, t } from '@devops-platform/copy';
 import {
   Alert,
   AlertDescription,
   AlertTitle,
   Button,
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
   ErrorState,
   Skeleton,
   useToast,
@@ -16,6 +24,8 @@ import {
 import { api } from '../../../../lib/trpc-react';
 import { describeTrpcError } from '../../../../lib/trpc';
 import { formatMoment } from '../../../../lib/format-moment';
+import { problemPreviewHref } from '../../../../lib/problem-preview-href';
+import { Board, BoardRow, PageContainer, ToolHeader, lineForTopic } from '../../../../components/kit';
 import {
   COUNTDOWN_RESYNC_MS,
   COUNTDOWN_TICK_MS,
@@ -23,40 +33,49 @@ import {
   remainingFrom,
   type CountdownAnchor,
 } from '../countdown';
+import { ATTEMPT_PHASE_KEYS, attemptPhase, examWhen } from '../exam-status';
+import { CountdownBoard } from './countdown-board';
 
 /**
- * `/exams/:examId` (§18.G.4, §18.G.5) , màn làm bài.
+ * `/exams/:examId` (§18.G.4, §18.G.5): màn làm bài.
  *
  * ## ⛔ Đồng hồ: máy chủ cấp một KHOẢNG, client đếm bằng `performance.now()`
  *
- * Đây là toàn bộ AC-7. Máy chủ trả `remainingMs`; client ghi lại nó cùng một
- * lần đọc `performance.now()` rồi trừ dần. Giờ hệ thống KHÔNG tham gia vào phép
- * tính nào, nên chỉnh đồng hồ máy, đổi múi giờ, hay NTP đồng bộ giữa chừng đều
- * không đổi một giây nào. Lý do đầy đủ ở `../countdown.ts`.
+ * Đây là toàn bộ AC-7. Máy chủ trả `remainingMs`; client ghi lại nó cùng một lần
+ * đọc `performance.now()` rồi trừ dần. Giờ hệ thống KHÔNG tham gia vào phép tính
+ * nào. Lý do đầy đủ ở `../countdown.ts`.
  *
  * ## Vì sao vẫn phải hỏi lại máy chủ định kỳ
  *
- * `performance.now()` có thể DỪNG khi tab bị treo hoặc máy ngủ, và lúc tỉnh
- * dậy nó đi tiếp từ chỗ dừng , tức đếm ngược thừa ra đúng khoảng máy ngủ. Một
- * lượt `refetch` mỗi 30 giây kéo nó về đúng sự thật của máy chủ. Nó KHÔNG phải
- * nguồn của đồng hồ, chỉ là lượt hiệu chỉnh.
+ * `performance.now()` có thể DỪNG khi tab bị treo hoặc máy ngủ. Một lượt
+ * `refetch` mỗi 30 giây kéo nó về đúng sự thật của máy chủ; nó là lượt hiệu
+ * chỉnh, không phải nguồn của đồng hồ.
  *
  * ## Hết giờ thì màn hình tự khoá, không đợi ai bấm gì
  *
- * Khi đếm ngược chạm 0, client hỏi lại máy chủ một lượt. Máy chủ là nơi duy
- * nhất quyết định lượt đã khoá hay chưa (`isAttemptClosed` suy ra lúc đọc), nên
- * client không tự tuyên bố , nó chỉ hỏi sớm hơn.
+ * Chạm 0 thì client hỏi lại máy chủ một lượt. Máy chủ là nơi duy nhất quyết định
+ * lượt đã khoá hay chưa, nên client không tự tuyên bố, nó chỉ hỏi sớm hơn.
+ *
+ * ## Tên bài và đường vào game
+ *
+ * `examSitting.get` chỉ trả MÃ bài. Tên và `gameId` (để mở thẳng vào game bằng
+ * `?problem=`) đọc từ `problems.byCode`, thủ tục mà trang đề của chính bài đó
+ * vẫn gọi, nên không mở thêm quyền đọc nào. Khi một lượt tra chưa về hoặc hỏng,
+ * dòng hiện mã bài và dẫn sang trang đề như trước. Đã xin máy chủ trả sẵn
+ * `{ code, title, gameId }` trong `examSitting.get` để bỏ N lượt tra này.
  */
 export function ExamSittingClient({ examId }: { readonly examId: string }): ReactElement {
   const query = api.examSitting.get.useQuery({ examId });
   const utils = api.useUtils();
   const { toast } = useToast();
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const start = api.examSitting.start.useMutation({
     onSuccess: () => void utils.examSitting.get.invalidate({ examId }),
   });
   const submit = api.examSitting.submit.useMutation({
     onSuccess: () => {
+      setConfirmOpen(false);
       toast({ title: t('exam.submitted-toast') });
       void utils.examSitting.get.invalidate({ examId });
       void utils.examSitting.list.invalidate();
@@ -64,49 +83,106 @@ export function ExamSittingClient({ examId }: { readonly examId: string }): Reac
   });
 
   const attempt = query.data?.attempt ?? null;
+  const codes = query.data?.exam.problemCodes ?? [];
+  const lookups = api.useQueries((q) =>
+    codes.map((code) => q.problems.byCode({ code }, { enabled: attempt !== null })),
+  );
   const refetch = useCallback(() => void query.refetch(), [query]);
   const remaining = useCountdown(attempt?.remainingMs ?? null, attempt?.closed ?? true, refetch);
 
-  if (query.isPending) {
-    return <Skeleton className="h-64 w-full" />;
-  }
-  if (query.isError) {
-    return <ErrorState message={describeTrpcError(query.error)} onRetry={refetch} />;
-  }
-  const data = query.data;
-  if (data === undefined) {
+  const crumbs = [{ href: '/exams', label: t('exam.title') }];
+
+  if (query.isPending || query.data === undefined) {
     /*
-     * Nhánh này không tới được: `isPending` và `isError` đã phủ hết. Nó tồn tại
-     * để thu hẹp kiểu, và nó vẽ đúng trạng thái "chưa có dữ liệu". KHÔNG vẽ
-     * một câu nói "kỳ thi chưa mở": đó là một chẩn đoán mà chỗ này không có
-     * căn cứ nào để đưa ra.
+     * `query.data === undefined` ngoài `isPending` chỉ để thu hẹp kiểu; nó vẽ
+     * đúng trạng thái "chưa có dữ liệu". KHÔNG vẽ một câu nói "kỳ thi chưa mở":
+     * đó là một chẩn đoán chỗ này không có căn cứ nào để đưa ra.
      */
-    return <Skeleton className="h-64 w-full" />;
+    if (query.isError) {
+      return (
+        <>
+          <ToolHeader crumbs={crumbs} title={t('exam.title')} />
+          <PageContainer className="py-10">
+            <ErrorState
+              title={t('exam.error-title')}
+              message={describeTrpcError(query.error)}
+              retrying={query.isFetching}
+              onRetry={refetch}
+            />
+          </PageContainer>
+        </>
+      );
+    }
+    return (
+      <>
+        <ToolHeader crumbs={crumbs} title={t('exam.title')} />
+        <PageContainer className="py-10">
+          <div role="status" aria-label={t('exam.loading')} className="flex flex-col gap-4">
+            <Skeleton className="h-40 w-full" />
+            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-16 w-full" />
+          </div>
+        </PageContainer>
+      </>
+    );
   }
+
+  const { exam } = query.data;
+  const phase = attempt === null ? 'not-started' : attemptPhase(attempt);
 
   return (
-    <section className="practice-exams practice-exam-sitting flex flex-col gap-6">
-      <div className="flex flex-col gap-2">
-        <Link
-          href="/exams"
-          className="w-fit rounded-sm text-sm text-muted-foreground underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-        >
-          {t('exam.back')}
-        </Link>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">{data.exam.title}</h1>
-        <p className="text-sm text-muted-foreground">
-          {t('exam.card-class', { name: data.exam.className })}
-          {' · '}
-          {t('exam.card-duration', { minutes: data.exam.durationMinutes })}
-        </p>
-      </div>
-
-      {attempt === null ? (
-        <Alert>
-          <AlertTitle>{t('exam.start-title')}</AlertTitle>
-          <AlertDescription className="flex flex-col items-start gap-3">
-            <span>{t('exam.start-body')}</span>
+    <>
+      <ToolHeader
+        crumbs={crumbs}
+        kicker={t('exam.summary', {
+          name: exam.className,
+          count: exam.problemCodes.length,
+          minutes: exam.durationMinutes,
+        })}
+        title={exam.title}
+        status={
+          <span className="inline-flex h-6 items-center bg-muted px-2 font-mono text-xs font-semibold">
+            {t(ATTEMPT_PHASE_KEYS[phase])}
+          </span>
+        }
+        actions={
+          attempt !== null && !attempt.closed ? (
             <Button
+              variant="primary"
+              size="lg"
+              iconLeft={<Flag aria-hidden className="size-4" />}
+              onClick={() => {
+                setConfirmOpen(true);
+              }}
+            >
+              {t('exam.submit')}
+            </Button>
+          ) : undefined
+        }
+      />
+
+      <PageContainer className="flex flex-col gap-10 py-10 md:py-12">
+        {attempt === null ? (
+          <section
+            aria-labelledby="exam-start"
+            className="grid gap-6 border-2 border-ink bg-card p-6 md:grid-cols-[minmax(0,1fr)_auto] md:items-end md:p-8"
+          >
+            <div className="flex flex-col gap-3">
+              <h2 id="exam-start" className="type-headline">
+                {t('exam.start-title')}
+              </h2>
+              <p className="type-lead">
+                {t('exam.start-facts', { count: exam.problemCodes.length, minutes: exam.durationMinutes })}
+              </p>
+              <p className="text-sm text-muted-foreground">{t('exam.start-body')}</p>
+              <p className="font-mono text-xs text-muted-foreground">
+                {renderCopy(examWhen(exam, formatMoment))}
+              </p>
+            </div>
+            <Button
+              size="lg"
+              variant="primary"
+              iconLeft={<Play aria-hidden className="size-4" />}
               onClick={() => start.mutate({ examId })}
               loading={start.isPending}
               disabled={start.isPending}
@@ -115,98 +191,106 @@ export function ExamSittingClient({ examId }: { readonly examId: string }): Reac
             </Button>
             {start.isError && (
               /*
-               * `startAttempt` chỉ ném FORBIDDEN cho đúng một lý do , kỳ thi
-               * ngoài cửa sổ thời gian. Người ngoài lớp nhận NOT_FOUND và
-               * không bao giờ thấy được nút này. Nên tiêu đề ở đây nói đúng
-               * tên vấn đề thay vì để một câu lỗi trần đứng một mình.
+               * `startAttempt` chỉ ném FORBIDDEN cho đúng một lý do: kỳ thi ngoài
+               * cửa sổ thời gian. Người ngoài lớp nhận NOT_FOUND và không bao giờ
+               * thấy nút này. Nên tiêu đề nói đúng tên vấn đề thay vì để một câu
+               * lỗi trần đứng một mình.
                */
-              <Alert variant="warning" role="alert">
+              <Alert variant="warning" role="alert" className="md:col-span-2">
                 <AlertTitle>{t('exam.not-open-title')}</AlertTitle>
                 <AlertDescription>{t('exam.not-open-body')}</AlertDescription>
               </Alert>
             )}
-          </AlertDescription>
-        </Alert>
-      ) : (
-        <>
-          {attempt.closed ? (
-            <Alert variant="warning">
-              <AlertTitle>{t('exam.closed-title')}</AlertTitle>
+          </section>
+        ) : (
+          <>
+            <CountdownBoard
+              remainingMs={remaining}
+              closed={attempt.closed}
+              submitted={attempt.submittedAt !== null}
+              deadline={attempt.deadline}
+            />
+
+            {attempt.closed && (
+              <Alert variant="warning">
+                <AlertTitle>{t('exam.closed-title')}</AlertTitle>
+                <AlertDescription>
+                  {attempt.submittedAt === null ? t('exam.closed-expired') : t('exam.closed-submitted')}
+                </AlertDescription>
+              </Alert>
+            )}
+
+            <section aria-labelledby="exam-problems" className="flex flex-col gap-4">
+              <h2 id="exam-problems" className="type-headline">
+                {t('exam.problems-heading')}
+              </h2>
+              <Board label={t('exam.problems-heading')}>
+                {exam.problemCodes.map((code, index) => {
+                  const found = lookups[index]?.data?.problem ?? null;
+                  const playHref = found === null ? null : problemPreviewHref(found.gameId, code);
+                  return (
+                    <BoardRow
+                      key={code}
+                      index={index + 1}
+                      order={index}
+                      href={playHref ?? `/problems/${code}`}
+                      disabled={attempt.closed}
+                      line={found === null ? 'ink' : lineForTopic({ gameId: found.gameId })}
+                      title={found?.title ?? code}
+                      sub={<span className="font-mono">{code}</span>}
+                      state={
+                        <span className="font-mono text-xs font-semibold">
+                          {attempt.closed ? t('exam.problem-closed') : t('exam.problem-play')}
+                        </span>
+                      }
+                    />
+                  );
+                })}
+              </Board>
+            </section>
+          </>
+        )}
+      </PageContainer>
+
+      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('exam.confirm-title')}</DialogTitle>
+            <DialogDescription>
+              {t('exam.confirm-body', { left: formatCountdown(remaining) })}
+            </DialogDescription>
+          </DialogHeader>
+          {submit.isError && (
+            <Alert variant="destructive" role="alert">
               <AlertDescription>
-                {attempt.submittedAt === null ? t('exam.auto-closed-body') : t('exam.closed-body')}
+                {t('exam.submit-error')} {describeTrpcError(submit.error)}
               </AlertDescription>
             </Alert>
-          ) : (
-            <div className="flex flex-wrap items-end justify-between gap-4 rounded-lg border border-border px-5 py-4">
-              <div className="flex flex-col gap-1">
-                <span className="text-sm text-muted-foreground">{t('exam.countdown-label')}</span>
-                {/*
-                  `tabular-nums` để đồng hồ không đổi bề rộng giữa hai lần vẽ:
-                  chữ số tỉ lệ làm cả khối nhảy ngang bốn lần mỗi giây, và trên
-                  một màn hình người ta liếc liên tục thì chuyển động đó là thứ
-                  duy nhất mắt bắt được.
-
-                  `aria-live="off"`: đọc lại đồng hồ bốn lần mỗi giây sẽ làm
-                  trình đọc màn hình không nói được gì khác. Người dùng đọc nó
-                  khi họ chủ động tìm tới.
-                */}
-                <output
-                  aria-live="off"
-                  className="font-mono text-3xl font-semibold tabular-nums text-foreground"
-                >
-                  {formatCountdown(remaining)}
-                </output>
-                <span className="text-xs text-muted-foreground">
-                  {t('exam.deadline-note', { at: formatMoment(attempt.deadline) })}
-                </span>
-              </div>
-              <Button
-                variant="destructive"
-                onClick={() => submit.mutate({ examId })}
-                loading={submit.isPending}
-                disabled={submit.isPending}
-              >
-                {submit.isPending ? t('exam.submit-busy') : t('exam.submit')}
-              </Button>
-            </div>
           )}
-
-          <div className="flex flex-col gap-3">
-            <h2 className="border-b border-border pb-2 text-lg font-semibold text-foreground">
-              {t('exam.problems-heading')}
-            </h2>
-            <ol className="flex flex-col gap-2">
-              {data.exam.problemCodes.map((code, index) => (
-                <li
-                  key={code}
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border px-4 py-3"
-                >
-                  <span className="text-sm text-foreground">
-                    <span className="text-muted-foreground">
-                      {t('exam.problem-order', { index: index + 1 })}
-                    </span>
-                    {' · '}
-                    <span className="font-mono">{code}</span>
-                  </span>
-                  <Button asChild variant="outline" disabled={attempt.closed}>
-                    <Link href={`/problems/${code}`}>{t('exam.problem-open')}</Link>
-                  </Button>
-                </li>
-              ))}
-            </ol>
-          </div>
-        </>
-      )}
-    </section>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="outline">{t('exam.confirm-cancel')}</Button>
+            </DialogClose>
+            <Button
+              variant="primary"
+              onClick={() => submit.mutate({ examId })}
+              loading={submit.isPending}
+              disabled={submit.isPending}
+            >
+              {submit.isPending ? t('exam.submit-busy') : t('exam.submit')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
 /**
  * Đếm ngược tại chỗ, neo vào một lần đọc đồng hồ ĐƠN ĐIỆU.
  *
- * Tách thành hook để `ExamSittingClient` không phải mang ba `useRef` và hai
- * `useEffect` chỉ để vẽ một con số , và để mọi phép toán nằm ở
- * `../countdown.ts`, nơi test chạm tới được mà không cần dựng DOM.
+ * Tách thành hook để mọi phép toán nằm ở `../countdown.ts`, nơi test chạm tới
+ * được mà không cần dựng DOM.
  */
 function useCountdown(
   remainingMsFromServer: number | null,
@@ -217,8 +301,8 @@ function useCountdown(
   const [display, setDisplay] = useState(remainingMsFromServer ?? 0);
   const expired = useRef(false);
 
-  // Mỗi câu trả lời mới của máy chủ ĐẶT LẠI mốc neo. Không cộng dồn: một mốc
-  // mới ghi đè hoàn toàn mốc cũ, nên sai lệch tích luỹ trước đó biến mất.
+  // Mỗi câu trả lời mới của máy chủ ĐẶT LẠI mốc neo. Không cộng dồn: một mốc mới
+  // ghi đè hoàn toàn mốc cũ, nên sai lệch tích luỹ trước đó biến mất.
   useEffect(() => {
     if (remainingMsFromServer === null) {
       anchor.current = null;
@@ -244,10 +328,9 @@ function useCountdown(
       const left = remainingFrom(current, performance.now());
       setDisplay(left);
       /*
-       * Chạm 0 thì HỎI máy chủ, không tự tuyên bố đã khoá. Máy chủ là nơi duy
-       * nhất biết hạn thật (nó cộng cả `closes_at` của kỳ thi), và một client
-       * tự khoá sẽ khoá sớm ở bất kỳ máy nào có `performance.now()` chạy nhanh.
-       * `expired` chặn việc gọi lặp mỗi 250ms sau khi đã chạm 0.
+       * Chạm 0 thì HỎI máy chủ, không tự tuyên bố đã khoá: máy chủ là nơi duy
+       * nhất biết hạn thật (nó cộng cả `closes_at` của kỳ thi). `expired` chặn
+       * việc gọi lặp mỗi 250ms sau khi đã chạm 0.
        */
       if (left <= 0 && !expired.current) {
         expired.current = true;

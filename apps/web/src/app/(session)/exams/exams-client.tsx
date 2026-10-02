@@ -1,185 +1,182 @@
 'use client';
 
-import Link from 'next/link';
 import { useState, type ReactElement } from 'react';
-import { Clock3, Trophy, ArrowRight } from 'lucide-react';
-import { t, type StaticTextKey } from '@devops-platform/copy';
-import {
-  Badge,
-  Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  EmptyState,
-  ErrorState,
-  Skeleton,
-} from '@devops-platform/ui';
+import { CalendarClock } from 'lucide-react';
+import { renderCopy, t } from '@devops-platform/copy';
+import { Chip, EmptyState, ErrorState, StatusDot, cn } from '@devops-platform/ui';
 
 import { api } from '../../../lib/trpc-react';
 import { describeTrpcError } from '../../../lib/trpc';
+import { formatMoment } from '../../../lib/format-moment';
+import { Board, BoardRow, BoardSkeleton, PageContainer } from '../../../components/kit';
+import {
+  ATTEMPT_PHASE_KEYS,
+  EXAM_FILTERS,
+  EXAM_FILTER_KEYS,
+  EXAM_WINDOW_KEYS,
+  attemptPhase,
+  examWhen,
+  examWindow,
+  isExamFinished,
+  matchesExamFilter,
+  type AttemptPhase,
+  type ExamFilter,
+  type ExamWindow,
+} from './exam-status';
 
 /**
- * `/exams` (§18.G.4) , danh sách kỳ thi của người học.
+ * `/exams` (§18.G.4): kỳ thi của người học, dạng bảng giờ tàu.
  *
  * ## Không phân trang, và đó là một giả định phải nói ra
  *
- * `examSitting.list` trả hết một lượt. Một sinh viên ở vài lớp có vài kỳ thi;
- * phân trang ở đây sẽ là hạ tầng cho một vấn đề chưa tồn tại. Nếu một ngày một
- * tài khoản có hàng trăm kỳ thi thì ĐÂY là chỗ thêm keyset, và khoá sắp xếp
- * hiện tại (`created_at`) không duy nhất nên nó sẽ phải kèm `id` phá hoà.
+ * `examSitting.list` trả hết một lượt: một sinh viên ở vài lớp có vài kỳ thi.
+ * Nếu một ngày một tài khoản có hàng trăm kỳ thi thì ĐÂY là chỗ thêm keyset, và
+ * khoá sắp hiện tại (`created_at`) không duy nhất nên sẽ phải kèm `id` phá hoà.
  *
- * ## Trạng thái đọc `closed` của MÁY CHỦ, không suy ở client
+ * ## Hai trục trạng thái trên mỗi dòng
  *
- * Lý do đầy đủ ở chú thích của `statusKey` dưới cùng file. Ngắn gọn: một lượt
- * hết giờ mà bỏ dở có `submittedAt = null`, nên mọi phép suy ở client sẽ hiện
- * "Đang làm" cho một bài đã đóng.
+ * Cửa sổ của kỳ thi (sắp mở / đang mở / đã đóng, so với `serverNow` của máy chủ)
+ * và lượt làm của bạn (`closed` của máy chủ). Lý do không suy ở client nằm ở
+ * `exam-status.ts`.
  */
 export function ExamsClient(): ReactElement {
   const query = api.examSitting.list.useQuery();
-  const [filter, setFilter] = useState<'all' | 'active' | 'done'>('all');
-  const items = query.data?.items ?? [];
-  const shown = items.filter(
-    (item) => filter === 'all' || (filter === 'done' ? item.closed : !item.closed),
-  );
+  const [filter, setFilter] = useState<ExamFilter>('all');
+
+  const rows = (query.data?.items ?? []).map((item) => {
+    const slot = examWindow(item, query.data?.serverNow ?? '');
+    return { item, slot, phase: attemptPhase(item), finished: isExamFinished(item, slot) };
+  });
+  const shown = rows.filter((row) => matchesExamFilter(filter, row.finished));
 
   return (
-    <section className="practice-exams flex flex-col gap-6">
-      <header className="practice-exams-heading">
-        <span className="practice-exams-symbol">
-          <Trophy size={27} />
-        </span>
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-            {t('exam.title')}
-          </h1>
-          <p className="max-w-2xl text-sm text-muted-foreground">{t('exam.description')}</p>
-        </div>
-      </header>
-      <div className="practice-game-switch" aria-label={t('exam.filter-label')}>
-        {(['all', 'active', 'done'] as const).map((value) => (
-          <button
-            type="button"
+    <PageContainer className="py-10 md:py-14">
+      <div
+        role="group"
+        aria-label={t('exam.filter-label')}
+        className="mb-6 flex flex-wrap items-center gap-2 border-t-2 border-ink pt-5"
+      >
+        {EXAM_FILTERS.map((value) => (
+          <Chip
             key={value}
-            aria-pressed={filter === value}
-            onClick={() => setFilter(value)}
+            selected={filter === value}
+            onClick={() => {
+              setFilter(value);
+            }}
+            {...(query.isSuccess
+              ? { count: rows.filter((row) => matchesExamFilter(value, row.finished)).length }
+              : {})}
           >
-            {t(FILTER_KEYS[value])}
-            {query.isSuccess
-              ? ` (${items.filter((item) => value === 'all' || (value === 'done' ? item.closed : !item.closed)).length})`
-              : ''}
-          </button>
+            {t(EXAM_FILTER_KEYS[value])}
+          </Chip>
         ))}
       </div>
 
-      {query.isPending && (
-        <div className="flex flex-col gap-3">
-          <Skeleton className="h-28 w-full" />
-          <Skeleton className="h-28 w-full" />
-        </div>
-      )}
+      {query.isPending && <BoardSkeleton rows={3} label={t('exam.loading')} />}
 
       {query.isError && (
-        <ErrorState message={describeTrpcError(query.error)} onRetry={() => void query.refetch()} />
+        <ErrorState
+          title={t('exam.error-title')}
+          message={describeTrpcError(query.error)}
+          retrying={query.isFetching}
+          onRetry={() => void query.refetch()}
+        />
       )}
 
-      {query.data?.items.length === 0 && (
+      {query.isSuccess && rows.length === 0 && (
         <EmptyState title={t('exam.empty-title')} description={t('exam.empty-body')} />
       )}
 
-      {query.isSuccess && items.length > 0 && shown.length === 0 && (
+      {query.isSuccess && rows.length > 0 && shown.length === 0 && (
         <EmptyState
           title={t('exam.filter-empty-title')}
           description={t('exam.filter-empty-body')}
+          action={
+            <Chip
+              selected={false}
+              onClick={() => {
+                setFilter('all');
+              }}
+            >
+              {t('exam.filter-all')}
+            </Chip>
+          }
         />
       )}
-      <ul className="practice-exam-grid">
-        {shown.map((item) => (
-          <li key={item.id}>
-            <Card className="practice-exam-card">
-              <CardHeader>
-                <div className="flex flex-wrap items-center gap-2">
-                  <CardTitle>{item.title}</CardTitle>
-                  <Badge variant={statusVariant(item)} icon={null}>
-                    {t(statusKey(item))}
-                  </Badge>
-                </div>
-                <CardDescription>{t('exam.card-class', { name: item.className })}</CardDescription>
-              </CardHeader>
-              <CardContent className="flex flex-wrap items-center justify-between gap-3">
-                <p className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Clock3 size={16} aria-hidden="true" />
-                  {t('exam.card-problems', { count: item.problemCodes.length })}
-                  {' · '}
-                  {t('exam.card-duration', { minutes: item.durationMinutes })}
-                </p>
-                <Button asChild variant="outline">
-                  <Link href={`/exams/${item.id}`}>
-                    {t(openKey(item))}
-                    <ArrowRight size={16} aria-hidden="true" />
-                  </Link>
-                </Button>
-              </CardContent>
-            </Card>
-          </li>
-        ))}
-      </ul>
-    </section>
+
+      {shown.length > 0 && (
+        <Board label={t('exam.board-label')}>
+          {shown.map(({ item, slot, phase }, order) => (
+            <BoardRow
+              key={item.id}
+              href={`/exams/${item.id}`}
+              index={order + 1}
+              order={order}
+              lineState={phase === 'submitted' ? 'done' : phase === 'in-progress' ? 'current' : 'todo'}
+              title={item.title}
+              sub={t('exam.summary', {
+                name: item.className,
+                count: item.problemCodes.length,
+                minutes: item.durationMinutes,
+              })}
+              meta={
+                <>
+                  <WindowMark slot={slot} />
+                  <span className="flex items-center gap-1.5 font-mono text-xs tabular-nums">
+                    <CalendarClock aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
+                    {renderCopy(examWhen(item, formatMoment))}
+                  </span>
+                </>
+              }
+              state={<PhaseMark phase={phase} />}
+            />
+          ))}
+        </Board>
+      )}
+    </PageContainer>
   );
 }
 
-interface ExamListItem {
-  readonly startedAt: string | null;
-  readonly closed: boolean;
+const WINDOW_DOT = {
+  upcoming: 'warn',
+  open: 'live',
+  closed: 'idle',
+} as const satisfies Record<ExamWindow, 'warn' | 'live' | 'idle'>;
+
+/** Cửa sổ của kỳ thi: chấm trạng thái + chữ. "Đang mở" là chấm sống duy nhất. */
+function WindowMark({ slot }: { readonly slot: ExamWindow }): ReactElement {
+  return (
+    <span
+      className={cn(
+        'inline-flex h-6 w-24 items-center gap-2 px-2 font-mono text-xs font-medium',
+        slot === 'open' && 'bg-success/10 text-success',
+        slot === 'upcoming' && 'bg-signal text-signal-foreground',
+        slot === 'closed' && 'bg-muted text-muted-foreground',
+      )}
+    >
+      <StatusDot tone={WINDOW_DOT[slot]} />
+      {t(EXAM_WINDOW_KEYS[slot])}
+    </span>
+  );
 }
 
-/**
- * Nhãn ba mục lọc, bảng tra thay vì ba tầng điều kiện trong JSX.
- *
- * `Record<...>` trên đúng miền của `filter`: thêm mục thứ tư vào union mà quên
- * nhãn sẽ đỏ ở đây, chứ không hiện một nút trống.
- */
-const FILTER_KEYS = {
-  all: 'exam.filter-all',
-  active: 'exam.filter-active',
-  done: 'exam.filter-done',
-} as const satisfies Record<'all' | 'active' | 'done', StaticTextKey>;
+const PHASE_TONE: Readonly<Record<AttemptPhase, string>> = {
+  'not-started': 'text-muted-foreground',
+  'in-progress': 'bg-primary text-primary-foreground',
+  submitted: 'text-success',
+  expired: 'text-warning',
+};
 
-/**
- * Nhãn nút mở, ba ca giống hệt `statusKey`.
- *
- * Đọc `closed` của MÁY CHỦ trước, cùng lý do đã ghi ở `statusKey`: một lượt
- * hết giờ mà bỏ dở có `submittedAt = null`, nên suy ở client sẽ mời người ta
- * "tiếp tục làm bài" trên một kỳ thi đã đóng.
- */
-function openKey(item: ExamListItem): StaticTextKey {
-  if (item.closed) {
-    return 'exam.open-result';
-  }
-  return item.startedAt === null ? 'exam.open' : 'exam.open-continue';
-}
-
-/*
- * ⛔ "Đã xong" đọc `closed` của MÁY CHỦ, không suy từ `submittedAt`.
- *
- * Một lượt hết giờ mà bỏ dở có `submittedAt = null`, nên một phép suy ở client
- * sẽ hiện "Đang làm" mãi cho tới khi người ta mở chính kỳ thi đó. Suy cho đúng
- * thì cần hạn, mà hạn cần thời lượng ẢNH CHỤP của từng lượt cộng `closes_at` ,
- * tức chép một phép tính của máy chủ sang đây. Máy chủ tính sẵn và gửi kèm.
- */
-function statusKey(item: ExamListItem) {
-  if (item.closed) {
-    return 'exam.status-done' as const;
-  }
-  return item.startedAt === null
-    ? ('exam.status-not-started' as const)
-    : ('exam.status-in-progress' as const);
-}
-
-function statusVariant(item: ExamListItem) {
-  if (item.closed) {
-    return 'secondary' as const;
-  }
-  return item.startedAt === null ? ('outline' as const) : ('default' as const);
+/** Lượt làm của bạn. "Đang làm" là khối đỏ PTIT: đó là chỗ bạn đang đứng. */
+function PhaseMark({ phase }: { readonly phase: AttemptPhase }): ReactElement {
+  return (
+    <span
+      className={cn(
+        'inline-flex h-6 w-28 items-center justify-center px-2 font-mono text-xs font-semibold',
+        PHASE_TONE[phase],
+      )}
+    >
+      {t(ATTEMPT_PHASE_KEYS[phase])}
+    </span>
+  );
 }
