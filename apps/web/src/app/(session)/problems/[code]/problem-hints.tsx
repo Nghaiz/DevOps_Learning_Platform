@@ -84,7 +84,7 @@ export function ProblemHints(props: {
                 ) : (
                   <>
                     <Num tone="destructive" className="text-lg">
-                      {t('problem.oj.hints.price', { points: hint.penaltyPoints })}
+                      {t('problem.oj.hints.cost', { points: hint.penaltyPoints })}
                     </Num>
                     <Button
                       variant="outline"
