@@ -45,7 +45,18 @@ class RecordingSocket {
 
   constructor(readonly url: string) {}
 
-  addEventListener(): void {}
+  /**
+   * Phát `open` NGAY khi `openConnection` đăng ký listener — đồng bộ, vì các test
+   * dưới bấm phím ngay sau `act()` mà không nhường lượt cho microtask. Từ H5,
+   * `connection.ts` mở cổng stdin theo sự kiện `open` chứ không theo
+   * `readyState`: một fake chỉ đặt `readyState = OPEN` mà không phát `open` sẽ
+   * khiến mọi byte nằm im trong hàng đợi, và vế (a) đỏ vì fake chứ không vì mã.
+   */
+  addEventListener(type: string, handler: (event: unknown) => void): void {
+    if (type === 'open') {
+      handler({});
+    }
+  }
   removeEventListener(): void {}
   send(data: unknown): void {
     if (data instanceof Uint8Array) {
