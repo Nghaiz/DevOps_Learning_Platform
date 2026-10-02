@@ -8,8 +8,12 @@ import { attachSandboxCookie } from './sandbox-cookie';
  * thứ đang kiểm ở đây là THUỘC TÍNH cookie, không phải chữ ký. Phần ký thật nằm ở
  * `security/sandbox-token-cookie.test.ts`.
  */
+const minted: { sessionId: string; exp: number }[] = [];
 vi.mock('./jwt', () => ({
-  mintSandboxTokenFor: (_userId: string, sessionId: string) => Promise.resolve(`token-of-${sessionId}`),
+  mintSandboxTokenFor: (_userId: string, sessionId: string, exp: number) => {
+    minted.push({ sessionId, exp });
+    return Promise.resolve(`token-of-${sessionId}`);
+  },
 }));
 
 const HOUR = 3600;
@@ -90,5 +94,67 @@ describe('attachSandboxCookie — path theo phiên (D7.1)', () => {
       expect(c).toContain('SameSite=Strict');
       expect(c.toLowerCase()).not.toContain('domain=');
     }
+  });
+});
+
+/**
+ * D7.1 — token và cookie sống tới TRẦN CỨNG của phiên, không tới `expiresAt` lúc mint.
+ *
+ * Lỗi gốc: `exp = expiresAt` lúc tạo phiên (≈ createdAt + SESSION_TTL 1h). Heartbeat
+ * của gateway đẩy `expiresAt` trong Redis tới tận trần cứng (createdAt + HARD_CAP),
+ * nhưng không ai mint lại token — nên từ phút thứ 60, mọi lượt nối lại WS / tải lại
+ * IDE nhận 401 trong khi phiên vẫn sống. Gateway kiểm Redis ở mọi request (bước
+ * f–h), nên token sống tới trần cứng không mở thêm quyền nào.
+ */
+describe('attachSandboxCookie — tuổi thọ = trần cứng của phiên (D7.1)', () => {
+  const ts = (seconds: number) => ({ seconds: BigInt(seconds) });
+
+  it('exp của token và Max-Age = hardCapAt, KHÔNG phải expiresAt', async () => {
+    const now = Math.floor(Date.now() / 1000);
+    const hardCapAt = now + 90 * 60;
+    const ctx = { user: { id: 'user-a' }, resHeaders: new Headers() };
+    minted.length = 0;
+
+    await attachSandboxCookie(ctx, 'user-a', {
+      id: 'sess-cap',
+      createdAt: ts(now - 30 * 60),
+      expiresAt: ts(now + 5 * 60),
+      hardCapAt: ts(hardCapAt),
+    });
+
+    expect(minted).toEqual([{ sessionId: 'sess-cap', exp: hardCapAt }]);
+    for (const c of ctx.resHeaders.getSetCookie()) {
+      const maxAge = Number(/Max-Age=(\d+)/.exec(c)?.[1]);
+      expect(maxAge).toBeGreaterThan(90 * 60 - 3);
+      expect(maxAge).toBeLessThanOrEqual(90 * 60);
+    }
+  });
+
+  it('expiresAt đã vượt hardCapAt (claim trễ sau create) → lấy mốc XA hơn', async () => {
+    const now = Math.floor(Date.now() / 1000);
+    const ctx = { user: { id: 'user-a' }, resHeaders: new Headers() };
+    minted.length = 0;
+
+    await attachSandboxCookie(ctx, 'user-a', {
+      id: 'sess-late',
+      expiresAt: ts(now + 3602),
+      hardCapAt: ts(now + 3600),
+    });
+
+    // Token chết TRƯỚC phiên là đúng lỗi đang sửa, chỉ thu nhỏ lại vài giây.
+    expect(minted[0]?.exp).toBe(now + 3602);
+  });
+
+  it('orchestrator cũ chưa trả hardCapAt → giữ hành vi cũ (expiresAt) và CẢNH BÁO', async () => {
+    const now = Math.floor(Date.now() / 1000);
+    const ctx = { user: { id: 'user-a' }, resHeaders: new Headers() };
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    minted.length = 0;
+
+    await attachSandboxCookie(ctx, 'user-a', { id: 'sess-old', expiresAt: ts(now + 600) });
+
+    expect(minted[0]?.exp).toBe(now + 600);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('hardCapAt'), expect.anything());
+    warn.mockRestore();
   });
 });

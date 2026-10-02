@@ -76,6 +76,39 @@ export function buildSandboxCookie(token: string, maxAgeSeconds: number, path: s
 }
 
 /**
+ * D7.1 — mốc hết hạn của token VÀ cookie = TRẦN CỨNG của phiên (`hardCapAt` =
+ * createdAt + HARD_CAP, orchestrator tính lúc đọc), không phải `expiresAt` lúc mint.
+ *
+ * `expiresAt` lúc tạo chỉ là hạn tới heartbeat đầu (≈ SESSION_TTL). Gateway đẩy nó
+ * trong Redis tới tận trần cứng mỗi khi có hoạt động, nhưng không ai mint lại
+ * token — nên `exp = expiresAt` làm mọi lượt nối lại WS / tải lại IDE trả 401 từ
+ * khoảng phút 60 trong khi phiên vẫn sống. Token sống tới trần cứng không mở thêm
+ * quyền nào: gateway đọc Redis ở MỌI request (bước f–h), phiên chết là 404/409
+ * bất kể `exp`.
+ *
+ * `max(hardCapAt, expiresAt)`: claim xảy ra SAU create, nên phiên tạo với
+ * `ttl = HARD_CAP` có `expiresAt` vượt `hardCapAt` vài giây — token phải sống ít
+ * nhất bằng phiên.
+ *
+ * Orchestrator đời cũ (trước field `hard_cap_at`) không trả mốc này ⇒ giữ hành vi
+ * cũ (`expiresAt`) và CẢNH BÁO, thay vì làm hỏng việc tạo phiên trong lúc rollout.
+ */
+function sandboxLifetimeEnd(
+  sessionId: string,
+  expiresAt: { seconds: bigint },
+  hardCapAt: { seconds: bigint } | undefined,
+): number {
+  const expiresAtSeconds = Number(expiresAt.seconds);
+  if (hardCapAt === undefined) {
+    console.warn('[sandbox-cookie] orchestrator không trả hardCapAt — token sống theo expiresAt lúc mint', {
+      sessionId,
+    });
+    return expiresAtSeconds;
+  }
+  return Math.max(Number(hardCapAt.seconds), expiresAtSeconds);
+}
+
+/**
  * Mint sandbox token cho session vừa tạo và gắn `Set-Cookie` vào response.
  *
  * **Chỉ mint khi người gọi tạo session CHO CHÍNH MÌNH.** `assertOwnerOrAdmin` cho
@@ -96,7 +129,13 @@ export function buildSandboxCookie(token: string, maxAgeSeconds: number, path: s
 export async function attachSandboxCookie(
   ctx: { user: { id: string }; resHeaders: Headers },
   ownerUserId: string,
-  session: { id?: string; expiresAt?: { seconds: bigint } | undefined } | undefined,
+  session:
+    | {
+        id?: string;
+        expiresAt?: { seconds: bigint } | undefined;
+        hardCapAt?: { seconds: bigint } | undefined;
+      }
+    | undefined,
 ): Promise<void> {
   if (ctx.user.id !== ownerUserId) {
     return;
@@ -116,9 +155,9 @@ export async function attachSandboxCookie(
   // ms, và đúng ở biên (`exp == now + 1`) sinh ra `Max-Age=0` — cookie bị xoá ngay
   // khi vừa đặt, trong khi token thì hợp lệ. Một lần đọc, không có cửa sổ đó.
   const nowSeconds = Math.floor(Date.now() / 1000);
-  const expiresAtSeconds = Number(expiresAt.seconds);
-  const token = await mintSandboxTokenFor(ownerUserId, sessionId, expiresAtSeconds);
-  const maxAge = expiresAtSeconds - nowSeconds;
+  const lifetimeEnd = sandboxLifetimeEnd(sessionId, expiresAt, session?.hardCapAt);
+  const token = await mintSandboxTokenFor(ownerUserId, sessionId, lifetimeEnd);
+  const maxAge = lifetimeEnd - nowSeconds;
   for (const path of sandboxCookiePaths(sessionId)) {
     ctx.resHeaders.append('Set-Cookie', buildSandboxCookie(token, maxAge, path));
   }
