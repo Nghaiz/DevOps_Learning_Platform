@@ -3,6 +3,7 @@ import path from 'node:path';
 import type { z } from 'zod';
 import { labSchema, type Lab, type LabTask } from '@devops-platform/shared-types/lab';
 import { mapBackendImage, KNOWN_BACKEND_IMAGE_IDS } from './backend.ts';
+import { diagramRefs, loadDiagramMap } from './diagrams.ts';
 import { labFileSchema, type LabFile, type LabTaskFile } from './lab.ts';
 import { sanitizeToolset } from './toolset.ts';
 
@@ -148,10 +149,9 @@ export async function loadLab(labDir: string): Promise<Lab> {
   const tasks = await Promise.all(file.tasks.map((task: LabTaskFile) => buildTask(dir, task)));
 
   const setup = {
-    foreground:
-      file.setup?.foreground === undefined
-        ? null
-        : await readRelative(dir, file.setup.foreground, 'setup.foreground'),
+    // `lab.json` không còn khai được `setup.foreground` (lab.ts §labSetupFileSchema):
+    // không đường nào chạy nó. DTO giữ field cho bài soạn trong DB.
+    foreground: null,
     background:
       file.setup?.background === undefined
         ? null
@@ -164,6 +164,7 @@ export async function loadLab(labDir: string): Promise<Lab> {
     description: file.description ?? null,
     difficulty: file.difficulty,
     estimatedMinutes: file.estimatedMinutes,
+    topic: file.topic,
     tier: backend.tier,
     capabilities: [...backend.capabilities],
     // Lab first-party khai imageid của CHÍNH nó, nên "cung cấp" và "đòi" đã
@@ -185,6 +186,16 @@ export async function loadLab(labDir: string): Promise<Lab> {
     passThresholdPercent: file.passThresholdPercent ?? 100,
     leaderboard: file.leaderboard ?? false,
   };
+
+  let diagrams;
+  try {
+    diagrams = await loadDiagramMap(dir, diagramRefs(tasks.map((task) => task.markdown)));
+  } catch (cause) {
+    throw new LabError(dir, (cause as Error).message, { cause });
+  }
+  if (diagrams !== undefined) {
+    lab.diagrams = diagrams;
+  }
 
   // Kiểm lại DTO bằng chính schema mà router (P8/P9) sẽ tin — bắt lỗi của HÀM
   // NÀY (một field quên gán), không phải lỗi của nội dung.
@@ -212,7 +223,9 @@ async function buildTask(dir: string, task: LabTaskFile): Promise<LabTask> {
     markdown,
     verifyScript,
     weight: task.weight ?? 1,
-    hint: task.hint ?? null,
+    // Lab trên đĩa không còn khai được gợi ý (lab.ts §labTaskFileSchema). Field
+    // DTO còn lại chỉ cho lab soạn trong DB, và cây người học không mang nó.
+    hint: null,
   };
 }
 

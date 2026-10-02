@@ -48,7 +48,30 @@ export type ContentBlock =
       action: CodeAction;
       /** `true` khi nguồn là code span một dấu backtick, `false` khi là fence. */
       inline: boolean;
+    }
+  | {
+      /**
+       * Sơ đồ TikZ đã dựng sẵn (`plans/labs-rebuild/contracts.md` §C4). `src` là
+       * khoá tra trong `diagrams` của DTO bài — FE chèn SVG inline từ đó, không
+       * tải qua URL.
+       */
+      kind: 'diagram';
+      src: string;
+      alt: string;
+      caption: string | null;
     };
+
+/**
+ * Một dòng CHỈ chứa ảnh trỏ vào `diagrams/` ⇒ block sơ đồ.
+ *
+ * Phải đứng riêng một dòng: một sơ đồ là một khối (figure + chú thích), không
+ * phải một ký tự giữa câu. Ảnh `diagrams/…` nằm giữa đoạn văn bị NÉM ở
+ * `assertNoInlineDiagram` thay vì lặng lẽ rơi về `<img>` — route asset không phục
+ * vụ thư mục `diagrams/`, nên con đường "rơi về" đó kết thúc ở một khung "Không
+ * tải được ảnh" giữa bài.
+ */
+const DIAGRAM_LINE = /^[ \t]*!\[([^\]]*)\]\((diagrams\/[^)\s"]+)(?:[ \t]+"([^"]*)")?\)[ \t]*$/;
+const DIAGRAM_ANYWHERE = /!\[[^\]]*\]\(diagrams\//;
 
 export class ContentBlockError extends Error {
   constructor(message: string) {
@@ -170,6 +193,12 @@ export function parseContentBlocks(markdown: string): ContentBlock[] {
     const line = lines[i] ?? '';
     const open = FENCE_OPEN.exec(line);
     if (open === null) {
+      const diagram = DIAGRAM_LINE.exec(line);
+      if (diagram !== null) {
+        flushProse();
+        blocks.push(diagramBlock(diagram));
+        continue;
+      }
       prose.push(line);
       continue;
     }
@@ -216,8 +245,34 @@ export function parseContentBlocks(markdown: string): ContentBlock[] {
   return blocks;
 }
 
+function diagramBlock(match: RegExpExecArray): ContentBlock {
+  const alt = (match[1] ?? '').trim();
+  const src = match[2] ?? '';
+  const caption = match[3]?.trim() ?? '';
+  if (!/^diagrams\/[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.svg$/.test(src)) {
+    throw new ContentBlockError(
+      `sơ đồ "${src}": đường dẫn phải có dạng diagrams/<tên>.svg (chữ thường, số, gạch nối).`,
+    );
+  }
+  if (alt.length < 20) {
+    throw new ContentBlockError(
+      `sơ đồ "${src}": alt quá ngắn (${alt.length} ký tự). Người dùng trình đọc màn hình ` +
+        `chỉ nhận được đúng dòng này — hãy tả nội dung hình, tối thiểu 20 ký tự.`,
+    );
+  }
+  return { kind: 'diagram', src, alt, caption: caption === '' ? null : caption };
+}
+
 /** Tách tiếp phần văn xuôi theo code span có hậu tố. */
 function pushProse(blocks: ContentBlock[], text: string): void {
+  // Bỏ code (fence thường + code span) trước khi dò: một bài dạy cú pháp
+  // markdown được phép TRÍCH `![…](diagrams/…)` bên trong code.
+  const outsideCode = text.replace(/```[\s\S]*?```/g, '').replace(/`[^`\n]*`/g, '');
+  if (DIAGRAM_ANYWHERE.test(outsideCode)) {
+    throw new ContentBlockError(
+      'ảnh trỏ vào diagrams/ phải đứng RIÊNG một dòng (sơ đồ là một khối, không phải ký tự giữa câu).',
+    );
+  }
   INLINE_ACTION.lastIndex = 0;
   let cursor = 0;
   let match: RegExpExecArray | null;

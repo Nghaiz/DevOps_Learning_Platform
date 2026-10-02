@@ -1,6 +1,7 @@
 {
   "id": "dlp-sandbox-basics",
   "difficulty": "beginner",
+"topic": "linux",
   "estimatedMinutes": 10,
   "source": null,
   "acknowledgedUnknownFields": [],

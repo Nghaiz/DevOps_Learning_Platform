@@ -184,7 +184,8 @@ describe('parseContentBlocks — xuống dòng CRLF', () => {
     // văn xuôi vẫn mang `\r` — và nó chui thẳng vào markdown render ở FE.
     const blocks = parseContentBlocks(LINES.join('\r\n'));
     for (const block of blocks) {
-      const text = block.kind === 'markdown' ? block.markdown : block.code;
+      const text =
+        block.kind === 'markdown' ? block.markdown : block.kind === 'code' ? block.code : block.alt;
       expect(text).not.toContain('\r');
     }
   });
@@ -280,5 +281,45 @@ describe('parseContentBlocks — cú pháp terminal đích đã bị gỡ (§Y2)
         .map((b) => b.markdown)
         .join(''),
     ).toContain('{{TRAFFIC_HOST1_80}}');
+  });
+});
+
+describe('block sơ đồ (contracts §C4)', () => {
+  const ALT = 'Ba lớp image xếp chồng, lớp ghi được của container nằm trên cùng';
+
+  it('dòng ảnh diagrams/ đứng riêng ⇒ block diagram, giữ alt + chú thích', () => {
+    const blocks = parseContentBlocks(`Trước.\n\n![${ALT}](diagrams/image-layers.svg "Hình 1. Lớp image")\n\nSau.`);
+    expect(blocks).toEqual([
+      { kind: 'markdown', markdown: 'Trước.\n' },
+      { kind: 'diagram', src: 'diagrams/image-layers.svg', alt: ALT, caption: 'Hình 1. Lớp image' },
+      { kind: 'markdown', markdown: '\nSau.' },
+    ]);
+  });
+
+  it('không có chú thích ⇒ caption null', () => {
+    const [block] = parseContentBlocks(`![${ALT}](diagrams/a.svg)`);
+    expect(block).toEqual({ kind: 'diagram', src: 'diagrams/a.svg', alt: ALT, caption: null });
+  });
+
+  it('ảnh diagrams/ nằm giữa câu ⇒ NÉM thay vì rơi về <img> không tải được', () => {
+    expect(() => parseContentBlocks(`Xem hình ![${ALT}](diagrams/a.svg) ở trên.`)).toThrow(ContentBlockError);
+  });
+
+  it('cú pháp sơ đồ trích trong code fence hay code span không bị coi là sơ đồ', () => {
+    const fenced = parseContentBlocks('```md\n![x](diagrams/a.svg)\n```\n\nViết `![x](diagrams/a.svg)` để chèn hình.');
+    expect(fenced.every((b) => b.kind === 'markdown')).toBe(true);
+  });
+
+  it('alt dưới 20 ký tự ⇒ NÉM', () => {
+    expect(() => parseContentBlocks('![sơ đồ](diagrams/a.svg)')).toThrow(/alt quá ngắn/);
+  });
+
+  it('src sai dạng ⇒ NÉM', () => {
+    expect(() => parseContentBlocks(`![${ALT}](diagrams/Hinh_1.svg)`)).toThrow(/diagrams\/<tên>\.svg/);
+    expect(() => parseContentBlocks(`![${ALT}](diagrams/../x.svg)`)).toThrow(ContentBlockError);
+  });
+
+  it('executableCommands bỏ qua block sơ đồ', () => {
+    expect(executableCommands(`![${ALT}](diagrams/a.svg)\n\n\`ls\`{{exec}}`)).toEqual(['ls']);
   });
 });

@@ -1,6 +1,7 @@
 {
   "id": "ckad-configmap-as-files",
   "difficulty": "intermediate",
+"topic": "kubernetes",
   "estimatedMinutes": 15,
   "source": {
     "repo": "https://github.com/omkar-shelke25/ckad-killercoda",

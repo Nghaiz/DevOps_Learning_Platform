@@ -20,6 +20,7 @@ async function writePlayground(id: string, overrides: Record<string, unknown> = 
     title: 'Demo playground',
     backend: { imageid: 'ubuntu' },
     ttlSeconds: 1800,
+    topic: 'linux',
     ...overrides,
   };
   await writeFile(file, JSON.stringify(data));
