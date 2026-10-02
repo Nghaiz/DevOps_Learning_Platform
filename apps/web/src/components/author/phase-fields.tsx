@@ -1,34 +1,82 @@
 'use client';
 
 import { t } from '@devops-platform/copy';
-import type { ReactElement } from 'react';
-import { Switch, Label } from '@devops-platform/ui';
-import type { PhaseFormState } from './draft-form';
-import { TextAreaField, TextField } from './field';
+import { useId, type ReactElement } from 'react';
+import { Label, Switch } from '@devops-platform/ui';
+import type { FieldIssue, PhaseFormState } from './draft-form';
+import { TextAreaField, TextField, issueFor } from './field';
 
 /**
- * Một "phase" của bài học (mở đầu / kết thúc) — markdown + script.
+ * Một "phase" của bài học (mở đầu / kết thúc): markdown + script.
  *
  * `foreground` và `background` là HAI ô riêng, không phải một, vì upstream phân
  * biệt chúng và DTO giữ nguyên sự phân biệt đó: `foreground` gõ vào terminal
- * người học NHÌN THẤY; `background` chạy ẩn. Gộp chúng lại ở tầng nhập là mở
- * đường cho một script chuẩn bị chạy trước mắt người học.
+ * người học NHÌN THẤY; `background` chạy ẩn. Gộp chúng ở tầng nhập là mở đường
+ * cho một script chuẩn bị chạy trước mắt người học.
+ *
+ * Đường dữ liệu của ô theo đúng hình dạng body xuất bản (`intro.setup.foreground`),
+ * vì cảnh báo shellcheck của server trỏ về đó (`server/content/validate.ts`).
  */
-export function PhaseFields(props: {
+export type PhasePath = 'intro' | 'finish';
+
+export function PhaseSection(props: {
+  readonly path: PhasePath;
+  readonly toggleLabel: string;
+  readonly enabled: boolean;
+  readonly onToggle: (enabled: boolean) => void;
   readonly value: PhaseFormState;
   readonly onChange: (next: PhaseFormState) => void;
+  readonly issues: readonly FieldIssue[];
   readonly disabled?: boolean | undefined;
-  readonly markdownLabel?: string | undefined;
 }): ReactElement {
-  const { value, onChange, disabled } = props;
+  const switchId = useId();
+  return (
+    <>
+      <div className="flex min-h-10 items-center gap-3 border border-border px-3 py-2 transition-colors duration-150 has-[[data-state=checked]]:border-line-cicd has-[[data-state=checked]]:bg-line-cicd/12">
+        <Switch
+          id={switchId}
+          checked={props.enabled}
+          disabled={props.disabled}
+          onCheckedChange={props.onToggle}
+        />
+        <Label htmlFor={switchId} className="text-sm font-medium">
+          {props.toggleLabel}
+        </Label>
+      </div>
+      {props.enabled && (
+        <div className="animate-rise">
+          <PhaseFields
+            path={props.path}
+            value={props.value}
+            issues={props.issues}
+            disabled={props.disabled}
+            onChange={props.onChange}
+          />
+        </div>
+      )}
+    </>
+  );
+}
+
+function PhaseFields(props: {
+  readonly path: PhasePath;
+  readonly value: PhaseFormState;
+  readonly onChange: (next: PhaseFormState) => void;
+  readonly issues: readonly FieldIssue[];
+  readonly disabled?: boolean | undefined;
+}): ReactElement {
+  const { path, value, onChange, issues, disabled } = props;
   const patch = (part: Partial<PhaseFormState>): void => {
     onChange({ ...value, ...part });
   };
+  const at = (field: string): string => `${path}.${field}`;
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-6">
       <TextField
         label={t('author.phase-fields-tieu-de-phan')}
+        path={at('title')}
+        error={issueFor(issues, at('title'))}
         value={value.title}
         onChange={(title) => {
           patch({ title });
@@ -37,7 +85,9 @@ export function PhaseFields(props: {
         hint={t('author.phase-fields-bo-trong-cung-duoc-noi-dung-upstream-thuong-khong-co')}
       />
       <TextAreaField
-        label={props.markdownLabel ?? t('author.phase-fields-noi-dung-markdown')}
+        label={t('author.phase-fields-noi-dung-markdown')}
+        path={at('markdown')}
+        error={issueFor(issues, at('markdown'))}
         rows={8}
         mono
         value={value.markdown}
@@ -45,40 +95,40 @@ export function PhaseFields(props: {
           patch({ markdown });
         }}
         disabled={disabled}
-        hint={
-          <>
-            {t(
-              'author.phase-fields-khoi-code-co-the-mang-nut-chay-dung-cu-phap-khoi-code-cua-noi-dung-nen-tang',
-            )}{' '}
-            <code className="font-mono">{t('author.phase-fields-assets-lt-khoa-gt')}</code>
-            {t('author.phase-fields-lay-khoa-o-tab-tep-dinh-kem')}
-          </>
-        }
+        hint={<MarkdownHint />}
       />
-      <TextAreaField
-        label={t('author.draft-form-view-setup-foreground')}
-        rows={3}
-        mono
-        value={value.setupForeground}
-        onChange={(setupForeground) => {
-          patch({ setupForeground });
-        }}
-        disabled={disabled}
-        hint={t('author.phase-fields-chay-bang-bash-hien-trong-terminal-nguoi-hoc')}
-      />
-      <TextAreaField
-        label={t('author.draft-form-view-setup-background')}
-        rows={3}
-        mono
-        value={value.setupBackground}
-        onChange={(setupBackground) => {
-          patch({ setupBackground });
-        }}
-        disabled={disabled}
-        hint={t('author.phase-fields-chay-bang-bash-an')}
-      />
+      <div className="grid gap-6 @2xl:grid-cols-2">
+        <TextAreaField
+          label={t('author.draft-form-view-setup-foreground')}
+          path={at('setup.foreground')}
+          error={issueFor(issues, at('setup.foreground'))}
+          rows={3}
+          mono
+          value={value.setupForeground}
+          onChange={(setupForeground) => {
+            patch({ setupForeground });
+          }}
+          disabled={disabled}
+          hint={t('author.phase-fields-chay-bang-bash-hien-trong-terminal-nguoi-hoc')}
+        />
+        <TextAreaField
+          label={t('author.draft-form-view-setup-background')}
+          path={at('setup.background')}
+          error={issueFor(issues, at('setup.background'))}
+          rows={3}
+          mono
+          value={value.setupBackground}
+          onChange={(setupBackground) => {
+            patch({ setupBackground });
+          }}
+          disabled={disabled}
+          hint={t('author.phase-fields-chay-bang-bash-an')}
+        />
+      </div>
       <TextAreaField
         label={t('author.phase-fields-script-cham')}
+        path={at('verifyScript')}
+        error={issueFor(issues, at('verifyScript'))}
         rows={3}
         mono
         value={value.verifyScript}
@@ -92,25 +142,13 @@ export function PhaseFields(props: {
   );
 }
 
-/** Bật/tắt một phần tuỳ chọn (mở đầu, kết thúc). */
-export function PhaseToggle(props: {
-  readonly id: string;
-  readonly label: string;
-  readonly checked: boolean;
-  readonly onChange: (checked: boolean) => void;
-  readonly disabled?: boolean | undefined;
-}): ReactElement {
+/** Câu giải thích cho ô markdown, dùng chung với ô nội dung của từng bước. */
+export function MarkdownHint(): ReactElement {
   return (
-    <div className="flex items-center gap-2">
-      <Switch
-        id={props.id}
-        checked={props.checked}
-        disabled={props.disabled}
-        onCheckedChange={props.onChange}
-      />
-      <Label htmlFor={props.id} className="font-normal">
-        {props.label}
-      </Label>
-    </div>
+    <>
+      {t('author.phase-fields-khoi-code-co-the-mang-nut-chay-dung-cu-phap-khoi-code-cua-noi-dung-nen-tang')}{' '}
+      <code className="font-mono text-foreground">{t('author.phase-fields-assets-lt-khoa-gt')}</code>
+      {t('author.phase-fields-lay-khoa-o-tab-tep-dinh-kem')}
+    </>
   );
 }

@@ -1,0 +1,231 @@
+'use client';
+
+import { t } from '@devops-platform/copy';
+import { useId, type CSSProperties, type ReactElement } from 'react';
+import { ArrowDown, ArrowUp, Trash2 } from 'lucide-react';
+import { Button } from '@devops-platform/ui';
+import type { ContentKind } from '@devops-platform/shared-types/authoring';
+import type { FieldIssue, StepFormState } from './draft-form';
+import { TextAreaField, TextField, issueFor } from './field';
+import { MarkdownHint } from './phase-fields';
+
+/**
+ * Một bước (bài học) hoặc một task (lab): một "trạm" trên tuyến.
+ *
+ * Là `<section aria-labelledby>` có `<h3>` đúng bằng `Bước N` / `Task N`, nên
+ * vùng này có tên truy cập và e2e tìm được nó bằng
+ * `getByRole('region', { name: 'Bước 1', exact: true })`. Số trên ô màu xanh
+ * chỉ để mắt nhìn (`aria-hidden`), tên vùng không lặp số hai lần.
+ *
+ * Không phải thẻ: chỉ vạch mảnh ngăn trạm, và khi con trỏ đang ở trong trạm
+ * thì vạch trên đầu quét màu tuyến CI/CD từ trái sang (không dùng viền trái làm
+ * dấu hiệu đang chọn, luật §0.3 của design brief).
+ *
+ * Đường dữ liệu ô: `steps[N].<field>` cho bài học, `task[N].<field>` cho lab,
+ * N là vị trí 0-based trong mảng, khớp `toDraftInput` của `draft-form.ts`.
+ */
+export function StepStation(props: {
+  readonly kind: Exclude<ContentKind, 'playground'>;
+  readonly index: number;
+  readonly total: number;
+  readonly step: StepFormState;
+  readonly issues: readonly FieldIssue[];
+  readonly disabled?: boolean | undefined;
+  readonly onPatch: (part: Partial<StepFormState>) => void;
+  readonly onMove: (delta: number) => void;
+  readonly onRemove: () => void;
+}): ReactElement {
+  const { kind, index, total, step, issues, disabled, onPatch } = props;
+  const headingId = useId();
+  const isLab = kind === 'lab';
+  const at = (field: string): string => `${isLab ? 'task' : 'steps'}[${String(index)}].${field}`;
+  const err = (field: string): string | null => issueFor(issues, at(field));
+  const ordinal = String(index + 1);
+  const heading = `${isLab ? t('author.step-task') : t('author.step-list-fields-buoc')} ${ordinal}`;
+  const hasIssue = issues.some((issue) => issue.path.startsWith(at('')));
+
+  return (
+    <section
+      aria-labelledby={headingId}
+      className="group/station stagger relative animate-rise border-t border-border pt-5"
+      style={{ '--i': index } as CSSProperties}
+    >
+      <span
+        aria-hidden
+        className="absolute inset-x-0 -top-px h-0.5 origin-left scale-x-0 bg-line-cicd transition-transform duration-200 ease-out group-focus-within/station:scale-x-100"
+      />
+      <header className="flex flex-wrap items-center gap-x-4 gap-y-3">
+        <span
+          aria-hidden
+          className={
+            hasIssue
+              ? 'grid size-11 shrink-0 place-items-center bg-destructive font-mono text-sm font-bold tabular-nums text-destructive-foreground transition-colors'
+              : 'grid size-11 shrink-0 place-items-center bg-line-cicd font-mono text-sm font-bold tabular-nums text-line-cicd-foreground transition-[transform,background-color] duration-200 group-focus-within/station:-translate-y-0.5'
+          }
+        >
+          {ordinal.padStart(2, '0')}
+        </span>
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <h3 id={headingId} className="font-mono text-xs font-medium tracking-wide text-line-cicd-ink">
+            {heading}
+          </h3>
+          <p className={step.title === '' ? 'truncate text-sm text-muted-foreground' : 'truncate type-title'}>
+            {step.title === '' ? t('author.step-list-fields-chua-dat-ten') : step.title}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          <Button
+            variant="outline"
+            size="sm"
+            iconLeft={<ArrowUp aria-hidden />}
+            disabled={disabled === true || index === 0}
+            onClick={() => {
+              props.onMove(-1);
+            }}
+          >
+            {t('author.step-list-fields-len')}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            iconLeft={<ArrowDown aria-hidden />}
+            disabled={disabled === true || index === total - 1}
+            onClick={() => {
+              props.onMove(1);
+            }}
+          >
+            {t('author.step-list-fields-xuong')}
+          </Button>
+          <Button
+            variant="destructive"
+            size="sm"
+            iconLeft={<Trash2 aria-hidden />}
+            disabled={disabled}
+            onClick={props.onRemove}
+          >
+            {t('common.action.delete')}
+          </Button>
+        </div>
+      </header>
+
+      <div className="@container mt-6 flex flex-col gap-6">
+        {isLab && (
+          <div className="grid gap-6 @xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+            <TextField
+              label={t('author.step-list-fields-id-task')}
+              path={at('taskId')}
+              error={err('taskId')}
+              value={step.taskId}
+              onChange={(taskId) => {
+                onPatch({ taskId });
+              }}
+              disabled={disabled}
+              placeholder={t('author.step-list-fields-tim-tien-trinh-ngon-cpu')}
+              hint={t(
+                'author.step-list-fields-chi-a-z0-9-dinh-danh-ben-doi-sau-khi-co-nguoi-lam-bai-se-lam-ket-qua-cu-gan',
+              )}
+            />
+            <TextField
+              label={t('author.step-list-fields-trong-so')}
+              path={at('weight')}
+              error={err('weight')}
+              value={step.weight}
+              inputMode="numeric"
+              onChange={(weight) => {
+                onPatch({ weight });
+              }}
+              disabled={disabled}
+              hint={t('author.step-list-fields-bo-trong-thi-loader-ap-1-moi-task-nang-nhu-nhau')}
+            />
+          </div>
+        )}
+
+        <TextField
+          label={t('author.draft-meta-fields-tieu-de')}
+          path={at('title')}
+          error={err('title')}
+          value={step.title}
+          onChange={(title) => {
+            onPatch({ title });
+          }}
+          disabled={disabled}
+          hint={isLab ? t('author.step-list-fields-bat-buoc-khi-xuat-ban-lab') : t('author.step-list-fields-bo-trong-cung-duoc')}
+        />
+
+        <TextAreaField
+          label={t('author.phase-fields-noi-dung-markdown')}
+          path={at('markdown')}
+          error={err('markdown')}
+          rows={6}
+          mono
+          value={step.markdown}
+          onChange={(markdown) => {
+            onPatch({ markdown });
+          }}
+          disabled={disabled}
+          hint={<MarkdownHint />}
+        />
+
+        {!isLab && (
+          <div className="grid gap-6 @2xl:grid-cols-2">
+            <TextAreaField
+              label={t('author.draft-form-view-setup-foreground')}
+              path={at('setupForeground')}
+              error={err('setupForeground')}
+              rows={3}
+              mono
+              value={step.setupForeground}
+              onChange={(setupForeground) => {
+                onPatch({ setupForeground });
+              }}
+              disabled={disabled}
+            />
+            <TextAreaField
+              label={t('author.draft-form-view-setup-background')}
+              path={at('setupBackground')}
+              error={err('setupBackground')}
+              rows={3}
+              mono
+              value={step.setupBackground}
+              onChange={(setupBackground) => {
+                onPatch({ setupBackground });
+              }}
+              disabled={disabled}
+            />
+          </div>
+        )}
+
+        <TextAreaField
+          label={t('author.phase-fields-script-cham')}
+          path={at('verifyScript')}
+          error={err('verifyScript')}
+          rows={4}
+          mono
+          value={step.verifyScript}
+          onChange={(verifyScript) => {
+            onPatch({ verifyScript });
+          }}
+          disabled={disabled}
+          hint={
+            isLab
+              ? t('author.step-list-fields-bat-buoc-mot-task-khong-cham-duoc-thi-luon-o-trang-thai-chua-dat-dat-khi-ex')
+              : t('author.step-list-fields-bo-trong-nghia-la-buoc-nay-chi-dan-giai-khong-cham-dat-khi-exit-code-0')
+          }
+        />
+
+        {isLab && (
+          <TextField
+            label={t('author.step-list-fields-goi-y')}
+            path={at('hint')}
+            error={err('hint')}
+            value={step.hint}
+            onChange={(hint) => {
+              onPatch({ hint });
+            }}
+            disabled={disabled}
+          />
+        )}
+      </div>
+    </section>
+  );
+}

@@ -1,36 +1,23 @@
 'use client';
 
 import { t } from '@devops-platform/copy';
-import { useRef, useState, type ReactElement } from 'react';
-import {
-  Alert,
-  AlertDescription,
-  AlertTitle,
-  Button,
-  EmptyState,
-  ErrorState,
-  Skeleton,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-  useToast,
-} from '@devops-platform/ui';
-import { CONTENT_ASSET_TYPES } from '@devops-platform/shared-types/authoring';
+import { useId, useRef, useState, type ReactElement } from 'react';
+import { ImageUp } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle, Button, useToast } from '@devops-platform/ui';
+import { CONTENT_ASSET_TYPES, MAX_CONTENT_ASSET_BYTES } from '@devops-platform/shared-types/authoring';
 import { api } from '../../lib/trpc-react';
 import { describeTrpcError } from '../../lib/trpc';
-import { assetMarkdownSnippet, bytesToBase64, validateAssetFile } from './asset-upload';
+import { AssetList } from './asset-list';
+import { bytesToBase64, formatBytes, validateAssetFile } from './asset-upload';
 
 /**
- * Tệp đính kèm của một bài — tải lên, liệt kê, xoá.
+ * Tệp đính kèm của một bài: tải lên, liệt kê, xoá.
  *
  * ## Vì sao base64 chứ không multipart
  *
  * `authoring.uploadAsset` là một tRPC mutation, và tRPC là JSON. Server kiểm trần
  * cỡ TRƯỚC khi decode (một chuỗi base64 4 MB decode ra 3 MB, và kiểm sau decode
- * là đã cấp phát 3 MB cho một request sẽ bị từ chối) — nên `input.base64` có
+ * là đã cấp phát 3 MB cho một request sẽ bị từ chối), nên `input.base64` có
  * `.max()` riêng, và bản kiểm ở client dùng chung hằng số đó.
  *
  * ## Xoá là XOÁ THẬT, khác hẳn "lưu trữ" của bài
@@ -38,15 +25,17 @@ import { assetMarkdownSnippet, bytesToBase64, validateAssetFile } from './asset-
  * Bài thì lưu trữ chứ không xoá (tiến độ người học trỏ tới id bài). Asset thì
  * không có gì trỏ tới ngoài markdown của chính bài này, nên `deleteAsset` xoá
  * hàng thật. Hệ quả: markdown còn tham chiếu tới `storageKey` vừa xoá sẽ hiện
- * ảnh hỏng — và không có gì trong hệ thống báo trước, nên câu cảnh báo phải nằm
- * ngay ở nút.
+ * ảnh hỏng, và không có gì trong hệ thống báo trước, nên câu cảnh báo nằm ở nút.
+ *
+ * Trần cỡ và danh sách đuôi trên màn hình đọc từ chính hằng số server dùng
+ * (`MAX_CONTENT_ASSET_BYTES`, `CONTENT_ASSET_TYPES`), không gõ lại "2 MB".
  */
 export function AssetManager({ contentId }: { readonly contentId: string }): ReactElement {
   const { toast } = useToast();
   const utils = api.useUtils();
   const fileInput = useRef<HTMLInputElement>(null);
   const [localError, setLocalError] = useState<string | null>(null);
-  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const titleId = useId();
 
   const listQuery = api.authoring.listAssets.useQuery({ id: contentId });
 
@@ -90,146 +79,87 @@ export function AssetManager({ contentId }: { readonly contentId: string }): Rea
     });
   };
 
-  const assets = listQuery.data ?? [];
+  const accepted = [...CONTENT_ASSET_TYPES.keys()];
 
   return (
-    <div className="flex flex-col gap-4">
-      <Alert>
-        <AlertTitle>{t('author.asset-manager-anh-nhung-trong-noi-dung-bai')}</AlertTitle>
-        <AlertDescription>
-          {t('author.asset-manager-nhan')} {[...CONTENT_ASSET_TYPES.keys()].join(', ')}
-          {t(
-            'author.asset-manager-toi-da-2-mb-moi-tep-day-khong-phai-khoi-chep-file-vao-pod-o-tab-soan-khoi-d',
-          )}
-        </AlertDescription>
-      </Alert>
-
-      <div className="flex flex-wrap items-center gap-3">
+    <div className="flex flex-col gap-8">
+      <section
+        aria-labelledby={titleId}
+        className="relative isolate grid animate-rise gap-5 overflow-hidden border border-ink bg-card p-5 md:grid-cols-[auto_minmax(0,1fr)_auto] md:items-center md:p-6"
+      >
+        <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 bg-dots text-line-cicd opacity-20" />
+        <span aria-hidden className="grid size-12 place-items-center bg-line-cicd text-line-cicd-foreground">
+          <ImageUp className="size-6" />
+        </span>
+        <div className="flex min-w-0 flex-col gap-1">
+          <h2 id={titleId} className="type-title">
+            {t('author.asset-manager-anh-nhung-trong-noi-dung-bai')}
+          </h2>
+          <p className="text-sm text-foreground">
+            {t('author.asset-manager-dinh-dang-va-tran', {
+              types: accepted.join(', '),
+              max: formatBytes(MAX_CONTENT_ASSET_BYTES),
+            })}
+          </p>
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            {t('author.asset-manager-khong-phai-khoi-chep-file-vao-pod')}
+          </p>
+        </div>
         <input
           ref={fileInput}
           type="file"
           className="sr-only"
-          accept={[...CONTENT_ASSET_TYPES.keys()].join(',')}
+          tabIndex={-1}
+          aria-hidden
+          accept={accepted.join(',')}
           onChange={(event) => {
             const file = event.target.files?.[0];
             if (file !== undefined) {
               void onPick(file);
             }
-            // Xoá giá trị để chọn LẠI cùng một tệp vẫn kích hoạt onChange —
-            // trình duyệt không phát sự kiện khi giá trị không đổi, và người
-            // soạn sửa ảnh rồi tải lại cùng tên là chuyện thường.
+            // Xoá giá trị để chọn LẠI cùng một tệp vẫn kích hoạt onChange: trình
+            // duyệt không phát sự kiện khi giá trị không đổi, và người soạn sửa
+            // ảnh rồi tải lại cùng tên là chuyện thường.
             event.target.value = '';
           }}
         />
         <Button
           loading={upload.isPending}
+          iconLeft={<ImageUp aria-hidden />}
           onClick={() => {
             fileInput.current?.click();
           }}
         >
           {t('author.asset-manager-chon-tep-de-tai-len')}
         </Button>
-      </div>
+      </section>
 
       {localError !== null && (
-        <Alert variant="destructive">
+        <Alert variant="destructive" className="animate-rise">
           <AlertTitle>{t('author.asset-manager-khong-tai-len-duoc')}</AlertTitle>
           <AlertDescription>{localError}</AlertDescription>
         </Alert>
       )}
 
-      {listQuery.isPending && <Skeleton className="h-24 w-full" />}
-
-      {listQuery.isError && (
-        <ErrorState
-          title={t('author.asset-manager-khong-tai-duoc-danh-sach-tep')}
-          message={describeTrpcError(listQuery.error)}
-          onRetry={() => void listQuery.refetch()}
-          retrying={listQuery.isFetching}
-        />
-      )}
-
-      {listQuery.isSuccess && assets.length === 0 && (
-        <EmptyState
-          title={t('author.asset-manager-chua-co-tep-nao')}
-          description={t(
-            'author.asset-manager-tai-mot-anh-len-roi-dan-doan-markdown-vao-o-noi-dung-cua-buoc-de-nhung-no',
-          )}
-        />
-      )}
-
-      {assets.length > 0 && (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>{t('author.asset-manager-ten-tep')}</TableHead>
-              <TableHead>{t('author.asset-manager-doan-markdown-de-nhung')}</TableHead>
-              <TableHead>{t('author.asset-manager-tai-len')}</TableHead>
-              <TableHead>{t('author.asset-manager-hanh-dong')}</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {assets.map((asset) => {
-              const snippet = assetMarkdownSnippet(asset);
-              return (
-                <TableRow key={asset.storageKey}>
-                  <TableCell>{asset.filename}</TableCell>
-                  <TableCell>
-                    <code className="font-mono text-xs break-all">{snippet}</code>
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">
-                    {asset.uploadedAt.slice(0, 10)}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex gap-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          void navigator.clipboard.writeText(snippet).then(
-                            () => {
-                              setCopiedKey(asset.storageKey);
-                            },
-                            () => {
-                              // Clipboard bị từ chối (quyền, hoặc không phải
-                              // ngữ cảnh bảo mật). Đoạn markdown vẫn hiện ở
-                              // cột bên cạnh nên người soạn bôi đen chép tay
-                              // được — nói ra thay vì im lặng không làm gì.
-                              setLocalError(
-                                t(
-                                  'author.asset-manager-trinh-duyet-khong-cho-chep-tu-dong-boi-den-doan-markdown-roi-chep-tay',
-                                ),
-                              );
-                            },
-                          );
-                        }}
-                      >
-                        {copiedKey === asset.storageKey
-                          ? t('author.asset-manager-da-chep')
-                          : t('author.asset-manager-chep')}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        disabled={remove.isPending}
-                        title={t(
-                          'author.asset-manager-xoa-that-markdown-con-tham-chieu-tep-nay-se-hien-anh-hong',
-                        )}
-                        onClick={() => {
-                          setLocalError(null);
-                          remove.mutate({ id: contentId, storageKey: asset.storageKey });
-                        }}
-                      >
-                        {t('common.action.delete')}
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      )}
+      <AssetList
+        state={{
+          status: listQuery.status,
+          assets: listQuery.data ?? [],
+          errorMessage: listQuery.isError ? describeTrpcError(listQuery.error) : null,
+          retrying: listQuery.isFetching,
+          onRetry: () => void listQuery.refetch(),
+        }}
+        removing={remove.isPending}
+        onRemove={(storageKey) => {
+          setLocalError(null);
+          remove.mutate({ id: contentId, storageKey });
+        }}
+        onCopyFailed={() => {
+          setLocalError(
+            t('author.asset-manager-trinh-duyet-khong-cho-chep-tu-dong-boi-den-doan-markdown-roi-chep-tay'),
+          );
+        }}
+      />
     </div>
   );
 }
