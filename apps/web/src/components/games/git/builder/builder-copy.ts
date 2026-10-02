@@ -19,9 +19,39 @@
  */
 
 import type { TextKey } from '@devops-platform/copy';
-import type { BuilderLimit, DraftIssueCode } from '@devops-platform/games';
+import type {
+  BuilderLimit,
+  Difficulty,
+  DraftIssueCode,
+  LevelDraft,
+} from '@devops-platform/games';
 
 import type { ProblemSaveIssueCode, ProblemSaveLossCode } from './draft-to-problem';
+
+type Chapter = LevelDraft['chapter'];
+
+/** Thứ tự hiện trong ô chọn chương. Kiểu suy từ `LevelDraft`, không khai lại. */
+export const CHAPTERS: readonly Chapter[] = [1, 2, 3];
+
+export const CHAPTER_TEXT = {
+  1: 'author.builder.option.chapter-1',
+  2: 'author.builder.option.chapter-2',
+  3: 'author.builder.option.chapter-3',
+} as const satisfies Record<Chapter, TextKey>;
+
+/**
+ * Ba bậc độ khó của LEVEL, đọc từ từ vựng chung `common.difficulty.*`.
+ *
+ * Tên miền lệch nhau (`basic` của level so với `beginner` của kịch bản) nên
+ * cần một bảng tường minh ở chỗ gọi, đúng như chú thích ở `surfaces/common.ts`
+ * dặn. Bảng này cố ý KHÁC bốn bậc của `PROBLEM_DIFFICULTIES`: Builder là một
+ * level builder nên giữ thang của level (`phase-18-exec.md` §1.3).
+ */
+export const DIFFICULTY_TEXT = {
+  basic: 'common.difficulty.beginner',
+  intermediate: 'common.difficulty.intermediate',
+  advanced: 'common.difficulty.advanced',
+} as const satisfies Record<Difficulty, TextKey>;
 
 export const ISSUE_TEXT = {
   'id-trong': 'author.builder.issue.id-trong',
