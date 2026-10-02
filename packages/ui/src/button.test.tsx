@@ -37,12 +37,15 @@ describe('Button — tương thích ngược', () => {
 describe('Button — variant ánh xạ đúng class token', () => {
   it.each([
     ['primary', 'bg-primary'],
-    ['secondary', 'bg-secondary'],
-    ['outline', 'border-input'],
-    ['ghost', 'hover:bg-accent'],
-    // nền ĐẶC đã bỏ — nay là viền, xem §'tách destructive khỏi primary'
-    ['destructive', 'border-destructive'],
-    ['link', 'text-primary'],
+    ['ink', 'bg-ink'],
+    // `secondary` = nền muted (hợp đồng ui-kit §B), không còn `--secondary`
+    ['secondary', 'bg-muted'],
+    ['outline', 'border-ink'],
+    ['ghost', 'hover:bg-muted'],
+    // nền PHA NHẠT + viền, không nền đặc — xem §'tách destructive khỏi primary'
+    ['destructive', 'bg-destructive/10'],
+    // chữ đỏ trên nền trang là `--brand`, không phải màu tô `--primary`
+    ['link', 'text-brand'],
   ] as const)('variant=%s có class %s', (variant, expectedClass) => {
     render(<Button variant={variant}>Nút</Button>);
     const button = screen.getByRole('button', { name: 'Nút' });
@@ -75,13 +78,29 @@ describe('Button — variant ánh xạ đúng class token', () => {
    * `tailwind-merge`, nên nó còn bắt được màu lọt vào qua `className` của nơi
    * gọi hoặc qua một biến thể sinh động.
    */
-  it.each(['primary', 'secondary', 'outline', 'ghost', 'destructive', 'link'] as const)(
-    'variant=%s không phát ra màu hardcode (#hex / slate-* / gray-* / zinc-* / neutral-*)',
+  it.each(['primary', 'ink', 'secondary', 'outline', 'ghost', 'destructive', 'link'] as const)(
+    'variant=%s không phát ra màu hardcode (#hex / slate-* / gray-* / zinc-* / neutral-* / white / black)',
     (variant) => {
       render(<Button variant={variant}>Nút</Button>);
       const { className } = screen.getByRole('button', { name: 'Nút' });
       expect(className).not.toMatch(/#[0-9a-fA-F]{3,8}/);
       expect(className).not.toMatch(/\b(slate|gray|zinc|neutral)-[0-9]{2,3}\b/);
+      expect(className).not.toMatch(/\b(bg|text|border)-(white|black)\b/);
+    },
+  );
+
+  /**
+   * Vuông trong app, bo cũ trong game K8s: góc PHẢI đi qua `rounded-control`
+   * (đọc `--radius-control`). Một `rounded-md` sót lại cũng ra 0 trong app nên
+   * mắt không bắt được, nhưng nó đọc nhầm bậc trong `.arena-root`.
+   */
+  it.each(['primary', 'ink', 'secondary', 'outline', 'ghost', 'destructive', 'link'] as const)(
+    'variant=%s bo góc qua `rounded-control`, không qua bậc cũ',
+    (variant) => {
+      render(<Button variant={variant}>Nút</Button>);
+      const classes = screen.getByRole('button', { name: 'Nút' }).className.split(/\s+/);
+      expect(classes).toContain('rounded-control');
+      expect(classes.filter((name) => /^rounded-(sm|md|lg|xl|full)$/.test(name))).toEqual([]);
     },
   );
 });
@@ -223,7 +242,7 @@ describe('Button — asChild', () => {
  * mặc định của nó, `--tw-ring-offset-color: #fff` — khe TRẮNG trên nền tối.
  */
 describe('Button — vòng focus tách khỏi mặt nút (miễn trừ SC 1.4.11)', () => {
-  it.each(['primary', 'destructive', 'secondary', 'outline', 'ghost', 'link'] as const)(
+  it.each(['primary', 'ink', 'destructive', 'secondary', 'outline', 'ghost', 'link'] as const)(
     'variant=%s có ĐỦ CẢ HAI class offset',
     (variant) => {
       render(<Button variant={variant}>Nút</Button>);
@@ -260,12 +279,13 @@ describe('Button — vòng focus tách khỏi mặt nút (miễn trừ SC 1.4.11
 describe('Button — Spinner lúc loading phải có màu riêng, không thừa kế currentColor', () => {
   it.each([
     ['primary', 'text-primary-foreground'],
-    ['secondary', 'text-secondary-foreground'],
+    ['ink', 'text-ink-foreground'],
+    ['secondary', 'text-foreground'],
     ['outline', 'text-foreground'],
     ['ghost', 'text-foreground'],
-    // chữ NGHỈ của biến thể viền là 'text-destructive', không phải '-foreground'
+    // chữ NGHỈ của biến thể pha nhạt là 'text-destructive', không phải '-foreground'
     ['destructive', 'text-destructive'],
-    ['link', 'text-primary'],
+    ['link', 'text-brand'],
   ] as const)('variant=%s: lớp bọc Spinner đặt màu %s', (variant, tone) => {
     render(
       <Button variant={variant} loading>
@@ -437,7 +457,7 @@ describe('Button — khe icon', () => {
 describe('Button — primary vs destructive phân biệt được khi KHỬ MÀU (quyết định #1, 14.A)', () => {
   const classesOf = (name: string) => screen.getByRole('button', { name }).className.split(/\s+/);
 
-  it('primary tô nền ĐẶC và KHÔNG có viền; destructive có viền và KHÔNG tô nền', () => {
+  it('primary tô nền ĐẶC và KHÔNG có viền; destructive có viền + nền PHA NHẠT, KHÔNG nền đặc', () => {
     render(
       <div>
         <Button variant="primary">Lưu</Button>
@@ -454,8 +474,8 @@ describe('Button — primary vs destructive phân biệt được khi KHỬ MÀU
     ).not.toContain('border');
 
     expect(destructive).toContain('border');
-    expect(destructive).toContain('border-destructive');
-    expect(destructive).toContain('bg-transparent');
+    expect(destructive).toContain('border-destructive/50');
+    expect(destructive).toContain('bg-destructive/10');
     expect(destructive, 'nền đặc quay lại ⇒ hai nút lại trông như nhau khi khử màu').not.toContain(
       'bg-destructive',
     );
@@ -528,5 +548,49 @@ describe('Button — primary vs destructive phân biệt được khi KHỬ MÀU
     );
     expect(container.querySelector('a')).not.toBeNull();
     expect(container.querySelector('svg')).toBeNull();
+  });
+});
+
+/**
+ * Vi tương tác của bản dựng lại (design-brief §5): nhấn thì lún 1px, có
+ * `iconRight` thì icon nhích 2px khi hover. Cả hai sau `motion-safe:` — khối
+ * giảm chuyển động toàn cục chỉ làm chuyển động TỨC THÌ, nó không gỡ translate.
+ */
+describe('Button — vi tương tác', () => {
+  it('nhấn ⇒ lún 1px, và chỉ khi người dùng KHÔNG yêu cầu giảm chuyển động', () => {
+    render(<Button>Nút</Button>);
+    const classes = screen.getByRole('button', { name: 'Nút' }).className.split(/\s+/);
+    expect(classes).toContain('motion-safe:active:translate-y-px');
+    expect(classes).not.toContain('active:translate-y-px');
+  });
+
+  it('transition gồm `transform`, nếu không cú lún nhảy cục thay vì trượt', () => {
+    render(<Button>Nút</Button>);
+    const transition = screen
+      .getByRole('button', { name: 'Nút' })
+      .className.split(/\s+/)
+      .find((name) => name.startsWith('transition-'));
+    expect(transition).toContain('transform');
+  });
+
+  it('`iconRight` nằm trong khe nhích theo hover CỦA NÚT (nhóm có tên `group/button`)', () => {
+    render(<Button iconRight={<svg data-testid="phải" aria-hidden="true" />}>Mở lab</Button>);
+    const button = screen.getByRole('button', { name: 'Mở lab' });
+    expect(button.className.split(/\s+/)).toContain('group/button');
+    const slot = screen.getByTestId('phải').parentElement as HTMLElement;
+    expect(slot.getAttribute('data-slot')).toBe('button-icon-right');
+    expect(slot.className.split(/\s+/)).toContain('motion-safe:group-hover/button:translate-x-0.5');
+  });
+
+  it('không có `iconRight` ⇒ không có khe bọc rỗng', () => {
+    const { container } = render(<Button iconLeft={<svg aria-hidden="true" />}>Lưu</Button>);
+    expect(container.querySelector('[data-slot="button-icon-right"]')).toBeNull();
+  });
+
+  it('primary hover làm TỐI mặt nút, không làm nhạt bằng alpha', () => {
+    render(<Button variant="primary">Nút</Button>);
+    const classes = screen.getByRole('button', { name: 'Nút' }).className.split(/\s+/);
+    expect(classes).toContain('hover:brightness-90');
+    expect(classes).not.toContain('hover:bg-primary/90');
   });
 });

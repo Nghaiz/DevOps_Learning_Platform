@@ -55,30 +55,19 @@ describe('Card — bộ compound đầy đủ', () => {
 });
 
 /**
- * Độ nổi + chuyển động. Mọi khẳng định ở đây là trên CLASS, không trên style
- * đã tính: jsdom không có CSSOM thật (không nạp `globals.css`, không phân giải
- * `var(--elevation-1)`), nên `getComputedStyle(card).boxShadow` trả rỗng ở
- * MỌI trường hợp — một test đọc nó sẽ xanh y hệt nhau dù bóng có hay không.
- * Ánh xạ class là thứ duy nhất đo được ở tầng này; việc class đó có sinh ra
- * luật CSS hay không do `theme/tokens.contract.test.ts` gác (`@theme inline`).
+ * Tấm phẳng (design-brief §0.1): KHÔNG bóng, KHÔNG bo góc, viền hairline. Mọi
+ * khẳng định ở đây là trên CLASS, không trên style đã tính: jsdom không có
+ * CSSOM thật (không nạp `globals.css`), nên `getComputedStyle(card).boxShadow`
+ * trả rỗng ở MỌI trường hợp — một test đọc nó sẽ xanh dù bóng có hay không.
  */
-describe('Card — độ nổi và chuyển động', () => {
-  it('lúc NGHỈ mang `shadow-elevation-1`, và KHÔNG còn `shadow-sm` cũ', () => {
+describe('Card — tấm phẳng và phản hồi tương tác', () => {
+  it('lúc NGHỈ không có class bóng nào và không có class bo góc nào', () => {
     const { container } = render(<Card>Nội dung</Card>);
     const classes = cardClasses(container);
-    expect(classes).toContain('shadow-elevation-1');
-    /*
-     * `tailwind-merge` KHÔNG khử được cặp này (`elevation-1` không phải cỡ áo
-     * phông nên nó rơi vào nhóm shadow-COLOR, mà "màu" thì không xung đột với
-     * "bóng") — đo được:
-     *   twMerge('shadow-sm shadow-elevation-1') → cả hai cùng sống
-     * Nên `shadow-sm` phải được GỠ khỏi nguồn, không thể trông chờ cn() dọn.
-     * Để lại cả hai thì thứ tự nguồn CSS quyết định bóng nào thắng.
-     */
-    expect(
-      classes,
-      'shadow-sm còn sót ⇒ hai luật box-shadow cùng sống, thứ tự nguồn quyết định',
-    ).not.toContain('shadow-sm');
+    expect(classes.filter((name) => /(^|:)shadow-/.test(name)), 'thẻ nổi bằng bóng là thứ bản dựng lại cấm').toEqual([]);
+    expect(classes.filter((name) => /(^|:)rounded-/.test(name)), 'bo góc quay lại ⇒ thẻ hết vuông').toEqual([]);
+    expect(classes).toContain('border-border');
+    expect(classes).toContain('bg-card');
   });
 
   it('chuyển tiếp chạy theo token `--motion-base` + `ease-out`, không phải số cứng', () => {
@@ -93,39 +82,36 @@ describe('Card — độ nổi và chuyển động', () => {
   it('MẶC ĐỊNH không có hover — thẻ tĩnh không được hứa một hành động không tồn tại', () => {
     const { container } = render(<Card>Nội dung</Card>);
     const classes = cardClasses(container);
-    expect(classes).not.toContain('hover:shadow-elevation-2');
-    expect(classes).not.toContain('motion-safe:hover:-translate-y-0.5');
+    expect(classes.filter((name) => name.startsWith('hover:') || name.includes(':active:'))).toEqual([]);
     expect(
       container.querySelector('[data-slot="card"]')?.getAttribute('data-interactive'),
     ).toBeNull();
   });
 
-  it('`interactive` bật nhấc nhẹ + `--elevation-2` khi hover', () => {
+  it('`interactive` đổi viền sang mực + nền ngả muted khi hover, KHÔNG nhấc thẻ', () => {
     const { container } = render(<Card interactive>Nội dung</Card>);
     const classes = cardClasses(container);
-    expect(classes).toContain('hover:shadow-elevation-2');
-    expect(classes).toContain('hover:border-input');
+    expect(classes).toContain('hover:border-ink');
+    expect(classes).toContain('hover:bg-muted/40');
+    expect(classes.filter((name) => name.includes('-translate-y'))).toEqual([]);
     expect(container.querySelector('[data-slot="card"]')?.getAttribute('data-interactive')).toBe(
       'true',
     );
   });
 
   /**
-   * Nhấc phải viết bằng `motion-safe:`, KHÔNG phải `hover:` trần rồi trông chờ
+   * Lún phải viết bằng `motion-safe:`, KHÔNG phải `active:` trần rồi trông chờ
    * khối `@media (prefers-reduced-motion)` toàn cục ở `globals.css` dọn hộ:
    * khối đó hạ `transition-duration` xuống 0.01ms, tức nó làm chuyển động TỨC
-   * THÌ chứ không gỡ `translate` đi — thẻ vẫn giật nảy, chỉ là nảy ngay lập
-   * tức. Đây là chỗ duy nhất bắt được sự khác biệt đó.
+   * THÌ chứ không gỡ `translate` đi — thẻ vẫn giật, chỉ là giật ngay lập tức.
    */
-  it('nhấc nằm sau `motion-safe:` nên biến mất hẳn khi người dùng yêu cầu giảm chuyển động', () => {
+  it('cú lún khi nhấn nằm sau `motion-safe:`', () => {
     const { container } = render(<Card interactive>Nội dung</Card>);
     const classes = cardClasses(container);
-    expect(classes).toContain('motion-safe:hover:-translate-y-0.5');
-    expect(
-      classes,
-      'nhấc trần ⇒ vẫn giật dưới prefers-reduced-motion, chỉ là giật tức thì',
-    ).not.toContain('hover:-translate-y-0.5');
+    expect(classes).toContain('motion-safe:active:translate-y-px');
+    expect(classes, 'lún trần ⇒ vẫn giật dưới prefers-reduced-motion').not.toContain('active:translate-y-px');
   });
+});
 });
 
 /**
