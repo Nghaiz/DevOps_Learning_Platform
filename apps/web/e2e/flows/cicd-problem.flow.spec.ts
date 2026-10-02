@@ -145,7 +145,14 @@ test.describe('luồng soạn bài CI/CD', { tag: '@flow' }, () => {
      */
     await expect(page.getByText('Bài đã đủ điều kiện xuất bản')).toBeVisible({ timeout: 30_000 });
     await page.getByRole('button', { name: 'Xuất bản', exact: true }).click();
-    await expect(page.getByText('Đã xuất bản')).toBeVisible({ timeout: 60_000 });
+    /*
+     * Neo vào câu của CHẾ ĐỘ XUẤT BẢN, không vào "Đã xuất bản": chữ đó có mặt ở
+     * ba chỗ cùng lúc (ô trạng thái trên đầu trang, thông báo nổi, và bản phát
+     * lại của thông báo), nên `getByText` chế độ strict đỏ vì trùng chứ không vì
+     * bài chưa xuất bản. Câu dưới chỉ hiện khi `forEdit` tải lại và trả
+     * `state: 'published'`, tức nó đo trạng thái MÁY CHỦ, không đo lượt bấm.
+     */
+    await expect(page.getByText('Bài đang mở cho người học')).toBeVisible({ timeout: 60_000 });
 
     // ── 4. Làm chính bài vừa xuất bản ───────────────────────────────────────
     await openScreen(page, `/games/cicd?problem=${code}`, 'user');
