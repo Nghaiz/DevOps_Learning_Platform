@@ -72,6 +72,13 @@ export interface TerminalCore {
    * no-op.
    */
   syncResizeBaseline(size: TerminalDimensions): void;
+  /**
+   * H2 — bật/tắt việc NGƯỜI DÙNG gõ/dán vào PTY (`disableStdin` của xterm: chặn
+   * `onData` từ bàn phím lẫn paste, textarea thành `readOnly`). Không chạm
+   * đường stdin lập trình (`TerminalHandle.sendInput`), không chạm việc chọn và
+   * copy chữ. Đã `dispose()` ⇒ no-op.
+   */
+  setInputEnabled(enabled: boolean): void;
   setTheme(name: ThemeName): void;
   search(query: string): void;
   write(chunk: Uint8Array): void;
@@ -419,6 +426,13 @@ export function createTerminalCore(options: TerminalCoreOptions): TerminalCore {
         return;
       }
       lastNotified = { cols: size.cols, rows: size.rows };
+    },
+
+    setInputEnabled(enabled: boolean): void {
+      if (disposed) {
+        return;
+      }
+      terminal.options.disableStdin = !enabled;
     },
 
     setTheme(name: ThemeName): void {
