@@ -36,6 +36,7 @@ import (
 	"time"
 
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/metrics"
+	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/podexec"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/sessionauth"
 	"golang.org/x/time/rate"
 )
@@ -94,6 +95,15 @@ type Deps struct {
 	// Trước bản vá field này được truyền vào (bằng `GATEWAY_EXEC_TIMEOUT` — trần
 	// của một lượt CHẤM, không liên quan) và không ai đọc.
 	Timeout time.Duration
+
+	// Extender gia hạn idle-deadline của phiên khi IDE có hoạt động — CÙNG bản
+	// thật (`internal/extend`) mà cầu terminal dùng. nil ⇒ không gia hạn (chỉ
+	// test cũ dựng Deps thiếu nó; main luôn truyền).
+	Extender podexec.Extender
+
+	// ExtendEvery là nhịp TỐI ĐA gửi ExtendSession cho một phiên. 0 ⇒
+	// podexec.ExtendInterval — cùng nhịp với heartbeat terminal.
+	ExtendEvery time.Duration
 }
 
 // defaultUpstreamHeaderTimeout lớn hơn một vòng long-poll của engine.io
@@ -119,6 +129,7 @@ func Register(mux *http.ServeMux, deps Deps) {
 	h := &handler{
 		deps:      deps,
 		transport: transport,
+		act:       newActivity(deps.Extender, deps.ExtendEvery, deps.Log),
 		// Cùng lý do với wsroute/execroute: endpoint public, chưa xác thực ở
 		// thời điểm log — một vòng `curl` là log flood rẻ tiền.
 		denyLimiter: rate.NewLimiter(rate.Every(time.Second), 5),
@@ -146,6 +157,7 @@ func Register(mux *http.ServeMux, deps Deps) {
 type handler struct {
 	deps        Deps
 	transport   http.RoundTripper
+	act         *activity
 	denyLimiter *rate.Limiter
 
 	mu   sync.Mutex
@@ -237,6 +249,18 @@ func (h *handler) serve(w http.ResponseWriter, r *http.Request) {
 	defer release()
 
 	h.deps.Metrics.IDESessionsTotal.WithLabelValues(metrics.ResultAccepted, metrics.ReasonOK).Inc()
+
+	// ---- hoạt động IDE gia hạn phiên (D7.2) ------------------------------
+	//
+	// SAU chuỗi authz và trần riêng: chỉ request đã được chấp nhận mới là bằng
+	// chứng có người. `Subject` là `sub` của token đã verify — cùng nguồn userID
+	// mà cầu terminal gửi cho ExtendSession. Xem activity.go.
+	userID := res.Claims.Subject
+	h.act.touch(sessionID, userID)
+	if isUpgrade(r) {
+		w = &activityWriter{ResponseWriter: w, onRead: func() { h.act.touch(sessionID, userID) }}
+	}
+
 	h.proxy(podIP, res.Session.Namespace, res.Session.PodName).ServeHTTP(w, r)
 }
 

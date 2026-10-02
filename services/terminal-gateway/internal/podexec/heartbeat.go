@@ -54,14 +54,14 @@ const (
 	pingInterval = 20 * time.Second
 	pongTimeout  = 10 * time.Second
 
-	// extendInterval là nhịp TỐI ĐA của heartbeat gia hạn — mỗi tick chỉ gọi
+	// ExtendInterval là nhịp TỐI ĐA của heartbeat gia hạn — mỗi tick chỉ gọi
 	// RPC khi có traffic THẬT từ tick trước.
 	//
 	// 60s so với `EXTEND_DEFAULT=300s` của orchestrator cho biên an toàn 5 lần:
 	// bốn tick liên tiếp hỏng (orchestrator rollout, Redis nghẽn) vẫn chưa làm
 	// phiên của sinh viên đang gõ hết hạn. Nhỏ hơn nữa thì tốn RPC mà không mua
 	// thêm gì; lớn hơn thì biên đó mỏng đi đúng lúc hạ tầng đang xấu.
-	extendInterval = 60 * time.Second
+	ExtendInterval = 60 * time.Second
 )
 
 // heartbeat chạy keepalive và gia hạn cho tới khi `stop` đóng (hoặc ctx huỷ).
@@ -181,7 +181,7 @@ func (b *Bridge) extendOnce(
 		// tắt, mạng nghẽn — cả ba đều tự khỏi, và cả ba đều không nói gì về việc
 		// session còn hợp lệ hay không. Đóng terminal của sinh viên vì gateway
 		// không hỏi được người khác là biến một sự cố hạ tầng ngắn thành mất bài.
-		// Biên 5 lần của extendInterval tồn tại chính cho khoảng này.
+		// Biên 5 lần của ExtendInterval tồn tại chính cho khoảng này.
 		b.log.Warn("gia hạn session thất bại — sẽ thử lại ở nhịp sau",
 			slog.String("session_id", t.SessionID), slog.String("err", err.Error()))
 		return true
