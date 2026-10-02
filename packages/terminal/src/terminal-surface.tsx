@@ -93,14 +93,20 @@ export interface TerminalSurfaceProps {
    */
   readonly ariaLabel?: string;
   /**
-   * D10 — gọi khi người dùng nhấn `Esc` **hai lần trong 500ms**.
+   * D10/M1 — gọi khi người dùng nhấn **`Esc` rồi `Tab`** (`direction: 'forward'`)
+   * hoặc **`Esc` rồi `Shift+Tab`** (`'backward'`) trong ≤500ms. `Esc Esc` KHÔNG
+   * còn kích hoạt — lý do ở `escape-focus.ts`.
+   *
+   * Có callback ⇒ Tab gốc bị chặn (`preventDefault`) và trang tự dời focus.
+   * KHÔNG truyền ⇒ Tab gốc của trình duyệt chạy, tức focus đi tới/lùi đúng thứ
+   * tự tài liệu mà không cần mã nào. Cả hai đường đều giữ Tab đó khỏi PTY.
    *
    * `TerminalSurface` chỉ PHÁT HIỆN, không tự chuyển focus: "rời đi đâu" là
    * quyết định của trang (khoang kế tiếp, thanh công cụ, …), còn "khi nào là
    * cử chỉ rời đi" là quyết định của terminal. Người tiêu thụ mặc định
    * (`components/session/TerminalPane` ở apps/web) dùng `focusNextAfter`.
    */
-  readonly onEscapeFocus?: () => void;
+  readonly onEscapeFocus?: (direction: 'forward' | 'backward') => void;
 }
 
 export function TerminalSurface(props: TerminalSurfaceProps): React.ReactElement {
@@ -186,7 +192,7 @@ export function TerminalSurface(props: TerminalSurfaceProps): React.ReactElement
     coreRef.current?.setTheme(props.theme);
   }, [props.theme]);
 
-  // ── D10: Esc-Esc rời focus ─────────────────────────────────────────────────
+  // ── D10/M1: Esc rồi Tab rời focus ──────────────────────────────────────────
   //
   // ⛔ Vị trí của listener này là phần ĐÚNG-SAI, không phải phần phong cách.
   //
@@ -195,18 +201,17 @@ export function TerminalSurface(props: TerminalSurfaceProps): React.ReactElement
   // `e.preventDefault(), e.stopPropagation()`. Nghĩa là **Escape bị chặn ngay
   // tại `<textarea>` nội bộ của xterm** — một `onKeyDown` React trên container
   // (pha bubble) sẽ KHÔNG BAO GIỜ thấy nó, và tính năng sẽ "im lặng không chạy"
-  // đúng theo kiểu khó chẩn đoán nhất: không lỗi, không cảnh báo, chỉ là Esc-Esc
+  // đúng theo kiểu khó chẩn đoán nhất: không lỗi, không cảnh báo, chỉ là cử chỉ
   // không làm gì cả.
   //
   // Nên: listener NATIVE ở pha CAPTURE trên container. Pha capture đi từ
   // window xuống, nên nó chạy TRƯỚC listener của xterm ở textarea.
   //
-  // Và vì nó chạy trước, nó tuyệt đối KHÔNG được gọi `preventDefault()` hay
-  // `stopPropagation()`: làm vậy là nuốt mất phím Esc ĐƠN mà vim đang cần. Đó
-  // là lý do `createEscapeFocusDetector` chỉ nhận `(key, atMs)` chứ không nhận
-  // `Event` — nó không cầm cái để nuốt. Kể cả lần Esc thứ hai cũng được thả cho
-  // xterm: một `\x1b` thừa vào PTY là vô hại ở mọi TUI (vim normal mode bỏ qua),
-  // còn một nhánh code có quyền huỷ sự kiện thì sớm muộn sẽ huỷ nhầm.
+  // Và vì nó chạy trước, nó KHÔNG BAO GIỜ được huỷ phím Esc: làm vậy là nuốt
+  // mất phím Esc mà vim đang cần. `createEscapeFocusDetector` chỉ nhận
+  // `(key, atMs)` chứ không nhận `Event` — nó không cầm cái để nuốt. Thứ DUY
+  // NHẤT effect này được nuốt là phím Tab khép lại `Esc → Tab` (M1): Tab đó là
+  // cử chỉ rời đi, không phải phím của shell, nên `\t` không được tới PTY.
   useEffect(() => {
     const container = containerRef.current;
     if (container === null) {
@@ -216,9 +221,19 @@ export function TerminalSurface(props: TerminalSurfaceProps): React.ReactElement
     const handleKeyDown = (event: KeyboardEvent): void => {
       // `event.timeStamp` chứ không `Date.now()`: một nguồn thời gian duy nhất
       // (xem chú thích `press`), và nó là mốc của chính lần nhấn phím.
-      if (detector.press(event.key, event.timeStamp)) {
-        handlersRef.current.onEscapeFocus?.();
+      if (!detector.press(event.key, event.timeStamp)) {
+        return;
       }
+      // M1 — đây là Tab khép lại `Esc → Tab`. Chặn nó tới textarea của xterm
+      // (không thì `	` đi vào PTY và shell hoàn tất lệnh ngay lúc người dùng
+      // rời đi). Đây là phím DUY NHẤT effect này được nuốt; Esc thì không bao giờ.
+      event.stopPropagation();
+      const onEscapeFocus = handlersRef.current.onEscapeFocus;
+      if (onEscapeFocus !== undefined) {
+        event.preventDefault();
+        onEscapeFocus(event.shiftKey ? 'backward' : 'forward');
+      }
+      // Không có callback ⇒ để Tab gốc của trình duyệt dời focus.
     };
     // Rời khỏi terminal bằng chuột/Tab thì quên lần Esc đang treo — nếu không,
     // một Esc từ mười phút trước còn treo và lần Esc đầu tiên khi quay lại sẽ

@@ -1,5 +1,16 @@
 /**
- * D10 — đường thoát khỏi bẫy focus của terminal, bằng **Esc hai lần trong 500ms**.
+ * D10 — đường thoát khỏi bẫy focus của terminal, bằng **`Esc` rồi `Tab`** (hoặc
+ * `Shift+Tab`) trong ≤500ms. Quy ước của CodeMirror 6 cho cùng bài toán.
+ *
+ * ## M1 — vì sao KHÔNG còn là `Esc Esc`
+ *
+ * Gõ Esc hai lần cho chắc đã về normal mode là thói quen vim phổ biến nhất, và
+ * `Esc Esc` đá focus ra đúng giữa lúc đó. Phương án "bỏ qua khi đang ở alternate
+ * screen" KHÔNG dùng được ở nền tảng này: gateway exec vào `tmux new-session -A
+ * -s dlp` với `TERM=xterm-256color`, tmux bật alternate screen của xterm ngay
+ * khi attach — tức terminal LUÔN ở alternate screen (vim chạy BÊN TRONG tmux nên
+ * xterm không phân biệt được), và phép chặn đó tắt cử chỉ vĩnh viễn. Tab sau Esc
+ * thì gần như không chương trình TUI nào cần, và nó là phím rời focus chuẩn.
  *
  * ## Vì sao KHÔNG phải một lần Esc
  *
@@ -23,15 +34,24 @@
  * chặn nhầm phím thật, và cách chắc nhất để không chặn là không cầm cái để chặn.
  */
 
-/** Cửa sổ giữa hai lần Esc. D10 chốt 500ms, và ngưỡng là **≤**, không phải `<`. */
+/** Cửa sổ giữa Esc và Tab. D10 chốt 500ms, và ngưỡng là **≤**, không phải `<`. */
 export const ESCAPE_FOCUS_WINDOW_MS = 500;
 
 const ESCAPE_KEY = 'Escape';
+const EXIT_KEY = 'Tab';
+
+/**
+ * Keydown của CHÍNH phím bổ trợ. Gõ `Shift+Tab` sinh một keydown `Shift` trước
+ * keydown `Tab`; coi nó là "phím khác xen vào" thì `Esc Shift+Tab` không bao giờ
+ * kích hoạt được.
+ */
+const MODIFIER_KEYS: ReadonlySet<string> = new Set(['Shift', 'Control', 'Alt', 'Meta', 'CapsLock']);
 
 export interface EscapeFocusDetector {
   /**
-   * Nạp một lần nhấn phím. Trả `true` ĐÚNG khi lần nhấn này khép lại một cặp
-   * `Esc Esc` trong cửa sổ — tức là lúc gọi `onEscapeFocus`.
+   * Nạp một lần nhấn phím. Trả `true` ĐÚNG khi lần nhấn này là `Tab` khép lại
+   * chuỗi `Esc → Tab` trong cửa sổ — tức là lúc rời focus. `Esc Esc` KHÔNG
+   * kích hoạt (M1).
    *
    * @param key    `KeyboardEvent.key` thô.
    * @param atMs   Mốc thời gian của lần nhấn. Người gọi phải dùng MỘT nguồn
@@ -51,21 +71,19 @@ export function createEscapeFocusDetector(
 
   return {
     press(key: string, atMs: number): boolean {
-      if (key !== ESCAPE_KEY) {
-        // Một phím khác xen vào nghĩa là người dùng vẫn đang LÀM VIỆC trong
-        // terminal. Không reset ở đây thì `Esc :wq Esc` (chuỗi vim đời thường)
-        // sẽ rời focus giữa lúc đang gõ lệnh.
-        pendingAtMs = null;
+      if (MODIFIER_KEYS.has(key)) {
         return false;
       }
-      if (pendingAtMs !== null && atMs - pendingAtMs <= windowMs) {
-        // Reset NGAY: lần Esc thứ ba phải bắt đầu một cặp mới, không được ăn
-        // theo lần thứ hai (nếu không, giữ Esc cho auto-repeat sẽ bắn liên tục).
-        pendingAtMs = null;
-        return true;
+      if (key === ESCAPE_KEY) {
+        // Esc lặp lại chỉ làm MỚI mốc — `Esc Esc Tab` vẫn là cử chỉ rời đi.
+        pendingAtMs = atMs;
+        return false;
       }
-      pendingAtMs = atMs;
-      return false;
+      const completes = key === EXIT_KEY && pendingAtMs !== null && atMs - pendingAtMs <= windowMs;
+      // Mọi phím khác (kể cả Tab quá hạn) đều hết treo: người dùng vẫn đang LÀM
+      // VIỆC trong terminal, và Tab kế tiếp phải là Tab thường của shell.
+      pendingAtMs = null;
+      return completes;
     },
     reset(): void {
       pendingAtMs = null;
