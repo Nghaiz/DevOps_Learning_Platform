@@ -149,6 +149,8 @@ func (h *activityHarness) upgrade(t *testing.T) net.Conn {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// 101 không có body (NoBody); đóng nó không đụng tới kết nối đã nâng cấp.
+	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusSwitchingProtocols {
 		t.Fatalf("nâng cấp WS qua route IDE phải 101, nhận %d", resp.StatusCode)
 	}
