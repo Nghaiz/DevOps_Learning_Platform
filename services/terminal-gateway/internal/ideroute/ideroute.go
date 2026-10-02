@@ -80,11 +80,26 @@ type Deps struct {
 	// thật thì nó phải về Redis như khe WS — và lúc đó vẫn là KEY RIÊNG.
 	MaxPerSession int
 
-	// Timeout là trần cho một request proxy KHÔNG phải upgrade. Kết nối
-	// WebSocket/SSE được miễn: chúng sống suốt phiên theo thiết kế, và áp một
-	// deadline lên chúng là tự tay ngắt IDE mỗi N giây.
+	// Timeout là trần CHỜ HEADER phản hồi từ Theia (`ResponseHeaderTimeout` của
+	// transport proxy). 0 ⇒ defaultUpstreamHeaderTimeout.
+	//
+	// Vì sao là trần chờ HEADER chứ không phải deadline của cả request: WebSocket
+	// và SSE sống suốt phiên theo thiết kế, và một deadline toàn request là tự
+	// tay ngắt IDE mỗi N giây. Trần chờ header thì không chạm tới chúng (101 về
+	// ngay), nhưng chặn đúng chế độ hỏng còn lại: một Theia treo nhận kết nối mà
+	// không bao giờ trả lời. Không có trần, request đó — và khe `MaxPerSession`
+	// nó đang giữ — sống tới khi client bỏ cuộc; tám tab chờ như vậy là IDE của
+	// phiên bị khoá 429 dù không ai đang dùng.
+	//
+	// Trước bản vá field này được truyền vào (bằng `GATEWAY_EXEC_TIMEOUT` — trần
+	// của một lượt CHẤM, không liên quan) và không ai đọc.
 	Timeout time.Duration
 }
+
+// defaultUpstreamHeaderTimeout lớn hơn một vòng long-poll của engine.io
+// (pingInterval 25s + pingTimeout 20s): nếu socket.io của Theia rơi về polling,
+// một lượt GET bị giữ tới lúc server có gì để gửi là BÌNH THƯỜNG, không phải treo.
+const defaultUpstreamHeaderTimeout = 60 * time.Second
 
 // Register gắn route vào mux.
 func Register(mux *http.ServeMux, deps Deps) {
@@ -94,8 +109,16 @@ func Register(mux *http.ServeMux, deps Deps) {
 	if deps.MaxPerSession == 0 {
 		deps.MaxPerSession = 8
 	}
+	if deps.Timeout <= 0 {
+		deps.Timeout = defaultUpstreamHeaderTimeout
+	}
+	// MỘT transport cho mọi request: dựng trong `proxy()` là mỗi request một
+	// pool kết nối riêng, tức không bao giờ tái dùng kết nối tới pod.
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.ResponseHeaderTimeout = deps.Timeout
 	h := &handler{
-		deps: deps,
+		deps:      deps,
+		transport: transport,
 		// Cùng lý do với wsroute/execroute: endpoint public, chưa xác thực ở
 		// thời điểm log — một vòng `curl` là log flood rẻ tiền.
 		denyLimiter: rate.NewLimiter(rate.Every(time.Second), 5),
@@ -122,6 +145,7 @@ func Register(mux *http.ServeMux, deps Deps) {
 
 type handler struct {
 	deps        Deps
+	transport   http.RoundTripper
 	denyLimiter *rate.Limiter
 
 	mu   sync.Mutex
@@ -247,6 +271,7 @@ func (h *handler) proxy(podIP, ns, pod string) *httputil.ReverseProxy {
 		Host:   net.JoinHostPort(podIP, strconv.Itoa(h.deps.Port)),
 	}
 	return &httputil.ReverseProxy{
+		Transport: h.transport,
 		Rewrite: func(pr *httputil.ProxyRequest) {
 			pr.SetURL(target)
 			// Cắt tiền tố `/ide/session/{id}` — Theia phục vụ từ gốc của chính
