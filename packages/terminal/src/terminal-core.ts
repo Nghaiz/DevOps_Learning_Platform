@@ -190,6 +190,61 @@ export function createTerminalCore(options: TerminalCoreOptions): TerminalCore {
   terminal.loadAddon(new WebLinksAddon());
   terminal.loadAddon(new ClipboardAddon());
 
+  // H6 — copy/dán bằng bàn phím trên Windows/Linux. Hợp đồng đầy đủ ở
+  // `terminal-clipboard.browser.test.tsx`. macOS KHÔNG đụng tới: Cmd+C/Cmd+V đã
+  // chạy qua sự kiện `copy`/`paste` gốc mà xterm tự nghe, còn Ctrl+C trên Mac
+  // luôn phải là ^C.
+  const isMacPlatform = /Mac|iPhone|iPad|iPod/.test(globalThis.navigator?.platform ?? '');
+
+  function clipboardKeyAction(event: KeyboardEvent): 'copy' | 'paste' | null {
+    if (isMacPlatform || !event.ctrlKey || event.altKey || event.metaKey) {
+      return null;
+    }
+    const key = event.key.toLowerCase();
+    if (event.shiftKey) {
+      return key === 'c' ? 'copy' : key === 'v' ? 'paste' : null;
+    }
+    // Ctrl+C trần chỉ copy khi CÓ vùng chọn — không thì nó là ^C, phím ngắt.
+    return key === 'c' && terminal.hasSelection() ? 'copy' : null;
+  }
+
+  function copySelection(): void {
+    const text = terminal.getSelection();
+    if (text !== '') {
+      const clipboard = globalThis.navigator?.clipboard;
+      if (typeof clipboard?.writeText === 'function') {
+        clipboard.writeText(text).catch((error: unknown) => {
+          console.warn('[dlp-terminal] không ghi được vào clipboard:', error);
+        });
+      } else if (!document.execCommand('copy')) {
+        // Ngữ cảnh không an toàn (http qua IP LAN) không có Clipboard API.
+        // `execCommand('copy')` phát sự kiện `copy` mà xterm tự lấp bằng vùng
+        // chọn — nên PHẢI chạy trước `clearSelection()` bên dưới.
+        console.warn('[dlp-terminal] trình duyệt từ chối lệnh copy — vùng chọn chưa vào clipboard.');
+      }
+    }
+    // Xoá vùng chọn như Windows Terminal: Ctrl+C kế tiếp lại là ^C, không phải
+    // một lần copy nữa của cùng đoạn chữ trong lúc người học đang muốn ngắt lệnh.
+    terminal.clearSelection();
+  }
+
+  terminal.attachCustomKeyEventHandler((event) => {
+    const action = clipboardKeyAction(event);
+    if (action === null) {
+      return true;
+    }
+    if (event.type === 'keydown' && action === 'copy') {
+      // Ctrl+Shift+C là phím DevTools của Chrome; chặn để nó chỉ là copy.
+      event.preventDefault();
+      copySelection();
+    }
+    // 'paste': CỐ Ý không `preventDefault` — trình duyệt chạy lệnh dán gốc, sự
+    // kiện `paste` vào xterm (bracketed paste, `disableStdin`, rồi chia frame
+    // C2 ở `connection.ts`) mà không cần xin quyền đọc clipboard. Trả `false` để
+    // xterm không biến tổ hợp này thành byte điều khiển.
+    return false;
+  });
+
   const dataListener = terminal.onData(options.onData);
 
   let lastSize: TerminalDimensions = { cols: terminal.cols, rows: terminal.rows };
