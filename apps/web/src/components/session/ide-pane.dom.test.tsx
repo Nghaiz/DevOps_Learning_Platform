@@ -181,7 +181,7 @@ describe('AC-8 · 4xx là lỗi thật, dừng NGAY và nêu mã', () => {
       Hai nửa nay tách rời ở TẦNG KIỂU (`ErrorEntry`), nên ô này gác cái dây nối
       chứ không gác câu chữ.
     */
-    stubFetch([404]);
+    stubFetch([401]);
     render(<IdePane sessionId="s-6" />);
     await tick(0);
 

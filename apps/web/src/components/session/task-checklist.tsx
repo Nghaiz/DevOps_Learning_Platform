@@ -130,7 +130,7 @@ function TaskChecklistRow({
 
         {/* Nhãn trạng thái là CHỮ, không chỉ là một icon có `title`. */}
         <span className={cn('mt-1 flex items-center gap-1.5 font-mono text-xs', tone)}>
-          <Glyph aria-hidden="true" className={cn('size-3.5 shrink-0', item.state === 'running' && 'animate-spin')} />
+            <Glyph aria-hidden="true" className={cn('size-3.5 shrink-0', tone, item.state === 'running' && 'animate-spin')} />
           {STATE_LABEL[item.state]}
         </span>
 

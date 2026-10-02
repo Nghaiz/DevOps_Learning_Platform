@@ -247,7 +247,7 @@ export const session = {
   'session.lesson.progress-label': 'Tiến độ bài học',
   'session.lesson.progress-done': 'Đã hoàn thành',
   'session.lesson.progress-in-session': (p: { passed: number; total: number }) =>
-    `${p.passed}/${p.total} bước đạt trong phiên này`,
+    `${p.passed}/${p.total} bước đã đạt trong phiên này`,
   'session.lesson.unsupported': (p: { capabilities: string }) =>
     `Bài này cần ${p.capabilities}, thứ nền tảng chưa chạy được, nên vài lệnh sẽ báo lỗi. Nội dung vẫn đọc được.`,
   'session.lesson.error.setup': (p: { reason: string }) => ({

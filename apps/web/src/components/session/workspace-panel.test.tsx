@@ -303,7 +303,7 @@ describe('thanh tab', () => {
     expect(tagsWithRole(html, 'tabpanel')).toHaveLength(0);
     // Nút mở-ra-cửa-sổ-riêng (§C7) là chức năng thật, không phải trang trí —
     // bỏ cả thanh đi là mất nó.
-    expect(html).toContain('href="/session/abc/terminal"');
+    expect(html).toContain('Mở terminal ra cửa sổ riêng');
     expect(html).toContain('Terminal');
   });
 
