@@ -27,14 +27,32 @@ export function describeAuditAction(action: string): string {
   if (action.trim() === '') {
     return t('admin.audit.action-missing');
   }
-  if (action === 'user.setRole') {
-    return t('admin.audit-action.set-role');
-  }
-  if (action === 'session.terminate') {
-    return t('admin.audit-action.terminate');
-  }
-  return action;
+  const known = AUDIT_ACTION_LABEL.get(action);
+  return known === undefined ? action : known();
 }
+
+/**
+ * Mọi `action` mà server ghi THẬT (grep `action: '` trong
+ * `server/trpc/routers`). Hàm, không phải chuỗi đã dựng: bản đồ chữ chỉ được
+ * đọc lúc gọi, cùng nhịp với mọi `t()` khác của file này.
+ *
+ * Sáu hành động lớp học và kỳ thi thêm 2026-10-03: trước đó chúng hiện ra
+ * trong bảng nhật ký là chuỗi tiếng Anh trần (`exam.remove`) giữa một bảng toàn
+ * tiếng Việt. Hành động chưa có ở đây vẫn hiện nguyên chuỗi gốc, không rỗng.
+ *
+ * `Map`, KHÔNG phải object literal: `action` là chuỗi từ DB, và
+ * `record['toString']` trả về hàm của `Object.prototype` thay vì `undefined`.
+ */
+const AUDIT_ACTION_LABEL: ReadonlyMap<string, () => string> = new Map([
+  ['user.setRole', () => t('admin.audit-action.set-role')],
+  ['session.terminate', () => t('admin.audit-action.terminate')],
+  ['class.create', () => t('admin.audit-action.class-create')],
+  ['class.addMember', () => t('admin.audit-action.class-add-member')],
+  ['class.removeMember', () => t('admin.audit-action.class-remove-member')],
+  ['exam.create', () => t('admin.audit-action.exam-create')],
+  ['exam.update', () => t('admin.audit-action.exam-update')],
+  ['exam.remove', () => t('admin.audit-action.exam-remove')],
+]);
 
 export function describeAuditTarget(targetType: string, targetId: string): string {
   /*
@@ -50,7 +68,9 @@ export function describeAuditTarget(targetType: string, targetId: string): strin
         ? t('admin.audit-target.session')
         : targetType === 'class'
           ? t('admin.audit-target.class')
-          : targetType;
+          : targetType === 'exam'
+            ? t('admin.audit-target.exam')
+            : targetType;
   return targetId.trim() === ''
     ? t('admin.audit.target-unknown-id', { type })
     : t('admin.audit.target', { type, id: targetId });

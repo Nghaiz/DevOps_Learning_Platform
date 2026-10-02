@@ -26,7 +26,10 @@ test.describe('luồng 6 — quản trị', { tag: '@flow' }, () => {
     requireRole(account, 'admin');
     test.setTimeout(3 * 60_000);
 
-    const adminNav = page.getByRole('navigation', { name: 'Điều hướng quản trị' });
+    // Thanh chuyển trang con của section Quản trị (`SectionSwitcher` của kit,
+    // nằm dưới poster mỗi màn). Thay cho thanh nav riêng "Điều hướng quản trị"
+    // trước bản dựng lại PTIT.
+    const adminNav = page.getByRole('navigation', { name: 'Mục trong Quản trị' });
 
     // ── 1. Tổng quan: sức chứa + trạng thái nguồn metric ────────────────────
     await openScreen(page, '/admin', 'admin');
