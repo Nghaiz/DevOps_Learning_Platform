@@ -439,7 +439,6 @@ export const author = {
     `Đấu trường nhận bài qua tham số truy vấn, và hôm nay chỉ route của Kubernetes đọc tham số đó. Bài ${p.game} vẫn lưu và vẫn xuất bản được; chỉ nút thử tại chỗ là chưa có. Nối được nó đòi một chế độ chơi mới trong game đó, không phải một nút bấm.`,
 
   // ── Tab JSON, chuyển bài giữa các môi trường ───────────────────────────────
-  'author.problem.json.heading': 'Xuất và nhập JSON',
   'author.problem.json.export-heading': 'Xuất',
   'author.problem.json.export-lead':
     'Tải về đúng thứ đang hiện trên màn hình, kể cả phần chưa lưu. Mang sang môi trường khác rồi nhập lại ở ô bên dưới.',
@@ -466,8 +465,6 @@ export const author = {
   'author.problem.publish.ok-title': 'Bài đã đủ điều kiện xuất bản',
   'author.problem.publish.ok-body':
     'Máy chủ kiểm lại một lượt nữa khi bạn bấm. Đó là lớp cuối, và nó gác cùng bộ điều kiện.',
-  'author.problem.publish.submit': 'Xuất bản',
-  'author.problem.publish.already': 'Đã xuất bản',
   // e2e luồng CI/CD (`flows/cicd-problem.flow.spec.ts`) tìm ĐÚNG câu này sau khi
   // xuất bản. Cột kiểm nói cùng ý bằng câu khác (`author.problem.rail.live`).
   'author.problem.publish.live-title': 'Bài đang mở cho người học',

@@ -148,7 +148,7 @@ export function ProblemPublishPanel(props: {
         body={t('author.problem.archive.confirm-body')}
         loss={t('author.problem.archive.loss')}
         blockedReason={null}
-        error={props.archive.error}
+        error={withTitle(t('author.studio.action-error.archive'), props.archive.error)}
         confirmLabel={t('author.studio.action.archive')}
         confirming={props.archive.pending}
         onConfirm={() => {
@@ -168,7 +168,7 @@ export function ProblemPublishPanel(props: {
         body={t('author.problem.publish.danger-body')}
         loss={t('author.problem.delete.loss')}
         blockedReason={null}
-        error={props.remove.error}
+        error={withTitle(t('author.studio.action-error.delete'), props.remove.error)}
         confirmLabel={t('author.studio.action.delete')}
         confirming={props.remove.pending}
         onConfirm={() => {
@@ -177,4 +177,9 @@ export function ProblemPublishPanel(props: {
       />
     </>
   );
+}
+
+/** `ConfirmDialog` in lỗi không kèm tiêu đề, nên câu "không làm được gì" đứng trước câu của máy chủ. */
+function withTitle(title: string, error: string | null): string | null {
+  return error === null ? null : `${title}. ${error}`;
 }
