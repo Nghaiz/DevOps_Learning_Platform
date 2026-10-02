@@ -244,15 +244,6 @@ export const catalog = {
   'catalog.empty.learner.quiz':
     'Chưa có bộ câu hỏi nào được xuất bản. Làm một lab để tự kiểm bằng thao tác thật.',
 
-  'catalog.empty.games.title': 'Không có game nào khớp bộ lọc',
-  /*
-   * ⚠ Bản cũ viết "Bốn game vẫn ở đó". `games-catalog.ts` có NĂM mục, nên câu
-   * đó đã sai từ lúc mục thứ năm được thêm, và sai trong im lặng: không cổng
-   * nào đếm giúp một con số nằm trong văn xuôi. Cần nói số thì dùng
-   * `catalog.games.count`, khoá đó nhận tham số.
-   */
-  'catalog.empty.games.body': 'Các game vẫn ở đó, bỏ bớt điều kiện lọc để xem lại toàn bộ.',
-
   'catalog.action.first-page': 'Tải lại từ đầu',
   'catalog.action.author': 'Mở Xưởng soạn',
   'catalog.action.browse-lessons': 'Xem bài học',
@@ -278,11 +269,6 @@ export const catalog = {
     `Các mục đã hiện vẫn giữ nguyên. Thử lại sẽ tải đúng lượt ${p.page}.`,
   'catalog.error-hint.unknown-midway':
     'Nếu thử lại vẫn lỗi, tải lại từ đầu.',
-
-  // ── Games ─────────────────────────────────────────────────────────────
-  //
-  // Phần lớn chữ của `/games` đã sang surface `games.`; nhãn dưới đây còn nơi gọi.
-  'catalog.games.soon': 'Sắp có',
 
   // ── Nhãn verdict và ô nộp bài của một bài tập ──────────────────────────
   //
