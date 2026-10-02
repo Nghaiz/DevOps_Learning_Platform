@@ -227,12 +227,12 @@ function MegaPanel({ section, pathname }: { readonly section: NavSectionDef; rea
             <p className="mt-3 max-w-sm text-muted-foreground">{section.lead}</p>
           </div>
         </div>
-        <ul className="grid gap-px bg-border sm:grid-cols-2">
+        <ul className="grid border-t border-l border-border sm:grid-cols-2">
           {section.items.map((entry, index) => {
             const Icon = NAV_ICONS[entry.icon];
             const isActive = active?.href === entry.href;
             return (
-              <li key={entry.href} className="bg-background">
+              <li key={entry.href} className="border-r border-b border-border bg-background">
                 <Link
                   href={entry.href}
                   aria-current={isActive ? 'page' : undefined}

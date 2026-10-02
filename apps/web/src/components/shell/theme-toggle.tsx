@@ -54,7 +54,7 @@ export function ThemeToggle() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="sm" className="w-8 px-0">
+        <Button variant="ghost" size="sm" className="size-10 px-0 text-chrome-foreground hover:bg-chrome-foreground/10 hover:text-chrome-foreground">
           <Sun aria-hidden="true" className="size-4 dark:hidden" />
           <Moon aria-hidden="true" className="hidden size-4 dark:block" />
           <span className="sr-only">{t('shell.theme.label')}</span>
