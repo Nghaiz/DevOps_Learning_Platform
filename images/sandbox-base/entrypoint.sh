@@ -298,13 +298,31 @@ start_k8s() {
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 6.B/6.C — Theia (IDE), CHỈ nghe loopback.
+# 6.B/6.C — Theia (IDE), nghe podIP (xem đánh đổi `--hostname` bên dưới).
 #
-# Gác bằng đường dẫn chứ không bằng `command -v`, vì `node` được chép vào
-# /opt/theia/node/bin chứ không lên PATH: build INCLUDE_IDE=0 KHÔNG được vỡ vì
-# entrypoint đi tìm một thư mục không có — cùng lý do start_dockerd gác bằng
-# `command -v` (một entrypoint chỉ chạy đúng với một tổ hợp build-arg là quả mìn
-# hẹn giờ cho lần đầu ai đó build bản slim).
+# HAI CỬA, cả hai phải mở (labs rebuild 2026-10-03, D6):
+#
+#  1. `DLP_IDE=1` — env do PROFILE `ide` của chart đặt
+#     (`sandbox.profiles.ide.env`). Đây là công tắc THẬT. Từ khi CI dựng image
+#     với `INCLUDE_IDE=1`, /opt/theia có mặt trong MỌI pod; gác chỉ bằng đường
+#     dẫn như bản trước nghĩa là pod warm-pool của bài Linux thường cũng chạy
+#     Theia và gánh thêm 200–450Mi cho một editor không ai mở — trần đồng thời
+#     của mọi người tụt theo. Cùng khuôn với `DLP_K8S` của start_k8s: image CÓ
+#     công cụ, profile QUYẾT ĐỊNH dùng.
+#     So khớp đúng chuỗi "1" (như DLP_K8S), không "khác rỗng": `DLP_IDE=0` phải
+#     có nghĩa là tắt.
+#
+#  2. /opt/theia/node/bin/node — gác bằng đường dẫn chứ không `command -v`, vì
+#     `node` được chép vào /opt/theia/node/bin chứ không lên PATH. Build
+#     INCLUDE_IDE=0 KHÔNG được vỡ vì entrypoint đi tìm một thư mục không có
+#     (cùng lý do start_dockerd gác bằng `command -v`).
+#
+# Cả hai nhánh bỏ qua đều GHI LOG. Nhánh "profile đòi IDE mà image không có" là
+# CẢNH BÁO, vì đó chính xác là lỗi đã sống trên cụm trước D6: `/ide` trả 503 với
+# `connection refused` và `kubectl logs` không nói gì. Nhánh "image có IDE mà
+# profile không đòi" là log thường — đó là đường bình thường của mọi pod mặc
+# định, nhưng phải nói ra để người đọc log phân biệt được "cố ý không chạy" với
+# "chạy hỏng".
 #
 # ⛔ `--hostname=0.0.0.0` LÀ MỘT ĐÁNH ĐỔI ĐÃ CÂN, không phải mặc định tiện tay.
 #
@@ -337,7 +355,19 @@ start_k8s() {
 DLP_IDE_PORT="${DLP_IDE_PORT:-4000}"
 
 start_theia() {
-    [ -x /opt/theia/node/bin/node ] || return 0
+    local has_ide=0
+    [ -x /opt/theia/node/bin/node ] && has_ide=1
+
+    if [ "${DLP_IDE:-0}" != "1" ]; then
+        if [ "$has_ide" = "1" ]; then
+            log "Theia: image có IDE nhưng DLP_IDE='${DLP_IDE:-}' (không phải profile ide) — KHÔNG khởi động"
+        fi
+        return 0
+    fi
+    if [ "$has_ide" != "1" ]; then
+        warn "DLP_IDE=1 nhưng image KHÔNG có /opt/theia (build với INCLUDE_IDE=0) — route /ide sẽ trả 503"
+        return 0
+    fi
 
     local main=/opt/theia/applications/browser/lib/backend/main.js
     if [ ! -f "$main" ]; then
@@ -349,7 +379,9 @@ start_theia() {
         return 0
     fi
 
-    /opt/theia/node/bin/node "$main" "${HOME:-/root}"         --hostname=0.0.0.0 --port="$DLP_IDE_PORT"         >>/var/log/dlp/theia.log 2>&1 &
+    /opt/theia/node/bin/node "$main" "${HOME:-/root}" \
+        --hostname=0.0.0.0 --port="$DLP_IDE_PORT" \
+        >>/var/log/dlp/theia.log 2>&1 &
     local pid=$!
     # Cùng lý do như dockerd: `&` luôn thành công dưới góc nhìn shell cha, nên
     # in "đã khởi động" ngay sau nó là khẳng định không dựa trên gì. Theia mất

@@ -60,6 +60,21 @@ if command -v bat >/dev/null 2>&1; then
   alias cat='bat --plain --paging=never'
 fi
 
+# ── kubectl: alias `k` + completion (quy ước của kỳ thi CKA/CKAD) ────────────
+# Completion KHÔNG sinh ở đây: file `_kubectl` đã được sinh lúc build vào
+# /usr/local/share/zsh/site-functions (nằm sẵn trong $fpath), nên `compinit` ở
+# đầu file tự nạp nó — không chạy binary kubectl mỗi lần mở shell.
+# `compdef k=kubectl` để `k <Tab>` hoàn thành như `kubectl` kể cả khi người học
+# bật `complete_aliases` (mặc định zsh vẫn tự mở alias trước khi hoàn thành).
+#
+# ⚠ `k` CHỈ có trong shell TƯƠNG TÁC. verify.sh (bash không tương tác) và bộ
+# kiểm thử nội dung (`zsh -c`) KHÔNG đọc file này — nội dung bài phải viết
+# `kubectl` đầy đủ trong `{{exec}}`, lời giải và verify.
+if command -v kubectl >/dev/null 2>&1; then
+  alias k=kubectl
+  compdef k=kubectl
+fi
+
 export EDITOR=vi
 
 # ── Màn chào một lần mỗi phiên tmux (§C4 / dlp-motd) ─────────────────────────

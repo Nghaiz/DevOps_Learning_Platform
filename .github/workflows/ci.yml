@@ -988,7 +988,10 @@ jobs:
   sandbox-image:
     name: 'Build thử: sandbox-base'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # 30, không 15: từ labs rebuild (D6) job này dựng bản CÓ Theia — thêm một
+    # lượt pull image Theia ghim digest, một layer /opt/theia cỡ GB phải `load`
+    # vào docker, và Trivy quét cả cây node_modules của nó.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -999,6 +1002,14 @@ jobs:
         with:
           context: images/sandbox-base
           file: images/sandbox-base/Dockerfile
+          # ⛔ PHẢI TRÙNG build-args của hàng `sandbox-base` trong job `images`.
+          # Lệch nhau là cổng PR gác một image KHÁC image được publish: PR xanh
+          # trên bản không-IDE, main publish bản có-IDE chưa ai quét ở PR, và
+          # cache gha (cùng scope) không còn trúng giữa hai job.
+          # INCLUDE_IDE=1 (D6): trước đây không job nào truyền, Dockerfile mặc
+          # định 0, nên MỌI tag CI thiếu /opt/theia và `/ide` trên cụm trả 503.
+          build-args: |
+            INCLUDE_IDE=1
           push: false
           load: true
           tags: dlp-sandbox-base:pr
@@ -1074,6 +1085,99 @@ jobs:
           # qua chính CLI. Lệnh này KHÔNG cần dockerd đang chạy.
           docker run --rm --entrypoint /bin/bash dlp-sandbox-base:pr -c 'docker buildx version' \
             || { echo "::error::docker-buildx-plugin không nạp được"; exit 1; }
+          # compose cũng là cli-plugin — cùng lý do, hỏi qua CLI (labs rebuild:
+          # chủ đề Docker có bài Compose).
+          docker run --rm --entrypoint /bin/bash dlp-sandbox-base:pr -c 'docker compose version' \
+            || { echo "::error::docker-compose-plugin không nạp được"; exit 1; }
+
+      # ─────────────────────────────────────────── labs rebuild (2026-10-03)
+      #
+      # Công cụ mà bài theo chủ đề gõ thẳng. Đo trên pod thật `sha-6f19cbe` thì
+      # cả nhóm đều THIẾU — tức chưa từng có cổng nào hỏi. Kiểm LỆNH chứ không
+      # kiểm gói: tên gói và tên lệnh lệch nhau ở gần hết danh sách (iproute2 →
+      # ip/ss, netcat-openbsd → nc, bind9-dnsutils → dig/nslookup, vim → vi).
+      # Chạy qua bash KHÔNG tương tác — đúng đường của verify.sh — để một lệnh
+      # chỉ tồn tại nhờ alias trong rc không lọt qua.
+      - name: 'Labs rebuild: lệnh mới có trên PATH + completion kubectl cho zsh'
+        run: |
+          set -euo pipefail
+          missing=0
+          for b in vi vim nano ip ss tree nc dig nslookup kubectl; do
+            if ! docker run --rm --entrypoint /bin/bash dlp-sandbox-base:pr -c "command -v $b >/dev/null"; then
+              echo "::error::thiếu lệnh trong image: $b"; missing=1
+            fi
+          done
+          [ "$missing" -eq 0 ] || exit 1
+          # `vi` phải là vim THẬT (thay vim-tiny), không chỉ "có một vi nào đó".
+          docker run --rm --entrypoint /bin/bash dlp-sandbox-base:pr -c 'vi --version | head -1 | grep -q "VIM - Vi IMproved"' \
+            || { echo "::error::vi không trỏ về vim"; exit 1; }
+          # Completion + alias `k` sống trong zsh TƯƠNG TÁC (đúng terminal người
+          # học). `_comps` là bảng compsys: rỗng nghĩa là `_kubectl` không nằm
+          # trong $fpath hoặc compinit không thấy nó — completion "không có" mà
+          # không lỗi nào.
+          got=$(docker run --rm --entrypoint /bin/zsh dlp-sandbox-base:pr -ic 'print -r -- "$_comps[kubectl] $_comps[k] $(alias k)"' 2>/dev/null | tail -1)
+          echo "zsh: $got"
+          [ "$got" = "_kubectl _kubectl k=kubectl" ] \
+            || { echo "::error::completion/alias kubectl trong zsh sai (nhận: '$got')"; exit 1; }
+
+      # ─────────────────────────────────────────── IDE (D6, labs rebuild)
+      #
+      # Ba khẳng định, cả ba đỏ được:
+      #  1. Image CÓ Theia: node đi kèm chạy được và main.js có mặt.
+      #  2. CÓ `DLP_IDE=1` ⇒ cổng 4000 trả HTTP 200. Đây là vế dương; thiếu nó
+      #     thì vế 3 xanh cả khi Theia hỏng hẳn (không chạy ⇒ không nghe ⇒ "đúng").
+      #  3. KHÔNG có `DLP_IDE` ⇒ không tiến trình Theia nào, cổng 4000 câm, và
+      #     log nói rõ là CỐ Ý không chạy. Đây là toàn bộ điểm của D6: pod mặc
+      #     định không được gánh 200–450Mi của Theia.
+      #
+      # Mốc chờ ở vế 3 là `sleep infinity` xuất hiện, KHÔNG phải một `sleep N`
+      # đoán mò: entrypoint chạy `start_theia` đồng bộ rồi mới `exec` CMD, nên
+      # khi `sleep infinity` đã sống thì Theia (nếu được khởi động) cũng đã có
+      # PID. Chờ cố định thì vế âm xanh được chỉ vì chờ chưa đủ lâu.
+      #
+      # Runner không có Sysbox nên dockerd trong container chết — đúng như thiết
+      # kế (log rồi đi tiếp), và không ảnh hưởng Theia.
+      - name: 'IDE: Theia có trong image, CHỈ chạy khi DLP_IDE=1'
+        run: |
+          set -euo pipefail
+          img=dlp-sandbox-base:pr
+          docker run --rm --entrypoint /bin/bash "$img" -c \
+            'test -x /opt/theia/node/bin/node && /opt/theia/node/bin/node --version && test -f /opt/theia/applications/browser/lib/backend/main.js' \
+            || { echo "::error::image KHÔNG có Theia (/opt/theia/node/bin/node hoặc main.js thiếu) — build-arg INCLUDE_IDE=1 đã rơi?"; exit 1; }
+
+          # Vế dương.
+          on=$(docker run -d -e DLP_IDE=1 "$img")
+          code=000
+          for i in $(seq 1 90); do
+            code=$(docker exec "$on" curl -s -o /dev/null -w '%{http_code}' --max-time 3 http://127.0.0.1:4000/ || true)
+            [ "$code" = "200" ] && { echo "DLP_IDE=1: cổng 4000 trả 200 sau ${i}s"; break; }
+            sleep 1
+          done
+          if [ "$code" != "200" ]; then
+            echo "::error::DLP_IDE=1 nhưng cổng 4000 không trả 200 sau 90s (mã cuối: $code). Log:"
+            docker logs "$on" 2>&1 | tail -30
+            docker exec "$on" tail -n 30 /var/log/dlp/theia.log || true
+            docker rm -f "$on" >/dev/null; exit 1
+          fi
+          docker rm -f "$on" >/dev/null
+
+          # Vế âm.
+          off=$(docker run -d "$img")
+          for i in $(seq 1 30); do
+            docker exec "$off" pgrep -x sleep >/dev/null 2>&1 && break
+            sleep 1
+          done
+          docker exec "$off" pgrep -x sleep >/dev/null \
+            || { echo "::error::entrypoint chưa tới CMD sau 30s — vế âm không có mốc để đo"; docker logs "$off" 2>&1 | tail -20; docker rm -f "$off" >/dev/null; exit 1; }
+          procs=$(docker exec "$off" pgrep -fc 'backend/main.js' || true)
+          code=$(docker exec "$off" curl -s -o /dev/null -w '%{http_code}' --max-time 3 http://127.0.0.1:4000/ || true)
+          logs=$(docker logs "$off" 2>&1)
+          docker rm -f "$off" >/dev/null
+          echo "không DLP_IDE: tiến trình Theia=${procs:-0}, mã cổng 4000=$code"
+          [ "${procs:-0}" = "0" ] || { echo "::error::Theia CHẠY dù không có DLP_IDE=1 — pod mặc định gánh thêm 200–450Mi"; exit 1; }
+          [ "$code" = "000" ]     || { echo "::error::cổng 4000 trả $code dù không có DLP_IDE=1"; exit 1; }
+          grep -q 'KHÔNG khởi động' <<<"$logs" \
+            || { echo "::error::entrypoint bỏ qua Theia mà không ghi log — không phân biệt được 'cố ý tắt' với 'chạy hỏng'"; echo "$logs" | tail -20; exit 1; }
 
       # ─────────────────────────────────────────────────────── E9 (1.E-2)
       #
@@ -1652,7 +1756,10 @@ jobs:
     # cần tốn phút build 4 image.
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # 45, không 30: hàng `sandbox-base` nay có Theia (D6) — image cỡ GB đi qua
+    # build, HAI lượt Trivy, rồi SBOM + push. Trần áp cho cả matrix nhưng chỉ
+    # hàng đó cần thêm thời gian.
+    timeout-minutes: 45
     permissions:
       contents: read
       packages: write
@@ -1686,6 +1793,10 @@ jobs:
             image: dlp-sandbox-base
             dockerfile: images/sandbox-base/Dockerfile
             context: images/sandbox-base
+            # D6 (labs rebuild): image CI có Theia; pod chỉ CHẠY Theia khi
+            # profile `ide` đặt DLP_IDE=1. PHẢI trùng build-args của job
+            # `sandbox-image` — đó là cổng PR của chính image này.
+            build-args: INCLUDE_IDE=1
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -1726,6 +1837,9 @@ jobs:
           # Rỗng với mọi hàng trừ `migrator` — buildx hiểu chuỗi rỗng là "dùng
           # stage cuối", đúng hành vi cũ của bốn hàng còn lại.
           target: ${{ matrix.target }}
+          # Rỗng với mọi hàng trừ `sandbox-base` (INCLUDE_IDE=1). PHẢI giống hệt
+          # ở lượt push bên dưới — lệch là push một image khác image vừa quét.
+          build-args: ${{ matrix.build-args }}
           push: false
           # `load: true` đưa image vào docker cục bộ của runner để Trivy quét
           # được. Tag CỤC BỘ, không mang tên registry: một tag `ghcr.io/…` nằm
@@ -1807,6 +1921,7 @@ jobs:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
           target: ${{ matrix.target }}
+          build-args: ${{ matrix.build-args }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
