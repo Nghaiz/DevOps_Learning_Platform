@@ -28,7 +28,7 @@ export async function generateMetadata({ params }: { params: Promise<{ code: str
   // Tiêu đề dựng từ MÃ chứ không từ tên bài: lấy tên đòi một lượt gọi máy chủ
   // thứ hai chỉ để điền thẻ `<title>`, trong khi mã bài đã là thứ người ta đọc
   // cho nhau nghe ("làm được K8S-0042 chưa?") và nó không bao giờ đổi.
-  return { title: t('catalog.problem.meta-title', { code: code.toUpperCase() }) };
+  return { title: t('problem.oj.detail.meta-title', { code: code.toUpperCase() }) };
 }
 
 /**

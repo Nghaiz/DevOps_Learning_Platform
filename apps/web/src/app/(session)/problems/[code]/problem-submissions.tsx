@@ -1,18 +1,29 @@
 import type { ReactElement } from 'react';
-import { Badge, ErrorState, Skeleton, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@devops-platform/ui';
+import {
+  ErrorState,
+  Skeleton,
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  cn,
+} from '@devops-platform/ui';
 import { renderCopy, t } from '@devops-platform/copy';
 import type { ProblemSubmission } from '@devops-platform/games';
 import { formatDuration, formatMoment } from '../problem-labels';
-import { submissionVerdictLabel } from './submission-verdict';
+import { VerdictChip } from './verdict-chip';
 
 /**
- * Lịch sử nộp bài CỦA CHÍNH NGƯỜI ĐANG XEM.
+ * Lịch sử nộp bài CỦA CHÍNH NGƯỜI ĐANG XEM, dạng sổ cái.
  *
- * Nguồn là `problems.mySubmissions`, thủ tục không nhận `userId` — nên không có
- * đường nào để đọc lượt nộp của người khác kể cả khi sửa tham số ở trình duyệt.
+ * Nguồn là `problems.mySubmissions`, thủ tục không nhận `userId`: không có đường
+ * nào đọc lượt nộp của người khác kể cả khi sửa tham số ở trình duyệt.
  *
- * Mới nhất lên trên. Trang chi tiết chỉ hiện TRANG ĐẦU: người ta vào đây để xem
- * "lần vừa rồi mình được bao nhiêu", không phải để lục lại lượt thứ ba mươi.
+ * Mới nhất lên trên, và chỉ TRANG ĐẦU: người ta vào đây để xem "lần vừa rồi mình
+ * được bao nhiêu", không phải để lục lại lượt thứ ba mươi.
  */
 export function ProblemSubmissions(props: {
   readonly items: readonly ProblemSubmission[];
@@ -20,82 +31,97 @@ export function ProblemSubmissions(props: {
   readonly isError: boolean;
   readonly errorMessage: string;
   readonly onRetry: () => void;
-  /** Máy chủ còn con trỏ ⇒ còn lượt cũ hơn không hiện ở đây. Nói ra thay vì để danh sách trông như đã đủ. */
+  /** Máy chủ còn con trỏ ⇒ còn lượt cũ hơn. Nói ra thay vì để danh sách trông như đã đủ. */
   readonly hasMore: boolean;
 }): ReactElement {
+  if (props.isPending) {
+    return (
+      <div role="status" aria-label={t('problem.oj.subs.loading')} className="flex flex-col gap-2">
+        <Skeleton className="h-10 w-full" />
+        <Skeleton className="h-10 w-full" />
+        <Skeleton className="h-10 w-full" />
+      </div>
+    );
+  }
+
+  if (props.isError) {
+    return (
+      <ErrorState
+        title={t('problem.oj.subs.error-title')}
+        message={props.errorMessage}
+        onRetry={props.onRetry}
+      />
+    );
+  }
+
+  if (props.items.length === 0) {
+    return <p className="max-w-[68ch] text-sm text-muted-foreground">{t('problem.oj.subs.empty')}</p>;
+  }
+
   return (
-    <section className="flex flex-col gap-3">
-      <h2 className="text-lg font-semibold text-foreground">{t('catalog.problem.subs-title')}</h2>
-
-      {props.isPending && <Skeleton className="h-32 w-full" />}
-
-      {props.isError && (
-        <ErrorState
-          title={t('catalog.problem.subs-error-title')}
-          message={props.errorMessage}
-          onRetry={props.onRetry}
-        />
-      )}
-
-      {!props.isPending && !props.isError && props.items.length === 0 && (
-        <p className="text-sm text-muted-foreground">{t('catalog.problem.subs-empty')}</p>
-      )}
-
-      {!props.isPending && !props.isError && props.items.length > 0 && (
-        <>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead scope="col">{t('catalog.problem.subs-col-at')}</TableHead>
-                <TableHead scope="col">{t('catalog.problem.subs-col-result')}</TableHead>
+    <div className="flex flex-col gap-3">
+      <Table>
+        <TableCaption className="sr-only">{t('problem.oj.subs.caption')}</TableCaption>
+        <TableHeader>
+          <TableRow>
+            <TableHead scope="col">{t('problem.oj.subs.col-at')}</TableHead>
+            {/*
+              Verdict và Mục tiêu là HAI cột: verdict đếm theo MỌI testcase, còn
+              `solved` đếm theo mục tiêu BẮT BUỘC. Ở bài có mục tiêu thưởng hai số
+              lệch nhau một cách hợp lệ, nên gộp lại là vứt một trong hai sự thật.
+            */}
+            <TableHead scope="col">{t('problem.oj.subs.col-verdict')}</TableHead>
+            <TableHead scope="col">{t('problem.oj.subs.col-goals')}</TableHead>
+            <TableHead scope="col" className="text-right">
+              {t('problem.oj.subs.col-score')}
+            </TableHead>
+            <TableHead scope="col" className="text-right">
+              {t('problem.oj.subs.col-duration')}
+            </TableHead>
+            <TableHead scope="col" className="text-right">
+              {t('problem.oj.subs.col-moves')}
+            </TableHead>
+            <TableHead scope="col" className="text-right">
+              {t('problem.oj.subs.col-hints')}
+            </TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {props.items.map((submission) => (
+            <TableRow key={submission.id}>
+              <TableHead scope="row" className="font-mono text-sm font-normal tabular-nums text-foreground">
+                {formatMoment(submission.submittedAt)}
+              </TableHead>
+              <TableCell>
                 {/*
-                  Verdict là cột RIÊNG, không phải một cách tô màu khác cho cột
-                  "Kết quả" bên cạnh. Hai cột đếm hai thứ: `solved` đếm theo các
-                  mục tiêu BẮT BUỘC, còn verdict đếm theo MỌI testcase. Ở bài có
-                  mục tiêu thưởng, hai số lệch nhau một cách hợp lệ, nên gộp
-                  chúng lại là vứt đi một trong hai sự thật.
+                  Nhãn + màu dựng ở `submission-verdict.ts`, không suy ở JSX. Chỗ đó
+                  cũng là nơi `total === 0` được dịch thành một câu KHÁC `CE`.
                 */}
-                <TableHead scope="col">{t('catalog.problem.subs-col-verdict')}</TableHead>
-                <TableHead scope="col">{t('catalog.problem.subs-col-score')}</TableHead>
-                <TableHead scope="col">{t('catalog.problem.subs-col-duration')}</TableHead>
-                <TableHead scope="col">{t('catalog.problem.subs-col-moves')}</TableHead>
-                <TableHead scope="col">{t('catalog.problem.subs-col-hints')}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {props.items.map((submission) => (
-                <TableRow key={submission.id}>
-                  <TableHead scope="row" className="text-sm font-normal text-foreground">
-                    {formatMoment(submission.submittedAt)}
-                  </TableHead>
-                  <TableCell>
-                    <Badge variant={submission.solved ? 'status-done' : 'status-todo'}>
-                      {submission.solved ? t('catalog.problem.subs-solved') : t('catalog.problem.subs-failed')}
-                    </Badge>
-                  </TableCell>
-                  {/*
-                    Nhãn dựng ở `submissionVerdictLabel`, không suy ở JSX. Chỗ
-                    đó cũng là nơi `total === 0` được dịch thành một câu KHÁC
-                    `CE`, và lý do nằm nguyên trong chú thích của nó.
-                  */}
-                  <TableCell className="text-sm tabular-nums text-foreground">
-                    {submissionVerdictLabel(submission)}
-                  </TableCell>
-                  <TableCell className="tabular-nums">{submission.score}</TableCell>
-                  <TableCell className="tabular-nums">
-                    {renderCopy(formatDuration(submission.durationSeconds))}
-                  </TableCell>
-                  <TableCell className="tabular-nums">{submission.movesUsed}</TableCell>
-                  <TableCell className="tabular-nums">{submission.hintsRevealed.length}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          {props.hasMore && (
-            <p className="text-sm text-muted-foreground">{t('catalog.problem.subs-more')}</p>
-          )}
-        </>
-      )}
-    </section>
+                <VerdictChip submission={submission} />
+              </TableCell>
+              <TableCell>
+                <span
+                  className={cn(
+                    'font-mono text-xs font-medium',
+                    submission.solved ? 'text-success' : 'text-muted-foreground',
+                  )}
+                >
+                  {submission.solved ? t('problem.oj.subs.goals-met') : t('problem.oj.subs.goals-missed')}
+                </span>
+              </TableCell>
+              <TableCell className="text-right font-mono tabular-nums">{submission.score}</TableCell>
+              <TableCell className="text-right font-mono tabular-nums">
+                {renderCopy(formatDuration(submission.durationSeconds))}
+              </TableCell>
+              <TableCell className="text-right font-mono tabular-nums">{submission.movesUsed}</TableCell>
+              <TableCell className="text-right font-mono tabular-nums">
+                {submission.hintsRevealed.length}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+      {props.hasMore && <p className="text-xs text-muted-foreground">{t('problem.oj.subs.more')}</p>}
+    </div>
   );
 }
