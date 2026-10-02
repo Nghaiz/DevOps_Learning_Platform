@@ -239,6 +239,8 @@ export function TerminalSurface(props: TerminalSurfaceProps): React.ReactElement
       onControl: (message) => handlersRef.current.onControl(message),
       onBinary: (chunk) => core.write(chunk),
       onClose: (code) => handlersRef.current.onClose(code),
+      // H1 — mốc dedup `resize` thuộc về TỪNG kết nối: là số `init` vừa mang đi.
+      onOpen: (sentSize) => coreRef.current?.syncResizeBaseline(sentSize),
     });
     connectionRef.current = connection;
 

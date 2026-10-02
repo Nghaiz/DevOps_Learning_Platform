@@ -27,6 +27,12 @@ export interface ConnectionOptions extends ConnectionHandlers {
   readonly url: string;
   /** Kích thước ĐO ĐƯỢC lúc mở — dùng cho frame `init` bắt buộc (contract §3 bước 4). */
   readonly initialSize: TerminalDimensions;
+  /**
+   * H1 — gọi ĐÚNG một lần khi socket mở, với kích thước mà `init` vừa mang đi
+   * (đã clamp). Đó là con số pod đang có, nên người gọi dùng nó làm mốc dedup
+   * `resize` cho kết nối này (`TerminalCore.syncResizeBaseline`).
+   */
+  readonly onOpen?: (sentSize: TerminalDimensions) => void;
   /** Cho test tiêm WebSocket giả. Mặc định dùng `globalThis.WebSocket`. */
   readonly socketFactory?: (url: string, protocols: string) => WebSocket;
 }
@@ -137,6 +143,12 @@ export function openConnection(options: ConnectionOptions): Connection {
 
   let closed = false;
   let opened = false;
+  /**
+   * H1 — `resize` gửi lúc CONNECTING. Chỉ giữ cái MỚI NHẤT (kích thước là trạng
+   * thái, không phải chuỗi sự kiện) và gộp vào `init` lúc mở, nên không có frame
+   * `resize` nào đi trước `init` và không tốn thêm một lượt control.
+   */
+  let pendingSize: TerminalDimensions | null = null;
   /** C2 — trần frame hiện hành; `ready` thay nó bằng con số gateway báo. */
   let chunkBytes = inputChunkBytes(DEFAULT_MAX_FRAME_BYTES);
 
@@ -203,13 +215,17 @@ export function openConnection(options: ConnectionOptions): Connection {
     clearTimeout(handshakeTimer);
     // Contract §3 bước 4 — `init` là frame ĐẦU TIÊN, trước mọi stdin. Server chờ
     // nó (3s) trước khi dial exec, nên gửi muộn là prompt vẽ ở 80×24 rồi nhảy.
-    socket.send(
-      encodeClientControl({
-        type: 'init',
-        cols: clampDimension(options.initialSize.cols),
-        rows: clampDimension(options.initialSize.rows),
-      }),
-    );
+    //
+    // H1 — `initialSize` là ảnh chụp lúc `openConnection`, trước khi font tải
+    // xong; mọi `resize` tới trong lúc CONNECTING thay nó bằng số mới hơn.
+    const size = pendingSize ?? options.initialSize;
+    pendingSize = null;
+    const sent: TerminalDimensions = {
+      cols: clampDimension(size.cols),
+      rows: clampDimension(size.rows),
+    };
+    socket.send(encodeClientControl({ type: 'init', cols: sent.cols, rows: sent.rows }));
+    options.onOpen?.(sent);
     // H5 — xả SAU `init`: stdin trước `init` thì gateway đệm được (`pendingStdin`)
     // nhưng `init` phải là frame đầu tiên theo contract §3.
     for (const bytes of pendingInput) {
@@ -300,6 +316,13 @@ export function openConnection(options: ConnectionOptions): Connection {
     },
 
     sendResize(size: TerminalDimensions): void {
+      if (closed) {
+        return;
+      }
+      if (!opened) {
+        pendingSize = size;
+        return;
+      }
       if (socket.readyState !== WebSocket.OPEN) {
         return;
       }
