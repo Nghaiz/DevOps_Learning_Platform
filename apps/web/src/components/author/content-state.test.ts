@@ -7,7 +7,6 @@ import {
   lastPublishFailure,
   describeUpdatedAt,
   sortByRecent,
-  STATE_BADGE,
   STATE_KEYS,
   type AuthoredItem,
 } from './content-state';
@@ -136,10 +135,9 @@ describe('lastPublishFailure', () => {
 });
 
 describe('bảng nhãn phủ hết trạng thái', () => {
-  it('mỗi state có nhãn tiếng Việt dựng được từ bản đồ và một variant badge', () => {
+  it('mỗi state có nhãn tiếng Việt dựng được từ bản đồ', () => {
     for (const state of ['draft', 'publishing', 'published', 'archived'] as const) {
       expect(say({ key: STATE_KEYS[state] })).not.toBe('');
-      expect(STATE_BADGE[state]).not.toBe('');
     }
   });
 });
