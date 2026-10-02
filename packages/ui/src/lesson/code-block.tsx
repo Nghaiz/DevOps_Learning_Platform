@@ -79,6 +79,8 @@ function ActionButton({
   );
 }
 
+const PLAIN_LANGUAGES: ReadonlySet<string> = new Set(['text', 'plaintext', 'plain', 'txt']);
+
 export function CodeBlock({
   code,
   language,
@@ -165,7 +167,12 @@ export function CodeBlock({
   return (
     <div className="my-3 border border-border bg-muted">
       <div className="flex min-h-9 flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-1">
-        <span className="type-label text-muted-foreground">{language ?? 'text'}</span>
+        {/* "text" là nhãn vô nghĩa với người đọc: chỉ in tên ngôn ngữ thật (bash, yaml…). */}
+        {language !== null && !PLAIN_LANGUAGES.has(language.toLowerCase()) ? (
+          <span className="type-label text-muted-foreground">{language}</span>
+        ) : (
+          <span aria-hidden="true" />
+        )}
         <div className="flex flex-wrap items-center justify-end gap-2">
           {showExec && reason !== null && (
             <span id={reasonId} className="font-mono text-xs text-muted-foreground">

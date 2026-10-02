@@ -289,6 +289,7 @@ export function LessonClient({ scenarioId }: { readonly scenarioId: string }): R
         >
           <ContentView
             blocks={blocks}
+            leadingTitle={active.phase.title ?? undefined}
             diagrams={scenario.diagrams}
             resolveAssetUrl={resolveAssetUrl}
             onExec={tabs.exec}

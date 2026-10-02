@@ -39,6 +39,37 @@ export interface ContentViewProps {
   /** Vì sao nút chạy đang khoá, hiện cạnh nút. Chỉ đọc khi `execEnabled === false`. */
   readonly execDisabledReason?: string | null;
   readonly labels?: ContentViewLabels;
+  /**
+   * Tên bước/nhiệm vụ mà trang đã in phía trên. Nội dung thường mở đầu bằng
+   * chính dòng `# Tên` đó; khớp hoàn toàn (sau chuẩn hoá) thì dòng đó bị bỏ để
+   * tên không lặp hai lần. Khác dù một chữ thì giữ nguyên.
+   */
+  readonly leadingTitle?: string | undefined;
+}
+
+function normalizeTitle(text: string): string {
+  return text
+    .normalize('NFC')
+    .toLowerCase()
+    .replace(/[*_`]/g, '')
+    .replace(/\s+/g, ' ')
+    .replace(/[.:!?]+$/, '')
+    .trim();
+}
+
+const LEADING_HEADING = /^\s*#{1,2}[ \t]+([^\n]+?)[ \t]*(?:\n|$)/;
+
+/** Bỏ dòng tiêu đề đầu nội dung khi nó trùng tên đã in ở trên. Hàm thuần, có test. */
+export function stripLeadingTitle(
+  blocks: readonly ContentBlock[],
+  title: string | undefined,
+): readonly ContentBlock[] {
+  const first = blocks[0];
+  if (title === undefined || first === undefined || first.kind !== 'markdown') return blocks;
+  const match = LEADING_HEADING.exec(first.markdown);
+  if (match === null || match[1] === undefined) return blocks;
+  if (normalizeTitle(match[1]) !== normalizeTitle(title)) return blocks;
+  return [{ ...first, markdown: first.markdown.slice(match[0].length) }, ...blocks.slice(1)];
 }
 
 type DiagramBlock = Extract<ContentBlock, { kind: 'diagram' }>;
@@ -134,10 +165,12 @@ export function ContentView({
   execEnabled,
   execDisabledReason = null,
   labels = DEFAULT_LABELS,
+  leadingTitle,
 }: ContentViewProps) {
+  const shown = stripLeadingTitle(blocks, leadingTitle);
   return (
     <div className="text-base leading-relaxed text-foreground">
-      {blocks.map((block, index) =>
+      {shown.map((block, index) =>
         block.kind === 'markdown' ? (
           <MarkdownView key={index} markdown={block.markdown} resolveAssetUrl={resolveAssetUrl} />
         ) : block.kind === 'diagram' ? (

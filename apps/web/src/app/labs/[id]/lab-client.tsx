@@ -291,6 +291,7 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
       <div className="px-2">
         <ContentView
           blocks={parseContentBlocks(selected.task.markdown)}
+          leadingTitle={selected.task.title}
           diagrams={lab.diagrams}
           resolveAssetUrl={() => null}
           onExec={tabs.exec}
