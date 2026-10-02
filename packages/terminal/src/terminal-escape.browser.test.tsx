@@ -147,10 +147,10 @@ describe('D10/M1 — Esc rồi Tab rời terminal, Esc đơn và Esc Esc vẫn t
     return { container: container!, textarea: textarea! };
   }
 
-  it('container có role/tabIndex/aria-label của D10', () => {
+  it('container có role/aria-label của D10, và KHÔNG là điểm dừng Tab (M8)', () => {
     const { container } = mount(() => {});
     expect(container.getAttribute('role')).toBe('application');
-    expect(container.getAttribute('tabindex')).toBe('0');
+    expect(container.hasAttribute('tabindex')).toBe(false);
     expect(container.getAttribute('aria-label')).toBe('Terminal sandbox');
   });
 

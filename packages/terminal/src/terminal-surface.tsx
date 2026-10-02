@@ -313,11 +313,14 @@ export function TerminalSurface(props: TerminalSurfaceProps): React.ReactElement
         effect trên. Thiếu đường thoát thì `role="application"` biến terminal
         thành bẫy focus, tức đổi một lỗi a11y lấy một lỗi a11y nặng hơn.
 
-        `tabIndex={0}` để Tab tới được container ngay cả trước khi xterm dựng
-        xong textarea nội bộ của nó.
+        ⛔ M8 — KHÔNG `tabIndex` ở đây. xterm tự đặt `tabIndex=0` cho textarea
+        nội bộ (dựng ĐỒNG BỘ trong `terminal.open()`, tức ngay effect mount),
+        nên container mà cũng nhận Tab là HAI điểm dừng, điểm đầu chết: focus
+        nằm ở một `<div>`, gõ không đi đâu cả. Không có tabindex thì Tab rơi
+        thẳng vào textarea, và trình đọc màn hình vẫn đọc `role` + `aria-label`
+        của container vì textarea nằm bên trong nó.
       */
       role="application"
-      tabIndex={0}
       aria-label={props.ariaLabel}
       className="h-full w-full"
       data-testid="dlp-terminal"
