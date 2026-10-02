@@ -1,6 +1,7 @@
 {
   "id": "loki-quickstart",
   "difficulty": "beginner",
+"topic": "observability",
   "estimatedMinutes": 25,
   "source": {
     "repo": "https://github.com/grafana/killercoda",

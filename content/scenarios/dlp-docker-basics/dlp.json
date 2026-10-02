@@ -1,6 +1,7 @@
 {
   "id": "dlp-docker-basics",
   "difficulty": "beginner",
+"topic": "docker",
   "estimatedMinutes": 25,
   "source": null,
   "acknowledgedUnknownFields": [],

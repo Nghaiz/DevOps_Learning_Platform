@@ -1,6 +1,7 @@
 {
   "id": "dlp-ide-config-edit",
   "difficulty": "beginner",
+"topic": "linux",
   "estimatedMinutes": 10,
   "source": null,
   "acknowledgedUnknownFields": [],

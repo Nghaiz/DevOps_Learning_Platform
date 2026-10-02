@@ -1,6 +1,7 @@
 {
   "id": "dlp-k8s-basics",
   "difficulty": "beginner",
+"topic": "kubernetes",
   "estimatedMinutes": 35,
   "source": null,
   "acknowledgedUnknownFields": [],

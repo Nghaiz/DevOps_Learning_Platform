@@ -28,6 +28,7 @@ async function makeLab(fixture: Fixture = {}): Promise<string> {
     id,
     title: 'Demo',
     difficulty: 'beginner',
+    topic: 'linux',
     estimatedMinutes: 10,
     source: null,
     backend: { imageid: 'ubuntu' },
@@ -49,11 +50,12 @@ async function makeLab(fixture: Fixture = {}): Promise<string> {
 }
 
 describe('loadLab — đường xanh', () => {
-  it('dựng DTO đầy đủ từ thư mục hợp lệ, áp default weight/hint/passThreshold/leaderboard', async () => {
+  it('dựng DTO đầy đủ từ thư mục hợp lệ, áp default weight/passThreshold/leaderboard, hint luôn null', async () => {
     const lab = await loadLab(await makeLab());
     expect(lab.id).toBe('demo-lab');
     expect(lab.title).toBe('Demo');
     expect(lab.difficulty).toBe('beginner');
+    expect(lab.topic).toBe('linux');
     expect(lab.tier).toBe('sysbox');
     expect(lab.capabilities).toEqual([]);
     expect(lab.assets).toEqual([]);
@@ -68,34 +70,88 @@ describe('loadLab — đường xanh', () => {
     expect(lab.setup).toEqual({ foreground: null, background: null });
   });
 
-  it('weight/hint tường minh trong lab.json được giữ nguyên, không bị default đè', async () => {
+  it('weight tường minh trong lab.json được giữ nguyên, không bị default đè', async () => {
     const dir = await makeLab({
       lab: {
-        tasks: [{ id: 'task-a', title: 'Task A', weight: 5, hint: 'gợi ý' }],
+        tasks: [{ id: 'task-a', title: 'Task A', weight: 5 }],
         passThresholdPercent: 60,
         leaderboard: true,
       },
     });
     const lab = await loadLab(dir);
     expect(lab.tasks[0]?.weight).toBe(5);
-    expect(lab.tasks[0]?.hint).toBe('gợi ý');
     expect(lab.passThresholdPercent).toBe(60);
     expect(lab.leaderboard).toBe(true);
   });
 
-  it('đọc setup foreground/background theo đường dẫn tường minh', async () => {
+  it('đọc setup background theo đường dẫn tường minh; foreground luôn null', async () => {
     const dir = await makeLab({
-      lab: { setup: { foreground: 'setup/foreground.sh', background: 'setup/background.sh' } },
+      lab: { setup: { background: 'setup/background.sh' } },
       files: {
         'task-task-a.md': 'x',
         'task-task-a/verify.sh': 'exit 0',
-        'setup/foreground.sh': 'echo fg',
         'setup/background.sh': 'echo bg',
       },
     });
     const lab = await loadLab(dir);
-    expect(lab.setup.foreground).toContain('echo fg');
+    expect(lab.setup.foreground).toBeNull();
     expect(lab.setup.background).toContain('echo bg');
+  });
+
+  // Lab thực hành không gợi ý (2026-10-03).
+  it('hint trong lab.json ⇒ NÉM, nêu đúng đường dẫn field', async () => {
+    const dir = await makeLab({ lab: { tasks: [{ id: 'task-a', title: 'Task A', hint: 'gợi ý' }] } });
+    await expect(loadLab(dir)).rejects.toThrow(/tasks\.0\.hint/);
+  });
+
+  it('setup.foreground trong lab.json ⇒ NÉM (không đường nào chạy nó)', async () => {
+    const dir = await makeLab({ lab: { setup: { foreground: 'setup/foreground.sh' } } });
+    await expect(loadLab(dir)).rejects.toThrow(/setup\.foreground/);
+  });
+
+  it('thiếu topic ⇒ NÉM', async () => {
+    const dir = await makeLab({ lab: { topic: undefined } });
+    await expect(loadLab(dir)).rejects.toThrow(/topic/);
+  });
+
+  it('nạp sơ đồ mà markdown task tham chiếu', async () => {
+    const svg =
+      '<!-- dlp-diagram v1 src=' + 'a'.repeat(64) + ' out=' + 'b'.repeat(64) + ' -->\n' +
+      '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="120" viewBox="0 0 320 120" role="img"><g/></svg>\n';
+    const dir = await makeLab({
+      files: {
+        'task-task-a.md': 'Đề.\n\n![Ba pod sau một Service, mỗi pod một nhãn app=web](diagrams/kien-truc.svg "Hình 1")\n',
+        'task-task-a/verify.sh': 'exit 0',
+        'diagrams/kien-truc.svg': svg,
+      },
+    });
+    const lab = await loadLab(dir);
+    expect(lab.diagrams?.['diagrams/kien-truc.svg']).toMatchObject({ width: 320, height: 120 });
+    expect(lab.diagrams?.['diagrams/kien-truc.svg']?.svg.startsWith('<svg')).toBe(true);
+  });
+
+  it('tham chiếu sơ đồ không có file ⇒ NÉM', async () => {
+    const dir = await makeLab({
+      files: {
+        'task-task-a.md': '![Một sơ đồ không có thật ở đâu cả](diagrams/khong-co.svg)\n',
+        'task-task-a/verify.sh': 'exit 0',
+      },
+    });
+    await expect(loadLab(dir)).rejects.toThrow(/khong-co\.svg/);
+  });
+
+  it('sơ đồ mang <script> ⇒ NÉM dù có header hợp lệ', async () => {
+    const evil =
+      '<!-- dlp-diagram v1 src=' + 'a'.repeat(64) + ' out=' + 'b'.repeat(64) + ' -->\n' +
+      '<svg width="10" height="10"><script>alert(1)</script></svg>\n';
+    const dir = await makeLab({
+      files: {
+        'task-task-a.md': '![Một sơ đồ đã bị chèn mã độc vào giữa](diagrams/xau.svg)\n',
+        'task-task-a/verify.sh': 'exit 0',
+        'diagrams/xau.svg': evil,
+      },
+    });
+    await expect(loadLab(dir)).rejects.toThrow(/bảo mật/);
   });
 
   it('nhiều task, mỗi task đọc đúng markdown/verify theo quy ước tên file của CHÍNH id nó', async () => {
@@ -184,7 +240,7 @@ describe('loadLab — errors-over-fallback', () => {
   });
 
   it('đường dẫn setup trỏ ra ngoài thư mục lab ⇒ NÉM', async () => {
-    const dir = await makeLab({ lab: { setup: { foreground: '../../etc/passwd' } } });
+    const dir = await makeLab({ lab: { setup: { background: '../../etc/passwd' } } });
     await expect(loadLab(dir)).rejects.toThrow(/ra ngoài thư mục lab/);
   });
 

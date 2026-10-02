@@ -18,6 +18,10 @@
  * này; khi ấy nó tự chịu trách nhiệm về exit code, đúng như trước khi có prelude.
  */
 
+import type { CheckCriterion } from '@devops-platform/shared-types/scenario';
+
+export type { CheckCriterion };
+
 export const VERIFY_PRELUDE = [
   '# --- dlp verify prelude v1 ---',
   '__dlp_fail_count=0',
@@ -40,11 +44,6 @@ export const VERIFY_PRELUDE = [
 export function withVerifyPrelude(script: string): string {
   const body = script.replace(/\r\n?/g, '\n').replace(/^#![^\n]*\n/, '');
   return VERIFY_PRELUDE + body;
-}
-
-export interface CheckCriterion {
-  readonly ok: boolean;
-  readonly label: string;
 }
 
 export interface ParsedCheckOutput {

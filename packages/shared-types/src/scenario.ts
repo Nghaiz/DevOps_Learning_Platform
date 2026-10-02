@@ -71,6 +71,25 @@ export const SANDBOX_TOOLS = [
 export type SandboxTool = (typeof SANDBOX_TOOLS)[number];
 
 /**
+ * Chủ đề của một nội dung — trục để gom bài học và lab "theo chủ đề".
+ *
+ * KHÔNG suy được từ lộ trình: một bài nằm được ở nhiều lộ trình (lộ trình
+ * "từ container tới cụm" trộn Docker với Kubernetes), còn chủ đề là thuộc tính
+ * của chính bài. Danh sách đóng, có chủ ý: chủ đề tự do sẽ thành "k8s" /
+ * "kubernetes" / "K8s" sau ba người soạn.
+ */
+export const CONTENT_TOPICS = [
+  'linux',
+  'bash',
+  'git',
+  'docker',
+  'kubernetes',
+  'observability',
+  'networking',
+] as const;
+export type ContentTopic = (typeof CONTENT_TOPICS)[number];
+
+/**
  * `id` đi thẳng vào `progress.lesson_id` (cột text, unique cùng `user_id`). Vì
  * vậy nó là một ĐỊNH DANH BỀN, không phải tên thư mục: đổi tên thư mục mà id
  * suy ra từ đó thì mọi dòng progress cũ trở thành mồ côi trong im lặng — không
@@ -186,6 +205,42 @@ export const scenarioAssetSchema = z
 export type ScenarioAsset = z.infer<typeof scenarioAssetSchema>;
 
 /**
+ * Một sơ đồ đã dựng sẵn từ TikZ (`plans/labs-rebuild/contracts.md` §C4).
+ *
+ * `svg` là markup ĐÃ làm sạch lúc build (`scripts/diagrams/build.mjs`): chỉ
+ * phần tử hình học, id mang tiền tố riêng, không script, không tham chiếu ngoài
+ * — và `pnpm diagrams:check` ở CI chặn mọi file lệch khỏi điều đó. FE chèn nó
+ * inline để `currentColor` và class màu theo được theme sáng/tối; vì thế nó
+ * KHÔNG đi qua route asset (route đó còn phục vụ ảnh người soạn tải lên).
+ */
+export const diagramSvgSchema = z
+  .object({
+    svg: z.string().min(1),
+    width: z.number().positive(),
+    height: z.number().positive(),
+  })
+  .strict();
+export type DiagramSvg = z.infer<typeof diagramSvgSchema>;
+
+/** Khoá = đường dẫn ghi trong markdown (`diagrams/<tên>.svg`). */
+export const DIAGRAM_SRC_PATTERN = /^diagrams\/[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.svg$/;
+export const diagramMapSchema = z.record(z.string().regex(DIAGRAM_SRC_PATTERN), diagramSvgSchema);
+export type DiagramMap = z.infer<typeof diagramMapSchema>;
+
+/**
+ * Một tiêu chí của lượt chấm, tách từ dòng `✓ …` / `✗ …` của verify script
+ * (`parseCheckCriteria`, packages/scenario). Tính ở chỗ trả kết quả, KHÔNG lưu:
+ * nó là hàm của `output` đã lưu.
+ */
+export const checkCriterionSchema = z
+  .object({
+    ok: z.boolean(),
+    label: z.string().min(1),
+  })
+  .strict();
+export type CheckCriterion = z.infer<typeof checkCriterionSchema>;
+
+/**
  * Phần CHUNG của mọi loại nội dung chạy được trên nền tảng (lesson / lab /
  * playground). Tồn tại vì P8 thêm hai loại nội dung nữa, và cách sai là chép
  * mười field này ra ba nơi: chúng sẽ lệch ở lần đầu tiên ai đó thêm một tier
@@ -203,6 +258,13 @@ export const contentBaseSchema = z.object({
   description: z.string().nullable(),
   difficulty: z.enum(SCENARIO_DIFFICULTIES),
   estimatedMinutes: z.number().int().positive().nullable(),
+  /**
+   * `CONTENT_TOPICS`. Bắt buộc ở file nội dung trên đĩa (`dlp.json`,
+   * `lab.json`, playground JSON — schema file của từng loại ép), VẮNG ở bài soạn
+   * trong DB (`content_items` chưa có cột này). Vắng nghĩa là "chưa phân loại",
+   * không phải một chủ đề thứ tám.
+   */
+  topic: z.enum(CONTENT_TOPICS).optional(),
 
   tier: z.enum(SANDBOX_TIER_NAMES),
   /**
@@ -297,6 +359,13 @@ export const scenarioSchema = contentBaseSchema
      * được sidecar khai báo tường minh — xem `acknowledgedUnknownFields`.
      */
     ignoredUpstreamFields: z.array(z.string()),
+    /**
+     * Sơ đồ mà markdown của bài tham chiếu, đọc từ `diagrams/*.svg` cạnh bài.
+     * Vắng = bài không có sơ đồ (mọi bài soạn trong DB). Loader từ chối một tham
+     * chiếu `diagrams/x.svg` không có file — sơ đồ thiếu phải đỏ lúc nạp, không
+     * phải thành một khung trống giữa bài.
+     */
+    diagrams: diagramMapSchema.optional(),
   })
   .strict();
 export type Scenario = z.infer<typeof scenarioSchema>;
@@ -311,6 +380,7 @@ export const scenarioSummarySchema = scenarioSchema
     estimatedMinutes: true,
     tier: true,
     capabilities: true,
+    topic: true,
   })
   .extend({ stepCount: z.number().int().positive() })
   .strict();
@@ -325,6 +395,96 @@ export function toScenarioSummary(scenario: Scenario): ScenarioSummary {
     estimatedMinutes: scenario.estimatedMinutes,
     tier: scenario.tier,
     capabilities: scenario.capabilities,
+    ...(scenario.topic === undefined ? {} : { topic: scenario.topic }),
     stepCount: scenario.steps.length,
+  };
+}
+
+// ─────────────────────────────────────────── cây NGƯỜI HỌC (rời server được)
+//
+// `lessons.get` từng trả nguyên `Scenario`, tức mọi `verifyScript` và script
+// setup đi thẳng xuống trình duyệt. Với bài học có dẫn từng bước thì đó là chuyện
+// nhỏ; với LAB không gợi ý thì đó là đáp án (cùng lý do `QuizForLearner` tồn tại).
+// FE chỉ cần biết hai điều: bước này có nút Kiểm tra không, và có setup để gọi
+// `runSetup` không — nên script được thay bằng hai boolean.
+
+export const phaseForLearnerSchema = z
+  .object({
+    title: z.string().nullable(),
+    markdown: z.string(),
+    hasVerify: z.boolean(),
+    hasSetup: z.boolean(),
+  })
+  .strict();
+
+/** `?: never` là rào COMPILE — xem `scenario-dto-leak.test.ts`. */
+export type PhaseForLearner = z.infer<typeof phaseForLearnerSchema> & {
+  readonly verifyScript?: never;
+  readonly setup?: never;
+};
+
+export const stepForLearnerSchema = phaseForLearnerSchema
+  .extend({ index: z.number().int().min(0) })
+  .strict();
+export type StepForLearner = z.infer<typeof stepForLearnerSchema> & {
+  readonly verifyScript?: never;
+  readonly setup?: never;
+};
+
+export const scenarioForLearnerSchema = contentBaseSchema
+  .extend({
+    intro: phaseForLearnerSchema.nullable(),
+    finish: phaseForLearnerSchema.nullable(),
+    steps: z.array(stepForLearnerSchema).min(1),
+    ignoredUpstreamFields: z.array(z.string()),
+    diagrams: diagramMapSchema,
+  })
+  .strict();
+
+export type ScenarioForLearner = Omit<
+  z.infer<typeof scenarioForLearnerSchema>,
+  'intro' | 'finish' | 'steps'
+> & {
+  readonly intro: PhaseForLearner | null;
+  readonly finish: PhaseForLearner | null;
+  readonly steps: readonly StepForLearner[];
+};
+
+function phaseForLearner(phase: ScenarioPhase): PhaseForLearner {
+  return {
+    title: phase.title,
+    markdown: phase.markdown,
+    hasVerify: phase.verifyScript !== null,
+    hasSetup: phase.setup.background !== null || phase.setup.foreground !== null,
+  };
+}
+
+/**
+ * Chép TƯỜNG MINH từng field thay vì `{...scenario, steps: …}`: spread mang theo
+ * mọi field mới thêm vào `Scenario` mặc định, tức field nhạy cảm đầu tiên ai đó
+ * thêm vào DTO đầy đủ sẽ tự rò ra đây. Liệt kê từng field nghĩa là field mới phải
+ * được ai đó CHỌN cho đi ra.
+ */
+export function toScenarioForLearner(scenario: Scenario): ScenarioForLearner {
+  return {
+    id: scenario.id,
+    title: scenario.title,
+    description: scenario.description,
+    difficulty: scenario.difficulty,
+    estimatedMinutes: scenario.estimatedMinutes,
+    ...(scenario.topic === undefined ? {} : { topic: scenario.topic }),
+    tier: scenario.tier,
+    capabilities: scenario.capabilities,
+    requiresCapabilities: scenario.requiresCapabilities,
+    backendImageId: scenario.backendImageId,
+    interfaceLayout: scenario.interfaceLayout,
+    toolset: scenario.toolset,
+    assets: scenario.assets,
+    source: scenario.source,
+    intro: scenario.intro === null ? null : phaseForLearner(scenario.intro),
+    finish: scenario.finish === null ? null : phaseForLearner(scenario.finish),
+    steps: scenario.steps.map((step) => ({ ...phaseForLearner(step), index: step.index })),
+    ignoredUpstreamFields: scenario.ignoredUpstreamFields,
+    diagrams: scenario.diagrams ?? {},
   };
 }

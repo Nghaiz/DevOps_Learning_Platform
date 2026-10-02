@@ -123,3 +123,6 @@ export {
   type CheckCriterion,
   type ParsedCheckOutput,
 } from './verify-prelude.ts';
+
+// Sơ đồ TikZ đã dựng (plans/labs-rebuild/contracts.md §C4) — Node-only (đọc đĩa).
+export { DiagramError, diagramRefs, loadDiagramMap, parseDiagramFile } from './diagrams.ts';

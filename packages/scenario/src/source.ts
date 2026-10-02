@@ -1,5 +1,6 @@
 import path from 'node:path';
 import type {
+  ContentTopic,
   ScenarioCapability,
   ScenarioDifficulty,
   SandboxTierName,
@@ -53,6 +54,12 @@ export interface ContentListFilter {
    * `capabilities`), nên không có ca "bỏ qua vì không áp dụng được".
    */
   readonly capability?: ScenarioCapability | undefined;
+  /**
+   * Lọc theo chủ đề (`CONTENT_TOPICS`) — trục "thực hành theo chủ đề". Mục
+   * KHÔNG có `topic` (bài soạn trong DB, chưa phân loại) bị LOẠI khi lọc: hiện
+   * nó dưới một chủ đề nó chưa từng khai là nói dối về nội dung.
+   */
+  readonly topic?: ContentTopic | undefined;
 }
 
 /**
@@ -335,11 +342,15 @@ export function matchesContentFilter(
     readonly difficulty?: string | null;
     readonly tier?: string;
     readonly capabilities?: readonly string[];
+    readonly topic?: string | undefined;
   },
   filter: ContentListFilter | undefined,
 ): boolean {
   if (filter === undefined) {
     return true;
+  }
+  if (filter.topic !== undefined && item.topic !== filter.topic) {
+    return false;
   }
   if (filter.difficulty !== undefined && 'difficulty' in item && item.difficulty !== filter.difficulty) {
     return false;

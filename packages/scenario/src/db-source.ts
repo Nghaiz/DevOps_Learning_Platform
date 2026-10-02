@@ -420,6 +420,13 @@ export function dbContentSource(
     options: ListPageOptions,
     summarize: (row: ContentItemRow) => T | null,
   ): Promise<ContentPage<T>> {
+    if (options.filter?.topic !== undefined) {
+      // `content_items` chưa có cột `topic`: bài soạn trong DB là "chưa phân
+      // loại", và `matchesContentFilter` LOẠI mục chưa phân loại khi lọc theo
+      // chủ đề. Trả rỗng ở đây giữ hai nguồn cùng một câu trả lời mà không cần
+      // đẩy một điều kiện luôn-sai xuống SQL.
+      return { items: [], nextCursor: null };
+    }
     const { items: rows, hasMore } = await repo.listItemsPage(kind, visibility, options);
     const page = hasMore ? rows.slice(0, options.limit) : rows;
     const lastRaw = page[page.length - 1];
