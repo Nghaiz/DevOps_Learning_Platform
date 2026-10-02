@@ -55,7 +55,7 @@ const GLOBALS_CSS = resolvePath(workspaceRoot(), 'apps/web/src/app/globals.css')
 const css = readFileSync(GLOBALS_CSS, 'utf8');
 
 /** Tên biến trong bảng C1 — đổi/xoá một dòng ở đây là đổi hợp đồng. */
-const C1_COLOR_TOKENS = [
+const C1_BASE_COLOR_TOKENS = [
   '--background',
   '--foreground',
   '--card',
@@ -129,6 +129,59 @@ type ColorToken = (typeof C1_COLOR_TOKENS)[number];
  * vốn đã tối thì không nhìn thấy gì, mà CSS vẫn hợp lệ và test vẫn xanh nếu chỉ
  * kiểm "có mặt".
  */
+/**
+ * Bản dựng lại PTIT (2026-10-03, plans/fe-ptit-rebuild/design-brief.md §2): khối
+ * đảo màu (ink), thanh chrome tối ở cả hai theme, đỏ làm CHỮ (brand), vàng tín
+ * hiệu, và chín tuyến chủ đề (nền, chữ trên nền, chữ an toàn trên trang).
+ * Khai ở CẢ HAI theme, ánh xạ `--color-*` như mọi token màu.
+ */
+const C1_TRANSIT_COLOR_TOKENS = [
+  '--ink',
+  '--ink-foreground',
+  '--chrome',
+  '--chrome-foreground',
+  '--chrome-muted',
+  '--chrome-border',
+  '--brand',
+  '--signal',
+  '--signal-foreground',
+  '--line-linux',
+  '--line-linux-foreground',
+  '--line-linux-ink',
+  '--line-docker',
+  '--line-docker-foreground',
+  '--line-docker-ink',
+  '--line-k8s',
+  '--line-k8s-foreground',
+  '--line-k8s-ink',
+  '--line-git',
+  '--line-git-foreground',
+  '--line-git-ink',
+  '--line-cicd',
+  '--line-cicd-foreground',
+  '--line-cicd-ink',
+  '--line-net',
+  '--line-net-foreground',
+  '--line-net-ink',
+  '--line-obs',
+  '--line-obs-foreground',
+  '--line-obs-ink',
+  '--line-sec',
+  '--line-sec-foreground',
+  '--line-sec-ink',
+  '--line-iac',
+  '--line-iac-foreground',
+  '--line-iac-ink',
+] as const;
+
+/** Bóng cứng của lớp nổi: khai ở cả hai theme, không sinh class màu. */
+const C1_COLOR_TOKENS = [...C1_BASE_COLOR_TOKENS, ...C1_TRANSIT_COLOR_TOKENS] as const;
+
+const C1_TRANSIT_SHADOW_TOKENS = ['--shadow-hard'] as const;
+
+/** Hình dạng control và bóng lớp nổi: số đo, chỉ khai ở :root (game K8s đè lại trong phạm vi của nó). */
+const C1_TRANSIT_SHAPE_TOKENS = ['--r-control', '--r-surface', '--float-shadow'] as const;
+
 const C1_ELEVATION_TOKENS = ['--elevation-1', '--elevation-2', '--elevation-3'] as const;
 
 /**
@@ -708,7 +761,7 @@ describe('C1 — token có mặt ở CẢ HAI theme', () => {
     }
   });
 
-  it.each([...C1_MOTION_TOKENS, ...C1_GEOMETRY_TOKENS, '--radius'] as const)(
+  it.each([...C1_MOTION_TOKENS, ...C1_GEOMETRY_TOKENS, ...C1_TRANSIT_SHAPE_TOKENS, '--radius'] as const)(
     '%s khai ở :root và CỐ Ý vắng ở .dark (số đo, không phải màu — không đổi theo theme)',
     (token) => {
       expect(root[token]).toBeDefined();
@@ -786,6 +839,8 @@ describe('C1 — token có mặt ở CẢ HAI theme', () => {
       ...C1_ART_TOKENS,
       ...C1_CHALLENGE_TOKENS,
       ...C1_ODYSSEY_TOKENS,
+      ...C1_TRANSIT_SHADOW_TOKENS,
+      ...C1_TRANSIT_SHAPE_TOKENS,
       '--radius',
     ];
     expect(Object.keys(root).toSorted()).toEqual(expected.toSorted());
@@ -797,7 +852,12 @@ describe('C1 — token có mặt ở CẢ HAI theme', () => {
    * về `unset` — im lặng y hệt ca ngược lại.
    */
   it('.dark không khai token nào NGOÀI hợp đồng, và không thiếu token nào của nó', () => {
-    const expected = [...C1_COLOR_TOKENS, ...C1_ELEVATION_TOKENS, ...C1_WORKSPACE_TOKENS];
+    const expected = [
+      ...C1_COLOR_TOKENS,
+      ...C1_ELEVATION_TOKENS,
+      ...C1_WORKSPACE_TOKENS,
+      ...C1_TRANSIT_SHADOW_TOKENS,
+    ];
     expect(Object.keys(dark).toSorted()).toEqual(expected.toSorted());
   });
 });
@@ -1055,11 +1115,17 @@ describe('C1 — `@theme inline` sinh được class Tailwind cho mọi token', 
     ).toBeUndefined();
   });
 
-  it('thang bo góc suy ra từ `--radius`, không phải số cứng', () => {
-    expect(themeInline['--radius-lg']).toBe('var(--radius)');
-    for (const key of ['--radius-sm', '--radius-md', '--radius-xl']) {
-      expect(themeInline[key]).toContain('calc(var(--radius)');
+  it('bo góc VUÔNG trong app, thang cũ chỉ sống lại trong phạm vi game K8s (design-brief §0.1)', () => {
+    for (const size of ['sm', 'md', 'lg', 'xl']) {
+      expect(themeInline[`--radius-${size}`]).toBe(`var(--radius-legacy-${size}, 0px)`);
     }
+    expect(themeInline['--radius-control']).toBe('var(--r-control)');
+    expect(themeInline['--radius-surface']).toBe('var(--r-surface)');
+    expect(root['--r-control']).toBe('0px');
+    expect(root['--r-surface']).toBe('0px');
+    const arena = declarations(blockBody(css, '.arena-root.dark'));
+    expect(arena['--radius-legacy-md']).toBe('calc(0.75rem - 3px)');
+    expect(arena['--r-control']).toBe('calc(0.75rem - 3px)');
     // `--radius-full` là hằng hình học (pill), không suy từ `--radius` — ghim
     // để nó là một ngoại lệ CÓ TÊN, không phải một dòng lọt lưới.
     expect(themeInline['--radius-full']).toBe('9999px');
@@ -1088,9 +1154,40 @@ const TEXT_PAIRS: ReadonlyArray<readonly [ColorToken, ColorToken]> = [
   ['--card-foreground', '--card'],
   ['--popover-foreground', '--popover'],
   ['--primary-foreground', '--primary'],
-  ['--primary', '--background'],
-  ['--primary', '--card'],
-  ['--primary', '--muted'],
+  ['--brand', '--background'],
+  ['--brand', '--card'],
+  ['--brand', '--muted'],
+  ['--ink-foreground', '--ink'],
+  ['--chrome-foreground', '--chrome'],
+  ['--chrome-muted', '--chrome'],
+  ['--signal-foreground', '--signal'],
+  ['--line-linux-foreground', '--line-linux'],
+  ['--line-linux-ink', '--background'],
+  ['--line-linux-ink', '--card'],
+  ['--line-docker-foreground', '--line-docker'],
+  ['--line-docker-ink', '--background'],
+  ['--line-docker-ink', '--card'],
+  ['--line-k8s-foreground', '--line-k8s'],
+  ['--line-k8s-ink', '--background'],
+  ['--line-k8s-ink', '--card'],
+  ['--line-git-foreground', '--line-git'],
+  ['--line-git-ink', '--background'],
+  ['--line-git-ink', '--card'],
+  ['--line-cicd-foreground', '--line-cicd'],
+  ['--line-cicd-ink', '--background'],
+  ['--line-cicd-ink', '--card'],
+  ['--line-net-foreground', '--line-net'],
+  ['--line-net-ink', '--background'],
+  ['--line-net-ink', '--card'],
+  ['--line-obs-foreground', '--line-obs'],
+  ['--line-obs-ink', '--background'],
+  ['--line-obs-ink', '--card'],
+  ['--line-sec-foreground', '--line-sec'],
+  ['--line-sec-ink', '--background'],
+  ['--line-sec-ink', '--card'],
+  ['--line-iac-foreground', '--line-iac'],
+  ['--line-iac-ink', '--background'],
+  ['--line-iac-ink', '--card'],
   ['--secondary-foreground', '--secondary'],
   ['--accent-foreground', '--accent'],
   ['--destructive-foreground', '--destructive'],
@@ -1285,8 +1382,8 @@ describe('đối chứng — phép đo contrast ra đúng số đã biết, và 
   });
 
   it('token trong suốt KHÔNG BAO GIỜ đo được như thể đục — thiếu nền là NÉM LỖI, không im lặng bỏ alpha', () => {
-    expect(() => resolve(dark, '--border')).toThrow(/trong suốt/);
-    expect(() => resolve(dark, '--input')).toThrow(/trong suốt/);
+    const translucent = { ...dark, '--border': 'oklch(1 0 0 / 12%)' };
+    expect(() => resolve(translucent, '--border')).toThrow(/trong suốt/);
   });
 
   /**
@@ -1377,7 +1474,7 @@ describe('đối chứng — phép đo contrast ra đúng số đã biết, và 
       expect(measured).toBeLessThan(4.5);
       // Ghim luôn con số (2.2192), để "đỏ" ở đây có nghĩa là "đỏ vì lý do này"
       // chứ không phải "đỏ vì bảng giả tình cờ ném lỗi ở một chỗ khác".
-      expect(measured).toBeCloseTo(2.2192, 3);
+      expect(measured).toBeCloseTo(2.317, 3);
     });
 
     it('bảng token giả: `--primary` trên `--background` TRƯỢT cả ngưỡng 3.0 của SC 1.4.11', () => {
@@ -1489,8 +1586,8 @@ describe('miễn trừ CÓ CHỨNG MINH — `--ring` cạnh mặt nút tô đặ
   it.each([
     ['sáng (:root)', root],
     ['tối (.dark)', dark],
-  ])('%s: `--ring` === `--primary` — ĐÂY mới là lý do cặp đó không đo được', (_label, theme) => {
-    expect(theme['--ring']).toBe(theme['--primary']);
+  ])('%s: `--ring` là màu RIÊNG (xanh), không trùng `--primary` nữa (design-brief §2.2)', (_label, theme) => {
+    expect(theme['--ring']).not.toBe(theme['--primary']);
   });
 
   /**
@@ -1528,8 +1625,8 @@ describe('miễn trừ CÓ CHỨNG MINH — `--ring` cạnh mặt nút tô đặ
  */
 describe('AC-4 — luật hai kênh sống sót khi KHỬ MÀU', () => {
   it.each([
-    ['sáng (:root)', root, 6.0885, 6.0885],
-    ['tối (.dark)', dark, 6.3056, 5.7071],
+    ['sáng (:root)', root, 4.4199, 4.8191],
+    ['tối (.dark)', dark, 4.221, 3.9201],
   ])(
     '%s: mặt `primary` ĐẶC vs mặt `destructive` RỖNG ≥ 3.0:1 trên cả trang lẫn card',
     (_label, theme, onBackground, onCard) => {
@@ -1545,8 +1642,8 @@ describe('AC-4 — luật hai kênh sống sót khi KHỬ MÀU', () => {
   );
 
   it.each([
-    ['sáng (:root)', root, 1.0646],
-    ['tối (.dark)', dark, 1.1062],
+    ['sáng (:root)', root, 1.3665],
+    ['tối (.dark)', dark, 1.821],
   ])(
     '%s: hai token đỏ cách nhau %s:1 — gần 1.00, nên MÀU không tách được chúng',
     (_label, theme, expected) => {
@@ -1581,10 +1678,10 @@ describe('AC-4 — luật hai kênh sống sót khi KHỬ MÀU', () => {
  */
 describe('đối chứng hồi quy màu link tối', () => {
   it('màu cũ không đạt trên card và muted, màu hiện tại đạt cả hai', () => {
-    const previous = { ...dark, '--primary': 'oklch(0.61 0.238 26.7)' };
+    const previous = { ...dark, '--brand': 'oklch(0.61 0.238 26.7)' };
     for (const surface of ['--card', '--muted'] as const) {
-      expect(measure(previous, '--primary', surface)).toBeLessThan(4.5);
-      expect(measure(dark, '--primary', surface)).toBeGreaterThanOrEqual(4.5);
+      expect(measure(previous, '--brand', surface)).toBeLessThan(4.5);
+      expect(measure(dark, '--brand', surface)).toBeGreaterThanOrEqual(4.5);
     }
   });
 });
@@ -1640,29 +1737,7 @@ describe('§1.5 — sao vàng chỉ sống trên nền tối', () => {
  * không sửa lại giá trị token cho "khớp danh sách". Đỏ ở chiều xuống là TIN
  * MỪNG: một màu vừa được sửa.
  */
-const KNOWN_OUT_OF_GAMUT: Readonly<Record<string, string>> = {
-  // Năm token này có TỪ TRƯỚC lane nền thị giác (13.x) và không thuộc phạm vi
-  // sửa của nó. Ghi nợ tại đây, sửa ở một thay đổi riêng.
-  //
-  // ✅ 2026-09-08 — HAI dòng đã được XOÁ khỏi danh sách này, và đó là tin mừng
-  // đúng như chiều-xuống của cổng dưới đây dặn: `.dark --primary` và
-  // `.dark --ring` (cũ: `oklch(0.685 0.169 262.881)`, chroma 0.169 vượt gamut ở
-  // L=0.685). Thương hiệu đỏ 14.A đặt chúng thành `oklch(0.609 0.242 25)`, và
-  // giá trị đó nằm TRONG gamut với dư 0.00534 chroma — chừa biên có chủ ý, xem
-  // phép quét L ghi ở `globals.css`. Không dòng nào bị chỉnh cho "khớp danh
-  // sách"; danh sách co lại vì màu thật sự đã vào gamut.
-  //
-  // ✅ 2026-09-10 — HAI dòng nữa đã được XOÁ, cùng cơ chế: `:root --destructive`
-  // (cũ `oklch(0.577 0.245 27.325)`) và `.dark --destructive` (cũ
-  // `oklch(0.704 0.191 22.216)`). `p16-tokens.md` đặt chúng thành
-  // `oklch(0.505 0.192 29)` và `oklch(0.704 0.175 29)`, cả hai nằm TRONG gamut.
-  // Cổng chiều-xuống báo hai dòng hết hạn, nên hai dòng bị xoá — token KHÔNG bị
-  // chỉnh ngược cho khớp sổ. Còn lại đúng ba dòng, và cả ba là token KẾ THỪA mà
-  // §1.4 đánh dấu "(kế thừa)", tức nằm ngoài phạm vi đợt này.
-  ':root --success': 'oklch(0.518 0.146 150.741) — chroma 0.146 vượt gamut ở L=0.518 (kế thừa)',
-  ':root --warning': 'oklch(0.541 0.15 55.98) — chroma 0.15 vượt gamut ở L=0.541 (kế thừa)',
-  '.dark --warning': 'oklch(0.769 0.188 70.08) — chroma 0.188 vượt gamut ở L=0.769 (kế thừa)',
-};
+const KNOWN_OUT_OF_GAMUT: Readonly<Record<string, string>> = {};
 
 describe('gamut sRGB — số đo chỉ đúng khi màu nằm trong gamut', () => {
   /** Đối chứng: nếu `inSrgbGamut` luôn trả `true` thì cả khối dưới vô nghĩa. */
