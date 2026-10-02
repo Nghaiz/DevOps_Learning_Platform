@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react';
 import { Flag, Play } from 'lucide-react';
 import { renderCopy, t } from '@devops-platform/copy';
