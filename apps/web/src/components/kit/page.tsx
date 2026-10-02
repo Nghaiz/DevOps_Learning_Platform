@@ -1,7 +1,7 @@
 import type { CSSProperties, ReactNode } from 'react';
 import Link from 'next/link';
 import { t } from '@devops-platform/copy';
-import { cn } from '@devops-platform/ui';
+import { LINE_CLASSES, cn, type LineId } from '@devops-platform/ui';
 import { sectionById, type SectionId } from '../shell/nav';
 import { SECTION_TONE } from '../shell/section-tone';
 import { SectionSwitcher } from './section-switcher';
@@ -36,6 +36,8 @@ export function PageContainer({
  */
 export function PosterHeader({
   section,
+  line,
+  watermark,
   kicker,
   title,
   lead,
@@ -44,6 +46,10 @@ export function PosterHeader({
   children,
 }: {
   readonly section: SectionId;
+  /** Trang chi tiết: tô theo tuyến chủ đề thay cho màu section (thanh chuyển trang tắt). */
+  readonly line?: LineId;
+  /** Chữ lớn mờ phía sau; mặc định là tên section. */
+  readonly watermark?: string;
   readonly kicker?: string;
   readonly title: string;
   readonly lead?: string;
@@ -53,16 +59,16 @@ export function PosterHeader({
   readonly children?: ReactNode;
 }) {
   const def = sectionById(section);
-  const tone = SECTION_TONE[def.tone];
-  const showSwitcher = switcher && def.items.length > 1;
+  const fill = line ? LINE_CLASSES[line].fill : SECTION_TONE[def.tone].fill;
+  const showSwitcher = switcher && line === undefined && def.items.length > 1;
   return (
-    <header className={cn('relative overflow-hidden', tone.fill)}>
+    <header className={cn('relative overflow-hidden', fill)}>
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-hatch opacity-[0.07]" />
       <div
         aria-hidden="true"
         className="pointer-events-none absolute -right-10 bottom-0 hidden select-none font-display text-[16rem] leading-[0.78] font-extrabold opacity-[0.09] [font-stretch:125%] lg:block"
       >
-        {def.label}
+        {watermark ?? def.label}
       </div>
       <PageContainer className="relative">
         <div className="grid gap-8 pt-12 pb-10 md:pt-16 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:items-end">
