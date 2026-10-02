@@ -1,10 +1,9 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { useEffect, type ReactElement, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, type ReactElement, type ReactNode } from 'react';
 import { ExternalLink, Hourglass, LoaderCircle, Terminal, Unplug } from 'lucide-react';
 import { t } from '@devops-platform/copy';
-import type { TerminalHandle } from '@devops-platform/terminal';
 import type { ThemeName } from '@devops-platform/terminal/themes';
 import { Button, Kbd, cn } from '@devops-platform/ui';
 import type { SandboxSession } from '../../lib/use-sandbox-session';
@@ -44,14 +43,6 @@ const TerminalSurfaceLazy = dynamic(() => import('./terminal-surface-lazy'), {
 
 /** Nhãn a11y nêu luôn đường thoát: `role="application"` tắt chế độ duyệt của trình đọc màn hình. */
 const TERMINAL_ARIA_LABEL = t('session.terminal.aria-label');
-
-/**
- * Hai thứ `0c` đang thêm vào hợp đồng (`SandboxSession.reconnect`,
- * `TerminalHandle.setInputEnabled`). Gọi qua optional chaining: thiếu thì nút
- * "Nối lại" nhường chỗ cho "Mở phiên mới", và lớp phủ vẫn chặn chuột.
- */
-type WithReconnect = SandboxSession & { readonly reconnect?: () => void };
-type InputGateHandle = TerminalHandle & { readonly setInputEnabled?: (enabled: boolean) => void };
 
 export interface TerminalPaneProps {
   readonly session: SandboxSession;
@@ -139,17 +130,32 @@ export function TerminalPane({ session, theme, placeholder, handoff }: TerminalP
   const handoffState = handoff?.state ?? 'here';
   const phase = session.state.phase;
   const inputEnabled = phase === 'ready' && handoffState === 'here';
-  const terminal = session.terminal as InputGateHandle | null;
+  const terminal = session.terminal;
+  // Khoá gõ/dán ngoài pha `ready` (sendInput của nút chạy lệnh vẫn đi). Sống qua các lần nối lại.
   useEffect(() => {
-    terminal?.setInputEnabled?.(inputEnabled);
+    terminal?.setInputEnabled(inputEnabled);
   }, [terminal, inputEnabled]);
 
-  const reconnect = (session as WithReconnect).reconnect;
+  // Mã đóng gần nhất: máy trạng thái chỉ giữ câu chung, lớp phủ cần biết ca 4429 để nói đúng nguyên nhân.
+  const [closeCode, setCloseCode] = useState<number | null>(null);
+  const sessionOnClose = session.onClose;
+  const onClose = useCallback(
+    (code: number) => {
+      setCloseCode(code);
+      sessionOnClose(code);
+    },
+    [sessionOnClose],
+  );
+  useEffect(() => {
+    if (phase === 'ready') setCloseCode(null);
+  }, [phase]);
+
   const overlay = resolveTerminalOverlay({
     phase,
     message: session.state.message,
     handoff: handoffState,
-    canReconnect: reconnect !== undefined,
+    canReconnect: true,
+    closeCode,
   });
 
   if (session.state.sessionId === null) {
@@ -171,7 +177,7 @@ export function TerminalPane({ session, theme, placeholder, handoff }: TerminalP
         handoff?.reclaim();
         return;
       case 'reconnect':
-        reconnect?.();
+        session.reconnect();
         return;
       case 'new-session':
         session.start();
@@ -180,7 +186,7 @@ export function TerminalPane({ session, theme, placeholder, handoff }: TerminalP
   };
 
   return (
-    // `group-focus-within:` làm gợi ý Esc-Esc đậm lên khi terminal có focus, không xuất hiện/biến mất:
+    // `group-focus-within:` làm gợi ý Esc rồi Tab đậm lên khi terminal có focus, không xuất hiện/biến mất:
     // một dòng nhảy ra lúc focus đổi chiều cao khoang và làm xterm fit lại đúng giây người dùng bấm vào.
     <div className="group flex h-full w-full flex-col bg-background">
       <div className="relative min-h-0 flex-1">
@@ -190,8 +196,11 @@ export function TerminalPane({ session, theme, placeholder, handoff }: TerminalP
           theme={resolvedTheme}
           ariaLabel={TERMINAL_ARIA_LABEL}
           onControl={session.onControl}
-          onClose={session.onClose}
+          onClose={onClose}
           onReady={session.onTerminalReady}
+          /* Surface chỉ mount khi đã có phiên, tức ngay sau cú bấm Bắt đầu (hoặc Mở phiên mới):
+             đưa focus vào terminal lúc đó là đúng ý người học, không phải giật focus lúc tải trang. */
+          autoFocus
         />
         {overlay !== null && <OverlayCard overlay={overlay} busy={session.starting} onAction={onAction} />}
       </div>
@@ -201,7 +210,7 @@ export function TerminalPane({ session, theme, placeholder, handoff }: TerminalP
           'transition-colors duration-[var(--motion-fast)] ease-out group-focus-within:text-foreground',
         )}
       >
-        {t('session.terminal.escape-hint-prefix')} <Kbd>Esc</Kbd> <Kbd>Esc</Kbd>{' '}
+        {t('session.terminal.escape-hint-prefix')} <Kbd>Esc</Kbd> {t('session.terminal.escape-hint-then')} <Kbd>Tab</Kbd>{' '}
         {t('session.terminal.escape-hint-suffix')}
       </p>
     </div>

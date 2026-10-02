@@ -34,7 +34,12 @@ export interface OverlayInput {
   readonly handoff: HandoffState;
   /** Hook phiên có `reconnect` không (nối lại vào CÙNG pod, không tốn phiên mới). */
   readonly canReconnect: boolean;
+  /** Mã đóng gần nhất của WebSocket, nếu có. */
+  readonly closeCode?: number | null;
 }
+
+/** Gateway giới hạn stdin 256 KiB/s, nhịp dồn 512 KiB: dán quá cỡ đó là đóng với mã này. */
+export const CLOSE_RATE_LIMITED = 4429;
 
 export function resolveTerminalOverlay(input: OverlayInput): TerminalOverlay | null {
   const { phase, message, handoff, canReconnect } = input;
@@ -69,7 +74,13 @@ export function resolveTerminalOverlay(input: OverlayInput): TerminalOverlay | n
       };
     case 'exited':
     case 'error':
-      return { tone: 'down', title, detail: message, action: canReconnect ? 'reconnect' : 'new-session' };
+      return {
+        tone: 'down',
+        title,
+        // Câu chung "vượt giới hạn tốc độ" không nói người học đã làm gì; ca thường gặp là dán một khối quá lớn.
+        detail: input.closeCode === CLOSE_RATE_LIMITED ? t('session.overlay.rate-limited') : message,
+        action: canReconnect ? 'reconnect' : 'new-session',
+      };
     case 'expired':
       // Pod đã bị thu hồi: nối lại không có gì để nối vào.
       return { tone: 'down', title, detail: message, action: 'new-session' };

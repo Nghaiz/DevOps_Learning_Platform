@@ -52,12 +52,13 @@ export const session = {
 
   // ── Khoang terminal ──────────────────────────────────────────────────────
   // Nhãn a11y nêu đường thoát: `role="application"` tắt chế độ duyệt của trình đọc màn hình.
-  'session.terminal.aria-label': 'Terminal sandbox. Nhấn Esc hai lần để rời khỏi terminal.',
+  'session.terminal.aria-label': 'Terminal sandbox. Nhấn Esc rồi Tab để rời khỏi terminal.',
   'session.terminal.aria-label-window':
-    'Terminal sandbox, cửa sổ riêng. Nhấn Esc hai lần để rời khỏi terminal.',
+    'Terminal sandbox, cửa sổ riêng. Nhấn Esc rồi Tab để rời khỏi terminal.',
   'session.terminal.booting': 'Đang mở terminal…',
   'session.terminal.empty': 'Bấm Bắt đầu để dựng sandbox và mở terminal.',
   'session.terminal.escape-hint-prefix': 'Nhấn',
+  'session.terminal.escape-hint-then': 'rồi',
   'session.terminal.escape-hint-suffix': 'để rời khỏi terminal',
 
   // ── Lớp phủ trên terminal theo pha ───────────────────────────────────────
@@ -71,6 +72,8 @@ export const session = {
   'session.overlay.reconnecting-detail':
     'Kết nối vừa đứt. Hệ thống đang tự nối lại, những gì bạn làm trong máy vẫn còn.',
   'session.overlay.reconnect': 'Nối lại',
+  'session.overlay.rate-limited':
+    'Bạn vừa dán hoặc gõ quá nhiều dữ liệu cùng lúc nên gateway ngắt kết nối. Nối lại rồi dán từng phần nhỏ hơn, dưới 500 KB mỗi lần.',
   'session.overlay.new-session': 'Mở phiên mới',
   'session.overlay.popup-blocked':
     'Trình duyệt chặn cửa sổ mới. Cho phép cửa sổ bật lên của trang này rồi bấm lại.',

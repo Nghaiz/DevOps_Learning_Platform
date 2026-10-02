@@ -159,6 +159,7 @@ export function TerminalWindowClient({ sessionId }: { readonly sessionId: string
             ariaLabel={ARIA_LABEL}
             onControl={onControl}
             onClose={onClose}
+            autoFocus
           />
         </div>
       )}
