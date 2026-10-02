@@ -1599,3 +1599,15 @@
     gap: 2px;
   }
 }
+/* Mã tuyến GIT trên nhãn thanh trên: khối màu tuyến, chữ mực (design-brief §2.3). */
+.git-line-code {
+  display: inline-block;
+  padding: 1px 5px;
+  background: var(--line-git);
+  color: var(--line-git-foreground);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.git-victory {
+  animation: dlp-rise 360ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
