@@ -35,7 +35,7 @@ export function CheckReport(props: {
       ) : (
         <div className="flex flex-col gap-2 border-t-4 border-destructive pt-3">
           <p className="text-sm font-semibold text-destructive">
-            {t('author.publish.check-blocked')}
+            {t('author.publish.check.blocked')}
           </p>
           <IssueList issues={toLessonIssues(props.kind, result.issues)} onJump={props.onJump} />
         </div>
