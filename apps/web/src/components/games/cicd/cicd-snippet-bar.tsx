@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, type ReactElement, type RefObject } from 'react';
 import { Button } from '@devops-platform/ui';
+import { t } from '@devops-platform/copy';
 
 import { cicdSnippets, insertSnippetAt } from './cicd-snippets';
 
@@ -68,9 +69,9 @@ export function CicdSnippetBar({ runnerClassIds, editorRef, value, onInsert }: C
   };
 
   return (
-    <div role="group" aria-label="Chèn nhanh" className="flex flex-col gap-2">
+    <div role="group" aria-label={t('games.cicd.snippet.group')} className="flex flex-col gap-2">
       <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-        Chèn nhanh dưới dòng con trỏ
+        {t('games.cicd.snippet.title')}
       </h3>
       <div className="flex flex-wrap gap-2">
         {snippets.map((snippet) => (
@@ -87,9 +88,7 @@ export function CicdSnippetBar({ runnerClassIds, editorRef, value, onInsert }: C
           </Button>
         ))}
       </div>
-      <p className="text-xs text-muted-foreground">
-        Mẩu chèn xuống dòng ngay dưới chỗ con trỏ đang đứng; sửa tên job cho hợp màn.
-      </p>
+      <p className="text-xs text-muted-foreground">{t('games.cicd.snippet.note')}</p>
     </div>
   );
 }

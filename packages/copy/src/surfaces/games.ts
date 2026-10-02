@@ -430,6 +430,192 @@ export const games = {
   'games.cicd.play.h.ran': 'Đã chạy',
   'games.cicd.play.h.throughput': (p: { v: string }) => `② ${p.v}/giờ`,
   'games.cicd.play.h.runner': (p: { v: string }) => `③ ${p.v} runner-phút`,
+
+  // ── CI/CD: bảng kết quả một lượt chạy ──────────────────────────────────────
+  'games.cicd.result.aria': 'Kết quả lượt chạy',
+  'games.cicd.result.parse-title': 'Không quét được YAML',
+  'games.cicd.result.parse-count': (p: { n: number }) =>
+    `${String(p.n)} chỗ cần sửa. Workflow chưa chạy lượt nào.`,
+  'games.cicd.result.line-col': (p: { line: number; column: number }) =>
+    `Dòng ${String(p.line)}, cột ${String(p.column)}:`,
+  'games.cicd.result.empty-before': 'Pipeline chưa có job nào nên chưa có gì để đo. Thêm một job vào mục',
+  'games.cicd.result.empty-after': 'rồi chạy lại.',
+  'games.cicd.result.shape-title': 'Job không khớp màn',
+  'games.cicd.result.shape-note': 'Workflow chưa được chấm.',
+  'games.cicd.result.engine-title': 'Workflow không chạy được',
+  'games.cicd.result.cd-title': 'Chính sách CD không hợp lệ',
+  'games.cicd.result.cd-body': (p: { simulator: string; message: string }) =>
+    `Bộ mô phỏng “${p.simulator}” không nhận giá trị trên bảng núm CD: ${p.message}`,
+  'games.cicd.result.won': 'Đạt',
+  'games.cicd.result.lost': 'Chưa đạt',
+  'games.cicd.result.won-note': 'Đã xong mọi mục tiêu bắt buộc.',
+  'games.cicd.result.lost-note': (p: { n: number }) => `Còn ${String(p.n)} mục tiêu bắt buộc chưa đạt.`,
+  'games.cicd.result.lead-label': '① Lead time',
+  'games.cicd.result.lead-hint': 'Thời gian từ lúc push một commit tới lúc pipeline xanh.',
+  'games.cicd.result.throughput-label': '② Thông lượng',
+  'games.cicd.result.throughput-hint': 'Số commit qua được trong một giờ khi hàng đợi dồn.',
+  'games.cicd.result.throughput-value': (p: { v: string }) => `${p.v} commit/giờ`,
+  'games.cicd.result.runner-label': '③ Runner-phút',
+  'games.cicd.result.runner-hint': 'Số phút runner mà một lượt chạy tiêu tốn.',
+  'games.cicd.result.runner-value': (p: { v: string }) => `${p.v} runner-phút`,
+  'games.cicd.result.target-max': (p: { par: string; cap: string }) => `Mục tiêu ≤ ${p.par} · trần ${p.cap}`,
+  'games.cicd.result.target-min': (p: { par: string; floor: string }) => `Mục tiêu ≥ ${p.par} · sàn ${p.floor}`,
+  'games.cicd.result.spread': (p: { p90: string; max: string }) => `p90 ${p.p90} · cao nhất ${p.max}`,
+  'games.cicd.result.gate-label': 'Ngưỡng đạt: tỉ lệ lượt xanh',
+  'games.cicd.result.gate-detail': (p: { min: string; green: number; total: number }) =>
+    `cần ≥ ${p.min} · ${String(p.green)}/${String(p.total)} lượt mô phỏng xanh`,
+  'games.cicd.result.objectives': 'Mục tiêu',
+  'games.cicd.result.sr-won': 'Đạt:',
+  'games.cicd.result.sr-lost': 'Chưa đạt:',
+  'games.cicd.result.bonus': '(thưởng)',
+
+  // ── CI/CD: số đo chương CD ─────────────────────────────────────────────────
+  'games.cicd.cd-metrics.aria': 'Số đo phát hành và vận hành',
+  'games.cicd.cd-metrics.title': 'Phát hành và vận hành',
+  'games.cicd.cd-metrics.missing-params': (p: { strategy: string; n: number }) =>
+    `Chiến lược “${p.strategy}” thiếu tham số nên kịch bản ${String(p.n)} không chạy được.`,
+  'games.cicd.cd-metrics.scenario-bad': (p: { n: number; passes: number }) =>
+    `Kịch bản ${String(p.n)} · bản ứng viên LỖI · ${String(p.passes)} lượt`,
+  'games.cicd.cd-metrics.scenario-good': (p: { n: number; passes: number }) =>
+    `Kịch bản ${String(p.n)} · bản ứng viên tốt · ${String(p.passes)} lượt`,
+  'games.cicd.cd-metrics.recovery': 'Phục hồi lâu nhất',
+  'games.cicd.cd-metrics.no-rollback': 'không cần rollback',
+  'games.cicd.cd-metrics.peak': 'Số máy cao nhất',
+  'games.cicd.cd-metrics.peak-value': (p: { n: number }) => `${String(p.n)} máy`,
+  'games.cicd.cd-metrics.bad-promoted': 'Lượt bản lỗi lọt lên',
+  'games.cicd.cd-metrics.good-aborted': 'Lượt bản tốt bị hủy nhầm',
+  'games.cicd.cd-metrics.schema-rollback': 'Lượt rollback trên schema mới',
+  'games.cicd.cd-metrics.gitops-title': (p: { beats: number; horizon: string }) =>
+    `Đối soát · ${String(p.beats)} nhịp trong ${p.horizon}`,
+  'games.cicd.cd-metrics.longest-drift': 'Lệch lâu nhất',
+  'games.cicd.cd-metrics.heal-fights': 'Lần giằng co với controller',
+  'games.cicd.cd-metrics.unseen-drift': 'Đoạn lệch không ai thấy',
+  'games.cicd.cd-metrics.drift-closed': (p: { field: string; from: number; to: number; cause: string }) =>
+    `${p.field}: lệch từ giây ${String(p.from)} tới giây ${String(p.to)} · do ${p.cause}`,
+  'games.cicd.cd-metrics.drift-open': (p: { field: string; from: number; cause: string }) =>
+    `${p.field}: lệch từ giây ${String(p.from)} tới hết giờ · do ${p.cause}`,
+  'games.cicd.cd-metrics.masking-title': 'Log sau khi che',
+  'games.cicd.cd-metrics.leaks': 'chỗ rò',
+
+  // ── CI/CD: bảng núm chương CD ──────────────────────────────────────────────
+  'games.cicd.cd.title': 'Bảng điều khiển phát hành',
+  'games.cicd.cd.lead':
+    'Các chính sách này không nằm trong workflow. Chúng chạy trên kịch bản của màn, cùng lượt với nút Chạy thử.',
+  'games.cicd.cd.release': 'Phát hành',
+  'games.cicd.cd.strategy': 'Chiến lược phát hành',
+  'games.cicd.cd.on-bad': 'Khi phát hiện bản lỗi',
+  'games.cicd.cd.on-bad-rollback': 'Lùi về bản cũ (rollback)',
+  'games.cicd.cd.on-bad-roll-forward': 'Dựng bản sửa rồi đẩy tiếp (roll-forward)',
+  'games.cicd.cd.rolling-batch': 'Rolling: số máy thay mỗi đợt',
+  'games.cicd.cd.canary': 'Canary',
+  'games.cicd.cd.canary-weight': '% lưu lượng vào bản ứng viên',
+  'games.cicd.cd.canary-interval': 'Độ dài một khoảng đo (giây)',
+  'games.cicd.cd.canary-intervals': 'Số khoảng đo trước khi quyết định',
+  'games.cicd.cd.canary-delta': 'Ngưỡng hủy: lỗi canary cao hơn nhóm đối chứng (điểm %)',
+  'games.cicd.cd.gitops': 'Đối soát',
+  'games.cicd.cd.reconcile': 'Chu kỳ đối soát (giây)',
+  'games.cicd.cd.self-heal': 'Tự sửa khi phát hiện lệch',
+  'games.cicd.cd.ignore-fields': 'Trường không đối soát',
+  'games.cicd.cd.masking': 'Che secret',
+  'games.cicd.cd.masking-title': 'Che secret trong log',
+  'games.cicd.cd.masking-note': 'Bộ che chỉ thay những chuỗi đã đăng ký dưới đây.',
+  'games.cicd.cd.form.raw': 'nguyên văn',
+  'games.cicd.cd.form.base64': 'base64',
+  'games.cicd.cd.form.url': 'mã hoá URL',
+  'games.cicd.cd.form.reversed': 'đảo ngược',
+
+  // ── CI/CD: núm không nằm trong YAML ────────────────────────────────────────
+  'games.cicd.overrides.title': 'Núm không nằm trong YAML',
+  'games.cicd.overrides.lead':
+    'Hai núm dưới đây không có khoá tương ứng trong workflow. Chúng đi thẳng vào engine cùng lượt chạy.',
+  'games.cicd.overrides.retries': 'Số lần chạy lại',
+  'games.cicd.overrides.retries-title': 'Chạy lại khi hỏng',
+  'games.cicd.overrides.retries-note':
+    'Chạy lại cứu được lỗi chập chờn của hạ tầng, nhưng không cứu được lỗi thật. Với lỗi thật, nó chỉ làm lượt chạy lâu hơn và tốn thêm runner-phút.',
+  'games.cicd.overrides.no-jobs': 'Workflow chưa có job nào.',
+  'games.cicd.overrides.cache': 'Cache',
+  'games.cicd.overrides.cache-note':
+    'Bạn chọn những đầu vào được băm vào khoá cache. Nội dung cache thật sự phụ thuộc vào đâu là chuyện của màn, không sửa được. Khoá rộng hơn mức đó thì hiếm khi trúng, hẹp hơn thì có ngày trúng phải bản đã ôi.',
+  'games.cicd.overrides.no-cache': 'Chưa có bước nào dùng được cache.',
+  'games.cicd.overrides.cache-saves': (p: { n: number }) =>
+    `Trúng cache thì tiết kiệm tối đa ${String(p.n)} tick.`,
+  'games.cicd.overrides.key-parts': 'Khoá cache gồm những đầu vào nào',
+  'games.cicd.overrides.changes-every': (p: { n: number }) => `(đổi sau mỗi ${String(p.n)} commit)`,
+
+  // ── CI/CD: tra nhanh và chèn nhanh ─────────────────────────────────────────
+  'games.cicd.cheatsheet.title': 'Tra nhanh',
+  'games.cicd.cheatsheet.panel': 'Bảng điều khiển',
+  'games.cicd.snippet.group': 'Chèn nhanh',
+  'games.cicd.snippet.title': 'Chèn nhanh dưới dòng con trỏ',
+  'games.cicd.snippet.note': 'Mẩu YAML chèn vào dòng ngay dưới con trỏ. Nhớ sửa tên job cho hợp với màn.',
+  'games.cicd.snippet.job': 'Job mới',
+  'games.cicd.snippet.job-hint': 'Một job chạy trên một máy. Job khác gọi tới nó bằng tên trong "needs".',
+  'games.cicd.snippet.job-step': 'Biên dịch',
+  'games.cicd.snippet.needs': 'Cạnh phụ thuộc',
+  'games.cicd.snippet.needs-hint':
+    'Job này chỉ bắt đầu khi mọi job trong "needs" đã xong. Bỏ một cạnh thừa là cách rẻ nhất để rút ngắn đường găng.',
+  'games.cicd.snippet.runs-on': 'Chọn hạng runner',
+  'games.cicd.snippet.runs-on-hint':
+    'Hạng runner quyết định job xếp hàng ở nhóm máy nào. Đòi một hạng mà màn không có thì workflow không chạy được.',
+  'games.cicd.snippet.step': 'Bước mới trong job',
+  'games.cicd.snippet.step-hint':
+    'Các bước trong một job chạy lần lượt trên cùng một máy. Muốn chạy song song thì tách thành job riêng.',
+  'games.cicd.snippet.step-name': 'Kiểm thử đơn vị',
+  'games.cicd.snippet.continue': 'Job không chặn',
+  'games.cicd.snippet.continue-hint':
+    'Job hỏng mà không đánh trượt cả lượt. Dùng cho việc chỉ để báo tin (lint, quét), đừng dùng để giấu một lỗi thật.',
+  'games.cicd.snippet.matrix': 'Chạy theo matrix',
+  'games.cicd.snippet.matrix-hint':
+    'Một job nhân thành nhiều bản chạy song song, mỗi bản một tổ hợp giá trị. Xong sớm hơn, nhưng runner-phút tăng theo đúng số bản.',
+
+  // ── CI/CD: lỗi khuôn job và lỗi đồ thị ─────────────────────────────────────
+  'games.cicd.error.unknown-job': (p: { job: string; known: string }) =>
+    `Màn này không có job "${p.job}". Các job màn này có: ${p.known}.`,
+  'games.cicd.error.unknown-steps': (p: { job: string; steps: string }) =>
+    `Các bước của job "${p.job}" (${p.steps}) không khớp cách chia nào mà màn này chấm được. Giữ nguyên id và thứ tự bước; đổi tên hay bỏ bước thì không được chấm.`,
+  'games.cicd.error.no-steps': 'không có bước nào',
+  'games.cicd.error.unknown-jobs': (p: { jobs: string }) =>
+    `Tập job (${p.jobs}) không khớp phương án nào mà màn này chấm được: đang thiếu hoặc thừa job. Bỏ hẳn một job kiểm thử cũng không được tính.`,
+  'games.cicd.error.no-jobs': 'rỗng',
+  'games.cicd.error.no-run':
+    'Engine không dựng được lượt mô phỏng nào từ workflow này. Xem lại workflow có job nào không, và workload có cấp đúng hạng runner không.',
+  'games.cicd.error.cycle': (p: { path: string }) =>
+    `Phụ thuộc vòng tròn: ${p.path}. Không job nào trong vòng này chạy được, vì job nào cũng đang đợi một job khác trong chính vòng đó.`,
+  'games.cicd.error.unknown-needs': (p: { stage: string; missing: string }) =>
+    `Job "${p.stage}" khai "needs: ${p.missing}" nhưng không có job nào tên "${p.missing}". Kiểm tra chính tả; tên job phân biệt chữ hoa chữ thường.`,
+  'games.cicd.error.no-runner': (p: { stage: string; runner: string }) =>
+    `Job "${p.stage}" đòi runner hạng "${p.runner}" nhưng màn này không có hạng đó. Xem lại giá trị "runs-on".`,
+
+  // ── CI/CD: chế độ làm bài OJ ───────────────────────────────────────────────
+  'games.cicd.oj.no-testcase':
+    'Bài này chưa có testcase nên chưa chấm được. Bạn vẫn mở ra luyện tay được; nhờ báo giúp tác giả bài.',
+  'games.cicd.oj.retry': 'Thử lại',
+  'games.cicd.oj.loading': 'Đang nạp đề bài và dựng pipeline…',
+  'games.cicd.oj.load-error': (p: { code: string; reason: string }) => `Không mở được bài ${p.code}: ${p.reason}`,
+  'games.cicd.oj.no-data': 'không có dữ liệu',
+  'games.cicd.oj.spec-missing': (p: { code: string; part: string }) =>
+    `Đề bài ${p.code} thiếu phần "${p.part}" nên chưa dựng được màn chơi. Lỗi nằm ở đề, không phải ở bạn. Nhờ báo giúp tác giả bài.`,
+  'games.cicd.oj.spec-not-object': 'toàn bộ đề (initialState không phải object)',
+  'games.cicd.oj.mission': (p: { code: string }) => `Bài ${p.code}: sửa pipeline cho qua hết tiêu chí chấm.`,
+  'games.cicd.oj.submitting': 'Đang nộp và chấm…',
+  'games.cicd.oj.submit': 'Nộp bài',
+  'games.cicd.oj.hidden-case': 'Testcase ẩn, chưa có tên',
+  'games.cicd.oj.submit-error': (p: { message: string }) => `Chưa nộp được: ${p.message}`,
+  'games.cicd.oj.ce': (p: { reason: string }) => `CE: ${p.reason}`,
+  'games.cicd.oj.ce-default': 'lượt chơi không chạy tới nơi nên chưa chấm được.',
+  'games.cicd.oj.ac': (p: { passed: number; total: number }) =>
+    `AC (${String(p.passed)}/${String(p.total)}): qua hết testcase.`,
+  'games.cicd.oj.wa': (p: { passed: number; total: number }) => `WA (${String(p.passed)}/${String(p.total)})`,
+
+  // ── CI/CD: bàn thử tự do ───────────────────────────────────────────────────
+  'games.cicd.sandbox.title': 'Bàn thử tự do',
+  'games.cicd.sandbox.no-data': 'Chưa có dữ liệu màn nào nên bàn thử không có sân đo để chạy.',
+  'games.cicd.sandbox.lead':
+    'Không mục tiêu, không giới hạn số lượt. Kho máy và lịch commit mượn của màn đầu cho sân đo ổn định; mọi job chạy với thời lượng mặc định.',
+  'games.cicd.sandbox.runs': (p: { n: number }) => `Đã chạy ${String(p.n)} lượt`,
+  'games.cicd.sandbox.yaml-label': 'Workflow YAML của bàn thử tự do',
+  'games.cicd.sandbox.run-first': 'Bấm Chạy thử để mô phỏng và xem ba trục.',
+  'games.cicd.sandbox.seed-step': 'Tải mã',
 } as const;
 
 export const gamesIntentionalThree: IntentionalThree = {};
