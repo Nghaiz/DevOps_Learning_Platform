@@ -1,17 +1,17 @@
 'use client';
 
-import { t } from '@devops-platform/copy';
 import type { ReactElement } from 'react';
+import { t } from '@devops-platform/copy';
 import {
   Badge,
-  Checkbox,
-  Label,
+  Difficulty,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
   Switch,
+  type DifficultyLevel,
 } from '@devops-platform/ui';
 import {
   PROBLEM_DIFFICULTIES,
@@ -19,233 +19,193 @@ import {
   type ProblemDifficulty,
   type ProblemTopicOption,
 } from '@devops-platform/games';
-import { TextField, issueFor } from '../../../components/author/field';
+import { Field, TextField, issueFor } from '../../../components/author/field';
+import { AllowedResourcesFields } from './allowed-resources-fields';
+import { CheckTile, CheckTileGroup } from './check-tile';
 import type { FieldIssue } from './cluster-form';
 import type { ProblemFormState } from './problem-form';
-import { DIFFICULTY_BADGE } from './problem-labels';
 import { parseTags } from './text-tools';
-import { AllowedResourcesFields } from './allowed-resources-fields';
 
 /**
- * Độ khó, chủ đề, tag, hạn giờ, và giới hạn loại tài nguyên.
+ * Thang bốn bậc của bài OJ ánh sang glyph bốn vạch của `Difficulty`.
  *
- * ## `topics` là THAM SỐ, không phải một hằng import
+ * Ánh xạ tường minh chứ không ghép chuỗi: `easy` không phải một `DifficultyLevel`,
+ * và một tên ghép sai thì glyph vẫn render, chỉ sai số vạch.
+ */
+const DIFFICULTY_LEVEL = {
+  easy: 'basic',
+  medium: 'intermediate',
+  hard: 'advanced',
+  expert: 'expert',
+} as const satisfies Record<ProblemDifficulty, DifficultyLevel>;
+
+/** Trần số chủ đề của một bài; cổng xuất bản kiểm cùng con số. */
+const MAX_TOPICS = 3;
+
+/**
+ * Độ khó, chủ đề, tag, hạn giờ, số nước đi chuẩn, cờ seed, giới hạn tài nguyên.
  *
- * Bản trước đọc thẳng `PROBLEM_TOPICS` của K8s, nên mọi bài của mọi game sẽ
- * chọn chủ đề trong một danh sách nói về Pod. `core/problem.ts` đã chuyển tập
- * đóng xuống từng plugin đúng vì chuyện đó; component này nhận tập đã tra sẵn
- * từ `pluginViewFor(gameId)` và không tự biết game nào đang mở.
+ * `topics` là THAM SỐ: tập đóng của game đang chọn, tra sẵn từ `pluginViewFor`.
+ * Đọc thẳng `PROBLEM_TOPICS` của K8s thì bài Git chọn chủ đề trong danh sách Pod.
  */
 export function ClassifyFields(props: {
   readonly form: ProblemFormState;
   readonly onChange: (patch: Partial<ProblemFormState>) => void;
   readonly issues: readonly FieldIssue[];
-  /** Tập chủ đề ĐÓNG của game đang chọn. Rỗng khi game chưa có plugin. */
   readonly topics: readonly ProblemTopicOption[];
-  /** Plugin của game đang chọn có `seedSpec` không — xem `GamePluginView.canSeed`. */
   readonly canSeed: boolean;
 }): ReactElement {
-  const tags = parseTags(props.form.tagsText);
+  const { form } = props;
+  const tags = parseTags(form.tagsText);
 
   return (
-    <section className="flex flex-col gap-5">
-      <h2 className="border-b border-border pb-2 text-lg font-semibold text-foreground">
-        {t('problem.classify-fields-phan-loai')}
-      </h2>
-
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="problem-difficulty">{t('problem.classify-fields-do-kho')}</Label>
-        <div className="flex items-center gap-3">
-          <Select
-            value={props.form.difficulty}
-            onValueChange={(value) => {
-              props.onChange({ difficulty: value as ProblemDifficulty });
-            }}
-          >
-            <SelectTrigger id="problem-difficulty" className="w-56">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {PROBLEM_DIFFICULTIES.map((value) => (
-                <SelectItem key={value} value={value}>
-                  {PROBLEM_DIFFICULTY_LABELS[value]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Badge variant={DIFFICULTY_BADGE[props.form.difficulty]}>
-            {PROBLEM_DIFFICULTY_LABELS[props.form.difficulty]}
-          </Badge>
-        </div>
-        <p className="text-xs text-muted-foreground">
-          {t(
-            'problem.classify-fields-bon-bac-co-y-khac-ba-bac-cua-bai-lab-ranh-gioi-kho-rat-kho-la-thu-nguoi-lam',
-          )}
-        </p>
-      </div>
-
-      <fieldset className="flex flex-col gap-2">
-        <legend className="text-sm font-medium text-foreground">
-          {t('problem.classify-fields-chu-de-chon-1-den-3')}
-        </legend>
-        {props.topics.length === 0 && (
-          <p className="text-sm text-muted-foreground">
-            {t('author.problem.game.no-topics')}
-          </p>
+    <div className="flex flex-col gap-7">
+      <Field
+        label={t('problem.classify-fields-do-kho')}
+        path="difficulty"
+        hint={t('problem.classify-fields-bon-bac-co-y-khac-ba-bac-cua-bai-lab-ranh-gioi-kho-rat-kho-la-thu-nguoi-lam')}
+      >
+        {({ id, describedBy }) => (
+          <div className="flex flex-wrap items-center gap-4">
+            <Select
+              value={form.difficulty}
+              onValueChange={(value) => {
+                props.onChange({ difficulty: value as ProblemDifficulty });
+              }}
+            >
+              <SelectTrigger id={id} aria-describedby={describedBy} className="w-56">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PROBLEM_DIFFICULTIES.map((value) => (
+                  <SelectItem key={value} value={value}>
+                    {PROBLEM_DIFFICULTY_LABELS[value]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Difficulty level={DIFFICULTY_LEVEL[form.difficulty]} className="text-foreground" />
+          </div>
         )}
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {props.topics.map((option) => (
-            <TopicBox
+      </Field>
+
+      <CheckTileGroup
+        legend={t('problem.classify-fields-chu-de-chon-1-den-3')}
+        path="topics"
+        error={issueFor(props.issues, 'topics')}
+        empty={props.topics.length === 0 ? t('author.problem.game.no-topics') : undefined}
+      >
+        {props.topics.map((option) => {
+          const checked = form.topics.includes(option.id);
+          return (
+            <CheckTile
               key={option.id}
-              option={option}
-              checked={props.form.topics.includes(option.id)}
-              // Khoá các ô CHƯA chọn khi đã đủ ba: chặn trước rẻ hơn là cho bấm
-              // rồi mới báo lỗi ở cổng xuất bản.
-              disabled={!props.form.topics.includes(option.id) && props.form.topics.length >= 3}
+              label={option.label}
+              checked={checked}
+              // Khoá ô CHƯA chọn khi đã đủ: chặn trước rẻ hơn báo lỗi ở cổng xuất bản.
+              disabled={!checked && form.topics.length >= MAX_TOPICS}
               onToggle={(next) => {
                 props.onChange({
-                  topics: next
-                    ? [...props.form.topics, option.id]
-                    : props.form.topics.filter((value) => value !== option.id),
+                  topics: next ? [...form.topics, option.id] : form.topics.filter((value) => value !== option.id),
                 });
               }}
             />
-          ))}
-        </div>
-        {issueFor(props.issues, 'topics') !== null && (
-          <p className="text-xs text-destructive">{issueFor(props.issues, 'topics')}</p>
-        )}
-      </fieldset>
+          );
+        })}
+      </CheckTileGroup>
 
       <div className="flex flex-col gap-2">
         <TextField
           label={t('problem.classify-fields-tag-tu-do')}
-          value={props.form.tagsText}
+          value={form.tagsText}
+          path="tags"
           onChange={(tagsText) => {
             props.onChange({ tagsText });
           }}
           placeholder={t('problem.classify-fields-crashloop-chan-doan-image')}
-          hint={t(
-            'problem.classify-fields-ngan-bang-dau-phay-tu-chuan-hoa-ve-chu-thuong-khong-dau-va-gach-noi-khi-luu',
-          )}
+          hint={t('problem.classify-fields-ngan-bang-dau-phay-tu-chuan-hoa-ve-chu-thuong-khong-dau-va-gach-noi-khi-luu')}
         />
         {tags.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
+          <ul className="flex flex-wrap gap-1.5">
             {tags.map((tag) => (
-              <Badge key={tag} variant="secondary">
-                {tag}
-              </Badge>
+              <li key={tag} className="animate-rise">
+                <Badge variant="secondary" className="font-mono">
+                  {tag}
+                </Badge>
+              </li>
             ))}
-          </div>
+          </ul>
         )}
       </div>
 
-      <div className="flex flex-col gap-3">
-        <div className="flex items-center gap-3">
-          <Switch
-            id="problem-time-limit"
-            checked={props.form.hasTimeLimit}
-            onCheckedChange={(checked) => {
-              props.onChange({ hasTimeLimit: checked });
-            }}
-          />
-          <Label htmlFor="problem-time-limit">{t('problem.classify-fields-dat-han-gio')}</Label>
-        </div>
-        {props.form.hasTimeLimit ? (
-          <TextField
-            label={t('problem.classify-fields-han-gio-giay')}
-            value={props.form.timeLimitSec}
-            onChange={(timeLimitSec) => {
-              props.onChange({ timeLimitSec });
-            }}
-            inputMode="numeric"
-            error={issueFor(props.issues, 'timeLimitSec')}
-          />
-        ) : (
-          <p className="text-xs text-muted-foreground">
-            {t(
-              'problem.classify-fields-khong-gioi-han-gio-khong-phai-bai-nao-cung-nen-chay-dua-bai-chan-doan-can-t',
+      <div className="grid gap-6 sm:grid-cols-2">
+        <div className="flex flex-col gap-3">
+          <Field label={t('problem.classify-fields-dat-han-gio')}>
+            {({ id }) => (
+              <Switch
+                id={id}
+                checked={form.hasTimeLimit}
+                onCheckedChange={(checked) => {
+                  props.onChange({ hasTimeLimit: checked });
+                }}
+              />
             )}
-          </p>
-        )}
+          </Field>
+          {form.hasTimeLimit ? (
+            <TextField
+              label={t('problem.classify-fields-han-gio-giay')}
+              value={form.timeLimitSec}
+              path="timeLimitSec"
+              onChange={(timeLimitSec) => {
+                props.onChange({ timeLimitSec });
+              }}
+              inputMode="numeric"
+              error={issueFor(props.issues, 'timeLimitSec')}
+            />
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              {t('problem.classify-fields-khong-gioi-han-gio-khong-phai-bai-nao-cung-nen-chay-dua-bai-chan-doan-can-t')}
+            </p>
+          )}
+        </div>
+        <TextField
+          label={t('problem.classify-fields-so-nuoc-di-chuan-tuy-chon')}
+          value={form.parMoves}
+          path="parMoves"
+          onChange={(parMoves) => {
+            props.onChange({ parMoves });
+          }}
+          inputMode="numeric"
+          error={issueFor(props.issues, 'parMoves')}
+          hint={t('problem.classify-fields-dung-de-cham-sao-de-trong-nghia-la-khong-cham-theo-so-nuoc-di')}
+        />
       </div>
-
-      <TextField
-        label={t('problem.classify-fields-so-nuoc-di-chuan-tuy-chon')}
-        value={props.form.parMoves}
-        onChange={(parMoves) => {
-          props.onChange({ parMoves });
-        }}
-        inputMode="numeric"
-        error={issueFor(props.issues, 'parMoves')}
-        hint={t(
-          'problem.classify-fields-dung-de-cham-sao-de-trong-nghia-la-khong-cham-theo-so-nuoc-di',
-        )}
-      />
 
       {/*
-        §18.D.6 — cờ `seedable`, và câu giải thích phải nói ĐÚNG SỰ THẬT HÔM NAY.
-
-        ⛔ `GameProblemPlugin.seedSpec` là TUỲ CHỌN và **không plugin nào khai
-        nó** (`core/problem-plugin.ts` nói thẳng vậy). Nên hôm nay không game nào
-        sinh được đề theo seed, và một ô đánh dấu bật được sẽ là một lời hứa
-        chưa có gì thực hiện: bài khai `seedable: true` đi vào một kỳ thi
-        `per-student` sẽ phát CÙNG MỘT đề cho mọi sinh viên, im lặng, vì nó
-        không lỗi ở đâu cả (§18.G.3).
-
-        Vô hiệu hoá kèm lý do thay vì ẩn hẳn: ẩn thì người soạn không biết khái
-        niệm này tồn tại, và sẽ đi hỏi. Biên ghi cũng từ chối `seedable: true`
-        cho game không có `seedSpec` — giao diện không phải cổng.
+        §18.D.6: cờ `seedable`, và câu giải thích nói ĐÚNG SỰ THẬT HÔM NAY. Không
+        plugin nào khai `seedSpec`, nên một công tắc bật được là lời hứa chưa ai
+        thực hiện: bài vào kỳ thi `per-student` sẽ phát CÙNG một đề cho mọi sinh
+        viên, im lặng. Vô hiệu hoá kèm lý do thay vì ẩn hẳn; biên ghi cũng từ chối.
       */}
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center gap-3">
+      <Field
+        label={t('author.problem.seedable.label')}
+        path="seedable"
+        hint={props.canSeed ? t('author.problem.seedable.available') : t('author.problem.seedable.unavailable')}
+      >
+        {({ id, describedBy }) => (
           <Switch
-            id="problem-seedable"
-            checked={props.form.seedable}
+            id={id}
+            aria-describedby={describedBy}
+            checked={form.seedable}
             disabled={!props.canSeed}
             onCheckedChange={(checked) => {
               props.onChange({ seedable: checked });
             }}
           />
-          <Label
-            htmlFor="problem-seedable"
-            className={props.canSeed ? undefined : 'text-muted-foreground'}
-          >
-            {t('author.problem.seedable.label')}
-          </Label>
-        </div>
-        <p className="text-xs text-muted-foreground">
-          {props.canSeed
-            ? t('author.problem.seedable.available')
-            : t('author.problem.seedable.unavailable')}
-        </p>
-      </div>
+        )}
+      </Field>
 
-      <AllowedResourcesFields form={props.form} onChange={props.onChange} issues={props.issues} />
-    </section>
-  );
-}
-
-function TopicBox(props: {
-  readonly option: ProblemTopicOption;
-  readonly checked: boolean;
-  readonly disabled: boolean;
-  readonly onToggle: (next: boolean) => void;
-}): ReactElement {
-  const id = `topic-${props.option.id}`;
-  return (
-    <div className="flex items-center gap-2">
-      <Checkbox
-        id={id}
-        checked={props.checked}
-        disabled={props.disabled}
-        onCheckedChange={(checked) => {
-          props.onToggle(checked === true);
-        }}
-      />
-      <Label htmlFor={id} className={props.disabled ? 'text-muted-foreground' : undefined}>
-        {props.option.label}
-      </Label>
+      <AllowedResourcesFields form={form} onChange={props.onChange} issues={props.issues} />
     </div>
   );
 }

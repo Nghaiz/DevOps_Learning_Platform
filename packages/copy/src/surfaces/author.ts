@@ -129,8 +129,8 @@ export const author = {
 
   // ── Trang tạo bài mới ─────────────────────────────────────────────────────
   'author.new.title': 'Tạo bài mới',
-  'author.new.after.title': 'Sau khi tạo',
-  'author.new.after.body':
+  'author.new.after-title': 'Sau khi tạo',
+  'author.new.after-body':
     'Bài ra đời ở trạng thái Nháp và chỉ bạn thấy. Xem trước, tệp đính kèm và xuất bản nằm ở trang sửa, mở ngay sau lượt tạo.',
   'author.new.identity-heading': 'Định danh, không sửa lại được',
   'author.new.kind.label': 'Loại nội dung',
@@ -177,7 +177,6 @@ export const author = {
   'author.edit.tab.publish': 'Xuất bản',
 
   'author.edit.body-error.title': 'Không nạp được nội dung bài',
-  'author.edit.save-error.title': 'Không lưu được',
 
   'author.edit.preview.error.title': 'Không xem trước được',
   'author.edit.preview.rejected.title': 'Bản nháp chưa qua schema xuất bản',
@@ -531,10 +530,9 @@ export const author = {
   'author.problem.field.text': 'nội dung',
   'author.problem.field.penalty-points': 'điểm bị trừ',
   'author.asset-directive-fields-khoi-nay-khong-tai-tep-len-no-khai-mot-file':
-    'Khối này KHÔNG tải tệp lên. Nó khai một file',
-  'author.asset-directive-fields-da-co-trong-image-sandbox': 'đã có trong image sandbox',
-  'author.asset-directive-fields-va-cho-can-chep-toi-trong-pod-muon-nhung-anh-vao-bai-thi-dung-tab':
-    'và chỗ cần chép tới trong pod. Muốn nhúng ảnh vào bài thì dùng tab',
+    'Khối này không tải tệp lên. Mỗi chỉ thị khai một file đã có trong image sandbox và chỗ chép nó tới trong pod. Ảnh để nhúng vào bài thì tải ở tab Tệp.',
+  'author.asset-directive-fields-chua-co-chi-thi':
+    'Chưa chép file nào vào pod. Bài không cần file riêng thì để trống mục này.',
   'author.asset-directive-fields-chi-thi': 'Chỉ thị',
   'author.asset-directive-fields-host': 'Host',
   'author.asset-directive-fields-host01': 'host01',
@@ -552,9 +550,11 @@ export const author = {
     `Dán đoạn markdown ở bảng dưới để nhúng ${p.assetFilename}.`,
   'author.asset-manager-da-xoa-tep': 'Đã xoá tệp',
   'author.asset-manager-anh-nhung-trong-noi-dung-bai': 'Ảnh nhúng trong nội dung bài',
-  'author.asset-manager-nhan': 'Nhận',
-  'author.asset-manager-toi-da-2-mb-moi-tep-day-khong-phai-khoi-chep-file-vao-pod-o-tab-soan-khoi-d':
-    ', tối đa 2 MB mỗi tệp. Đây KHÔNG phải khối "Chép file vào pod" ở tab Soạn: khối đó khai file có sẵn trong image sandbox, còn ở đây là ảnh hiện trong bài.',
+  'author.asset-manager-dinh-dang-va-tran': (p: { types: string; max: string }) =>
+    `Nhận ${p.types}, tối đa ${p.max} mỗi tệp.`,
+  'author.asset-manager-khong-phai-khoi-chep-file-vao-pod':
+    'Khác khối "Chép file vào pod" ở tab Soạn: khối đó khai file có sẵn trong image sandbox, còn ở đây là ảnh hiện trong bài.',
+  'author.asset-manager-tep-da-tai-len': 'Tệp đã tải lên',
   'author.asset-manager-chon-tep-de-tai-len': 'Chọn tệp để tải lên',
   'author.asset-manager-khong-tai-len-duoc': 'Không tải lên được',
   'author.asset-manager-khong-tai-duoc-danh-sach-tep': 'Không tải được danh sách tệp',
@@ -589,21 +589,34 @@ export const author = {
     next: 'Chọn tệp đúng định dạng và kích thước rồi tải lại.',
   }),
   'author.draft-form-view-thong-tin-chung': 'Thông tin chung',
+  'author.draft-form-view-thong-tin-chung-ghi-chu':
+    'Phần người học đọc ở trang danh mục trước khi mở bài.',
+  'author.draft-form-view-sandbox': 'Sandbox',
+  'author.draft-form-view-sandbox-ghi-chu':
+    'Môi trường mỗi người học nhận khi mở bài. Chọn thừa thì ai mở bài cũng phải chờ dựng phần thừa đó.',
   'author.draft-form-view-noi-dung': 'Nội dung',
   'author.draft-form-view-playground-la-mot-sandbox-trong-khong-co-buoc-khong-co-script-cham-nguoi-ho':
-    'Playground là một sandbox trống: không có bước, không có script chấm. Người học nhận đúng một môi trường và thời hạn đã khai ở trên.',
+    'Playground là một sandbox trống: không có bước, không có script chấm. Người học nhận đúng môi trường và thời hạn khai ở mục Sandbox.',
   'author.draft-form-view-mo-dau': 'Mở đầu',
+  'author.draft-form-view-mo-dau-ghi-chu': 'Phần đọc trước bước đầu tiên. Không bắt buộc.',
   'author.draft-form-view-bai-co-phan-mo-dau': 'Bài có phần mở đầu',
   'author.draft-form-view-cac-buoc': 'Các bước',
+  'author.draft-form-view-cac-buoc-ghi-chu':
+    'Người học đi theo đúng thứ tự ở đây. Bấm Lên hoặc Xuống để đổi chỗ một bước.',
   'author.draft-form-view-ket-thuc': 'Kết thúc',
+  'author.draft-form-view-ket-thuc-ghi-chu': 'Phần hiện sau bước cuối cùng. Không bắt buộc.',
   'author.draft-form-view-bai-co-phan-ket-thuc': 'Bài có phần kết thúc',
   'author.draft-form-view-chuan-bi-moi-truong': 'Chuẩn bị môi trường',
   'author.draft-form-view-chay-mot-lan-khi-dung-lab-lab-co-y-khong-co-setup-theo-tung-task-thu-tu-lam':
-    'Chạy MỘT lần khi dựng lab. Lab cố ý không có setup theo từng task: thứ tự làm task là tuỳ người học, nên một setup gắn với task thứ n sẽ chạy hoặc không tuỳ đường đi.',
+    'Chạy một lần khi dựng lab. Lab không có setup theo từng task, vì người học làm task theo thứ tự nào cũng được.',
   'author.draft-form-view-setup-foreground': 'Setup foreground',
   'author.draft-form-view-setup-background': 'Setup background',
   'author.draft-form-view-cac-task': 'Các task',
+  'author.draft-form-view-cac-task-ghi-chu':
+    'Người học làm task theo thứ tự nào cũng được. Điểm lab tính theo tổng trọng số các task đạt.',
   'author.draft-form-view-chep-file-vao-pod': 'Chép file vào pod',
+  'author.draft-form-view-chep-file-vao-pod-ghi-chu':
+    'Chép lúc dựng sandbox, cho mọi người học bài này.',
   'author.draft-form-chi-nhan-so-nguyen-duong': {
     what: 'Chỉ nhận số nguyên dương',
     next: 'Sửa ô được đánh dấu rồi thử lại.',
@@ -625,6 +638,7 @@ export const author = {
     next: 'Sửa ô được đánh dấu rồi thử lại.',
   },
   'author.draft-meta-fields-tieu-de': 'Tiêu đề',
+  'author.draft-meta-fields-mo-ta': 'Mô tả',
   'author.draft-meta-fields-vi-du-chan-doan-tien-trinh-ngon-cpu':
     'Ví dụ: Chẩn đoán tiến trình ngốn CPU',
   'author.draft-meta-fields-mot-cau-hien-tren-the-o-trang-danh-muc-bo-trong-cung-duoc':
@@ -687,8 +701,8 @@ export const author = {
   'author.phase-fields-noi-dung-markdown': 'Nội dung (Markdown)',
   'author.phase-fields-khoi-code-co-the-mang-nut-chay-dung-cu-phap-khoi-code-cua-noi-dung-nen-tang':
     'Khối code có thể mang nút chạy: dùng cú pháp khối code của nội dung nền tảng. Ảnh trỏ tới',
-  'author.phase-fields-assets-lt-khoa-gt': './assets/&lt;khoá&gt;',
-  'author.phase-fields-lay-khoa-o-tab-tep-dinh-kem': ', lấy khoá ở tab Tệp đính kèm.',
+  'author.phase-fields-assets-lt-khoa-gt': './assets/<khoá>',
+  'author.phase-fields-lay-khoa-o-tab-tep-dinh-kem': ', khoá lấy ở tab Tệp.',
   'author.phase-fields-chay-bang-bash-hien-trong-terminal-nguoi-hoc':
     'Chạy bằng bash, hiện trong terminal người học.',
   'author.phase-fields-chay-bang-bash-an': 'Chạy bằng bash, ẩn.',
@@ -700,12 +714,13 @@ export const author = {
   'author.preview-panel-nguoi-hoc-nhan-dung-mot-sandbox-trong-voi-tier-capability-va-thoi-han-da-kh':
     'Người học nhận đúng một sandbox trống với tier, capability và thời hạn đã khai ở tab Soạn. Không có bước nào, không có script chấm nào.',
   'author.preview-panel-chua-co-gi-de-xem-truoc': 'Chưa có gì để xem trước',
-  'author.preview-panel-bai-nay-chua-co': 'Bài này chưa có',
-  'author.preview-panel-buoc': 'bước',
-  'author.preview-panel-nao-hoac-nguon-noi-dung-chua-nhan-ban-nhap-them-noi-dung-o-tab-soan-roi-qua':
-    'nào, hoặc nguồn nội dung chưa nhận bản nháp. Thêm nội dung ở tab Soạn, rồi quay lại đây.',
+  'author.preview-panel-bai-hoc-chua-co-buoc-nao':
+    'Bài học chưa có bước nào, hoặc nguồn nội dung chưa nhận bản nháp. Thêm nội dung ở tab Soạn rồi quay lại đây.',
+  'author.preview-panel-lab-chua-co-task-nao':
+    'Lab chưa có task nào, hoặc nguồn nội dung chưa nhận bản nháp. Thêm nội dung ở tab Soạn rồi quay lại đây.',
+  'author.preview-panel-chon-phan': 'Phần đang xem',
   'author.preview-panel-day-la-chinh-khung-noi-dung-cua-trinh-hoc-nut-chay-tren-khoi-code-bi-vo-hie':
-    'Đây là chính khung nội dung của trình học. Nút chạy trên khối code bị vô hiệu hoá vì xem trước không dựng sandbox, đúng như trình học khi người dùng chưa bắt đầu phiên.',
+    'Đây là chính khung nội dung người học thấy. Nút chạy trên khối code bị tắt vì xem trước không dựng sandbox, giống trình học lúc người dùng chưa bắt đầu phiên.',
   'author.preview-phases-buoc': (p: { stepIndex1: string }) => `Bước ${p.stepIndex1}`,
   // Cột kiểm của `/author/[id]`: ba điều kiện trước khi người học thấy bài.
   'author.rail.saved.ok': 'Màn hình khớp bản đã lưu',
@@ -795,9 +810,11 @@ export const author = {
   }) => `${p.findings} cảnh báo trên ${p.warningsLength}/${p.scriptcount} script`,
   'author.script-warning-script-khong-co-canh-bao-nao': (p: { scriptcount: string }) =>
     `${p.scriptcount} script, không có cảnh báo nào`,
-  'author.step-list-fields-chua-co': 'Chưa có',
-  'author.step-list-fields-nao-xuat-ban-se-bi-tu-choi-schema-doi-it-nhat-mot':
-    'nào. Thêm ít nhất một',
+  'author.step-list-fields-chua-co-buoc-nao':
+    'Bài chưa có bước nào. Cần ít nhất một bước thì mới xuất bản được.',
+  'author.step-list-fields-chua-co-task-nao':
+    'Lab chưa có task nào. Cần ít nhất một task thì mới xuất bản được.',
+  'author.step-list-fields-chua-dat-ten': 'Chưa đặt tên',
   'author.step-list-fields-buoc': 'Bước',
   'author.step-list-fields-len': 'Lên',
   'author.step-list-fields-xuong': 'Xuống',
@@ -813,8 +830,10 @@ export const author = {
     'Bỏ trống nghĩa là bước này chỉ dẫn giải, không chấm. Đạt khi exit code = 0.',
   'author.step-list-fields-trong-so': 'Trọng số',
   'author.step-list-fields-bo-trong-thi-loader-ap-1-moi-task-nang-nhu-nhau':
-    'Bỏ trống thì loader áp 1, mọi task nặng như nhau.',
-  'author.step-list-fields-them': 'Thêm',
+    'Bỏ trống thì tính là 1, mọi task nặng như nhau.',
+  'author.step-list-fields-goi-y': 'Gợi ý',
+  'author.step-list-fields-them-buoc': 'Thêm bước',
+  'author.step-list-fields-them-task': 'Thêm task',
   'author.trial-plan-setup-chay-an': (p: { human: string }) => `${p.human}, setup chạy ẩn`,
   'author.trial-plan-setup-hien-trong-terminal': (p: { human: string }) =>
     `${p.human}, setup hiện trong terminal`,
@@ -829,7 +848,6 @@ export const author = {
   'author.trial-plan-chua-chay': 'Chưa chạy',
   'author.trial-plan-dang-cho': 'Đang chờ',
   'author.step-task': 'Task',
-  'author.step-task-noun': 'task',
 
   /*
    * ── Level Builder của game Git, §18.E ────────────────────────────────────
@@ -1053,8 +1071,7 @@ export const author = {
     'Chưa chọn chủ đề nào. Chủ đề là thứ người học dùng để lọc kho bài, nên một bài không chủ đề là một bài không ai tìm thấy.',
   'author.builder.save.issue.qua-nhieu-chu-de':
     'Chọn quá ba chủ đề. Nhiều hơn ba nghĩa là bài đang làm quá nhiều việc cùng lúc.',
-  'author.builder.save.issue.chu-de-la':
-    'Chủ đề này không thuộc tập chủ đề của game Git.',
+  'author.builder.save.issue.chu-de-la': 'Chủ đề này không thuộc tập chủ đề của game Git.',
   'author.builder.save.issue.gia-goi-y-lech-so-luong':
     'Số ô điểm trừ không khớp số gợi ý. Điền bù một số 0 cho ô thiếu sẽ lặng lẽ biến một gợi ý có giá thành gợi ý miễn phí, nên chỗ này chặn thay vì đoán.',
   'author.builder.save.issue.gia-goi-y-ngoai-khoang':

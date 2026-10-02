@@ -1,7 +1,10 @@
 'use client';
 
 import { useState, type ReactElement } from 'react';
+import { Copy, Download, FileInput } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle, Button, Textarea, useToast } from '@devops-platform/ui';
+import { Field } from '../../../components/author/field';
+import { Split } from '../../../components/kit';
 import { t } from '@devops-platform/copy';
 import type { ProblemFormState } from './problem-form';
 import { exportFileName, exportProblemJson, importProblemJson } from './problem-json';
@@ -58,95 +61,92 @@ export function JsonTransfer(props: {
     URL.revokeObjectURL(url);
   };
 
-  return (
-    <section className="flex flex-col gap-5">
-      <h2 className="border-b border-border pb-2 text-lg font-semibold text-foreground">
-        {t('author.problem.json.heading')}
-      </h2>
+  const runImport = (): void => {
+    const result = importProblemJson(text, props.nextKey);
+    if (!result.ok) {
+      setError(result.message);
+      setDropped([]);
+      return;
+    }
+    setError(null);
+    setDropped(result.dropped);
+    props.onImport(result.form);
+    toast({ title: t('author.problem.toast.imported'), description: t('author.problem.toast.imported-body') });
+  };
 
-      <div className="flex flex-col gap-2">
-        <h3 className="text-sm font-semibold text-foreground">{t('author.problem.json.export-heading')}</h3>
-        <p className="text-sm text-muted-foreground">{t('author.problem.json.export-lead')}</p>
+  const copy = (): void => {
+    try {
+      void navigator.clipboard.writeText(exportProblemJson(props.form, props.code));
+      toast({ title: t('author.problem.toast.json-copied') });
+      setError(null);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : t('author.problem.json.copy-failed'));
+    }
+  };
+
+  return (
+    <>
+      <Split index="01" title={t('author.problem.json.export-heading')} aside={t('author.problem.json.export-lead')}>
         <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="outline" onClick={download}>
+          <Button type="button" variant="outline" iconLeft={<Download aria-hidden className="size-4" />} onClick={download}>
             {t('author.problem.json.download')}
           </Button>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => {
-              try {
-                void navigator.clipboard.writeText(exportProblemJson(props.form, props.code));
-                toast({ title: t('author.problem.toast.json-copied') });
-                setError(null);
-              } catch (cause) {
-                setError(cause instanceof Error ? cause.message : t('author.problem.json.copy-failed'));
-              }
-            }}
-          >
+          <Button type="button" variant="outline" iconLeft={<Copy aria-hidden className="size-4" />} onClick={copy}>
             {t('author.problem.json.copy')}
           </Button>
         </div>
-      </div>
+      </Split>
 
-      <div className="flex flex-col gap-2">
-        <h3 className="text-sm font-semibold text-foreground">{t('author.problem.json.import-heading')}</h3>
-        <p className="text-sm text-muted-foreground">{t('author.problem.json.import-lead')}</p>
-        <Textarea
-          aria-label={t('author.problem.json.textarea-label')}
-          className="font-mono text-xs"
-          rows={10}
-          value={text}
-          onChange={(event) => {
-            setText(event.target.value);
-            setError(null);
-            setDropped([]);
-          }}
-        />
-        <div>
-          <Button
-            type="button"
-            disabled={text.trim() === ''}
-            onClick={() => {
-              const result = importProblemJson(text, props.nextKey);
-              if (!result.ok) {
-                setError(result.message);
-                setDropped([]);
-                return;
-              }
-              setError(null);
-              setDropped(result.dropped);
-              props.onImport(result.form);
-              toast({
-                title: t('author.problem.toast.imported'),
-                description: t('author.problem.toast.imported-body'),
-              });
-            }}
-          >
-            {t('author.problem.json.import')}
-          </Button>
+      <Split index="02" title={t('author.problem.json.import-heading')} aside={t('author.problem.json.import-lead')}>
+        <div className="flex flex-col gap-4">
+          <Field label={t('author.problem.json.textarea-label')}>
+            {({ id }) => (
+              <Textarea
+                id={id}
+                className="font-mono text-xs"
+                rows={12}
+                value={text}
+                onChange={(event) => {
+                  setText(event.target.value);
+                  setError(null);
+                  setDropped([]);
+                }}
+              />
+            )}
+          </Field>
+          <div>
+            <Button
+              type="button"
+              variant="ink"
+              disabled={text.trim() === ''}
+              iconLeft={<FileInput aria-hidden className="size-4" />}
+              onClick={runImport}
+            >
+              {t('author.problem.json.import')}
+            </Button>
+          </div>
+
+          {error !== null && (
+            <Alert variant="destructive" className="animate-rise">
+              <AlertTitle>{t('author.problem.json.import-error-title')}</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          {dropped.length > 0 && (
+            <Alert variant="warning" className="animate-rise">
+              <AlertTitle>{t('author.problem.json.dropped-title', { n: dropped.length })}</AlertTitle>
+              <AlertDescription>
+                <ul className="mt-2 flex list-disc flex-col gap-1 pl-5">
+                  {dropped.map((line) => (
+                    <li key={line}>{line}</li>
+                  ))}
+                </ul>
+              </AlertDescription>
+            </Alert>
+          )}
         </div>
-      </div>
-
-      {error !== null && (
-        <Alert variant="destructive">
-          <AlertTitle>{t('author.problem.json.import-error-title')}</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
-      {dropped.length > 0 && (
-        <Alert variant="warning">
-          <AlertTitle>{t('author.problem.json.dropped-title', { n: dropped.length })}</AlertTitle>
-          <AlertDescription>
-            <ul className="mt-2 flex list-disc flex-col gap-1 pl-5">
-              {dropped.map((line) => (
-                <li key={line}>{line}</li>
-              ))}
-            </ul>
-          </AlertDescription>
-        </Alert>
-      )}
-    </section>
+      </Split>
+    </>
   );
 }

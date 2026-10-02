@@ -1,19 +1,19 @@
 'use client';
 
-import { t } from '@devops-platform/copy';
 import type { ReactElement } from 'react';
-import { Checkbox, Label, Switch } from '@devops-platform/ui';
-import type { ResourceKind } from '@devops-platform/games';
-import { issueFor } from '../../../components/author/field';
+import { t } from '@devops-platform/copy';
+import { Switch } from '@devops-platform/ui';
+import { Field, issueFor } from '../../../components/author/field';
+import { CheckTile, CheckTileGroup } from './check-tile';
 import type { FieldIssue } from './cluster-form';
 import type { ProblemFormState } from './problem-form';
 import { RESOURCE_KINDS } from './vocabulary';
 
 /**
- * Giới hạn loại tài nguyên người làm được tạo — cách kiểm soát nhịp của một bài.
+ * Giới hạn loại tài nguyên người làm được tạo: cách kiểm soát nhịp của một bài.
  *
  * ⚠ `null` và `[]` là HAI ý khác nhau: "cho dùng mọi loại" và "không cho tạo gì
- * cả". Một mảng rỗng không phân biệt nổi, nên form giữ một cờ riêng và ô chọn
+ * cả". Một mảng rỗng không phân biệt nổi, nên form giữ cờ riêng và nhóm ô chọn
  * chỉ hiện khi cờ bật.
  */
 export function AllowedResourcesFields(props: {
@@ -21,71 +21,54 @@ export function AllowedResourcesFields(props: {
   readonly onChange: (patch: Partial<ProblemFormState>) => void;
   readonly issues: readonly FieldIssue[];
 }): ReactElement {
+  const { form } = props;
   return (
-    <fieldset className="flex flex-col gap-3">
-      <div className="flex items-center gap-3">
-        <Switch
-          id="problem-restrict"
-          checked={props.form.restrictResources}
-          onCheckedChange={(checked) => {
-            props.onChange({ restrictResources: checked });
-          }}
-        />
-        <Label htmlFor="problem-restrict">
-          {t('problem.allowed-resources-fields-gioi-han-loai-tai-nguyen-nguoi-lam-duoc-tao')}
-        </Label>
-      </div>
-      {!props.form.restrictResources ? (
-        <p className="text-xs text-muted-foreground">
-          {t(
-            'problem.allowed-resources-fields-cho-dung-moi-loai-khac-han-chon-nhung-de-trong-cai-do-nghia-la-khong-tao-du',
-          )}
-        </p>
-      ) : (
-        <>
-          <div className="grid max-h-56 grid-cols-2 gap-2 overflow-y-auto rounded-md border border-border p-3 sm:grid-cols-3">
-            {RESOURCE_KINDS.map((kind) => (
-              <KindBox
-                key={kind}
-                kind={kind}
-                checked={props.form.allowedResources.includes(kind)}
-                onToggle={(next) => {
-                  props.onChange({
-                    allowedResources: next
-                      ? [...props.form.allowedResources, kind]
-                      : props.form.allowedResources.filter((value) => value !== kind),
-                  });
-                }}
-              />
-            ))}
-          </div>
-          {issueFor(props.issues, 'allowedResources') !== null && (
-            <p className="text-xs text-destructive">{issueFor(props.issues, 'allowedResources')}</p>
-          )}
-        </>
+    <div className="flex flex-col gap-3">
+      <Field
+        label={t('problem.allowed-resources-fields-gioi-han-loai-tai-nguyen-nguoi-lam-duoc-tao')}
+        hint={
+          form.restrictResources
+            ? undefined
+            : t(
+                'problem.allowed-resources-fields-cho-dung-moi-loai-khac-han-chon-nhung-de-trong-cai-do-nghia-la-khong-tao-du',
+              )
+        }
+      >
+        {({ id, describedBy }) => (
+          <Switch
+            id={id}
+            aria-describedby={describedBy}
+            checked={form.restrictResources}
+            onCheckedChange={(checked) => {
+              props.onChange({ restrictResources: checked });
+            }}
+          />
+        )}
+      </Field>
+      {form.restrictResources && (
+        <CheckTileGroup
+          legend={t('author.problem.field.allowed-resources')}
+          path="allowedResources"
+          error={issueFor(props.issues, 'allowedResources')}
+          dense
+        >
+          {RESOURCE_KINDS.map((kind) => (
+            <CheckTile
+              key={kind}
+              label={kind}
+              mono
+              checked={form.allowedResources.includes(kind)}
+              onToggle={(next) => {
+                props.onChange({
+                  allowedResources: next
+                    ? [...form.allowedResources, kind]
+                    : form.allowedResources.filter((value) => value !== kind),
+                });
+              }}
+            />
+          ))}
+        </CheckTileGroup>
       )}
-    </fieldset>
-  );
-}
-
-function KindBox(props: {
-  readonly kind: ResourceKind;
-  readonly checked: boolean;
-  readonly onToggle: (next: boolean) => void;
-}): ReactElement {
-  const id = `allowed-${props.kind}`;
-  return (
-    <div className="flex items-center gap-2">
-      <Checkbox
-        id={id}
-        checked={props.checked}
-        onCheckedChange={(checked) => {
-          props.onToggle(checked === true);
-        }}
-      />
-      <Label htmlFor={id} className="font-mono text-xs">
-        {props.kind}
-      </Label>
     </div>
   );
 }
