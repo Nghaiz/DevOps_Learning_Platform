@@ -42,9 +42,9 @@ import type { IntentionalThree, Surface } from '../types.ts';
 export const catalog = {
   // ── Danh từ của năm loại danh mục ──────────────────────────────────────
   //
-  // Tập cố định bởi `CatalogKind`, đúng 5 giá trị (§5.2), nên nhóm này không
-  // rơi vào luật đúng ba. Loại từ dính liền danh từ theo §1.5: `bộ câu hỏi`
-  // chứ không phải `câu hỏi`, vì thứ đếm được ở trang `/quiz` là bộ.
+  // Tập cố định bởi `CatalogKind`, đúng 5 giá trị, nên nhóm này không rơi vào
+  // luật đúng ba. Loại từ dính liền danh từ: `bộ câu hỏi` chứ không phải
+  // `câu hỏi`, vì thứ đếm được ở trang `/quiz` là bộ.
   'catalog.noun.lessons': 'bài học',
   'catalog.noun.labs': 'lab',
   'catalog.noun.playgrounds': 'sân chơi',
@@ -54,49 +54,50 @@ export const catalog = {
   /*
    * ── Hạng sandbox ─────────────────────────────────────────────────────────
    *
-   * Chuyển NGUYÊN VĂN khối chú thích của `catalog-labels.ts:10-15`, vì nó là
-   * chuẩn biên tập chứ không phải một ghi chú kỹ thuật:
-   *
-   *   Tier giữ NGUYÊN tên kỹ thuật, không dịch và không kèm lời hứa (“nhẹ
-   *   hơn”, “an toàn hơn”). Ba runtime này khác nhau ở thứ đo được trên hạ
-   *   tầng cụ thể, và một tính từ dán ở đây sẽ là một khẳng định mà trang danh
-   *   mục không có dữ liệu để bảo vệ.
+   * Tier giữ NGUYÊN tên kỹ thuật, không dịch và không kèm lời hứa (“nhẹ hơn”,
+   * “an toàn hơn”). Ba runtime này khác nhau ở thứ đo được trên hạ tầng cụ
+   * thể, và một tính từ dán ở đây sẽ là một khẳng định mà trang danh mục không
+   * có dữ liệu để bảo vệ.
    */
   'catalog.tier.sysbox': 'Sysbox',
   'catalog.tier.gvisor': 'gVisor',
   'catalog.tier.kata': 'Kata',
 
-  // ── Trạng thái tiến độ của một bài ────────────────────────────────────
+  /*
+   * ── Chủ đề ──────────────────────────────────────────────────────────────
+   *
+   * Đúng bảy giá trị của `CONTENT_TOPICS` (packages/shared-types). Tên công cụ
+   * giữ tiếng Anh; hai mảng có từ tiếng Việt quen tai thì dùng từ đó.
+   */
+  'catalog.topic.linux': 'Linux',
+  'catalog.topic.bash': 'Bash',
+  'catalog.topic.git': 'Git',
+  'catalog.topic.docker': 'Docker',
+  'catalog.topic.kubernetes': 'Kubernetes',
+  'catalog.topic.observability': 'Giám sát',
+  'catalog.topic.networking': 'Mạng',
+
   'catalog.status.not-started': 'Chưa bắt đầu',
   'catalog.status.in-progress': 'Đang học',
   'catalog.status.completed': 'Đã xong',
 
-  // ── Tiêu đề bảy màn ───────────────────────────────────────────────────
   'catalog.title.lessons': 'Bài học',
   'catalog.title.labs': 'Lab',
   'catalog.title.playgrounds': 'Sân chơi',
   'catalog.title.paths': 'Lộ trình',
-  'catalog.title.quiz': 'Quiz',
+  'catalog.title.quiz': 'Trắc nghiệm',
   'catalog.title.games': 'Games',
   'catalog.title.problems': 'Bài tập',
 
   /**
-   * Tiêu đề tài liệu của tám trang danh mục.
-   *
-   * Tách khỏi `catalog.title.*` vì hai thứ khác nhau: `title` là chữ trên
-   * trang, còn cái này là chữ trên tab trình duyệt và trong kết quả tìm kiếm,
-   * nên nó phải mang cả tên sản phẩm. Phân cách bằng dấu chấm giữa chứ không phải gạch
-   * ngang dài, theo luật giọng văn và theo đúng mười khoá meta-title mà bốn
-   * lane khác đã viết.
-   *
-   * `catalog.problem.meta-title` KHÔNG thuộc nhóm này: nó là trang chi tiết và
-   * nhận tham số `code`, còn tám khoá đây là trang danh sách và là hằng.
+   * Tiêu đề tài liệu của các trang danh mục: chữ trên tab trình duyệt và trong
+   * kết quả tìm kiếm, nên nó mang cả tên sản phẩm. Phân cách bằng dấu chấm giữa.
    */
   'catalog.meta-title.lessons': 'Bài học · DevOps Learning Platform',
   'catalog.meta-title.labs': 'Lab · DevOps Learning Platform',
   'catalog.meta-title.playgrounds': 'Sân chơi · DevOps Learning Platform',
   'catalog.meta-title.paths': 'Lộ trình · DevOps Learning Platform',
-  'catalog.meta-title.quiz': 'Quiz · DevOps Learning Platform',
+  'catalog.meta-title.quiz': 'Trắc nghiệm · DevOps Learning Platform',
   'catalog.meta-title.games': 'Games · DevOps Learning Platform',
   'catalog.meta-title.games-k8s': 'Kubernetes Arena · DevOps Learning Platform',
   'catalog.meta-title.games-git': 'Phòng thí nghiệm Git · DevOps Learning Platform',
@@ -104,11 +105,9 @@ export const catalog = {
   'catalog.meta-title.problems': 'Bài tập · DevOps Learning Platform',
 
   /**
-   * Mô tả tài liệu, chỉ ba trang có. Đặt dưới tiền tố của TỪNG trang chứ không
-   * gom thành `catalog.meta-description.*`: gom lại thì đó là một nhóm đúng ba
-   * thành viên, và T3 sẽ đòi một lời khai rằng ba là con số đóng. Ba ở đây
-   * không đóng, nó chỉ là ba trang tình cờ có mô tả. Khai bừa một nhóm ba cố ý
-   * là nói dối chính cái cổng đang hỏi.
+   * Mô tả tài liệu, chỉ vài trang có. Đặt dưới tiền tố của TỪNG trang chứ không
+   * gom thành `catalog.meta-description.*`: gom lại thì số thành viên là chuyện
+   * tình cờ, và cổng nhóm ba sẽ đòi một lời khai cho một con số không đóng.
    */
   'catalog.problems.meta-description':
     'Danh sách bài tập Kubernetes có lọc theo độ khó, chủ đề, tag và trạng thái của bạn.',
@@ -121,16 +120,24 @@ export const catalog = {
   'catalog.games.cicd-meta-description':
     'Xếp job CI thành đồ thị phụ thuộc rồi chỉnh cho nhanh và ổn định: runner, cache, retry, đường găng.',
 
-  // ── Đoạn dẫn của bảy màn ──────────────────────────────────────────────
-  'catalog.lead.lessons': 'Mỗi bài mở một sandbox riêng. Tiến độ chỉ mình bạn thấy.',
+  /*
+   * Nhãn mono trên đầu trang: tên section, rồi số mục THẬT. Số tới từ máy chủ
+   * (tổng đã xuất bản) hoặc từ danh sách đã tải hết; không có số thì chỉ in tên
+   * section, không in một con số đoán.
+   */
+  'catalog.kicker': (p: { section: string; n: number; noun: string }) =>
+    `${p.section} · ${p.n} ${p.noun}`,
+
+  'catalog.lead.lessons':
+    'Làm theo từng bước, gõ lệnh trên máy ảo của riêng bạn. Bước nào cũng có nút Kiểm tra.',
   'catalog.lead.labs':
-    'Giải quyết nhiệm vụ trên môi trường thật.',
+    'Đề chỉ nói cần đạt trạng thái gì, cách làm do bạn chọn. Máy chấm từng nhiệm vụ bằng script.',
   'catalog.lead.playgrounds':
-    'Môi trường trống để thử lệnh và dựng hệ thống.',
+    'Máy trống có hạn giờ. Thử lệnh, dựng thử một hệ thống, hỏng thì mở máy khác.',
   'catalog.lead.paths':
-    'Học theo thứ tự, theo dõi từng chặng.',
+    'Bài học, lab và trắc nghiệm xếp sẵn theo thứ tự. Đi hết một tuyến là nắm được một mảng.',
   'catalog.lead.quiz':
-    'Trả lời câu hỏi. Xem điểm và giải thích sau khi nộp.',
+    'Vài câu hỏi ngắn để tự kiểm lại phần vừa học. Nộp bài xong mới thấy đáp án và giải thích.',
   'catalog.lead.games':
     'Game chạy hoàn toàn trong trình duyệt: không tốn sandbox, không cần đăng nhập, tiến độ lưu ngay trên máy bạn. Độ khó ghi trên thẻ là mức lúc BẮT ĐẦU, mỗi game còn tăng dần qua nhiều level.',
   'catalog.lead.problems':
@@ -138,92 +145,77 @@ export const catalog = {
 
   // ── Thanh công cụ ─────────────────────────────────────────────────────
   'catalog.toolbar.all': 'Tất cả',
+  'catalog.toolbar.topic-legend': 'Chủ đề',
   'catalog.toolbar.difficulty-legend': 'Độ khó',
   'catalog.toolbar.tier-legend': 'Sandbox',
-
-  /*
-   * Nhãn nói “trong trang” NGAY TRÊN điều khiển, không chờ tới câu cảnh báo
-   * bên dưới: không procedure danh mục nào nhận tham số sắp xếp, nên một nhãn
-   * “Sắp xếp” trần đã là lời khẳng định về một thứ tự toàn kho mà sản phẩm
-   * không có.
-   */
-  'catalog.toolbar.sort-label': 'Sắp xếp (trong trang)',
-
+  'catalog.toolbar.sort-label': 'Sắp xếp',
+  'catalog.toolbar.search-label': 'Tìm theo tên',
   'catalog.toolbar.search-placeholder': 'Tên hoặc mô tả',
 
   /*
-   * Tên của vùng `role="search"`. BẮT BUỘC khác nhau giữa các màn: bảy màn có
-   * cùng một vùng tìm kiếm, nên một tên chung sẽ cho cây hỗ trợ tiếp cận bảy
+   * Tên của vùng `role="search"`. BẮT BUỘC khác nhau giữa các màn: nhiều màn có
+   * cùng một vùng tìm kiếm, nên một tên chung sẽ cho cây hỗ trợ tiếp cận nhiều
    * vùng “search” không phân biệt được.
    */
   'catalog.toolbar.search-region': (p: { noun: string }) => `Tìm trong danh sách ${p.noun}`,
   'catalog.toolbar.search-region-games': 'Tìm trong danh sách game',
 
-  // ── Nhãn thứ tự sắp xếp ───────────────────────────────────────────────
-  'catalog.sort.stock': 'Thứ tự kho',
-  'catalog.sort.title': 'Tên A tới Z',
-  'catalog.sort.difficulty': 'Dễ đến khó',
-  'catalog.sort.duration': 'Ngắn đến dài',
-  'catalog.sort.steps': 'Ít bước đến nhiều',
-  'catalog.sort.tasks': 'Ít nhiệm vụ đến nhiều',
-  'catalog.sort.questions': 'Ít câu đến nhiều',
-  'catalog.sort.parts': 'Ít phần đến nhiều',
-  'catalog.sort.ttl': 'TTL ngắn đến dài',
+  /*
+   * Câu nhắc phạm vi, đúng MỘT câu, đứng ngay dưới ô tìm và chỉ hiện khi nó có
+   * tin: đang tìm hoặc đang sắp xếp, và danh sách còn phần chưa tải. Máy chủ
+   * không nhận từ khoá lẫn thứ tự tự chọn, nên cả hai chỉ chạy trên phần đã tải.
+   */
+  'catalog.toolbar.scope': (p: { loaded: number; noun: string }) =>
+    `Tìm và sắp xếp trong ${p.loaded} ${p.noun} đã tải. Bấm Xem thêm để tải tiếp.`,
 
-  // ── Ô thông tin trên thẻ ──────────────────────────────────────────────
+  'catalog.sort.stock': 'Mặc định',
+  'catalog.sort.title': 'Tên, A tới Z',
+  'catalog.sort.difficulty': 'Dễ trước',
+  'catalog.sort.duration': 'Ngắn trước',
+  'catalog.sort.steps': 'Ít bước trước',
+  'catalog.sort.tasks': 'Ít nhiệm vụ trước',
+  'catalog.sort.questions': 'Ít câu trước',
+  'catalog.sort.parts': 'Ít phần trước',
+  'catalog.sort.ttl': 'Hạn giờ ngắn trước',
+
+  // ── Thông tin mono trên một dòng của bảng ─────────────────────────────
   //
-  // `unit.step` và `unit.task` của L0 chở đúng hai trong số này, nên nơi gọi
-  // dùng thẳng khoá `unit.*` cho chúng và không có bản sao ở đây. Năm ô còn
-  // lại mang thêm chữ ngoài con số nên chúng là slot riêng.
+  // `unit.step` và `unit.task` của common chở hai ô còn lại, nên nơi gọi dùng
+  // thẳng khoá `unit.*` cho chúng và không có bản sao ở đây.
   'catalog.meta.duration': (p: { minutes: number }) => `~${p.minutes} phút`,
   'catalog.meta.threshold': (p: { percent: number }) => `Đạt từ ${p.percent}%`,
   'catalog.meta.questions': (p: { n: number }) => `${p.n} câu`,
   'catalog.meta.parts': (p: { n: number }) => `${p.n} phần`,
-  'catalog.meta.ttl': (p: { minutes: number }) => `Tự đóng sau ${p.minutes} phút`,
+  'catalog.meta.ttl': (p: { minutes: number }) => `Hạn ${p.minutes} phút`,
 
-  // ── Nhãn cho thuộc tính chỉ một số mục có ─────────────────────────────
   'catalog.flag.leaderboard': 'Có xếp hạng',
   'catalog.flag.sequential': 'Học tuần tự',
 
-  // ── Phân trang ────────────────────────────────────────────────────────
-  'catalog.pager.region': 'Phân trang danh mục',
-  'catalog.pager.first': 'Về đầu',
-  'catalog.pager.page': (p: { page: number }) => `Trang ${p.page}`,
-  'catalog.pager.end': 'Hết danh sách',
+  'catalog.board.label': (p: { noun: string }) => `Danh sách ${p.noun}`,
+  'catalog.loading.list': 'Đang tải danh sách',
 
   /*
-   * ── Câu tự đính chính phạm vi ────────────────────────────────────────────
+   * ── Xem thêm ─────────────────────────────────────────────────────────────
    *
-   * Chuyển NGUYÊN VĂN khối chú thích của `catalog-labels.ts:39-50`:
+   * Danh sách tải thêm theo từng lượt, không phân trang. Máy chủ trả
+   * `nextCursor` (còn hay hết) chứ không trả tổng, nên dòng đếm nói về phần
+   * ĐANG HIỆN và nói “còn nữa”, không in một tổng tự đoán.
    *
-   *   Câu này KHÔNG được khẳng định tổng số mục trong kho. Server trả
-   *   `nextCursor` (còn hay hết) chứ không trả tổng; một dòng kiểu “5/42 bài”
-   *   sẽ là con số bịa, đúng hạng lỗi nhãn khẳng định quá dữ liệu mà P2 đã trả
-   *   giá.
-   *
-   *   Trang 1 mà không còn trang sau thì KHÔNG in dòng nào: danh sách trước
-   *   mắt CHÍNH LÀ toàn bộ kết quả, không có gì để đính chính.
+   * `catalog.pager.page` là tiêu đề của ô lỗi khi một lượt tải thêm hỏng: các
+   * mục đã hiện vẫn ở đó, chỉ lượt đó không về.
    */
-  'catalog.scope.page-more': (p: { page: number; shown: number; noun: string }) =>
-    `Trang ${p.page} · ${p.shown} ${p.noun}. Danh sách còn tiếp, bấm “Tiếp” để xem phần sau.`,
-  'catalog.scope.page-last': (p: { page: number; shown: number; noun: string }) =>
-    `Trang ${p.page} · ${p.shown} ${p.noun}. Đây là trang cuối.`,
-  'catalog.scope.sort': (p: { shown: number }) =>
-    `Sắp xếp chỉ áp dụng cho ${p.shown} mục của trang này. Máy chủ trả theo thứ tự kho, nên trang sau có thể chứa mục lẽ ra đứng trước.`,
-  'catalog.scope.search': (p: { loaded: number }) =>
-    `Ô tìm chỉ soi ${p.loaded} mục của trang này. Máy chủ không nhận từ khoá, nên một mục khớp ở trang sau vẫn không hiện ra đây.`,
+  'catalog.pager.more': 'Xem thêm',
+  'catalog.pager.page': (p: { page: number }) => `Không tải được lượt thứ ${p.page}`,
 
-  // ── Dòng đếm kết quả ──────────────────────────────────────────────────
-  //
-  // Bốn tổ hợp viết thành bốn mục tĩnh thay vì một câu ghép tại chỗ: ghép
-  // chuỗi ở nơi gọi thì ba trong bốn nhánh không đi qua cổng nào.
   'catalog.count.plain': (p: { shown: number; noun: string }) => `${p.shown} ${p.noun}`,
-  'catalog.count.in-page': (p: { shown: number; noun: string }) =>
-    `${p.shown} ${p.noun} trong trang này`,
+  'catalog.count.more': (p: { shown: number; noun: string }) =>
+    `Đang hiện ${p.shown} ${p.noun}, còn nữa`,
   'catalog.count.filtered': (p: { shown: number; noun: string }) =>
     `${p.shown} ${p.noun} khớp bộ lọc`,
-  'catalog.count.filtered-in-page': (p: { shown: number; noun: string }) =>
-    `${p.shown} ${p.noun} khớp bộ lọc trong trang này`,
+  'catalog.count.filtered-more': (p: { shown: number; noun: string }) =>
+    `${p.shown} ${p.noun} khớp bộ lọc, còn nữa`,
+  'catalog.count.searched': (p: { shown: number; loaded: number; noun: string }) =>
+    `${p.shown} trong ${p.loaded} ${p.noun} đã tải khớp từ khoá`,
 
   /*
    * ── Trạng thái rỗng ─────────────────────────────────────────────────────
@@ -231,89 +223,81 @@ export const catalog = {
    * Năm ca, và chúng KHÁC NHAU ở việc người đọc phải làm gì tiếp. Thứ tự kiểm
    * là một phần của hợp đồng, và nó nằm ở `describeCatalogEmpty`.
    *
-   * Ca `search` là ca MỚI của 16.C và nó không gộp được vào ca `filter`: bộ
-   * lọc chạy ở server nên “không khớp” là câu trả lời về cả kho đã lọc, còn ô
-   * tìm chạy trên trang đang mở nên “không khớp” chỉ nói về trang đó. Gộp hai
-   * ca là để một trong hai câu nói quá dữ liệu nó có.
+   * Ca `search` không gộp được vào ca `filter`: bộ lọc chạy ở máy chủ nên
+   * “không khớp” là câu trả lời về cả kho đã lọc, còn ô tìm chạy trên phần đã
+   * tải nên “không khớp” chỉ nói về phần đó.
    */
-  'catalog.empty.page.title': (p: { page: number; noun: string }) =>
-    `Trang ${p.page} không còn ${p.noun} nào`,
+  'catalog.empty.page.title': 'Danh sách vừa thay đổi',
   'catalog.empty.page.body':
-    'Nội dung có thể vừa thay đổi kể từ lúc bạn mở trang. Quay về đầu danh sách để xem lại.',
+    'Nội dung đã đổi kể từ lúc bạn mở trang. Tải lại từ đầu để xem bản mới.',
 
-  'catalog.empty.filter.title': (p: { noun: string }) => `Không có ${p.noun} nào khớp bộ lọc`,
-  'catalog.empty.filter.body':
-    'Kho vẫn có thể còn mục khác, bỏ bớt điều kiện lọc để xem rộng hơn.',
+  'catalog.empty.filter.title': (p: { noun: string }) => `Chưa có ${p.noun} nào khớp bộ lọc`,
+  'catalog.empty.filter.body': 'Bỏ bớt điều kiện xem.',
 
   'catalog.empty.search.title': (p: { noun: string }) =>
-    `Không có ${p.noun} nào trong trang này khớp từ khoá`,
+    `Chưa thấy ${p.noun} nào khớp trong phần đã tải`,
   'catalog.empty.search.body': (p: { loaded: number }) =>
-    `Ô tìm chỉ soi ${p.loaded} mục đã tải. Bấm “Tiếp” để sang trang sau rồi tìm lại, hoặc xoá từ khoá để xem cả trang.`,
+    `Mới tìm trong ${p.loaded} mục. Bấm Xem thêm rồi tìm lại, hoặc xoá từ khoá.`,
 
   'catalog.empty.search-last.title': (p: { noun: string }) =>
     `Không có ${p.noun} nào khớp từ khoá`,
   'catalog.empty.search-last.body': (p: { loaded: number }) =>
-    `Đã soi hết ${p.loaded} mục của danh sách. Xoá từ khoá để xem lại toàn bộ.`,
+    `Đã tìm hết ${p.loaded} mục. Thử từ khác, hoặc xoá từ khoá để xem lại cả danh sách.`,
 
   'catalog.empty.blank.title': (p: { noun: string }) => `Chưa có ${p.noun} nào`,
   'catalog.empty.author.body': (p: { noun: string }) =>
-    `Bạn có quyền soạn bài. Mở trang Soạn bài để tạo ${p.noun} đầu tiên, rồi xuất bản để người học thấy nó ở đây.`,
+    `Bạn có quyền soạn bài. Tạo ${p.noun} đầu tiên trong Xưởng soạn rồi xuất bản, người học sẽ thấy nó ở đây.`,
 
   /*
    * Gợi ý cho người học khi một trụ cột còn trống. Mỗi gợi ý trỏ sang một trụ
-   * cột KHÁC; trỏ về chính trang đang rỗng là một vòng lặp, không phải một lối
-   * ra.
+   * cột KHÁC; trỏ về chính trang đang rỗng là một vòng lặp, không phải lối ra.
    */
   'catalog.empty.learner.lessons':
-    'Chưa có bài nào được xuất bản. Trong lúc chờ, mở một sân chơi để luyện lệnh trong sandbox trống.',
+    'Chưa có bài nào được xuất bản. Trong lúc chờ, mở một sân chơi để gõ lệnh trên máy trống.',
   'catalog.empty.learner.labs':
-    'Chưa có lab nào được xuất bản. Bài học có sẵn phần thực hành từng bước, bắt đầu ở đó trước.',
+    'Chưa có lab nào được xuất bản. Bài học có phần thực hành từng bước, bắt đầu ở đó trước.',
   'catalog.empty.learner.playgrounds':
-    'Chưa có sân chơi nào. Bài học cũng mở sandbox riêng, nên bạn vẫn gõ lệnh thật được ở đó.',
+    'Chưa có sân chơi nào. Bài học cũng mở máy ảo riêng, bạn vẫn gõ lệnh thật được ở đó.',
   'catalog.empty.learner.paths':
     'Chưa có lộ trình nào được xuất bản. Bạn vẫn chọn được từng bài lẻ theo ý mình.',
   'catalog.empty.learner.quiz':
-    'Chưa có bộ câu hỏi nào được xuất bản. Làm một lab để tự kiểm bằng thao tác thật trước đã.',
+    'Chưa có bộ câu hỏi nào được xuất bản. Làm một lab để tự kiểm bằng thao tác thật.',
 
   'catalog.empty.games.title': 'Không có game nào khớp bộ lọc',
   /*
    * ⚠ Bản cũ viết "Bốn game vẫn ở đó". `games-catalog.ts` có NĂM mục, nên câu
    * đó đã sai từ lúc mục thứ năm được thêm, và sai trong im lặng: không cổng
-   * nào đếm giúp một con số nằm trong văn xuôi. Bỏ số đi là cách duy nhất làm
-   * câu này không hỏng lại ở lần thêm game tiếp theo; cần nói số thì dùng
+   * nào đếm giúp một con số nằm trong văn xuôi. Cần nói số thì dùng
    * `catalog.games.count`, khoá đó nhận tham số.
    */
   'catalog.empty.games.body': 'Các game vẫn ở đó, bỏ bớt điều kiện lọc để xem lại toàn bộ.',
 
-  // ── Nhãn hành động của trạng thái rỗng ────────────────────────────────
-  'catalog.action.first-page': 'Về đầu danh sách',
-  'catalog.action.author': 'Mở trang Soạn bài',
+  'catalog.action.first-page': 'Tải lại từ đầu',
+  'catalog.action.author': 'Mở Xưởng soạn',
   'catalog.action.browse-lessons': 'Xem bài học',
   'catalog.action.browse-labs': 'Xem lab',
   'catalog.action.browse-playgrounds': 'Mở sân chơi',
   'catalog.action.clear-search': 'Xoá từ khoá',
   'catalog.action.clear-filter': 'Xoá bộ lọc',
 
-  // ── Tiêu đề ô lỗi ─────────────────────────────────────────────────────
   'catalog.error-title.lessons': 'Không tải được danh sách bài học',
   'catalog.error-title.labs': 'Không tải được danh sách lab',
   'catalog.error-title.playgrounds': 'Không tải được danh sách sân chơi',
   'catalog.error-title.paths': 'Không tải được danh sách lộ trình',
-  'catalog.error-title.quiz': 'Không tải được danh sách quiz',
+  'catalog.error-title.quiz': 'Không tải được danh sách trắc nghiệm',
   'catalog.error-title.problems': 'Không tải được danh sách bài',
 
   /*
    * Câu phụ dưới ô lỗi, một câu cho mỗi lớp lỗi mà `describeCatalogError` phân
-   * biệt. Trang 1 của lớp thử lại được KHÔNG có câu nào, và đó là chủ ý: chính
-   * `message` của server đã nói “Chưa đọc được kho nội dung” và nút Thử lại đã
-   * là bước tiếp theo, nên một dòng nữa ở đây chỉ chép lại câu ngay phía trên.
+   * biệt. Lượt tải đầu của lớp thử lại được KHÔNG có câu nào: `message` của máy
+   * chủ đã nói chuyện gì xảy ra và nút Thử lại đã là bước tiếp theo.
    */
   'catalog.error-hint.stale-cursor': (p: { page: number }) =>
-    `Mốc phân trang của trang ${p.page} không còn trong kho, nên tải lại sẽ ra đúng lỗi này. Quay về đầu danh sách để đọc tiếp.`,
+    `Mốc tải tiếp của lượt ${p.page} không còn trong kho, nên thử lại vẫn ra lỗi này. Tải lại từ đầu để đọc tiếp.`,
   'catalog.error-hint.retryable-midway': (p: { page: number }) =>
-    `Chỗ đang đọc được giữ nguyên. Thử lại sẽ nạp lại đúng trang ${p.page}, không đưa bạn về đầu.`,
+    `Các mục đã hiện vẫn giữ nguyên. Thử lại sẽ tải đúng lượt ${p.page}.`,
   'catalog.error-hint.unknown-midway':
-    'Nếu thử lại vẫn lỗi, quay về đầu danh sách để đọc tiếp.',
+    'Nếu thử lại vẫn lỗi, tải lại từ đầu.',
 
   // ── Games ─────────────────────────────────────────────────────────────
   //
@@ -745,7 +729,7 @@ export const catalog = {
   // chính luật đó: `state` tới từ `paths.get` và cổng thi hành là
   // `paths.openItem`. Câu chữ ở đây vì vậy không được hứa hay từ chối điều gì,
   // nó chỉ thuật lại thứ server vừa nói.
-  'catalog.path.back': 'Lộ trình',
+  'catalog.path.back': 'Tất cả lộ trình',
   'catalog.path.loading': 'Đang tải lộ trình',
   'catalog.path.error-title': 'Không mở được lộ trình này',
   'catalog.path.sequential': 'Học tuần tự: phần sau mở khi phần trước đạt',
@@ -753,13 +737,20 @@ export const catalog = {
   'catalog.path.reload': 'Tải lại',
   'catalog.path.empty-title': 'Lộ trình này chưa có phần nào',
   'catalog.path.empty-body':
-    'Người soạn chưa xếp nội dung vào đây. Bạn có thể học tự do ở danh mục bài học.',
-  'catalog.path.empty-cta': 'Xem danh mục bài học',
-  'catalog.path.kind-lesson': 'Bài học',
-  'catalog.path.state-passed': 'Đã đạt',
-  'catalog.path.state-available': 'Mở',
-  'catalog.path.state-locked': 'Còn khoá',
-  'catalog.path.note-locked': 'Còn khoá, hoàn thành phần trước đó thì phần này tự mở.',
+    'Người soạn chưa xếp bài vào đây. Trong lúc chờ, bạn chọn bài lẻ ở trang Bài học.',
+  'catalog.path.empty-cta': 'Xem bài học',
+  'catalog.path.stations': 'Các phần của lộ trình',
+  'catalog.path.meter': 'Tiến độ lộ trình',
+
+  // Ba loại mắt xích và ba trạng thái: hai union đóng, xem `catalogIntentionalThree`.
+  'catalog.path.kind.lesson': 'Bài học',
+  'catalog.path.kind.lab': 'Lab',
+  'catalog.path.kind.quiz': 'Trắc nghiệm',
+  'catalog.path.state.passed': 'Đã đạt',
+  'catalog.path.state.available': 'Đã mở',
+  'catalog.path.state.locked': 'Còn khoá',
+
+  'catalog.path.note-locked': 'Còn khoá, hoàn thành phần trước thì phần này tự mở.',
 
   /*
    * `title === null` = mắt xích trỏ tới nội dung không còn nạp được. Câu này
@@ -767,38 +758,34 @@ export const catalog = {
    * phải thấy. Nó ĐỘC LẬP với ổ khoá, một item vừa khoá vừa thủng hiện cả hai.
    */
   'catalog.path.note-missing':
-    'Không nạp được nội dung này (đã lưu trữ hoặc sai mã), hãy báo người soạn lộ trình.',
+    'Không nạp được nội dung này (đã lưu trữ hoặc sai mã). Báo người soạn lộ trình.',
 
   /*
    * Nhãn nói ĐÚNG thứ hệ thống biết: đã đạt bao nhiêu phần trên bao nhiêu, và
    * phần nào nên làm tiếp. Nó KHÔNG biết người học đã bỏ ra bao lâu, nên không
-   * có nhãn thời lượng nào ở màn này. Bẫy đã trả giá ở P2: một nhãn từng nói
-   * “4/4 bước” từ đúng một lượt chấm.
+   * có nhãn thời lượng nào ở màn này.
    */
   'catalog.path.progress': (p: { passed: number; total: number }) =>
     `Đã đạt ${p.passed}/${p.total} phần`,
-  'catalog.path.ordinal': (p: { n: number; kind: string }) => `${p.n}. ${p.kind}`,
   'catalog.path.next': (p: { name: string }) => `Nên làm tiếp: ${p.name}`,
+  'catalog.path.next-action': 'Làm tiếp',
   'catalog.path.all-done': 'Bạn đã đạt tất cả các phần của lộ trình này.',
   'catalog.path.open-failed': (p: { reason: string }) =>
-    `${p.reason} Bấm “Tải lại” để xem trạng thái mới nhất.`,
+    `${p.reason} Bấm Tải lại để xem trạng thái mới nhất.`,
 
   /*
    * ── Làm một bộ câu hỏi (`/quiz/[id]`) ────────────────────────────────────
    *
-   * Số nhiều `catalog.title.quiz` là màn DANH SÁCH, `catalog.quiz.*` là màn
-   * LÀM BÀI. Cùng cách chia như `catalog.problems.*` so với `catalog.problem.*`.
-   *
    * ⛔ KHÔNG có khoá nào ở đây nói một lựa chọn là đúng hay sai TRƯỚC khi nộp.
    * `QuizForLearner` khai `isCorrect`/`explanation` là `never`, nên client
    * không có dữ liệu để suy, và một câu chữ nằm sẵn ở đây sẽ là lối duy nhất
-   * để lộ điều đó ra. Ba nhãn `reveal-*` chỉ dựng được sau khi `quiz.submit`
+   * để lộ điều đó ra. Ba nhãn `reveal.*` chỉ dựng được sau khi `quiz.submit`
    * trả kết quả.
    */
-  'catalog.quiz.back': 'Quiz',
+  'catalog.quiz.back': 'Trắc nghiệm',
   'catalog.quiz.loading-title': 'Đang tải',
-  'catalog.quiz.loading-sr': 'Đang tải quiz',
-  'catalog.quiz.error-title': 'Không mở được quiz này',
+  'catalog.quiz.loading-sr': 'Đang tải bộ câu hỏi',
+  'catalog.quiz.error-title': 'Không mở được bộ câu hỏi này',
 
   /*
    * Quy tắc chấm hiện TRƯỚC câu hỏi đầu tiên, và câu chữ chọn theo
@@ -811,53 +798,58 @@ export const catalog = {
   'catalog.quiz.threshold': (p: { percent: number }) =>
     `Đạt từ ${p.percent}% số câu. Làm lại bao nhiêu lần cũng được.`,
 
+  'catalog.quiz.question': (p: { n: number }) => `Câu ${p.n}`,
+
   /*
-   * Tiến độ TRẢ LỜI, không phải tiến độ ĐÚNG. Bẫy P2 ở dạng quiz: một nhãn
-   * "đã làm 5/5 câu" cạnh nút Nộp rất dễ đọc thành "5/5 đúng", nên nhãn phải tự
-   * nói ra nó đếm câu ĐÃ CHỌN.
+   * Tiến độ TRẢ LỜI, không phải tiến độ ĐÚNG: một nhãn "5/5 câu" cạnh nút Nộp
+   * rất dễ đọc thành "5/5 đúng", nên nhãn phải tự nói ra nó đếm câu ĐÃ CHỌN.
    */
   'catalog.quiz.progress': (p: { answered: number; total: number }) =>
     `Đã chọn đáp án cho ${p.answered}/${p.total} câu`,
   'catalog.quiz.progress-caveat': (p: { blank: number }) =>
-    `Còn ${p.blank} câu chưa chọn, câu bỏ trống tính là sai và vẫn nằm ở mẫu số.`,
+    `Còn ${p.blank} câu chưa chọn. Vẫn nộp được, câu bỏ trống tính là sai.`,
+
+  // Phiếu trả lời dính đáy trang: mỗi ô là một câu, bấm để nhảy tới câu đó.
+  'catalog.quiz.sheet': 'Phiếu trả lời',
+  'catalog.quiz.sheet-cell': (p: { n: number; state: string }) => `Câu ${p.n}, ${p.state}`,
+  'catalog.quiz.cell.answered': 'đã chọn',
+  'catalog.quiz.cell.blank': 'chưa chọn',
 
   /*
-   * Bốn vai trò của một lựa chọn sau khi nộp, ba trong số đó có nhãn chữ.
-   * "Bỏ lỡ một đáp án đúng" và "chọn một đáp án sai" là HAI chuyện khác nhau,
-   * và gộp chúng thành "sai" bỏ mất đúng thứ người học cần để hiểu mình sai ở
-   * đâu. Vai trò `none` cố ý không có nhãn: nó là trạng thái trước khi nộp.
+   * Ba vai trò của một lựa chọn sau khi nộp có nhãn chữ; vai trò thứ tư
+   * (`none`) cố ý không có, vì nó là trạng thái trước khi nộp. "Bỏ lỡ một đáp
+   * án đúng" và "chọn một đáp án sai" là HAI chuyện khác nhau.
    */
-  'catalog.quiz.reveal-correct': 'Bạn chọn đúng',
-  'catalog.quiz.reveal-missed': 'Đáp án đúng, bạn chưa chọn',
-  'catalog.quiz.reveal-wrong-pick': 'Bạn chọn nhưng không đúng',
+  'catalog.quiz.reveal.correct': 'Bạn chọn đúng',
+  'catalog.quiz.reveal.missed': 'Đáp án đúng, bạn chưa chọn',
+  'catalog.quiz.reveal.wrong-pick': 'Bạn chọn, nhưng sai',
 
   'catalog.quiz.pick-one': 'Chọn một đáp án',
-  'catalog.quiz.pick-many': 'Chọn nhiều đáp án',
+  'catalog.quiz.pick-many': 'Chọn mọi đáp án đúng',
   'catalog.quiz.answer-correct': 'Đúng',
   'catalog.quiz.answer-wrong': 'Chưa đúng',
+  'catalog.quiz.explanation': 'Giải thích',
 
   'catalog.quiz.submit': 'Nộp bài',
-  'catalog.quiz.submit-with-blanks': 'Bạn vẫn nộp được khi còn câu bỏ trống, chúng sẽ tính là sai.',
   'catalog.quiz.restart': 'Làm lại từ đầu',
 
   /*
    * Hai khoá cho một thông báo, vì nửa đầu chở câu lỗi của máy chủ còn nửa sau
    * là câu của chúng ta. Ghép thành một khoá thì bản đồ phải đoán câu kia có
-   * kết thúc bằng dấu chấm hay không, và đoán sai ra hai dấu chấm liền nhau.
+   * kết thúc bằng dấu chấm hay không.
    */
   'catalog.quiz.submit-failed': (p: { reason: string }) => `Không nộp được bài: ${p.reason}`,
   'catalog.quiz.submit-failed-note':
-    'Các lựa chọn của bạn vẫn còn trên màn hình, bấm Nộp bài để thử lại.',
+    'Các lựa chọn vẫn còn nguyên, bấm Nộp bài để thử lại.',
 
   // Mốc đi kèm điểm: "60%" một mình không nói được đạt hay chưa.
+  'catalog.quiz.result-title': 'Kết quả',
   'catalog.quiz.score': (p: { correct: number; total: number; percent: number }) =>
     `${p.correct}/${p.total} câu · ${p.percent}%`,
+  'catalog.quiz.score-meter': 'Điểm bài làm',
   'catalog.quiz.verdict-pass': (p: { threshold: number }) => `Đạt (mốc ${p.threshold}%)`,
   'catalog.quiz.verdict-fail': (p: { threshold: number }) => `Chưa đạt (mốc ${p.threshold}%)`,
   'catalog.quiz.attempt-number': (p: { n: number }) => `Lần làm thứ ${p.n}`,
-
-  // ── Khung chờ tải ─────────────────────────────────────────────────────
-  'catalog.loading.grid': 'Đang tải danh sách',
 } as const satisfies Surface<'catalog'>;
 
 /**
