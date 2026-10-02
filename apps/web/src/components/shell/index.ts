@@ -34,7 +34,10 @@ export { useViewer } from './viewer-context';
 export {
   PRIMARY_NAV,
   userMenuItems,
-  navSectionsFor,
+  sectionsFor,
+  sectionById,
+  activeSection,
+  NAV_SECTIONS,
   isActiveNav,
   activeNavItem,
   normalizeRole,
@@ -42,10 +45,11 @@ export {
 export type {
   NavItem,
   PrimaryNavItem,
-  NavGroup,
+  SectionId,
+  SectionTone,
+  NavSectionDef,
   NavIconName,
   NavAudience,
-  NavSection,
   Viewer,
   ViewerRole,
 } from './nav';

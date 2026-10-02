@@ -80,10 +80,10 @@ export function UserMenu({ viewer }: { readonly viewer: Viewer }) {
           `aria-hidden` cho hình tròn, tên khả truy cập do `sr-only` cấp: chuỗi
           hai chữ cái đọc lên là vô nghĩa với trình đọc màn hình.
         */}
-        <Button variant="ghost" size="sm" className="w-8 px-0">
+        <Button variant="ghost" size="sm" className="size-10 px-0 hover:bg-chrome-foreground/10">
           <span
             aria-hidden="true"
-            className="flex size-7 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-secondary-foreground"
+            className="flex size-8 items-center justify-center bg-signal font-mono text-xs font-bold text-signal-foreground"
           >
             {avatarInitials(viewer.name, viewer.email)}
           </span>
@@ -101,6 +101,9 @@ export function UserMenu({ viewer }: { readonly viewer: Viewer }) {
           </span>
           <span className="block truncate text-xs font-normal text-muted-foreground">
             {viewer.email}
+          </span>
+          <span className="mt-2 inline-block bg-muted px-1.5 py-0.5 type-label text-muted-foreground">
+            {t(`shell.account.role.${viewer.role}` as const)}
           </span>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
