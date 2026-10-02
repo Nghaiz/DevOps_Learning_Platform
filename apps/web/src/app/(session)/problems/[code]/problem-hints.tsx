@@ -3,7 +3,7 @@
 import type { CSSProperties, ReactElement } from 'react';
 import { Lightbulb, Lock } from 'lucide-react';
 import { t } from '@devops-platform/copy';
-import { Alert, AlertDescription, Button, Num } from '@devops-platform/ui';
+import { Alert, AlertDescription, Button } from '@devops-platform/ui';
 import type { ProblemHintTeaser } from '@devops-platform/games';
 
 /**
@@ -14,8 +14,8 @@ import type { ProblemHintTeaser } from '@devops-platform/games';
  *
  * 1. **Mở từng cái.** Không có nút "mở hết": mỗi lần mở là một quyết định đánh
  *    đổi riêng.
- * 2. **Nói giá TRƯỚC khi bấm.** Số điểm trừ đứng ngay trên dòng và nằm trong
- *    nhãn nút, không nấp trong một hộp thoại hiện ra sau cú bấm đầu.
+ * 2. **Nói số điểm trừ TRƯỚC khi bấm.** Con số nằm trong nhãn nút (một chỗ,
+ *    không lặp lại bên cạnh), không nấp trong một hộp thoại hiện ra sau cú bấm đầu.
  * 3. **Mở rồi thì không đóng lại được về mặt tính điểm.** Máy chủ ghi lượt mở vào
  *    `problem_hint_reveals`; tải lại trang không xoá dấu vết và cũng không trừ
  *    thêm lần nữa.
@@ -82,23 +82,18 @@ export function ProblemHints(props: {
                     {t('problem.oj.hints.author')}
                   </span>
                 ) : (
-                  <>
-                    <Num tone="destructive" className="text-lg">
-                      {t('problem.oj.hints.cost', { points: hint.penaltyPoints })}
-                    </Num>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      loading={pendingHintId === hint.id}
-                      disabled={pendingHintId !== null}
-                      iconLeft={<Lock aria-hidden className="size-4" />}
-                      onClick={() => {
-                        onReveal(hint.id);
-                      }}
-                    >
-                      {t('problem.oj.hints.reveal', { points: hint.penaltyPoints })}
-                    </Button>
-                  </>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    loading={pendingHintId === hint.id}
+                    disabled={pendingHintId !== null}
+                    iconLeft={<Lock aria-hidden className="size-4" />}
+                    onClick={() => {
+                      onReveal(hint.id);
+                    }}
+                  >
+                    {t('problem.oj.hints.reveal', { points: hint.penaltyPoints })}
+                  </Button>
                 )}
               </span>
             </div>

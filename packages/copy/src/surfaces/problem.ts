@@ -599,7 +599,6 @@ export const problem = {
   'problem.oj.hints.spent': (p: { count: number; points: number }) =>
     `Bạn đã mở ${p.count} gợi ý, bị trừ ${p.points} điểm.`,
   'problem.oj.hints.ordinal': (p: { n: number }) => `Gợi ý ${p.n}`,
-  'problem.oj.hints.cost': (p: { points: number }) => `Trừ ${p.points} điểm`,
   'problem.oj.hints.reveal': (p: { points: number }) => `Mở gợi ý, trừ ${p.points} điểm`,
   'problem.oj.hints.revealed': (p: { points: number }) => `Đã mở, trừ ${p.points} điểm`,
   'problem.oj.hints.author': 'Bạn là tác giả nên đọc không mất điểm.',
