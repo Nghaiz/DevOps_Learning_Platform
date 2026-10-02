@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   DEFAULT_MAX_FRAME_BYTES,
   HANDSHAKE_TIMEOUT_MS,
+  MAX_PENDING_INPUT_BYTES,
   buildSessionWsUrl,
   openConnection,
   splitUtf8,
@@ -185,10 +186,79 @@ describe('stdin — contract §1 bẫy 1', () => {
     expect(new TextDecoder().decode(socket.sent[1] as Uint8Array)).toBe('echo "phiên"');
   });
 
-  it('gõ khi socket CHƯA mở thì bỏ qua, không ném và không xếp hàng', () => {
+});
+
+describe('H5 — stdin gửi lúc CONNECTING được xếp hàng, không biến mất', () => {
+  /**
+   * `TerminalSurface` phát handle NGAY sau `openConnection`, tức lúc socket còn
+   * CONNECTING. Bản cũ bỏ im lặng mọi `sendInput` trước `open`, nên một cú bấm
+   * `{{exec}}` (hay lệnh setup) rơi vào khe đó biến mất: nút bấm được, terminal
+   * không hiện gì, và đó lại đúng là lúc vừa nối lại nên trông như treo.
+   */
+  function stdinText(socket: FakeSocket): string {
+    return socket.sent
+      .filter((frame): frame is Uint8Array => frame instanceof Uint8Array)
+      .map((frame) => new TextDecoder().decode(frame))
+      .join('');
+  }
+
+  it('gõ trước `open` ⇒ chưa gửi gì; sau `open` gửi `init` TRƯỚC rồi tới stdin, đúng thứ tự', () => {
     const { connection, socket } = setup();
-    connection.sendInput('x');
+    connection.sendInput('echo mot\r');
+    connection.sendInput('echo hai\r');
     expect(socket.sent).toHaveLength(0);
+
+    socket.open();
+    expect(socket.sent[0]).toBe(JSON.stringify({ type: 'init', cols: 120, rows: 34 }));
+    expect(stdinText(socket)).toBe('echo mot\recho hai\r');
+  });
+
+  it('hàng đợi vẫn chia theo maxFrameBytes khi xả (C2 không bị đường vòng)', () => {
+    const { connection, socket } = setup();
+    connection.sendInput('y'.repeat(40 * 1024));
+    socket.open();
+    const frames = socket.sent.filter((frame): frame is Uint8Array => frame instanceof Uint8Array);
+    expect(frames.length).toBeGreaterThan(1);
+    for (const frame of frames) {
+      expect(frame.byteLength).toBeLessThanOrEqual(DEFAULT_MAX_FRAME_BYTES);
+    }
+  });
+
+  it('tràn trần hàng đợi ⇒ bỏ ĐÚNG lượt tràn, kêu console.warn, phần đã xếp vẫn đi', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      const { connection, socket } = setup();
+      connection.sendInput('dau\r');
+      connection.sendInput('z'.repeat(MAX_PENDING_INPUT_BYTES));
+      expect(warn).toHaveBeenCalledTimes(1);
+
+      socket.open();
+      expect(stdinText(socket)).toBe('dau\r');
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('đóng trước khi `open` ⇒ không gửi gì, và kêu lên vì có lệnh bị bỏ', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      const { connection, socket } = setup();
+      connection.sendInput('ls\r');
+      socket.emit('close', { code: 1006 });
+      expect(socket.sent).toHaveLength(0);
+      expect(warn).toHaveBeenCalledTimes(1);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('sau khi đã đóng thì no-op — handle cũ không ghi vào đâu cả', () => {
+    const { connection, socket } = setup();
+    socket.open();
+    connection.close();
+    const before = socket.sent.length;
+    connection.sendInput('x');
+    expect(socket.sent).toHaveLength(before);
   });
 });
 
