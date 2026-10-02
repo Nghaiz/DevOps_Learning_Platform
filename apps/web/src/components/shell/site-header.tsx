@@ -117,14 +117,14 @@ export function SiteHeader({
             className="flex h-10 items-center gap-2 border border-chrome-border px-3 text-sm text-chrome-muted transition-colors hover:border-chrome-foreground hover:text-chrome-foreground"
           >
             <Search className="size-4" aria-hidden="true" />
-            <span className="hidden xl:inline">{t('shell.command.hint')}</span>
-            <span className="sr-only xl:hidden">{t('shell.command.open')}</span>
-            <Kbd className="ml-2 hidden border-chrome-border bg-transparent text-chrome-muted xl:inline-flex">
+            <span className="hidden whitespace-nowrap 2xl:inline">{t('shell.command.hint')}</span>
+            <span className="sr-only 2xl:hidden">{t('shell.command.open')}</span>
+            <Kbd className="ml-2 hidden border-chrome-border bg-transparent whitespace-nowrap text-chrome-muted 2xl:inline-flex">
               Ctrl K
             </Kbd>
           </button>
           {viewer && (
-            <span className="hidden md:inline-flex">
+            <span className="hidden whitespace-nowrap xl:inline-flex">
               <CapacityIndicator />
             </span>
           )}
@@ -177,8 +177,8 @@ function SectionItem({
         href={first.href}
         aria-current={isCurrent ? 'page' : undefined}
         className={cn(
-          'relative flex items-center gap-2 pl-4 text-[0.95rem] font-semibold transition-colors',
-          hasMany ? 'pr-1' : 'pr-4',
+          'relative flex items-center gap-2 pl-3 text-[0.95rem] font-semibold whitespace-nowrap transition-colors xl:pl-4',
+          hasMany ? 'pr-1' : 'pr-3 xl:pr-4',
           isCurrent ? tone.fill : 'text-chrome-foreground/85 hover:text-chrome-foreground',
           !isCurrent && isOpen && 'bg-chrome-foreground/10 text-chrome-foreground',
         )}

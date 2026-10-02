@@ -1328,8 +1328,9 @@
   --success-foreground: oklch(0.145 0.016 263.7);
   --warning: oklch(0.769 0.188 70.08);
   --warning-foreground: oklch(0.145 0.016 263.7);
-  --ink: rgb(230 233 239);
-  --ink-foreground: rgb(23 27 34);
+  /* Viền nút outline và tab đang chọn dùng --ink: trả về màu viền ô nhập cũ cho đỡ chói. */
+  --ink: rgb(119 129 143);
+  --ink-foreground: rgb(230 233 239);
   --radius-legacy-sm: calc(0.75rem - 6px);
   --radius-legacy-md: calc(0.75rem - 3px);
   --radius-legacy-lg: 0.75rem;
