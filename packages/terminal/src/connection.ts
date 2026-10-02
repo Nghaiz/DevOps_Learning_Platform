@@ -32,7 +32,11 @@ export interface ConnectionOptions extends ConnectionHandlers {
 }
 
 export interface Connection {
-  /** Gửi stdin. No-op khi socket chưa mở — byte gõ lúc đang nối lại không được xếp hàng. */
+  /**
+   * Gửi stdin. Lúc CONNECTING thì XẾP HÀNG (trần `MAX_PENDING_INPUT_BYTES`) và
+   * xả ngay sau `init` khi mở (H5); sau khi đóng thì no-op. Mỗi lượt được chia
+   * theo byte dưới `maxFrameBytes` (C2).
+   */
   sendInput(data: string): void;
   sendResize(size: TerminalDimensions): void;
   close(): void;
@@ -60,6 +64,14 @@ export const DEFAULT_MAX_FRAME_BYTES = 32 * 1024;
  * một frame mỗi 31 KiB.
  */
 export const FRAME_MARGIN_BYTES = 1024;
+
+/**
+ * H5 — trần hàng đợi stdin trong lúc CONNECTING. Đủ cho một cú dán cỡ manifest
+ * cộng vài lượt `{{exec}}`; vượt trần là dấu hiệu có gì đó bơm stdin vào một
+ * socket không mở được, và đệm vô hạn thì một lần nối treo 10s sẽ dồn cả đống
+ * lệnh chạy cùng lúc khi nó mở.
+ */
+export const MAX_PENDING_INPUT_BYTES = 64 * 1024;
 
 /** Một ký tự UTF-8 dài tối đa 4 byte — mảnh nhỏ hơn thì không chứa nổi một ký tự. */
 const MIN_CHUNK_BYTES = 4;
@@ -135,6 +147,24 @@ export function openConnection(options: ConnectionOptions): Connection {
   }
 
   /**
+   * H5 — stdin gửi lúc CONNECTING. Giữ theo lượt gọi (không gộp) để xả đúng thứ
+   * tự; mỗi lượt vẫn đi qua `sendStdin` nên vẫn được chia theo C2.
+   */
+  const pendingInput: Uint8Array<ArrayBuffer>[] = [];
+  let pendingInputBytes = 0;
+
+  function discardPendingInput(reason: string): void {
+    if (pendingInput.length === 0) {
+      return;
+    }
+    console.warn(
+      `[dlp-terminal] bỏ ${String(pendingInputBytes)} byte stdin đang chờ (${String(pendingInput.length)} lượt gửi) vì ${reason} — lệnh đó KHÔNG tới shell.`,
+    );
+    pendingInput.length = 0;
+    pendingInputBytes = 0;
+  }
+
+  /**
    * Trần thời gian cho HANDSHAKE — không phải cho phiên.
    *
    * Vì sao cần: một handshake WS có thể không thành công MÀ CŨNG KHÔNG thất bại.
@@ -159,6 +189,7 @@ export function openConnection(options: ConnectionOptions): Connection {
       return;
     }
     closed = true;
+    discardPendingInput('handshake quá trần');
     // Báo CLOSE_ABNORMAL chứ không phải một mã riêng: đó ĐÚNG là thứ đã xảy ra
     // dưới góc nhìn của client (không có close code từ server), và nó chảy vào
     // đúng nhánh mà `session-machine` đã có sẵn cho ca "1006 khi chưa từng
@@ -179,6 +210,13 @@ export function openConnection(options: ConnectionOptions): Connection {
         rows: clampDimension(options.initialSize.rows),
       }),
     );
+    // H5 — xả SAU `init`: stdin trước `init` thì gateway đệm được (`pendingStdin`)
+    // nhưng `init` phải là frame đầu tiên theo contract §3.
+    for (const bytes of pendingInput) {
+      sendStdin(bytes);
+    }
+    pendingInput.length = 0;
+    pendingInputBytes = 0;
   });
 
   socket.addEventListener('message', (event: MessageEvent<unknown>) => {
@@ -224,6 +262,7 @@ export function openConnection(options: ConnectionOptions): Connection {
       return;
     }
     closed = true;
+    discardPendingInput(`kết nối đóng (mã ${String(event.code)}) trước khi mở xong`);
     options.onClose(event.code);
   });
 
@@ -235,6 +274,22 @@ export function openConnection(options: ConnectionOptions): Connection {
 
   return {
     sendInput(data: string): void {
+      if (closed) {
+        // Handle cũ sau khi nối lại: KHÔNG được ghi sang phiên mới, nên no-op.
+        return;
+      }
+      if (!opened) {
+        const bytes = encoder.encode(data);
+        if (pendingInputBytes + bytes.byteLength > MAX_PENDING_INPUT_BYTES) {
+          console.warn(
+            `[dlp-terminal] hàng đợi stdin lúc đang nối đã đầy (${String(MAX_PENDING_INPUT_BYTES)} byte) — bỏ lượt gửi ${String(bytes.byteLength)} byte này.`,
+          );
+          return;
+        }
+        pendingInput.push(bytes);
+        pendingInputBytes += bytes.byteLength;
+        return;
+      }
       if (socket.readyState !== WebSocket.OPEN) {
         return;
       }
@@ -263,6 +318,7 @@ export function openConnection(options: ConnectionOptions): Connection {
         return;
       }
       closed = true;
+      discardPendingInput('kết nối bị đóng chủ động (unmount / đổi phiên)');
       // Đóng chủ động (unmount / đổi phiên) KHÔNG được gọi onClose: máy trạng
       // thái sẽ hiểu là mất kết nối và hẹn giờ nối lại vào một component đã
       // unmount — đúng ca rò WebSocket ở StrictMode dev.

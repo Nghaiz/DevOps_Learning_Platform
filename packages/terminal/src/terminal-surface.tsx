@@ -60,10 +60,13 @@ export interface TerminalSurfaceProps {
    *
    * Vế `null` là phần quan trọng, không phải phần dọn dẹp cho gọn: không có nó
    * thì nút "Chạy lệnh này" vẫn sáng trong lúc PTY đã chết, người dùng bấm, và
-   * `Connection.sendInput` NO-OP im lặng (có chủ ý — xem connection.ts, byte gõ
-   * lúc đang nối lại cố tình không được xếp hàng). Người dùng thấy một nút bấm
-   * được mà không có gì xảy ra, mà đây lại đúng là lúc terminal đang nối lại
-   * nên trông như nền tảng bị treo.
+   * handle cũ ghi vào một `Connection` đã đóng — no-op. Người dùng thấy một nút
+   * bấm được mà không có gì xảy ra, mà đây lại đúng là lúc terminal đang nối
+   * lại nên trông như nền tảng bị treo.
+   *
+   * Handle phát ngay lúc socket còn CONNECTING là CỐ Ý (H5): `sendInput` lúc đó
+   * được xếp hàng và xả sau `init`, nên một cú bấm `{{exec}}` trong khe nối lại
+   * không biến mất.
    *
    * Callback chứ không phải `ref`: handle gắn với ĐÚNG một `Connection`, nên
    * nối lại là một handle mới. Một ref bền vững sẽ che mất chuyển tiếp đó.
