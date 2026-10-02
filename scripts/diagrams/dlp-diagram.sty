@@ -1,0 +1,146 @@
+% dlp-diagram.sty: preamble chung của mọi sơ đồ (plans/labs-rebuild/contracts.md §C4).
+%
+% build.mjs nạp file này sau khi đã \definecolor đủ bảng màu từ palette.json (dlpink, dlpmuted,
+% dlppaper, dlpblue, dlpgreen, dlpamber, dlpred, dlpviolet, dlpteal). Đừng \definecolor ở đây:
+% SSOT của màu là palette.json. Hướng dẫn đầy đủ và ví dụ: docs/diagrams.md.
+%
+% File này nằm trong băm nguồn: sửa một byte là mọi sơ đồ phải dựng lại (pnpm diagrams:build).
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{dlp-diagram}[2026/10/03 v1 DLP diagram styles]
+
+\RequirePackage{fontspec}
+\RequirePackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,fit,calc,backgrounds}
+
+% ---------------------------------------------------------------- Phông
+% Font nằm trong repo (scripts/diagrams/fonts), build.mjs chép sang thư mục tạm cạnh file .tex.
+% Không bao giờ phụ thuộc font hệ thống hay font của MiKTeX/TeX Live.
+\setsansfont{BeVietnamPro}[Path=./fonts/BeVietnamPro/, Extension=.ttf,
+  UprightFont=*-Regular, BoldFont=*-SemiBold]
+\setmainfont{BeVietnamPro}[Path=./fonts/BeVietnamPro/, Extension=.ttf,
+  UprightFont=*-Regular, BoldFont=*-SemiBold]
+% Tắt ghép chữ của JetBrains Mono: người học phải thấy đúng `!=`, `->`, `--force`, không phải ≠ →.
+\setmonofont{JetBrainsMono}[Path=./fonts/JetBrainsMono/, Extension=.ttf,
+  UprightFont=*-Regular, Ligatures=NoCommon, Contextuals=NoAlternate]
+\newfontfamily\dlpheavy{BeVietnamPro}[Path=./fonts/BeVietnamPro/, Extension=.ttf, UprightFont=*-Bold]
+\renewcommand{\familydefault}{\sfdefault}
+% Glyph thiếu thì XeTeX chỉ ghi log rồi BỎ chữ đó. build.mjs đọc log và biến nó thành lỗi.
+\tracinglostchars=3
+
+% ---------------------------------------------------------------- Lệnh chữ
+\newcommand\dlpcode[1]{{\ttfamily #1}}
+\newcommand\dlpmuted[1]{{\color{dlpmuted}#1}}
+\newcommand\dlpsha[1]{{\ttfamily\small\color{dlpmuted}#1}}
+
+% ---------------------------------------------------------------- Tham số
+\def\dlp@tint{0.12}              % độ đục lớp màu trên nền giấy
+\newcommand\dlplayerwidth{5.4cm} % bề rộng chữ của một lớp image (đổi bằng khoá layer width)
+\newcommand\dlptreeindent{0.5cm}
+\newcommand\dlptreerow{0.56cm}
+\def\dlp@none{none}
+
+% Tên style ngắn cho dễ viết, nên phải chắc TikZ chưa dùng tên đó (một bản TikZ sau có thể thêm).
+\def\dlp@assertfree#1{\pgfkeysifdefined{/tikz/#1/.@cmd}%
+  {\PackageError{dlp-diagram}{TikZ da co khoa `#1'; doi ten style trong dlp-diagram.sty}{}}{}}
+\@for\dlp@n:={box,card,layer,stacked on,layer width,zone,cluster,host,pod,container,flow,both,%
+  link,faint,lbl,note,commit,ghost commit,parent,ref,pointer,net,port,iface,axis,bar,event,hl,%
+  dlp tint,dlp stroke,dlp legend,dlp file,dlp tree edge}\do{\expandafter\dlp@assertfree\expandafter{\dlp@n}}
+
+\tikzset{
+  every picture/.append style={color=dlpink, line width=0.8pt, >={Stealth[length=5pt,width=4.5pt]},
+    node distance=8mm and 12mm, execute at begin picture={\dlptreereset}},
+  % Nền giấy đục + lớp màu trong suốt phía trên. Chữ luôn đục. `none` = chỉ nền giấy.
+  dlp tint/.code={\def\dlp@arg{#1}\ifx\dlp@arg\dlp@none\pgfkeysalso{fill=dlppaper}\else
+    \pgfkeysalso{fill=dlp#1, fill opacity=\dlp@tint, text opacity=1,
+      preaction={fill=dlppaper, fill opacity=1}}\fi},
+  dlp stroke/.code={\def\dlp@arg{#1}\ifx\dlp@arg\dlp@none\pgfkeysalso{draw=dlpink}\else
+    \pgfkeysalso{draw=dlp#1}\fi},
+  % --- Hộp và thẻ
+  box/.style={rectangle, rounded corners=3pt, dlp stroke=#1, dlp tint=#1, text=dlpink,
+    inner xsep=7pt, inner ysep=5pt, minimum height=2.2em, align=center},
+  box/.default=none,
+  card/.style 2 args={box=#1, align=left, execute at begin node={\textbf{#2}\\[1pt]}},
+  % --- Lớp image xếp chồng: \node[layer=green, stacked on=l1] (l2) {RUN …};
+  layer/.style={rectangle, dlp stroke=#1, dlp tint=#1, text=dlpink, font=\ttfamily\small,
+    text width=\dlplayerwidth, inner xsep=6pt, minimum height=1.9em, align=left},
+  layer/.default=none,
+  layer width/.code={\def\dlplayerwidth{#1}},
+  stacked on/.style={above=-0.8pt of #1},
+  % --- Vùng lồng nhau, dùng với fit=(a)(b): tiêu đề nằm đè lên mép trên như legend
+  zone/.style 2 args={rectangle, rounded corners=6pt, dlp stroke=#1, inner sep=10pt,
+    label={[dlp legend]north west:#2}},
+  dlp legend/.style={anchor=west, xshift=8pt, fill=dlppaper, inner sep=2pt, font=\small\bfseries,
+    text=dlpink},
+  cluster/.style={zone={violet}{#1}, dashed},
+  host/.style={zone={teal}{#1}},
+  pod/.style={zone={blue}{#1}, rounded corners=8pt},
+  container/.style={box=#1, font=\ttfamily\small},
+  container/.default=none,
+  % --- Mũi tên và nhãn
+  flow/.style={->, dlp stroke=#1}, flow/.default=none,
+  both/.style={<->, dlp stroke=#1}, both/.default=none,
+  link/.style={-, dlp stroke=#1}, link/.default=none,
+  faint/.style={dashed, draw=dlpmuted, line width=0.6pt},
+  lbl/.style={fill=dlppaper, inner sep=2pt, font=\small, text=dlpink},
+  note/.style={inner sep=2pt, font=\small, text=dlpmuted},
+  % --- Git: mũi tên đi từ commit con về commit cha, đúng như git lưu
+  commit/.style={circle, minimum size=11pt, inner sep=0pt, draw=dlp#1, fill=dlp#1, line width=1pt},
+  commit/.default=blue,
+  ghost commit/.style={circle, minimum size=11pt, inner sep=0pt, draw=dlp#1, fill=dlppaper,
+    dashed, line width=1pt},
+  ghost commit/.default=muted,
+  parent/.style={-{Stealth[length=4pt,width=4pt]}, draw=dlpmuted, shorten >=1pt, shorten <=1pt},
+  ref/.style={rectangle, rounded corners=5pt, dlp stroke=#1, dlp tint=#1, text=dlpink,
+    font=\ttfamily\small, inner xsep=4pt, inner ysep=2pt, minimum height=1.4em},
+  ref/.default=violet,
+  pointer/.style={-{Stealth[length=4pt,width=4pt]}, draw=dlp#1, line width=0.6pt},
+  pointer/.default=violet,
+  % --- Mạng
+  net/.style={rectangle, rounded corners=2pt, dlp stroke=#1, dlp tint=#1, text=dlpink,
+    font=\ttfamily\small, minimum height=1.5em},
+  net/.default=teal,
+  port/.style={rectangle, dlp stroke=#1, fill=dlppaper, text=dlpink, font=\ttfamily\small,
+    inner xsep=3pt, inner ysep=1.5pt},
+  port/.default=teal,
+  iface/.style={inner sep=1.5pt, font=\ttfamily\small, text=dlpmuted},
+  % --- Dòng thời gian
+  axis/.style={->, draw=dlpmuted},
+  bar/.style={rectangle, rounded corners=2pt, dlp stroke=#1, dlp tint=#1, text=dlpink,
+    font=\small, inner sep=2pt, minimum height=1.4em},
+  bar/.default=blue,
+  event/.style={circle, minimum size=7pt, inner sep=0pt, draw=dlp#1, fill=dlp#1},
+  event/.default=blue,
+  % --- Cây thư mục và tô sáng
+  hl/.style={dlp tint=#1, rounded corners=2pt},
+  hl/.default=amber,
+  dlp file/.style={anchor=west, font=\ttfamily\small, inner xsep=2pt, inner ysep=1.5pt, text=dlpink},
+  dlp tree edge/.style={draw=dlpmuted, line width=0.6pt},
+}
+
+% ---------------------------------------------------------------- Vạch chia trên trục thời gian
+% \dlptick{<x>}{<nhãn>}: vạch ở (x,0) và nhãn bên dưới.
+\newcommand\dlptick[2]{\draw[draw=dlpmuted, line width=0.6pt] (#1,0) -- ++(0,-3pt)
+  node[below, note] {#2};}
+
+% ---------------------------------------------------------------- Cây thư mục
+% \dlpfile[<tuỳ chọn node>]{<độ sâu>}{<tên>}: mỗi lệnh một dòng, theo thứ tự hiển thị.
+% Node tự có tên file-0, file-1…; muốn tên riêng thì [alias=ten]. Cây thứ hai: \dlptreereset.
+\newcount\dlp@filerow
+\newcount\dlp@treegen
+\newcommand\dlptreereset{\global\dlp@filerow=0\relax\global\advance\dlp@treegen by 1\relax}
+\newcommand\dlpfile[3][]{%
+  \pgfmathtruncatemacro\dlp@d{#2}%
+  \node[dlp file, #1] (file-\the\dlp@filerow) at (\dlp@d*\dlptreeindent, -\the\dlp@filerow*\dlptreerow) {#3};%
+  \ifnum\dlp@d>0
+    \pgfmathtruncatemacro\dlp@pd{\dlp@d-1}%
+    \ifcsname dlp@lastrow@\the\dlp@treegen @\dlp@pd\endcsname\else
+      \PackageError{dlp-diagram}{\string\dlpfile: do sau #2 nhung chua co dong cha o do sau \dlp@pd}{}%
+    \fi
+    \edef\dlp@prow{\csname dlp@lastrow@\the\dlp@treegen @\dlp@pd\endcsname}%
+    \draw[dlp tree edge] (\dlp@pd*\dlptreeindent+0.2cm, -\dlp@prow*\dlptreerow-0.2cm)
+      |- (file-\the\dlp@filerow.west);%
+  \fi
+  \expandafter\xdef\csname dlp@lastrow@\the\dlp@treegen @\dlp@d\endcsname{\the\dlp@filerow}%
+  \global\advance\dlp@filerow by 1\relax
+}
+\endinput

@@ -1,0 +1,19 @@
+{
+  "//": "SSOT bảng màu sơ đồ (contracts.md §C4). `light` là hex TeX dùng để vẽ, và cũng là fallback ghi vào SVG. `dark` là gợi ý cho CSS theme tối (FE quyết bản cuối). `ink` không có hex trong SVG: nó thành currentColor. Mọi màu `accent: true` phải đạt ≥3:1 trên CẢ HAI mặt nền dưới đây (check.mjs kiểm).",
+  "surfaces": {
+    "light": { "page": "#F6F5F1", "surface": "#FFFFFF", "text": "#141A2B", "muted": "#5B6275", "hairline": "#D9D6CC" },
+    "dark": { "page": "#0A0D14", "surface": "#111624", "text": "#ECEAE3", "muted": "#9AA1B2", "hairline": "#262D3D" }
+  },
+  "colors": {
+    "ink": { "light": "#141A2B", "dark": "#ECEAE3", "accent": false, "role": "chữ và nét chính; thành currentColor" },
+    "muted": { "light": "#5B6275", "dark": "#9AA1B2", "accent": false, "role": "nét phụ, chú thích, trục thời gian" },
+    "paper": { "light": "#FFFFFF", "dark": "#111624", "accent": false, "role": "nền đục che nét phía sau (thẻ, nhãn trên mũi tên)" },
+    "blue": { "light": "#3474E0", "dark": "#3474E0", "accent": true, "role": "thành phần chính, pod, commit" },
+    "green": { "light": "#1E8A5A", "dark": "#1E8A5A", "accent": true, "role": "đạt, sẵn sàng, bản mới" },
+    "amber": { "light": "#B7791F", "dark": "#B7791F", "accent": true, "role": "cảnh báo, lớp ghi được, đang chuyển" },
+    "red": { "light": "#D2484E", "dark": "#D2484E", "accent": true, "role": "lỗi, trượt, bị xoá" },
+    "violet": { "light": "#875FD8", "dark": "#875FD8", "accent": true, "role": "cụm, control plane, ref git" },
+    "teal": { "light": "#138A8A", "dark": "#138A8A", "accent": true, "role": "mạng, node, volume" }
+  },
+  "minAccentContrast": 3
+}

@@ -1,0 +1,14 @@
+% Mô tả: Hộp, thẻ có tiêu đề, mũi tên có nhãn: một yêu cầu HTTP đi từ trình duyệt tới pod
+\begin{tikzpicture}
+  \node[box] (browser) {Trình duyệt};
+  \node[card={violet}{Ingress}, right=18mm of browser] (ing) {nginx-ingress\\\dlpmuted{\small TLS kết thúc ở đây}};
+  \node[card={blue}{Service \dlpcode{web}}, right=18mm of ing] (svc) {\dlpcode{ClusterIP 10.96.0.12}};
+  \node[box=green, right=18mm of svc] (pod) {Pod \dlpcode{web-7d9f}\\\small sẵn sàng};
+  \node[box=red, below=10mm of pod] (old) {Pod \dlpcode{web-5c2a}\\\small đang dừng};
+
+  \draw[flow] (browser) -- node[lbl, above=2pt] {HTTPS :443} (ing);
+  \draw[flow] (ing) -- node[lbl, above=2pt] {:80} (svc);
+  \draw[flow=green] (svc) -- node[lbl, above=2pt] {chọn theo nhãn} (pod);
+  \draw[faint] (svc.south) |- node[note, pos=0.75, below] {bị loại khỏi Endpoints} (old.west);
+  \draw[both=muted] ([yshift=-14mm]browser.south) -- node[note, below] {cùng một kết nối TCP, hai chiều} ([yshift=-14mm]ing.south);
+\end{tikzpicture}
