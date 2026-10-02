@@ -2,7 +2,6 @@ import type { ReactNode } from 'react';
 import { redirect } from 'next/navigation';
 import { readViewerSession } from '../../components/catalog/viewer-role.server';
 import { resolveAdminAccess } from '../../components/admin/admin-guard';
-import { AdminNav } from '../../components/admin/admin-nav';
 import { TrpcQueryProvider } from '../../lib/trpc-react';
 
 /**
@@ -39,12 +38,11 @@ export default async function AdminLayout({ children }: { children: ReactNode })
     redirect(access.redirectTo);
   }
 
-  return (
-    <TrpcQueryProvider>
-      <div className="practice-catalog">
-        <AdminNav />
-        {children}
-      </div>
-    </TrpcQueryProvider>
-  );
+  /*
+    Không còn thanh nav riêng của nhánh quản trị: bảy trang con hiện ở
+    `SectionSwitcher` dưới poster của từng màn (`components/admin/admin-page.tsx`),
+    đọc từ bảng section của vỏ. Bất biến "mọi mục đều nằm dưới /admin" nay được
+    ghim ở `components/shell/nav.test.ts`.
+  */
+  return <TrpcQueryProvider>{children}</TrpcQueryProvider>;
 }

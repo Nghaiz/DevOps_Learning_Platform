@@ -1,6 +1,7 @@
 'use client';
 
 import type { ReactElement, ReactNode } from 'react';
+import { TriangleAlert } from 'lucide-react';
 import { t } from '@devops-platform/copy';
 import {
   Alert,
@@ -16,34 +17,34 @@ import {
 } from '@devops-platform/ui';
 
 /**
- * Hộp xác nhận dùng chung của ba hành động quản trị có hậu quả: đổi vai trò,
- * kết thúc phiên người khác, lưu trữ nội dung.
+ * Hộp xác nhận dùng chung của mọi hành động quản trị có hậu quả: đổi vai trò,
+ * kết thúc phiên, lưu trữ nội dung, bỏ sinh viên khỏi lớp, xoá kỳ thi.
  *
- * Ba lời gọi thật ⇒ vượt ngưỡng tách seam của `code-conventions.md`; và quan
- * trọng hơn, nó giữ cho MỘT luật đúng ở cả ba chỗ: **nút thực hiện bị khoá khi
- * `blockedReason !== null`, và lý do luôn hiện ra**. Ba bản sao của cùng cái
- * hộp là ba chỗ để quên nửa sau của luật đó, tức hiện lý do nhưng vẫn cho bấm.
+ * Một hộp cho cả năm nơi để giữ MỘT luật đúng ở mọi chỗ: **nút thực hiện bị
+ * khoá khi `blockedReason !== null`, và lý do luôn hiện ra**. Năm bản sao là
+ * năm chỗ để quên nửa sau của luật đó.
  *
- * `error` tách khỏi `blockedReason` có chủ ý: `blockedReason` là phán quyết của
- * CLIENT trước khi gửi (biết trước là sẽ bị từ chối), `error` là câu trả lời
- * THẬT của máy chủ sau khi gửi. Gộp chúng sẽ làm mất phân biệt "chưa gửi" với
- * "đã gửi và bị từ chối", hai trạng thái đòi hai hành động khác nhau của người
- * quản trị.
+ * Ba khe chữ, ba vai khác nhau:
  *
- * ## Luật hai kênh nằm ở `packages/ui`, không lặp lại ở đây
+ * · `body`: chuyện gì sẽ xảy ra.
+ * · `loss`: thứ MẤT ĐI, in trong một khối đỏ nhạt có icon cảnh báo, tách khỏi
+ *   phần thân để người đọc lướt vẫn thấy. Hành động không làm mất gì thì
+ *   truyền `null`.
+ * · `blockedReason` là phán quyết của CLIENT trước khi gửi; `error` là câu trả
+ *   lời THẬT của máy chủ sau khi gửi. Gộp hai cái làm mất phân biệt "chưa gửi"
+ *   với "đã gửi và bị từ chối".
  *
- * `p16-tokens.md` §2 đo `--primary` và `--destructive` lệch nhau **1.06:1** ở
- * nhánh sáng, tức "cùng một màu" với mắt. Nút xác nhận vì vậy phải là khung
- * RỖNG có viền cộng một icon cảnh báo, không phải một khối đỏ đặc. Cả hai nửa
- * đã nằm trong `Button variant="destructive"` (viền, nền trong suốt, và
- * `TriangleAlert` tự gắn khi nơi gọi không truyền `iconLeft`), nên nơi gọi
- * KHÔNG được tự thêm icon: hai icon chồng nhau là cách luật đó tự hỏng.
+ * Nút xác nhận là `Button variant="destructive"`: nền đỏ nhạt + icon cảnh báo
+ * tự gắn trong `packages/ui`. Nơi gọi KHÔNG thêm icon, hai icon chồng nhau là
+ * cách luật hai kênh tự hỏng.
  */
 export function ConfirmDialog(props: {
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
   readonly title: string;
   readonly body: string;
+  /** Thứ mất đi nếu bấm; `null` khi hành động không làm mất gì. */
+  readonly loss: string | null;
   /** Khác `null` ⇒ nút thực hiện bị khoá và lý do hiện ra. */
   readonly blockedReason: string | null;
   /** Lỗi máy chủ trả về ở lượt thực hiện gần nhất. */
@@ -51,27 +52,36 @@ export function ConfirmDialog(props: {
   readonly confirmLabel: string;
   readonly confirming: boolean;
   readonly onConfirm: () => void;
-  /** Nội dung phụ (ô chọn vai trò, chi tiết phiên) đặt giữa mô tả và nút. */
+  /** Nội dung phụ (ô chọn vai trò) đặt giữa mô tả và khối mất mát. */
   readonly children?: ReactNode;
 }): ReactElement {
-  const { blockedReason, error } = props;
+  const { blockedReason, error, loss } = props;
 
   return (
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>{props.title}</DialogTitle>
-          <DialogDescription className="text-balance">{props.body}</DialogDescription>
+          <DialogDescription className="text-pretty">{props.body}</DialogDescription>
         </DialogHeader>
 
         {props.children}
 
-        {blockedReason !== null && (
+        {loss === null ? null : (
+          <div className="flex gap-3 border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+            <TriangleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+            <div className="flex flex-col gap-1">
+              <p className="type-label">{t('admin.confirm.loss-label')}</p>
+              <p className="text-pretty">{loss}</p>
+            </div>
+          </div>
+        )}
+        {blockedReason === null ? null : (
           <Alert variant="warning">
             <AlertDescription>{blockedReason}</AlertDescription>
           </Alert>
         )}
-        {error !== null && (
+        {error === null ? null : (
           <Alert variant="destructive">
             <AlertDescription>{error}</AlertDescription>
           </Alert>
