@@ -62,7 +62,7 @@ export function ModeToggle({ resolved, enabled, onChange }: ModeToggleProps): Re
   return (
     <TooltipProvider delayDuration={300}>
       <div
-        className="flex items-center gap-0.5 rounded-md bg-muted p-0.5"
+        className="flex items-center border border-border"
         role="group"
         aria-label="Chế độ hiển thị đồ thị"
       >
@@ -89,12 +89,12 @@ export function ModeToggle({ resolved, enabled, onChange }: ModeToggleProps): Re
                     if (usable && !active) onChange(mode);
                   }}
                   className={cn(
-                    'flex h-6 min-w-9 items-center justify-center rounded-sm px-1.5 font-mono text-[11px] font-semibold',
-                    'outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring',
+                    'flex h-8 min-w-10 items-center justify-center px-2 font-mono text-xs font-semibold',
+                    'outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring motion-safe:active:translate-y-px',
                     !usable
                       ? 'cursor-not-allowed text-muted-foreground/70'
                       : active
-                        ? 'bg-background text-foreground shadow-elevation-1'
+                        ? 'bg-foreground text-background'
                         : 'text-muted-foreground hover:text-foreground',
                   )}
                 >
