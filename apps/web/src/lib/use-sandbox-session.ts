@@ -8,6 +8,7 @@ import {
   reduce,
   type CreatedSession,
   type ServerControl,
+  type SessionPhase,
   type SessionState,
   type TerminalHandle,
 } from '@devops-platform/terminal';
@@ -64,10 +65,38 @@ export interface SandboxSession {
   start: () => void;
   end: () => void;
   extend: () => void;
+  /**
+   * C1 — mở lại WebSocket vào ĐÚNG pod đang có, không xin pod mới.
+   *
+   * Dành cho hai pha máy trạng thái không tự thoát ra: `exited` (shell đã thoát,
+   * pod còn) và `error` không-retry (1009, 4403, …). Gọi lúc `reconnecting` là
+   * "nối lại ngay" (huỷ lịch backoff); lúc `ready`/`connecting` là ép mở lại một
+   * kết nối nghi treo.
+   *
+   * No-op khi chưa có pod để nối (`idle`, `creating`, lỗi tạo phiên) hoặc pod đã
+   * bị thu hồi (`expired`) — ở đó nút đúng là "Bắt đầu", không phải "Nối lại".
+   */
+  reconnect: () => void;
   onControl: (message: ServerControl) => void;
   onClose: (code: number) => void;
   onTerminalReady: (handle: TerminalHandle | null) => void;
 }
+
+/**
+ * Pha nào `reconnect()` được phép mở lại kết nối. `Record` chứ không `Set`: thêm
+ * một pha vào `SessionPhase` mà quên khai ở đây là ĐỎ typecheck.
+ */
+const RECONNECTABLE: Record<SessionPhase, boolean> = {
+  idle: false,
+  creating: false,
+  connecting: true,
+  ready: true,
+  reconnecting: true,
+  exited: true,
+  // Pod đã thu hồi — nối lại chỉ để nhận 4404 lần nữa.
+  expired: false,
+  error: true,
+};
 
 export function useSandboxSession(actions: SandboxSessionActions): SandboxSession {
   const [state, dispatch] = useReducer(reduce, initialState);
@@ -138,6 +167,17 @@ export function useSandboxSession(actions: SandboxSessionActions): SandboxSessio
     })();
   }, [state.sessionId, actions]);
 
+  const reconnect = useCallback(() => {
+    if (state.sessionId === null || state.podName === null || !RECONNECTABLE[state.phase]) {
+      return;
+    }
+    // Cùng cặp với lịch backoff bên dưới: `RETRY_NOW` đưa pha về `connecting`
+    // (⇒ `connectionKey` hết `null`), còn tăng key là thứ khiến `TerminalSurface`
+    // thật sự đóng socket cũ và mở socket mới — kể cả khi pha vốn đã `ready`.
+    dispatch({ type: 'RETRY_NOW' });
+    setConnectionKey((key) => key + 1);
+  }, [state.sessionId, state.podName, state.phase]);
+
   // Đồng hồ đếm ngược. 15s một nhịp: thứ nó điều khiển là một cái nhãn phút và
   // một nút hiện/ẩn, không phải một thanh giây.
   const [nowMs, setNowMs] = useState(() => Date.now());
@@ -207,6 +247,7 @@ export function useSandboxSession(actions: SandboxSessionActions): SandboxSessio
     start,
     end,
     extend,
+    reconnect,
     onControl,
     onClose,
     onTerminalReady: setTerminal,
