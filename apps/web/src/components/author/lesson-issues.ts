@@ -25,6 +25,7 @@ const TOP_FIELD: Readonly<Record<string, StaticTextKey>> = {
   id: 'author.new.id.label',
   kind: 'author.new.kind.label',
   title: 'author.draft-meta-fields-tieu-de',
+  description: 'author.draft-meta-fields-mo-ta',
   difficulty: 'author.draft-meta-fields-do-kho',
   estimatedMinutes: 'author.draft-meta-fields-thoi-luong-uoc-tinh-phut',
   tier: 'author.draft-meta-fields-tier-sandbox',
