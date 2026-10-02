@@ -9,8 +9,8 @@ import { GitGame } from '../../../components/games/git/git-game';
 import { loadGitTheory } from '../../../server/games/git-theory';
 
 export const metadata: Metadata = {
-  title: t('catalog.meta-title.games-git'),
-  description: t('catalog.games.git-meta-description'),
+  title: t('games.git.meta-title'),
+  description: t('games.git.meta-description'),
 };
 
 /**

@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
+import { t } from '@devops-platform/copy';
 import { CICD_LEVELS } from '@devops-platform/games';
 
 // Đường dẫn TƯƠNG ĐỐI, không phải `@/components/...`: repo này không khai
@@ -35,7 +36,7 @@ export async function generateMetadata({ params }: RouteParams): Promise<Metadat
   const { levelId } = await params;
   const level = findLevel(levelId);
   if (level === undefined) return {};
-  return { title: `${level.title} — Xưởng đường ống CI/CD` };
+  return { title: t('games.cicd.level-title', { title: level.title }) };
 }
 
 export default async function CicdLevelPage({ params }: RouteParams) {

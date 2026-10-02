@@ -69,6 +69,7 @@ export const games = {
   'games.cicd.meta-title': 'Xưởng đường ống CI/CD · PTIT DevOps Lab',
   'games.cicd.meta-description':
     'Soạn workflow, chạy mô phỏng và tối ưu pipeline theo ba trục: thời gian chờ, thông lượng, runner-phút.',
+  'games.cicd.level-title': (p: { title: string }) => `${p.title} · Xưởng đường ống CI/CD`,
   'games.maze.name': 'Mê cung mạng',
   'games.maze.blurb':
     'Đưa gói tin từ pod này sang pod kia qua một mê cung NetworkPolicy: mở đúng đường cần mở, đóng phần còn lại.',
@@ -119,7 +120,7 @@ export const games = {
 
   // ── Trạng thái một màn, dùng chung cho ba game ─────────────────────────────
   'games.state.done': 'Đã qua',
-  'games.state.playing': 'Dở dang',
+  'games.state.playing': 'Đang làm',
   'games.state.new': 'Chưa chơi',
   'games.state.next': 'Màn tiếp',
   'games.chapter.progress': (p: { done: number; total: number }) =>
