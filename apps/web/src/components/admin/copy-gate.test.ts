@@ -84,7 +84,6 @@ describe('T4 · glob của lane 16.F không còn chuỗi người dùng nằm ng
     expect(names).toContain('content-client.tsx');
     expect(names).toContain('audit-client.tsx');
     expect(names).toContain('health-panel.tsx');
-    expect(names).toContain('confirm-dialog.tsx');
     // Bản dựng lại PTIT (2026-10-03): khung trang và form ra đề nhiều bước.
     expect(names).toContain('admin-page.tsx');
     expect(names).toContain('exam-form.tsx');

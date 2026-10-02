@@ -30,8 +30,6 @@ import type { ErrorEntry, IntentionalThree, Surface } from '../types.ts';
 export const admin = {
   // ── Khung chung ──────────────────────────────────────────────────────────
   'admin.crumb.root': 'Quản trị',
-  'admin.confirm.cancel': 'Huỷ',
-  'admin.confirm.loss-label': 'Sẽ mất',
 
   // ── /admin, tổng quan ────────────────────────────────────────────────────
   'admin.overview.kicker': 'Quản trị · số đọc trực tiếp từ cụm',

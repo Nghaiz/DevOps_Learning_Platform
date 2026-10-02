@@ -71,7 +71,7 @@ export function ConfirmDialog(props: {
           <div className="flex gap-3 border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
             <TriangleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
             <div className="flex flex-col gap-1">
-              <p className="type-label">{t('admin.confirm.loss-label')}</p>
+              <p className="type-label">{t('common.confirm.loss-label')}</p>
               <p className="text-pretty">{loss}</p>
             </div>
           </div>
@@ -90,7 +90,7 @@ export function ConfirmDialog(props: {
         <DialogFooter>
           <DialogClose asChild>
             <Button variant="outline" disabled={props.confirming}>
-              {t('admin.confirm.cancel')}
+              {t('common.confirm.cancel')}
             </Button>
           </DialogClose>
           <Button

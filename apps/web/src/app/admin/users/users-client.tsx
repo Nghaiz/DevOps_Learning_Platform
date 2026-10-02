@@ -31,7 +31,7 @@ import type { ViewerRole } from '../../../components/shell/nav';
 import { api } from '../../../lib/trpc-react';
 import { describeTrpcError, trpcErrorCode } from '../../../lib/trpc';
 import { AdminNote, AdminPage, LedgerSkeleton } from '../../../components/admin/admin-page';
-import { ConfirmDialog } from '../../../components/admin/confirm-dialog';
+import { ConfirmDialog } from '../../../components/kit/confirm-dialog';
 import {
   ASSIGNABLE_ROLES,
   describeRole,

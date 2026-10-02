@@ -50,8 +50,8 @@ export function StationMarker({
   className,
 }: {
   readonly line: TopicLine;
-  readonly state?: LineMarkerState;
-  readonly className?: string;
+  readonly state?: LineMarkerState | undefined;
+  readonly className?: string | undefined;
 }) {
   if (line === 'ink') {
     return <span aria-hidden="true" className={cn('inline-block size-3 shrink-0 border-2 border-foreground', className)} />;

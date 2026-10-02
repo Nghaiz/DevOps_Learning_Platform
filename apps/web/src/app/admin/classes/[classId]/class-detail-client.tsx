@@ -29,7 +29,7 @@ import {
   AdminNote,
   LedgerSkeleton,
 } from '../../../../components/admin/admin-page';
-import { ConfirmDialog } from '../../../../components/admin/confirm-dialog';
+import { ConfirmDialog } from '../../../../components/kit/confirm-dialog';
 import { numSlot, WithNums } from '../../../../components/admin/with-nums';
 import {
   FIRST_PAGE,

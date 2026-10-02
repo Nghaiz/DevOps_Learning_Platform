@@ -19,6 +19,9 @@ import type { IntentionalThree, Surface } from '../types.ts';
  * liệu để làm.
  */
 export const common = {
+  // Hộp xác nhận dùng chung (components/kit/confirm-dialog.tsx).
+  'common.confirm.cancel': 'Huỷ',
+  'common.confirm.loss-label': 'Sẽ mất',
   // ── Trang lỗi chung (bản dựng lại PTIT, 2026-10-03) ──────────────────────
   'common.not-found.code': '404',
   'common.not-found.kicker': 'Không có trên bản đồ',

@@ -26,7 +26,7 @@ import type { AppRouter } from '../../../server/trpc/routers/app-router';
 import { api } from '../../../lib/trpc-react';
 import { describeTrpcError } from '../../../lib/trpc';
 import { AdminNote, AdminPage, LedgerSkeleton } from '../../../components/admin/admin-page';
-import { ConfirmDialog } from '../../../components/admin/confirm-dialog';
+import { ConfirmDialog } from '../../../components/kit/confirm-dialog';
 import {
   CONTENT_STATE_FILTERS,
   contentStateVariant,

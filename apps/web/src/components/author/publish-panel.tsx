@@ -6,7 +6,7 @@ import { Alert, AlertDescription, AlertTitle, Button } from '@devops-platform/ui
 import { t } from '@devops-platform/copy';
 import type { ContentKind } from '@devops-platform/shared-types/authoring';
 import { Split } from '../kit';
-import { ConfirmDialog } from '../admin/confirm-dialog';
+import { ConfirmDialog } from '../kit/confirm-dialog';
 import type { PreviewPayload } from './draft-from-preview';
 import type { ScriptWarningView } from './script-warning';
 import type { PublishPhase } from './publish-machine';

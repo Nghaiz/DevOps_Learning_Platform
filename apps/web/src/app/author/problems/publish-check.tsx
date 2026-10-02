@@ -5,7 +5,7 @@ import { Archive, Rocket, Trash2 } from 'lucide-react';
 import { count, t } from '@devops-platform/copy';
 import type { ProblemState } from '@devops-platform/games';
 import { Alert, AlertDescription, AlertTitle, Button } from '@devops-platform/ui';
-import { ConfirmDialog } from '../../../components/admin/confirm-dialog';
+import { ConfirmDialog } from '../../../components/kit/confirm-dialog';
 import { IssueList, mustSaveBeforePublish, type SaveStatus, type StudioIssue } from '../../../components/author/studio';
 import { Split } from '../../../components/kit';
 import type { ProblemAction } from './[code]/use-problem-mutations';

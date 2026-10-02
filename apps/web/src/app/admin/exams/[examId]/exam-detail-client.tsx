@@ -25,7 +25,7 @@ import { api } from '../../../../lib/trpc-react';
 import { describeTrpcError } from '../../../../lib/trpc';
 import { formatDay, formatMoment } from '../../../../lib/format-moment';
 import { AdminDetailPage, AdminNote, LedgerSkeleton } from '../../../../components/admin/admin-page';
-import { ConfirmDialog } from '../../../../components/admin/confirm-dialog';
+import { ConfirmDialog } from '../../../../components/kit/confirm-dialog';
 import { ExamFormSheet } from '../../../../components/admin/exam-form-sheet';
 import { ExamStateBadge } from '../../../../components/admin/exam-state-badge';
 import {
