@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
-import { HANDSHAKE_TIMEOUT_MS, buildSessionWsUrl, openConnection } from './connection.ts';
+import {
+  DEFAULT_MAX_FRAME_BYTES,
+  HANDSHAKE_TIMEOUT_MS,
+  buildSessionWsUrl,
+  openConnection,
+  splitUtf8,
+} from './connection.ts';
 import { SUBPROTOCOL } from './protocol.ts';
 
 /**
@@ -183,6 +189,93 @@ describe('stdin — contract §1 bẫy 1', () => {
     const { connection, socket } = setup();
     connection.sendInput('x');
     expect(socket.sent).toHaveLength(0);
+  });
+});
+
+describe('C2 — paste lớn bị chia theo BYTE UTF-8, không frame nào vượt maxFrameBytes', () => {
+  /**
+   * Gateway đặt `SetReadLimit(MaxFrameBytes = 32 KiB)`; vượt trần là thư viện tự
+   * đóng `1009`, mã KHÔNG retry ⇒ phiên rơi vào `error` cụt đường. Bản cũ gửi
+   * nguyên chuỗi `onData` thành MỘT frame, nên dán một file log 40 KiB là giết
+   * phiên. Đo kích thước bằng BYTE đã encode, không bằng `string.length`: một
+   * ký tự tiếng Việt là 3 byte, emoji là 4.
+   */
+  const decodeStrict = (chunk: string | Uint8Array): string =>
+    new TextDecoder('utf-8', { fatal: true }).decode(chunk as Uint8Array);
+
+  function binaryFrames(socket: FakeSocket): Uint8Array[] {
+    return socket.sent.filter((frame): frame is Uint8Array => frame instanceof Uint8Array);
+  }
+
+  function readyFrame(maxFrameBytes: number): string {
+    return JSON.stringify({
+      type: 'ready',
+      sessionId: 's1',
+      podName: 'p1',
+      expiresAt: '2026-10-03T10:00:00Z',
+      maxFrameBytes,
+    });
+  }
+
+  it('dán 100 KiB ASCII trước `ready` ⇒ nhiều frame, mỗi frame ≤ 32 KiB, ghép lại đúng nguyên văn', () => {
+    const { connection, socket } = setup();
+    socket.open();
+    const paste = 'a'.repeat(100 * 1024);
+    connection.sendInput(paste);
+
+    const frames = binaryFrames(socket);
+    expect(frames.length).toBeGreaterThan(3);
+    for (const frame of frames) {
+      expect(frame.byteLength).toBeLessThanOrEqual(DEFAULT_MAX_FRAME_BYTES);
+    }
+    expect(frames.map(decodeStrict).join('')).toBe(paste);
+  });
+
+  it('KHÔNG cắt giữa một ký tự đa-byte — mỗi frame tự decode được ở chế độ fatal', () => {
+    const { connection, socket } = setup();
+    socket.open();
+    // 3 byte/ký tự và 4 byte/emoji, xen kẽ để ranh giới 31 KiB rơi vào GIỮA
+    // một ký tự ở nhiều frame chứ không tình cờ trùng ranh giới.
+    const paste = 'phiên🐳ệ'.repeat(12_000);
+    connection.sendInput(paste);
+
+    const frames = binaryFrames(socket);
+    expect(frames.length).toBeGreaterThan(1);
+    for (const frame of frames) {
+      expect(frame.byteLength).toBeLessThanOrEqual(DEFAULT_MAX_FRAME_BYTES);
+      expect(() => decodeStrict(frame)).not.toThrow();
+    }
+    expect(frames.map(decodeStrict).join('')).toBe(paste);
+  });
+
+  it('dùng `maxFrameBytes` mà `ready` báo, không dùng hằng số mặc định', () => {
+    const { connection, socket } = setup();
+    socket.open();
+    socket.emit('message', { data: readyFrame(4096) });
+    connection.sendInput('x'.repeat(20_000));
+
+    const frames = binaryFrames(socket);
+    expect(frames.length).toBeGreaterThanOrEqual(5);
+    for (const frame of frames) {
+      expect(frame.byteLength).toBeLessThanOrEqual(4096);
+    }
+  });
+
+  it('ĐỐI CHỨNG: chuỗi gõ thường vẫn đi ĐÚNG một frame', () => {
+    const { connection, socket } = setup();
+    socket.open();
+    connection.sendInput('kubectl get pods\r');
+    expect(binaryFrames(socket)).toHaveLength(1);
+  });
+
+  it('splitUtf8 — đơn vị: không mảnh nào vượt trần, không mảnh nào bắt đầu bằng byte nối tiếp', () => {
+    const bytes = new TextEncoder().encode('ệ'.repeat(1000));
+    const pieces = splitUtf8(bytes, 10);
+    for (const piece of pieces) {
+      expect(piece.byteLength).toBeLessThanOrEqual(10);
+      expect((piece[0]! & 0xc0) === 0x80).toBe(false);
+    }
+    expect(pieces.reduce((sum, piece) => sum + piece.byteLength, 0)).toBe(bytes.byteLength);
   });
 });
 

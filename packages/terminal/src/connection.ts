@@ -43,6 +43,75 @@ const encoder = new TextEncoder();
 /** Trần cho lượt HANDSHAKE — lý do đầy đủ ở `handshakeTimer` trong `openConnection`. */
 export const HANDSHAKE_TIMEOUT_MS = 10_000;
 
+/**
+ * C2 — trần MỘT frame stdin khi `ready` chưa tới để báo con số thật.
+ *
+ * Bằng đúng `MaxFrameBytes` của gateway (`services/terminal-gateway/internal/
+ * podexec/bridge.go`, `SetReadLimit(32 KiB)`) và ví dụ `ready` ở contract §5.
+ * Cần một giá trị trước `ready` vì stdin được phép đi ngay sau `init` — gateway
+ * đệm nó qua `pendingStdin` trong lúc dial exec.
+ */
+export const DEFAULT_MAX_FRAME_BYTES = 32 * 1024;
+
+/**
+ * Khoảng chừa dưới trần. Contract §6 đo được `1009 "read limited at 1025 bytes"`
+ * với limit 1024, tức trần là bao gồm — chừa 1 KiB không vì phép tính sai, mà vì
+ * vượt trần ở đây là ĐÓNG PHIÊN (1009 không retry), còn chừa thừa chỉ tốn thêm
+ * một frame mỗi 31 KiB.
+ */
+export const FRAME_MARGIN_BYTES = 1024;
+
+/** Một ký tự UTF-8 dài tối đa 4 byte — mảnh nhỏ hơn thì không chứa nổi một ký tự. */
+const MIN_CHUNK_BYTES = 4;
+
+/** Số byte tối đa cho MỘT frame stdin khi gateway báo trần `maxFrameBytes`. */
+export function inputChunkBytes(maxFrameBytes: number): number {
+  if (maxFrameBytes > 2 * FRAME_MARGIN_BYTES) {
+    return maxFrameBytes - FRAME_MARGIN_BYTES;
+  }
+  // Trần nhỏ bất thường: chừa 1 KiB sẽ ăn mất gần hết frame, nên chừa một nửa.
+  return Math.max(MIN_CHUNK_BYTES, Math.floor(maxFrameBytes / 2));
+}
+
+/**
+ * Cắt byte UTF-8 thành các mảnh ≤ `maxChunkBytes`, KHÔNG BAO GIỜ cắt giữa một ký
+ * tự: ranh giới lùi lại tới khi byte đầu mảnh sau không phải byte nối tiếp
+ * (`10xxxxxx`).
+ *
+ * Vì sao quan trọng dù PTY nhận một DÒNG byte: gateway và mọi tầng log/metric ở
+ * giữa đọc từng frame như một đơn vị; một frame mở đầu bằng nửa ký tự là một
+ * frame không hợp lệ UTF-8 đứng riêng. Không có lý do gì để tạo ra nó.
+ *
+ * Trả về view (`subarray`) chứ không copy — `WebSocket.send` gửi đúng phần view.
+ */
+export function splitUtf8(
+  bytes: Uint8Array<ArrayBuffer>,
+  maxChunkBytes: number,
+): Uint8Array<ArrayBuffer>[] {
+  const limit = Math.max(MIN_CHUNK_BYTES, Math.floor(maxChunkBytes));
+  if (bytes.byteLength <= limit) {
+    return [bytes];
+  }
+  const pieces: Uint8Array<ArrayBuffer>[] = [];
+  let start = 0;
+  while (start < bytes.byteLength) {
+    let end = Math.min(start + limit, bytes.byteLength);
+    if (end < bytes.byteLength) {
+      while (end > start && ((bytes[end] ?? 0) & 0xc0) === 0x80) {
+        end -= 1;
+      }
+      // Không có byte mở đầu nào trong cửa sổ ⇒ đầu vào không phải UTF-8 hợp lệ.
+      // `TextEncoder` không bao giờ sinh ra nó; nếu có thì cắt cứng còn hơn lặp vô hạn.
+      if (end === start) {
+        end = Math.min(start + limit, bytes.byteLength);
+      }
+    }
+    pieces.push(bytes.subarray(start, end));
+    start = end;
+  }
+  return pieces;
+}
+
 export function openConnection(options: ConnectionOptions): Connection {
   const factory =
     options.socketFactory ??
@@ -56,6 +125,14 @@ export function openConnection(options: ConnectionOptions): Connection {
 
   let closed = false;
   let opened = false;
+  /** C2 — trần frame hiện hành; `ready` thay nó bằng con số gateway báo. */
+  let chunkBytes = inputChunkBytes(DEFAULT_MAX_FRAME_BYTES);
+
+  function sendStdin(bytes: Uint8Array<ArrayBuffer>): void {
+    for (const piece of splitUtf8(bytes, chunkBytes)) {
+      socket.send(piece);
+    }
+  }
 
   /**
    * Trần thời gian cho HANDSHAKE — không phải cho phiên.
@@ -123,6 +200,16 @@ export function openConnection(options: ConnectionOptions): Connection {
         );
         return;
       }
+      if (control.type === 'ready') {
+        if (Number.isFinite(control.maxFrameBytes) && control.maxFrameBytes >= MIN_CHUNK_BYTES) {
+          chunkBytes = inputChunkBytes(control.maxFrameBytes);
+        } else {
+          console.warn(
+            '[dlp-terminal] `ready.maxFrameBytes` không dùng được, giữ trần mặc định:',
+            control.maxFrameBytes,
+          );
+        }
+      }
       options.onControl(control);
       return;
     }
@@ -153,7 +240,8 @@ export function openConnection(options: ConnectionOptions): Connection {
       }
       // Contract §1 bẫy 1 — `onData` trả STRING; gửi thẳng thành text frame và
       // server đọc nó như control JSON hỏng rồi đóng 4400. Phải encode ra binary.
-      socket.send(encoder.encode(data));
+      // C2 — và chia theo byte: một frame vượt `maxFrameBytes` là `1009`, đóng hẳn.
+      sendStdin(encoder.encode(data));
     },
 
     sendResize(size: TerminalDimensions): void {
