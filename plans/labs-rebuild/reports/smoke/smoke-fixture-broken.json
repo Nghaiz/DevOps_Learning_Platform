@@ -1,0 +1,386 @@
+{
+  "kind": "lab",
+  "id": "smoke-fixture-broken",
+  "title": "Fixture của content-smoke: CỐ Ý hỏng",
+  "contentDir": "D:\\NCKH\\dlp-labs-e\\scripts\\content-smoke\\fixtures\\labs\\smoke-fixture-broken",
+  "image": "ghcr.io/nghaiz/dlp-sandbox-base:sha-6f19cbe",
+  "profile": "",
+  "pod": "smoke-lab-smoke-fixture-broken-3e3caa",
+  "startedAt": "2026-10-02T22:56:47.924Z",
+  "durationMs": 61470,
+  "verdict": "fail",
+  "deviations": [
+    {
+      "where": "task:always-pass",
+      "code": "pre-pass",
+      "message": "verify ĐẠT trước khi người học làm gì — nó không phân biệt được trước/sau"
+    },
+    {
+      "where": "task:no-solution",
+      "code": "missing-solution",
+      "message": "thiếu task-no-solution/solution.sh (§C2: BẮT BUỘC)"
+    },
+    {
+      "where": "task:wrong-answer",
+      "code": "post-fail",
+      "message": "verify TRƯỢT sau khi đã làm (exit 1): ✗ /root/fx/answer.txt chứa 42 (hiện: '41')"
+    },
+    {
+      "where": "final:make-file",
+      "code": "regress",
+      "message": "verify TRƯỢT sau khi đã làm (exit 1): ✗ /root/fx/a.txt tồn tại"
+    },
+    {
+      "where": "final:no-solution",
+      "code": "regress",
+      "message": "verify TRƯỢT sau khi đã làm (exit 1): ✗ /root/fx/c.txt tồn tại"
+    },
+    {
+      "where": "final:wrong-answer",
+      "code": "regress",
+      "message": "verify TRƯỢT sau khi đã làm (exit 1): ✗ /root/fx/answer.txt chứa 42 (hiện: '41')"
+    }
+  ],
+  "warnings": [],
+  "infra": {
+    "podReadyMs": 10817,
+    "dockerReadyMs": 4357,
+    "terminalMs": 15211,
+    "loadavg": "8.91 9.16 7.65 4/1650 966"
+  },
+  "units": [
+    {
+      "key": "setup",
+      "title": "Dựng cảnh",
+      "setup": [
+        {
+          "kind": "background",
+          "exitCode": 0,
+          "durationMs": 923,
+          "output": ""
+        },
+        {
+          "kind": "background-wait",
+          "exitCode": 0,
+          "durationMs": 1002,
+          "output": ""
+        }
+      ],
+      "pre": null,
+      "actions": [],
+      "post": null,
+      "detailed": true
+    },
+    {
+      "key": "task:make-file",
+      "title": "Tạo a.txt (đúng, nhưng sẽ bị task sau phá)",
+      "setup": [],
+      "pre": {
+        "expect": "fail",
+        "exitCode": 1,
+        "passed": false,
+        "durationMs": 758,
+        "slow": false,
+        "criteria": [
+          {
+            "ok": false,
+            "label": "/root/fx/a.txt tồn tại"
+          }
+        ],
+        "notes": "",
+        "infraError": null,
+        "ok": true
+      },
+      "actions": [
+        {
+          "kind": "solution",
+          "code": "#!/bin/bash\nset -euo pipefail\ntouch /root/fx/a.txt\n",
+          "rc": 0,
+          "cwd": "/root",
+          "durationMs": 3727,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  bash /root/.dlp-smoke/solutions/task-make-file.sh\n  dlp   ~                                                                                                                                                                                22:58:58\n❯"
+        }
+      ],
+      "post": {
+        "expect": "pass",
+        "exitCode": 0,
+        "passed": true,
+        "durationMs": 1043,
+        "slow": false,
+        "criteria": [
+          {
+            "ok": true,
+            "label": "/root/fx/a.txt tồn tại"
+          }
+        ],
+        "notes": "",
+        "infraError": null,
+        "ok": true
+      },
+      "detailed": true
+    },
+    {
+      "key": "task:clobber",
+      "title": "Tạo b.txt (lời giải xoá luôn a.txt)",
+      "setup": [],
+      "pre": {
+        "expect": "fail",
+        "exitCode": 1,
+        "passed": false,
+        "durationMs": 1632,
+        "slow": false,
+        "criteria": [
+          {
+            "ok": false,
+            "label": "/root/fx/b.txt tồn tại"
+          }
+        ],
+        "notes": "",
+        "infraError": null,
+        "ok": true
+      },
+      "actions": [
+        {
+          "kind": "solution",
+          "code": "#!/bin/bash\n# HỎNG CÓ CHỦ Ý: làm xong việc của mình nhưng phá trạng thái của task make-file.\nset -euo pipefail\ntouch /root/fx/b.txt\nrm -f /root/fx/a.txt\n",
+          "rc": 0,
+          "cwd": "/root",
+          "durationMs": 1417,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  bash /root/.dlp-smoke/solutions/task-clobber.sh\n  dlp   ~                                                                                                                                                                                22:59:05\n❯"
+        }
+      ],
+      "post": {
+        "expect": "pass",
+        "exitCode": 0,
+        "passed": true,
+        "durationMs": 883,
+        "slow": false,
+        "criteria": [
+          {
+            "ok": true,
+            "label": "/root/fx/b.txt tồn tại"
+          }
+        ],
+        "notes": "",
+        "infraError": null,
+        "ok": true
+      },
+      "detailed": true
+    },
+    {
+      "key": "task:always-pass",
+      "title": "Verify không kiểm gì",
+      "setup": [],
+      "pre": {
+        "expect": "fail",
+        "exitCode": 0,
+        "passed": true,
+        "durationMs": 888,
+        "slow": false,
+        "criteria": [
+          {
+            "ok": true,
+            "label": "luôn đạt"
+          }
+        ],
+        "notes": "",
+        "infraError": null,
+        "ok": false
+      },
+      "actions": [
+        {
+          "kind": "solution",
+          "code": "#!/bin/bash\ntrue\n",
+          "rc": 0,
+          "cwd": "/root",
+          "durationMs": 1408,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  bash /root/.dlp-smoke/solutions/task-always-pass.sh\n  dlp   ~                                                                                                                                                                                22:59:09\n❯"
+        }
+      ],
+      "post": {
+        "expect": "pass",
+        "exitCode": 0,
+        "passed": true,
+        "durationMs": 565,
+        "slow": false,
+        "criteria": [
+          {
+            "ok": true,
+            "label": "luôn đạt"
+          }
+        ],
+        "notes": "",
+        "infraError": null,
+        "ok": true
+      },
+      "detailed": true
+    },
+    {
+      "key": "task:no-solution",
+      "title": "Thiếu solution.sh",
+      "setup": [],
+      "pre": {
+        "expect": "fail",
+        "exitCode": 1,
+        "passed": false,
+        "durationMs": 612,
+        "slow": false,
+        "criteria": [
+          {
+            "ok": false,
+            "label": "/root/fx/c.txt tồn tại"
+          }
+        ],
+        "notes": "",
+        "infraError": null,
+        "ok": true
+      },
+      "actions": [],
+      "post": null,
+      "detailed": true
+    },
+    {
+      "key": "task:wrong-answer",
+      "title": "Lời giải làm sai yêu cầu",
+      "setup": [],
+      "pre": {
+        "expect": "fail",
+        "exitCode": 1,
+        "passed": false,
+        "durationMs": 793,
+        "slow": false,
+        "criteria": [
+          {
+            "ok": false,
+            "label": "/root/fx/answer.txt chứa 42 (hiện: '')"
+          }
+        ],
+        "notes": "",
+        "infraError": null,
+        "ok": true
+      },
+      "actions": [
+        {
+          "kind": "solution",
+          "code": "#!/bin/bash\n# HỎNG CÓ CHỦ Ý: ghi sai giá trị.\nset -euo pipefail\necho 41 > /root/fx/answer.txt\n",
+          "rc": 0,
+          "cwd": "/root",
+          "durationMs": 1425,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  bash /root/.dlp-smoke/solutions/task-wrong-answer.sh\n  dlp   ~                                                                                                                                                                                22:59:13\n❯"
+        }
+      ],
+      "post": {
+        "expect": "pass",
+        "exitCode": 1,
+        "passed": false,
+        "durationMs": 1682,
+        "slow": false,
+        "criteria": [
+          {
+            "ok": false,
+            "label": "/root/fx/answer.txt chứa 42 (hiện: '41')"
+          }
+        ],
+        "notes": "",
+        "infraError": null,
+        "ok": false
+      },
+      "detailed": true
+    }
+  ],
+  "final": [
+    {
+      "taskId": "make-file",
+      "expect": "pass",
+      "exitCode": 1,
+      "passed": false,
+      "durationMs": 3838,
+      "slow": false,
+      "criteria": [
+        {
+          "ok": false,
+          "label": "/root/fx/a.txt tồn tại"
+        }
+      ],
+      "notes": "",
+      "infraError": null,
+      "ok": false
+    },
+    {
+      "taskId": "clobber",
+      "expect": "pass",
+      "exitCode": 0,
+      "passed": true,
+      "durationMs": 1366,
+      "slow": false,
+      "criteria": [
+        {
+          "ok": true,
+          "label": "/root/fx/b.txt tồn tại"
+        }
+      ],
+      "notes": "",
+      "infraError": null,
+      "ok": true
+    },
+    {
+      "taskId": "always-pass",
+      "expect": "pass",
+      "exitCode": 0,
+      "passed": true,
+      "durationMs": 926,
+      "slow": false,
+      "criteria": [
+        {
+          "ok": true,
+          "label": "luôn đạt"
+        }
+      ],
+      "notes": "",
+      "infraError": null,
+      "ok": true
+    },
+    {
+      "taskId": "no-solution",
+      "expect": "pass",
+      "exitCode": 1,
+      "passed": false,
+      "durationMs": 736,
+      "slow": false,
+      "criteria": [
+        {
+          "ok": false,
+          "label": "/root/fx/c.txt tồn tại"
+        }
+      ],
+      "notes": "",
+      "infraError": null,
+      "ok": false
+    },
+    {
+      "taskId": "wrong-answer",
+      "expect": "pass",
+      "exitCode": 1,
+      "passed": false,
+      "durationMs": 653,
+      "slow": false,
+      "criteria": [
+        {
+          "ok": false,
+          "label": "/root/fx/answer.txt chứa 42 (hiện: '41')"
+        }
+      ],
+      "notes": "",
+      "infraError": null,
+      "ok": false
+    }
+  ]
+}

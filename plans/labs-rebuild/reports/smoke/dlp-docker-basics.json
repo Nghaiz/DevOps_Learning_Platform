@@ -1,0 +1,491 @@
+{
+  "kind": "lesson",
+  "id": "dlp-docker-basics",
+  "title": "Docker căn bản: kéo, chạy, dựng image",
+  "contentDir": "D:\\NCKH\\dlp-labs-e\\content\\scenarios\\dlp-docker-basics",
+  "image": "ghcr.io/nghaiz/dlp-sandbox-base:sha-6f19cbe",
+  "profile": "",
+  "pod": "smoke-lesson-dlp-docker-basics-4b5909",
+  "startedAt": "2026-10-02T22:58:48.237Z",
+  "durationMs": 306802,
+  "verdict": "fail",
+  "deviations": [
+    {
+      "where": "step6",
+      "code": "pre-pass",
+      "message": "verify ĐẠT trước khi người học làm gì — nó không phân biệt được trước/sau"
+    },
+    {
+      "where": "step6",
+      "code": "slow",
+      "message": "verify mất 25.9s (> 20s của §C1)"
+    },
+    {
+      "where": "step6",
+      "code": "slow",
+      "message": "verify mất 24.3s (> 20s của §C1)"
+    }
+  ],
+  "warnings": [
+    {
+      "where": "intro",
+      "code": "shell-error",
+      "message": "foreground «#!/bin/bash»: zsh: event not found: /bin/bash"
+    }
+  ],
+  "infra": {
+    "podReadyMs": 9850,
+    "dockerReadyMs": 7109,
+    "terminalMs": 16216,
+    "loadavg": "14.46 10.96 8.84 17/1808 4634"
+  },
+  "units": [
+    {
+      "key": "intro",
+      "title": "Giới thiệu",
+      "setup": [
+        {
+          "kind": "assets",
+          "exitCode": 0,
+          "durationMs": 1750,
+          "output": "dlp-assets-pushed 1\n"
+        },
+        {
+          "kind": "background",
+          "exitCode": 0,
+          "durationMs": 8052,
+          "output": ""
+        }
+      ],
+      "pre": null,
+      "actions": [
+        {
+          "kind": "foreground",
+          "code": "#!/bin/bash\n# Chạy TRONG terminal người học đang nhìn — đó là toàn bộ khác biệt với\n# background.sh. Nó phải nói cho người ta biết chuyện gì đang xảy ra.\necho \"Dang chuan bi moi truong lab...\"\nwhile [ ! -f /root/lab-docker/.setup-done ]; do sleep 1; done\necho \"San sang. Thu muc lam viec: /root/lab-docker\"\n",
+          "rc": 0,
+          "cwd": "/root",
+          "durationMs": 2723,
+          "timedOut": false,
+          "shellErrors": [
+            "zsh: event not found: /bin/bash",
+            "zsh: command not found: #",
+            "zsh: command not found: #"
+          ],
+          "output": "❯  #!/bin/bash\nzsh: event not found: /bin/bash\n\n  dlp   ~                                                                                                                                                                                23:01:08\n❯  # Chạy TRONG terminal người học đang nhìn — đó là toàn bộ khác biệt với\nzsh: command not found: #\n  dlp   ~                                                                                                                                                                                23:01:08\n❯  # background.sh. Nó phải nói cho người ta biết chuyện gì đang xảy ra.\nzsh: command not found: #\n  dlp   ~                                                                                                                                                                                23:01:08\n❯  echo \"Dang chuan bi moi truong lab...\"\nDang chuan bi moi truong lab...\n  dlp   ~                                                                                                                                                                                23:01:08\n❯  while [ ! -f /root/lab-docker/.setup-done ]; do sleep 1; done\n  dlp   ~                                                                                                                                                                                23:01:08\n❯  echo \"San sang. Thu muc lam viec: /root/lab-docker\"\nSan sang. Thu muc lam viec: /root/lab-docker\n  dlp   ~                                                                                                                                                                                23:01:08\n❯"
+        },
+        {
+          "kind": "exec",
+          "code": "ls -la /root/lab-docker",
+          "rc": 0,
+          "cwd": "/root",
+          "durationMs": 2581,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  ls -la /root/lab-docker\n.rw-r--r--   6 root  2 Oct 23:01  .setup-done\n.rw-r--r-- 379 root  2 Oct 23:01  app.py\n  dlp   ~                                                                                                                                                                                23:01:10\n❯"
+        },
+        {
+          "kind": "exec",
+          "code": "docker version --format 'client={{.Client.Version}} server={{.Server.Version}}'",
+          "rc": 0,
+          "cwd": "/root",
+          "durationMs": 3121,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  docker version --format 'client={{.Client.Version}} server={{.Server.Version}}'\nclient=29.8.0 server=29.8.0\n  dlp   ~                                                                                                                                                                                23:01:13\n❯"
+        }
+      ],
+      "post": null,
+      "detailed": true
+    },
+    {
+      "key": "step1",
+      "title": "Kéo image đầu tiên từ Docker Hub",
+      "setup": [],
+      "pre": {
+        "expect": "fail",
+        "exitCode": 1,
+        "passed": false,
+        "durationMs": 1564,
+        "slow": false,
+        "criteria": [],
+        "notes": "Chua thay image python:3.12-slim. Hay chay: docker pull python:3.12-slim",
+        "infraError": null,
+        "ok": true
+      },
+      "actions": [
+        {
+          "kind": "exec",
+          "code": "docker pull python:3.12-slim",
+          "rc": 0,
+          "cwd": "/root",
+          "durationMs": 42400,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  docker pull python:3.12-slim\n3.12-slim: Pulling from library/python\n5e62c0470a09: Pull complete\n6b37362b3da7: Pull complete\na510a9ea6d60: Pull complete\ne360d85fdc0f: Pull complete\nb1207e5a0f8b: Download complete\n64fda0ae01ed: Download complete\nDigest: sha256:dddfd7e07f9d15aeeca61529320492139d21cac7f0070c00609243e51e4e0016\nStatus: Downloaded newer image for python:3.12-slim\ndocker.io/library/python:3.12-slim\n  dlp   ~                                                                                                                                                                      41.004s  23:01:58\n❯"
+        },
+        {
+          "kind": "exec",
+          "code": "docker images",
+          "rc": 0,
+          "cwd": "/root",
+          "durationMs": 6396,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  docker images\n                                                                                                                                                                                    i Info →   U  In Use\nIMAGE              ID             DISK USAGE   CONTENT SIZE   EXTRA\npython:3.12-slim   dddfd7e07f9d        191MB         48.4MB\n  dlp   ~                                                                                                                                                                       1.263s  23:02:02\n❯"
+        },
+        {
+          "kind": "exec",
+          "code": "docker info | grep -A1 'Registry Mirrors'",
+          "rc": 0,
+          "cwd": "/root",
+          "durationMs": 2712,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  docker info | grep -A1 'Registry Mirrors'\n Registry Mirrors:\n  http://platform-registry-mirror.dlp-registry.svc.cluster.local:5000/\n  dlp   ~                                                                                                                                                                        661ms  23:02:07\n❯"
+        }
+      ],
+      "post": {
+        "expect": "pass",
+        "exitCode": 0,
+        "passed": true,
+        "durationMs": 2120,
+        "slow": false,
+        "criteria": [],
+        "notes": "Dat — python:3.12-slim da nam tren may.",
+        "infraError": null,
+        "ok": true
+      },
+      "detailed": true
+    },
+    {
+      "key": "step2",
+      "title": "Chạy container và mở cổng",
+      "setup": [],
+      "pre": {
+        "expect": "fail",
+        "exitCode": 1,
+        "passed": false,
+        "durationMs": 1555,
+        "slow": false,
+        "criteria": [],
+        "notes": "Chua thay container ten 'web' dang chay.\nHay chay: docker run -d --name web -p 8080:80 nginx:alpine",
+        "infraError": null,
+        "ok": true
+      },
+      "actions": [
+        {
+          "kind": "exec",
+          "code": "docker run -d --name web -p 8080:80 nginx:alpine",
+          "rc": 0,
+          "cwd": "/root",
+          "durationMs": 17187,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  docker run -d --name web -p 8080:80 nginx:alpine\nUnable to find image 'nginx:alpine' locally\nalpine: Pulling from library/nginx\ne72112c14215: Pull complete\ne2de96513ba9: Pull complete\nd9aae54b5831: Pull complete\n6c53d0b2a666: Pull complete\n745dfb2690dd: Pull complete\n9a9a644fdd6a: Pull complete\n64c8194480fe: Pull complete\ne76228b47809: Pull complete\n0deea27e58d9: Download complete\nd54d3939625e: Download complete\nDigest: sha256:df221db836e1754089190208cee7eeda94f233197056426eda74a43ab1abeac2\nStatus: Downloaded newer image for nginx:alpine\n947a5f8af9684b43f03206fae232e556717fb5b79f5c094191235b5676216340\n  dlp   ~                                                                                                                                                                      15.192s  23:02:28\n❯"
+        },
+        {
+          "kind": "exec",
+          "code": "docker ps",
+          "rc": 0,
+          "cwd": "/root",
+          "durationMs": 2395,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  docker ps\nCONTAINER ID   IMAGE          COMMAND                  CREATED         STATUS         PORTS                                     NAMES\n947a5f8af968   nginx:alpine   \"/docker-entrypoint.…\"   9 seconds ago   Up 8 seconds   0.0.0.0:8080->80/tcp, [::]:8080->80/tcp   web\n  dlp   ~                                                                                                                                                                                23:02:30\n❯"
+        },
+        {
+          "kind": "exec",
+          "code": "curl -s -o /dev/null -w 'http=%{http_code}\\n' http://localhost:8080/",
+          "rc": 0,
+          "cwd": "/root",
+          "durationMs": 2219,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  curl -s -o /dev/null -w 'http=%{http_code}\\n' http://localhost:8080/\nhttp=200\n  dlp   ~                                                                                                                                                                        548ms  23:02:33\n❯"
+        }
+      ],
+      "post": {
+        "expect": "pass",
+        "exitCode": 0,
+        "passed": true,
+        "durationMs": 1548,
+        "slow": false,
+        "criteria": [],
+        "notes": "Dat — container 'web' dang chay va cong 8080 tra ve 200.",
+        "infraError": null,
+        "ok": true
+      },
+      "detailed": true
+    },
+    {
+      "key": "step3",
+      "title": "Xem log và chui vào trong container",
+      "setup": [],
+      "pre": {
+        "expect": "fail",
+        "exitCode": 1,
+        "passed": false,
+        "durationMs": 1984,
+        "slow": false,
+        "criteria": [],
+        "notes": "Chua thay /tmp/dlp-marker BEN TRONG container 'web'.\nHay chay: docker exec -it web sh -c 'echo \"toi da o trong container\" > /tmp/dlp-marker && cat /tmp/dlp-marker'",
+        "infraError": null,
+        "ok": true
+      },
+      "actions": [
+        {
+          "kind": "exec",
+          "code": "docker logs web",
+          "rc": 0,
+          "cwd": "/root",
+          "durationMs": 2432,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  docker logs web\n/docker-entrypoint.sh: /docker-entrypoint.d/ is not empty, will attempt to perform configuration\n/docker-entrypoint.sh: Looking for shell scripts in /docker-entrypoint.d/\n/docker-entrypoint.sh: Launching /docker-entrypoint.d/10-listen-on-ipv6-by-default.sh\n10-listen-on-ipv6-by-default.sh: info: Getting the checksum of /etc/nginx/conf.d/default.conf\n10-listen-on-ipv6-by-default.sh: info: Enabled listen on IPv6 in /etc/nginx/conf.d/default.conf\n/docker-entrypoint.sh: Sourcing /docker-entrypoint.d/15-local-resolvers.envsh\n/docker-entrypoint.sh: Launching /docker-entrypoint.d/20-envsubst-on-templates.sh\n/docker-entrypoint.sh: Launching /docker-entrypoint.d/30-tune-worker-processes.sh\n/docker-entrypoint.sh: Configuration complete; ready for start up\n2026/10/02 23:02:29 [notice] 1#1: using the \"epoll\" event method\n2026/10/02 23:02:29 [notice] 1#1: nginx/1.31.6\n2026/10/02 23:02:29 [notice] 1#1: built by gcc 15.2.0 (Alpine 15.2.0)\n2026/10/02 23:02:29 [notice] 1#1: OS: Linux 6.12.101+deb13-amd64\n2026/10/02 23:02:29 [notice] 1#1: getrlimit(RLIMIT_NOFILE): 1048576:1048576\n2026/10/02 23:02:29 [notice] 1#1: start worker processes\n2026/10/02 23:02:29 [notice] 1#1: start worker process 115\n2026/10/02 23:02:29 [notice] 1#1: start worker process 116\n2026/10/02 23:02:29 [notice] 1#1: start worker process 117\n2026/10/02 23:02:29 [notice] 1#1: start worker process 118\n2026/10/02 23:02:29 [notice] 1#1: start worker process 119\n2026/10/02 23:02:29 [notice] 1#1: start worker process 120\n2026/10/02 23:02:29 [notice] 1#1: start worker process 121\n2026/10/02 23:02:29 [notice] 1#1: start worker process 122\n2026/10/02 23:02:29 [notice] 1#1: start worker process 123\n2026/10/02 23:02:29 [notice] 1#1: start worker process 124\n2026/10/02 23:02:29 [notice] 1#1: start worker process 125\n2026/10/02 23:02:29 [notice] 1#1: start worker process 126\n172.17.0.1 - - [02/Oct/2026:23:02:33 +0000] \"GET / HTTP/1.1\" 200 896 \"-\" \"curl/8.5.0\" \"-\"\n172.17.0.1 - - [02/Oct/2026:23:02:35 +0000] \"GET / HTTP/1.1\" 200 896 \"-\" \"curl/8.5.0\" \"-\"\n  dlp   ~                                                                                                                                                                                23:02:38\n❯"
+        },
+        {
+          "kind": "exec",
+          "code": "docker exec web ls /usr/share/nginx/html",
+          "rc": 0,
+          "cwd": "/root",
+          "durationMs": 4132,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  docker exec web ls /usr/share/nginx/html\n50x.html\nindex.html\n  dlp   ~                                                                                                                                                                        692ms  23:02:42\n❯"
+        },
+        {
+          "kind": "exec",
+          "code": "docker exec -it web sh -c 'echo \"toi da o trong container\" > /tmp/dlp-marker && cat /tmp/dlp-marker'",
+          "rc": 0,
+          "cwd": "/root",
+          "durationMs": 3668,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  docker exec -it web sh -c 'echo \"toi da o trong container\" > /tmp/dlp-marker && cat /tmp/dlp-marker'\ntoi da o trong container\n  dlp   ~                                                                                                                                                                        852ms  23:02:46\n❯"
+        },
+        {
+          "kind": "exec",
+          "code": "ls /tmp/dlp-marker ; echo \"tren sandbox: exit=$?\"",
+          "rc": 0,
+          "cwd": "/root",
+          "durationMs": 3739,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  ls /tmp/dlp-marker ; echo \"tren sandbox: exit=$?\"\n\"/tmp/dlp-marker\": No such file or directory (os error 2)\ntren sandbox: exit=2\n  dlp   ~                                                                                                                                                                                23:02:48\n❯"
+        }
+      ],
+      "post": {
+        "expect": "pass",
+        "exitCode": 0,
+        "passed": true,
+        "durationMs": 3998,
+        "slow": false,
+        "criteria": [],
+        "notes": "Dat — tep moc nam trong container, va khong nam tren sandbox.",
+        "infraError": null,
+        "ok": true
+      },
+      "detailed": true
+    },
+    {
+      "key": "step4",
+      "title": "Dựng image của riêng bạn",
+      "setup": [],
+      "pre": {
+        "expect": "fail",
+        "exitCode": 1,
+        "passed": false,
+        "durationMs": 3273,
+        "slow": false,
+        "criteria": [],
+        "notes": "Chua thay image myapp:1.\nHay chay: cd /root/lab-docker && docker build -t myapp:1 .",
+        "infraError": null,
+        "ok": true
+      },
+      "actions": [
+        {
+          "kind": "exec",
+          "code": "cd /root/lab-docker && cat app.py",
+          "rc": 0,
+          "cwd": "/root/lab-docker",
+          "durationMs": 4297,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  cd /root/lab-docker && cat app.py\n───────┬────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n       │ File: app.py\n───────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n   1   │ \"\"\"Chương trình nhỏ nhất đủ để chứng minh image bạn dựng CHẠY được.\n   2   │\n   3   │ Tệp này được nền tảng đẩy vào pod trước khi bài bắt đầu — bạn không phải gõ nó.\n   4   │ Ở bước 4 bạn sẽ COPY nó vào image của mình.\n   5   │ \"\"\"\n   6   │\n   7   │ import platform\n   8   │\n   9   │ print(\"DLP docker lab: xin chao tu container\")\n  10   │ print(f\"python={platform.python_version()}\")\n───────┴────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n  dlp   ~/lab-docker                                                                                                                                                             763ms  23:03:01\n❯"
+        },
+        {
+          "kind": "exec",
+          "code": "cat > /root/lab-docker/Dockerfile <<'EOF'\nFROM python:3.12-slim\nWORKDIR /app\nCOPY app.py .\nCMD [\"python\", \"app.py\"]\nEOF",
+          "rc": 0,
+          "cwd": "/root/lab-docker",
+          "durationMs": 2371,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  cat > /root/lab-docker/Dockerfile <<'EOF'\n> FROM python:3.12-slim\n> WORKDIR /app\n> COPY app.py .\n> CMD [\"python\", \"app.py\"]\n> EOF\n  dlp   ~/lab-docker                                                                                                                                                                     23:03:04\n❯"
+        },
+        {
+          "kind": "exec",
+          "code": "cd /root/lab-docker && docker build -t myapp:1 .",
+          "rc": 0,
+          "cwd": "/root/lab-docker",
+          "durationMs": 13518,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  cd /root/lab-docker && docker build -t myapp:1 .\n[+] Building 9.8s (8/8) FINISHED                                                                                                                                                         docker:default\n => [internal] load build definition from Dockerfile                                                                                                                                               0.2s\n => => transferring dockerfile: 111B                                                                                                                                                               0.1s\n => [internal] load metadata for docker.io/library/python:3.12-slim                                                                                                                                0.2s\n => [internal] load .dockerignore                                                                                                                                                                  0.1s\n => => transferring context: 2B                                                                                                                                                                    0.0s\n => [1/3] FROM docker.io/library/python:3.12-slim@sha256:dddfd7e07f9d15aeeca61529320492139d21cac7f0070c00609243e51e4e0016                                                                          1.5s\n => => resolve docker.io/library/python:3.12-slim@sha256:dddfd7e07f9d15aeeca61529320492139d21cac7f0070c00609243e51e4e0016                                                                          0.4s\n => [internal] load build context                                                                                                                                                                  0.1s\n => => transferring context: 414B                                                                                                                                                                  0.0s\n => [2/3] WORKDIR /app                                                                                                                                                                             0.9s\n => [3/3] COPY app.py .                                                                                                                                                                            1.2s\n => exporting to image                                                                                                                                                                             4.0s\n => => exporting layers                                                                                                                                                                            1.9s\n => => exporting manifest sha256:f2e4bfeb9ca00d2ac6066da990339ba8001b62fb85f06659c4ecd612e55474f4                                                                                                  0.1s\n => => exporting config sha256:1ec60d831452c53da7622c01749b80d03b11995bb9b0b16c2d471be5d2496a31                                                                                                    0.1s\n => => exporting attestation manifest sha256:dd7da6ea142e6912348f07ba6ea69f9e5921ef031c49c78c788d8ea20e915b27                                                                                      0.3s\n => => exporting manifest list sha256:ceacbb84dc1ddc58f84869023f7e86e97f4e595baf1fac5a459b1fcf393f18d5                                                                                             0.1s\n => => naming to docker.io/library/myapp:1                                                                                                                                                         0.0s\n => => unpacking to docker.io/library/myapp:1                                                                                                       \n… (cắt, tổng 4253 ký tự)"
+        },
+        {
+          "kind": "exec",
+          "code": "docker run --rm myapp:1",
+          "rc": 0,
+          "cwd": "/root/lab-docker",
+          "durationMs": 13607,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  docker run --rm myapp:1\nDLP docker lab: xin chao tu container\npython=3.12.15\n  dlp   ~/lab-docker                                                                                                                                                           11.543s  23:03:31\n❯"
+        }
+      ],
+      "post": {
+        "expect": "pass",
+        "exitCode": 0,
+        "passed": true,
+        "durationMs": 11959,
+        "slow": false,
+        "criteria": [],
+        "notes": "Dat — myapp:1 da duoc dung va chay ra dung ket qua.",
+        "infraError": null,
+        "ok": true
+      },
+      "detailed": true
+    },
+    {
+      "key": "step5",
+      "title": "Tag là con trỏ, không phải bản sao",
+      "setup": [],
+      "pre": {
+        "expect": "fail",
+        "exitCode": 1,
+        "passed": false,
+        "durationMs": 3363,
+        "slow": false,
+        "criteria": [],
+        "notes": "Chua thay tag myapp:stable. Hay chay: docker tag myapp:1 myapp:stable",
+        "infraError": null,
+        "ok": true
+      },
+      "actions": [
+        {
+          "kind": "exec",
+          "code": "docker images myapp",
+          "rc": 0,
+          "cwd": "/root/lab-docker",
+          "durationMs": 5864,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  docker images myapp\n                                                                                                                                                                                    i Info →   U  In Use\nIMAGE     ID             DISK USAGE   CONTENT SIZE   EXTRA\nmyapp:1   ceacbb84dc1d        189MB         46.2MB\n  dlp   ~/lab-docker                                                                                                                                                             987ms  23:03:52\n❯"
+        },
+        {
+          "kind": "exec",
+          "code": "docker tag myapp:1 myapp:stable",
+          "rc": 0,
+          "cwd": "/root/lab-docker",
+          "durationMs": 2793,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  docker tag myapp:1 myapp:stable\n  dlp   ~/lab-docker                                                                                                                                                             594ms  23:03:55\n❯"
+        },
+        {
+          "kind": "exec",
+          "code": "docker images myapp",
+          "rc": 0,
+          "cwd": "/root/lab-docker",
+          "durationMs": 2599,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  docker images myapp\n                                                                                                                                                                                    i Info →   U  In Use\nIMAGE          ID             DISK USAGE   CONTENT SIZE   EXTRA\nmyapp:1        ceacbb84dc1d        189MB         46.2MB\nmyapp:stable   ceacbb84dc1d        189MB         46.2MB\n  dlp   ~/lab-docker                                                                                                                                                             594ms  23:03:58\n❯"
+        },
+        {
+          "kind": "exec",
+          "code": "docker history myapp:1",
+          "rc": 0,
+          "cwd": "/root/lab-docker",
+          "durationMs": 4529,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  docker history myapp:1\nIMAGE          CREATED          CREATED BY                                      SIZE      COMMENT\nceacbb84dc1d   50 seconds ago   CMD [\"python\" \"app.py\"]                         0B        buildkit.dockerfile.v0\n<missing>      50 seconds ago   COPY app.py . # buildkit                        12.3kB    buildkit.dockerfile.v0\n<missing>      51 seconds ago   WORKDIR /app                                    8.19kB    buildkit.dockerfile.v0\n<missing>      25 hours ago     CMD [\"python3\"]                                 0B        buildkit.dockerfile.v0\n<missing>      25 hours ago     RUN /bin/sh -c set -eux;  for src in idle3 p…   24.6kB    buildkit.dockerfile.v0\n<missing>      25 hours ago     RUN /bin/sh -c set -eux;   savedAptMark=\"$(a…   41.4MB    buildkit.dockerfile.v0\n<missing>      25 hours ago     ENV PYTHON_SHA256=c2c4321961fab0fb999d66e0ce…   0B        buildkit.dockerfile.v0\n<missing>      25 hours ago     ENV PYTHON_VERSION=3.12.15                      0B        buildkit.dockerfile.v0\n<missing>      25 hours ago     ENV GPG_KEY=7169605F62C751356D054A26A821E680…   0B        buildkit.dockerfile.v0\n<missing>      25 hours ago     RUN /bin/sh -c set -eux;  apt-get update;  a…   13.2MB    buildkit.dockerfile.v0\n<missing>      25 hours ago     ENV LANG=C.UTF-8                                0B        buildkit.dockerfile.v0\n<missing>      25 hours ago     ENV PATH=/usr/local/bin:/usr/local/sbin:/usr…   0B        buildkit.dockerfile.v0\n<missing>      2 weeks ago      # debian.sh --arch 'amd64' out/ 'trixie' '@1…   87.6MB    debuerreotype 0.17\n  dlp   ~/lab-docker                                                                                                                                                                     23:04:02\n❯"
+        }
+      ],
+      "post": {
+        "expect": "pass",
+        "exitCode": 0,
+        "passed": true,
+        "durationMs": 3008,
+        "slow": false,
+        "criteria": [],
+        "notes": "Dat — hai tag cung tro vao mot image (sha256:ceacbb84dc1d...).",
+        "infraError": null,
+        "ok": true
+      },
+      "detailed": true
+    },
+    {
+      "key": "step6",
+      "title": "Vì sao `pip install` không chạy được ở đây",
+      "setup": [],
+      "pre": {
+        "expect": "fail",
+        "exitCode": 0,
+        "passed": true,
+        "durationMs": 25935,
+        "slow": true,
+        "criteria": [],
+        "notes": "Dat — pypi.org:443 bi chan, trong khi mirror Docker Hub van thong.\nDo la bang chung mang bi LOC co chon loc, khong phai mang chet.",
+        "infraError": null,
+        "ok": false
+      },
+      "actions": [
+        {
+          "kind": "exec",
+          "code": "docker run --rm python:3.12-slim python -c \"import socket; socket.create_connection(('pypi.org', 443), 3)\" ; echo \"exit=$?\"",
+          "rc": 0,
+          "cwd": "/root/lab-docker",
+          "durationMs": 24951,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  docker run --rm python:3.12-slim python -c \"import socket; socket.create_connection(('pypi.org', 443), 3)\" ; echo \"exit=$?\"\nTraceback (most recent call last):\n  File \"<string>\", line 1, in <module>\n  File \"/usr/local/lib/python3.12/socket.py\", line 865, in create_connection\n    raise exceptions[0]\n  File \"/usr/local/lib/python3.12/socket.py\", line 850, in create_connection\n    sock.connect(sa)\nOSError: [Errno 101] Network is unreachable\nexit=1\n  dlp   ~/lab-docker                                                                                                                                                           21.081s  23:04:56\n❯"
+        },
+        {
+          "kind": "exec",
+          "code": "docker pull hello-world ; echo \"exit=$?\"",
+          "rc": 0,
+          "cwd": "/root/lab-docker",
+          "durationMs": 5644,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  docker pull hello-world ; echo \"exit=$?\"\nUsing default tag: latest\nlatest: Pulling from library/hello-world\n4f55086f7dd0: Pull complete\nd5e71e642bf5: Download complete\nDigest: sha256:5e23090353324d887c48ad5e5c56d294eab81588df9605b07d1afe895f9cc8f8\nStatus: Downloaded newer image for hello-world:latest\ndocker.io/library/hello-world:latest\nexit=0\n  dlp   ~/lab-docker                                                                                                                                                            4.135s  23:05:02\n❯"
+        }
+      ],
+      "post": {
+        "expect": "pass",
+        "exitCode": 0,
+        "passed": true,
+        "durationMs": 24300,
+        "slow": true,
+        "criteria": [],
+        "notes": "Dat — pypi.org:443 bi chan, trong khi mirror Docker Hub van thong.\nDo la bang chung mang bi LOC co chon loc, khong phai mang chet.",
+        "infraError": null,
+        "ok": true
+      },
+      "detailed": true
+    },
+    {
+      "key": "finish",
+      "title": "Kết thúc",
+      "setup": [],
+      "pre": null,
+      "actions": [],
+      "post": null,
+      "detailed": true
+    }
+  ],
+  "final": []
+}

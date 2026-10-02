@@ -20,7 +20,7 @@ export const MANAGED_BY = 'dlp-content-smoke';
  *    (`NewKubectlCommand`), nên script chưa chạy dòng nào và chạy lại là an toàn.
  *    Chết ở chỗ khác thì KHÔNG thử lại: script có thể đã chạy một nửa.
  */
-const KUBECTL_ENV = { ...process.env, GOGC: 'off' };
+export const KUBECTL_ENV = { ...process.env, GOGC: 'off' };
 const STARTUP_CRASH = /^fatal error:[\s\S]*NewKubectlCommand/m;
 const MAX_STARTUP_RETRIES = 2;
 

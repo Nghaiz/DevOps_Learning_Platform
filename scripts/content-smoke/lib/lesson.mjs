@@ -90,7 +90,7 @@ export async function runLesson(ctx, scenario) {
       if (!hasAction) {
         rec.deviate(p.key, 'no-action', 'bước có verify nhưng không có khối {{exec}} lẫn stepN/solution.sh — harness không làm được bước này (§C2)');
       } else {
-        unit.pre = await runVerify(pod, verify, { expect: 'fail', where: p.key, rec });
+        unit.pre = await runVerify(pod, verify, { expect: 'fail', where: p.key, rec, baselineMs: ctx.baselineMs });
         log(`  verify trước: exit ${unit.pre.exitCode ?? unit.pre.infraError} (${unit.pre.durationMs}ms)${unit.pre.ok ? '' : '  ⚠'}`);
       }
     }
@@ -109,7 +109,7 @@ export async function runLesson(ctx, scenario) {
     }
 
     if (verify !== null && (hasAction || p.step === null)) {
-      unit.post = await runVerify(pod, verify, { expect: 'pass', where: p.key, rec });
+      unit.post = await runVerify(pod, verify, { expect: 'pass', where: p.key, rec, baselineMs: ctx.baselineMs });
       log(`  verify sau:   exit ${unit.post.exitCode ?? unit.post.infraError} (${unit.post.durationMs}ms)${unit.post.ok ? '' : '  ⚠'}`);
     }
   }

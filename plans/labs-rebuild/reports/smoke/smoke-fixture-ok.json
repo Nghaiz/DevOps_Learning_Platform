@@ -1,0 +1,216 @@
+{
+  "kind": "lab",
+  "id": "smoke-fixture-ok",
+  "title": "Fixture của content-smoke: hai task phải xanh",
+  "contentDir": "D:\\NCKH\\dlp-labs-e\\scripts\\content-smoke\\fixtures\\labs\\smoke-fixture-ok",
+  "image": "ghcr.io/nghaiz/dlp-sandbox-base:sha-6f19cbe",
+  "profile": "",
+  "pod": "smoke-lab-smoke-fixture-ok-6379ea",
+  "startedAt": "2026-10-02T22:55:41.963Z",
+  "durationMs": 52796,
+  "verdict": "pass",
+  "deviations": [],
+  "warnings": [],
+  "infra": {
+    "podReadyMs": 8991,
+    "dockerReadyMs": 6766,
+    "terminalMs": 17376,
+    "loadavg": "9.18 9.36 7.58 2/1647 961"
+  },
+  "units": [
+    {
+      "key": "setup",
+      "title": "Dựng cảnh",
+      "setup": [
+        {
+          "kind": "background",
+          "exitCode": 0,
+          "durationMs": 1745,
+          "output": ""
+        },
+        {
+          "kind": "background-wait",
+          "exitCode": 0,
+          "durationMs": 2261,
+          "output": ""
+        }
+      ],
+      "pre": null,
+      "actions": [],
+      "post": null,
+      "detailed": true
+    },
+    {
+      "key": "task:write-greeting",
+      "title": "Tạo file lời chào",
+      "setup": [],
+      "pre": {
+        "expect": "fail",
+        "exitCode": 1,
+        "passed": false,
+        "durationMs": 1256,
+        "slow": false,
+        "criteria": [
+          {
+            "ok": false,
+            "label": "/root/fixture/greeting.txt tồn tại"
+          },
+          {
+            "ok": false,
+            "label": "/root/fixture/greeting.txt chứa đúng một dòng 'xin chao' (hiện: '')"
+          }
+        ],
+        "notes": "",
+        "infraError": null,
+        "ok": true
+      },
+      "actions": [
+        {
+          "kind": "solution",
+          "code": "#!/bin/bash\nset -euo pipefail\necho 'xin chao' > /root/fixture/greeting.txt\n",
+          "rc": 0,
+          "cwd": "/root",
+          "durationMs": 2682,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  bash /root/.dlp-smoke/solutions/task-write-greeting.sh\n  dlp   ~                                                                                                                                                                                22:57:57\n❯"
+        }
+      ],
+      "post": {
+        "expect": "pass",
+        "exitCode": 0,
+        "passed": true,
+        "durationMs": 1392,
+        "slow": false,
+        "criteria": [
+          {
+            "ok": true,
+            "label": "/root/fixture/greeting.txt tồn tại"
+          },
+          {
+            "ok": true,
+            "label": "/root/fixture/greeting.txt chứa đúng một dòng 'xin chao'"
+          }
+        ],
+        "notes": "",
+        "infraError": null,
+        "ok": true
+      },
+      "detailed": true
+    },
+    {
+      "key": "task:publish-config",
+      "title": "Chuyển cấu hình sang chế độ công bố",
+      "setup": [],
+      "pre": {
+        "expect": "fail",
+        "exitCode": 1,
+        "passed": false,
+        "durationMs": 1273,
+        "slow": false,
+        "criteria": [
+          {
+            "ok": false,
+            "label": "/root/fixture/config.ini có mode=published"
+          },
+          {
+            "ok": true,
+            "label": "/root/fixture/config.ini vẫn giữ owner=dlp"
+          },
+          {
+            "ok": false,
+            "label": "/root/fixture/config.ini chỉ chủ file đọc/ghi được (hiện: 644)"
+          }
+        ],
+        "notes": "",
+        "infraError": null,
+        "ok": true
+      },
+      "actions": [
+        {
+          "kind": "solution",
+          "code": "#!/bin/bash\nset -euo pipefail\nsed -i 's/^mode=.*/mode=published/' /root/fixture/config.ini\nchmod 600 /root/fixture/config.ini\n",
+          "rc": 0,
+          "cwd": "/root",
+          "durationMs": 1579,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  bash /root/.dlp-smoke/solutions/task-publish-config.sh\n  dlp   ~                                                                                                                                                                                22:58:03\n❯"
+        }
+      ],
+      "post": {
+        "expect": "pass",
+        "exitCode": 0,
+        "passed": true,
+        "durationMs": 1375,
+        "slow": false,
+        "criteria": [
+          {
+            "ok": true,
+            "label": "/root/fixture/config.ini có mode=published"
+          },
+          {
+            "ok": true,
+            "label": "/root/fixture/config.ini vẫn giữ owner=dlp"
+          },
+          {
+            "ok": true,
+            "label": "/root/fixture/config.ini chỉ chủ file đọc/ghi được"
+          }
+        ],
+        "notes": "",
+        "infraError": null,
+        "ok": true
+      },
+      "detailed": true
+    }
+  ],
+  "final": [
+    {
+      "taskId": "write-greeting",
+      "expect": "pass",
+      "exitCode": 0,
+      "passed": true,
+      "durationMs": 991,
+      "slow": false,
+      "criteria": [
+        {
+          "ok": true,
+          "label": "/root/fixture/greeting.txt tồn tại"
+        },
+        {
+          "ok": true,
+          "label": "/root/fixture/greeting.txt chứa đúng một dòng 'xin chao'"
+        }
+      ],
+      "notes": "",
+      "infraError": null,
+      "ok": true
+    },
+    {
+      "taskId": "publish-config",
+      "expect": "pass",
+      "exitCode": 0,
+      "passed": true,
+      "durationMs": 1242,
+      "slow": false,
+      "criteria": [
+        {
+          "ok": true,
+          "label": "/root/fixture/config.ini có mode=published"
+        },
+        {
+          "ok": true,
+          "label": "/root/fixture/config.ini vẫn giữ owner=dlp"
+        },
+        {
+          "ok": true,
+          "label": "/root/fixture/config.ini chỉ chủ file đọc/ghi được"
+        }
+      ],
+      "notes": "",
+      "infraError": null,
+      "ok": true
+    }
+  ]
+}

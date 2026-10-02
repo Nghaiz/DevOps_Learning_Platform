@@ -41,7 +41,7 @@ export class Recorder {
  * Chạy verify ĐÚNG như server: `withVerifyPrelude(script)` qua STDIN của bash.
  * `expect` = 'fail' | 'pass'. Ghi độ lệch vào `rec` dưới nhãn `where`.
  */
-export async function runVerify(pod, script, { expect, where, rec, requireCriteria }) {
+export async function runVerify(pod, script, { expect, where, rec, requireCriteria, baselineMs = 0 }) {
   const r = await execScript(pod, withVerifyPrelude(script), { timeoutMs: VERIFY_HARD_TIMEOUT_MS });
   const { criteria, notes } = parseCheckCriteria(r.output);
   const check = {
@@ -49,7 +49,10 @@ export async function runVerify(pod, script, { expect, where, rec, requireCriter
     exitCode: r.exitCode,
     passed: r.exitCode === 0,
     durationMs: r.durationMs,
-    slow: r.durationMs > VERIFY_BUDGET_MS,
+    // Thời gian TRONG pod ≈ thời gian đo được trừ chi phí một lượt exec rỗng
+    // (kubectl + stream, ~1s trên máy Windows này). Ngân sách §C1 là của script.
+    podMs: Math.max(0, r.durationMs - baselineMs),
+    slow: r.durationMs - baselineMs > VERIFY_BUDGET_MS,
     criteria,
     notes: clip(notes),
     infraError: r.infraError,
@@ -69,7 +72,7 @@ export async function runVerify(pod, script, { expect, where, rec, requireCriter
     rec.deviate(where, 'post-fail', `verify TRƯỢT sau khi đã làm (exit ${r.exitCode})${firstFail(criteria, notes)}`);
   }
   if (check.slow) {
-    rec.deviate(where, 'slow', `verify mất ${(r.durationMs / 1000).toFixed(1)}s (> ${VERIFY_BUDGET_MS / 1000}s của §C1)`);
+    rec.deviate(where, 'slow', `verify mất ~${(check.podMs / 1000).toFixed(1)}s trong pod (> ${VERIFY_BUDGET_MS / 1000}s của §C1; đo ${(r.durationMs / 1000).toFixed(1)}s kể cả exec)`);
   }
   if (requireCriteria && criteria.length === 0) {
     rec.deviate(where, 'no-criteria', 'verify của lab không in dòng tiêu chí ✓/✗ nào (§C1)');

@@ -82,7 +82,7 @@ export async function runLab(ctx, lab) {
     const unit = { key: where, title: task.title, setup: [], pre: null, actions: [], post: null, detailed: true };
     units.push(unit);
     log(`[${where}] ${task.title}`);
-    unit.pre = await runVerify(pod, task.verifyScript, { expect: 'fail', where, rec, requireCriteria: true });
+    unit.pre = await runVerify(pod, task.verifyScript, { expect: 'fail', where, rec, requireCriteria: true, baselineMs: ctx.baselineMs });
     log(`  verify trước: exit ${unit.pre.exitCode ?? unit.pre.infraError} (${unit.pre.durationMs}ms)${unit.pre.ok ? '' : '  ⚠'}`);
 
     const solutionPath = path.join(dir, `task-${task.id}`, 'solution.sh');
@@ -96,7 +96,7 @@ export async function runLab(ctx, lab) {
     unit.actions.push(recordTyped(rec, where, 'solution', readFileSync(solutionPath, 'utf8'), res, { solution: true }));
     log(`  solution.sh rc=${res.timedOut ? 'TREO' : res.rc} (${(res.durationMs / 1000).toFixed(1)}s)`);
 
-    unit.post = await runVerify(pod, task.verifyScript, { expect: 'pass', where, rec, requireCriteria: true });
+    unit.post = await runVerify(pod, task.verifyScript, { expect: 'pass', where, rec, requireCriteria: true, baselineMs: ctx.baselineMs });
     log(`  verify sau:   exit ${unit.post.exitCode ?? unit.post.infraError} (${unit.post.durationMs}ms)${unit.post.ok ? '' : '  ⚠'}`);
   }
 
@@ -112,7 +112,7 @@ export async function runLab(ctx, lab) {
     for (const task of lab.tasks) {
       const where = `final:${task.id}`;
       const scratch = new Recorder();
-      const check = await runVerify(pod, task.verifyScript, { expect: 'pass', where, rec: scratch, requireCriteria: false });
+      const check = await runVerify(pod, task.verifyScript, { expect: 'pass', where, rec: scratch, requireCriteria: false, baselineMs: ctx.baselineMs });
       for (const d of scratch.deviations) {
         if (d.code === 'post-fail') {
           if (passedEarlier.has(task.id)) {

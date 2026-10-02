@@ -76,12 +76,19 @@ function waitScript(prev, timeoutS, from) {
 }
 
 export class Terminal {
-  constructor(pod) {
+  /** `agent` (tuỳ chọn): kênh exec bền của `agent.mjs`; vắng hoặc chết thì exec từng lượt. */
+  constructor(pod, agent = null) {
     this.pod = pod;
+    this.agent = agent;
+  }
+
+  async #exec(script, timeoutMs) {
+    const viaAgent = this.agent === null ? null : await this.agent.run(script, { timeoutMs });
+    return viaAgent ?? execScript(this.pod, script, { timeoutMs });
   }
 
   async #run(script, timeoutMs = 30_000) {
-    const r = await execScript(this.pod, script, { timeoutMs });
+    const r = await this.#exec(script, timeoutMs);
     if (r.infraError !== null) throw new Error(`terminal: ${r.infraError}`);
     return r;
   }
@@ -134,9 +141,7 @@ export class Terminal {
 
   /** `{ idle: {seq, rc, cwd} | null, output }` — `idle` null khi quá hạn. */
   async #waitIdle(prev, timeoutS, from) {
-    const r = await execScript(this.pod, waitScript(prev, timeoutS, from), {
-      timeoutMs: (timeoutS + 30) * 1000,
-    });
+    const r = await this.#exec(waitScript(prev, timeoutS, from), (timeoutS + 30) * 1000);
     if (r.infraError !== null) throw new Error(`terminal: ${r.infraError}`);
     const at = r.output.indexOf(`${CAPTURE_MARK}\n`);
     const head = at === -1 ? r.output : r.output.slice(0, at);

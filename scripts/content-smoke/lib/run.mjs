@@ -4,6 +4,7 @@
  * harness chết — trừ khi `--keep`.
  */
 import path from 'node:path';
+import { PodAgent } from './agent.mjs';
 import { Recorder } from './checks.mjs';
 import { buildPod, createPod, deletePodSync, newPodName, resolveProfile, waitPodReady } from './cluster.mjs';
 import { execScript, NS, CONTAINER } from './kube.mjs';
@@ -89,6 +90,7 @@ export async function smokeOne({ kind, id, opts, liveConfig, log }) {
   result.pod = pod;
   live.set(pod, { keep: opts.keep, release });
   const t = (from) => Date.now() - from;
+  const agent = new PodAgent(pod);
 
   try {
     let mark = Date.now();
@@ -115,11 +117,17 @@ export async function smokeOne({ kind, id, opts, liveConfig, log }) {
     }
 
     mark = Date.now();
-    const term = new Terminal(pod);
+    result.infra.agent = await agent.start();
+    const term = new Terminal(pod, result.infra.agent ? agent : null);
     await term.start();
     result.infra.terminalMs = t(mark);
 
-    const ctx = { pod, dir, rec, term, log, opts };
+    // Chi phí một lượt exec rỗng — trừ khỏi thời gian verify trước khi so ngân sách 20s.
+    const probes = [];
+    for (let i = 0; i < 2; i += 1) probes.push((await execScript(pod, 'true', { timeoutMs: 30_000 })).durationMs);
+    result.infra.execBaselineMs = Math.min(...probes);
+
+    const ctx = { pod, dir, rec, term, log, opts, baselineMs: result.infra.execBaselineMs };
     const out = kind === 'lesson' ? await runLesson(ctx, content) : await runLab(ctx, content);
     result.units = out.units;
     result.final = out.final;
@@ -129,6 +137,7 @@ export async function smokeOne({ kind, id, opts, liveConfig, log }) {
   } catch (e) {
     rec.deviate('pod', e.message.startsWith('terminal:') ? 'terminal-error' : 'pod-error', e.message);
   } finally {
+    agent.close();
     const load = await execScript(pod, 'cat /proc/loadavg', { timeoutMs: 15_000 }).catch(() => null);
     result.infra.loadavg = load?.exitCode === 0 ? load.output.trim() : null;
     if (opts.keep) {
