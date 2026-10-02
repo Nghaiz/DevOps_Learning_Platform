@@ -173,6 +173,15 @@ describe('proxy — khách chưa đăng nhập', () => {
     }
   });
 
+  it('mang theo `next` = đường + query gốc, luôn là đường tương đối', () => {
+    const response = proxy(requestFor('/labs/dlp-linux-triage?tab=tasks'));
+    const location = new URL(response.headers.get('location') ?? '');
+    expect(location.pathname).toBe('/login');
+    const next = location.searchParams.get('next');
+    expect(next).toBe('/labs/dlp-linux-triage?tab=tasks');
+    expect(next?.startsWith('/') && !next.startsWith('//')).toBe(true);
+  });
+
   it('trang chủ và trang đăng nhập đi thẳng, không chuyển hướng', () => {
     expect(proxy(requestFor('/')).status).toBe(200);
     expect(proxy(requestFor('/login')).status).toBe(200);
