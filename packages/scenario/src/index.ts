@@ -113,3 +113,13 @@ export {
   loadPlayground,
   loadPlaygrounds,
 } from './playground-loader.ts';
+
+// Prelude verify + tách dòng tiêu chí (plans/labs-rebuild/contracts.md §C1).
+// Cũng có subpath `./verify-prelude` an toàn cho trình duyệt.
+export {
+  VERIFY_PRELUDE,
+  parseCheckCriteria,
+  withVerifyPrelude,
+  type CheckCriterion,
+  type ParsedCheckOutput,
+} from './verify-prelude.ts';
