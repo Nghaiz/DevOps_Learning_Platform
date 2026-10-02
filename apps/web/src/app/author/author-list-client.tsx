@@ -1,27 +1,18 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactElement } from 'react';
 import Link from 'next/link';
-import {
-  Alert,
-  AlertDescription,
-  AlertTitle,
-  Badge,
-  Button,
-  Card,
-  CardContent,
-  EmptyState,
-  ErrorState,
-  Skeleton,
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '@devops-platform/ui';
+import { Plus } from 'lucide-react';
+import { Badge, Button, EmptyState, ErrorState } from '@devops-platform/ui';
 import { renderCopy, t } from '@devops-platform/copy';
 import { api } from '../../lib/trpc-react';
 import { describeTrpcError } from '../../lib/trpc';
+import { Board, BoardRow, BoardSkeleton, PageContainer, PosterHeader, lineForTopic } from '../../components/kit';
+import { StateChip, StudioListBody, type StudioFilter } from '../../components/author/studio';
 import {
+  KIND_KEYS,
+  STATE_FILTERS,
+  STATE_KEYS,
   countByFilter,
   describeItem,
   describeUpdatedAt,
@@ -29,196 +20,174 @@ import {
   filterLabelKey,
   lastPublishFailure,
   sortByRecent,
-  STATE_BADGE,
-  STATE_FILTERS,
-  STATE_KEYS,
   type AuthoredItem,
   type StateFilter,
 } from '../../components/author/content-state';
 
 /**
- * `/author` — bài của tôi, theo trạng thái (13.F task 20).
+ * `/author`: bài học, lab, sân chơi của người soạn.
  *
- * ## Vì sao không có phân trang ở đây
+ * ## Lọc và tìm ở CLIENT, có đếm
  *
- * `authoring.list` là procedure **zero-arg và không phân trang**: nó trả về mọi
- * bài của người gọi trong một lượt (admin: mọi bài của mọi người). Không có
- * tham số `state`, `limit` hay `cursor` nào để truyền. Nên bộ lọc dưới đây chạy
- * ở client, và điều đó được NÓI RA trong câu ghi chú thay vì để người soạn tự
- * suy — con số ở mỗi tab là toàn bộ, không phải "trang này".
+ * `authoring.list` là procedure không tham số và không phân trang: nó trả MỌI
+ * bài của người gọi trong một lượt (admin: mọi bài của mọi người). Nên bộ lọc
+ * trạng thái và ô tìm chạy tại chỗ, và số ở mỗi tab là số THẬT của toàn bộ, không
+ * phải "trang này". `/author/problems` thì phân trang ở máy chủ nên không đếm;
+ * hai trang dùng chung `StudioListBody` để trông như một hệ.
  *
- * ⛔ KHÔNG `useInfiniteQuery` ở bất cứ đâu trong lane này: `@trpc/react-query`
- * tự chèn `direction` vào input, mọi input schema của dự án là `.strict()`, và
- * hậu quả là request thật 400 trong khi test ở tầng API vẫn xanh.
- *
- * ⛔ KHÔNG dựng `<main>` (C6bis) — vỏ ứng dụng sở hữu landmark đó.
+ * ⛔ KHÔNG `useInfiniteQuery`: `@trpc/react-query` tự chèn `direction` vào input,
+ * mọi input schema của dự án là `.strict()`, và request thật 400.
+ * ⛔ KHÔNG dựng `<main>`: vỏ ứng dụng sở hữu landmark đó.
  */
-export function AuthorListClient() {
+export function AuthorListClient(): ReactElement {
   const [filter, setFilter] = useState<StateFilter>('all');
+  const [search, setSearch] = useState('');
   const query = api.authoring.list.useQuery();
 
   const items: readonly AuthoredItem[] = query.data ?? [];
   const counts = useMemo(() => countByFilter(items), [items]);
-  const shown = useMemo(() => sortByRecent(filterByState(items, filter)), [items, filter]);
-  // MỘT mốc thời gian cho cả lượt render: gọi `new Date()` trong từng hàng sẽ
-  // cho hai hàng cạnh nhau hai mốc khác nhau, và nhãn "vừa xong" nhảy giữa các
-  // hàng mà không có gì đổi.
+  const needle = search.trim().toLocaleLowerCase('vi');
+  const shown = useMemo(
+    () =>
+      sortByRecent(filterByState(items, filter)).filter(
+        (item) =>
+          needle === '' ||
+          item.title.toLocaleLowerCase('vi').includes(needle) ||
+          item.id.includes(needle),
+      ),
+    [items, filter, needle],
+  );
+  // MỘT mốc thời gian cho cả lượt render, để hai hàng cạnh nhau không đọc hai
+  // đồng hồ khác nhau và nhãn "vừa xong" không nhảy giữa các hàng.
   const now = new Date();
 
+  const filters: readonly StudioFilter<StateFilter>[] = STATE_FILTERS.map((value) => ({
+    value,
+    label: t(filterLabelKey(value)),
+    count: counts[value],
+  }));
+
+  const newButton = (
+    <Button asChild variant="ink" size="lg" iconLeft={<Plus aria-hidden className="size-4" />}>
+      <Link href="/author/new">{t('author.list.new-cta')}</Link>
+    </Button>
+  );
+
   return (
-    <div className="practice-catalog">
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-            {t('author.list.title')}
-          </h1>
-          <p className="text-sm text-muted-foreground">{t('author.list.lead')}</p>
-        </div>
-        <Button asChild>
-          <Link href="/author/new">{t('author.list.new-cta')}</Link>
-        </Button>
-      </header>
+    <>
+      <PosterHeader
+        section="studio"
+        kicker={
+          query.isSuccess
+            ? t('author.list.kicker', { total: counts.all, drafts: counts.draft })
+            : undefined
+        }
+        title={t('author.list.title')}
+        lead={t('author.list.lead')}
+        aside={newButton}
+      />
+      <PageContainer>
+        <div className="flex flex-col gap-6 py-10">
+          {query.isPending && <BoardSkeleton rows={4} label={t('author.studio.list.loading')} />}
 
-      {query.isPending && <ListSkeleton />}
+          {query.isError && (
+            <ErrorState
+              title={t('author.list.error-title')}
+              message={describeTrpcError(query.error)}
+              onRetry={() => void query.refetch()}
+              retrying={query.isFetching}
+            />
+          )}
 
-      {query.isError && (
-        <ErrorState
-          title={t('author.list.error-title')}
-          message={describeTrpcError(query.error)}
-          onRetry={() => void query.refetch()}
-          retrying={query.isFetching}
-        />
-      )}
+          {query.isSuccess && items.length === 0 && (
+            <EmptyState
+              title={t('author.list.empty-title')}
+              description={t('author.list.empty-body')}
+              action={
+                <Button asChild>
+                  <Link href="/author/new">{t('author.list.empty-cta')}</Link>
+                </Button>
+              }
+            />
+          )}
 
-      {query.isSuccess && items.length === 0 && (
-        <EmptyState
-          title={t('author.list.empty-title')}
-          description={t('author.list.empty-body')}
-          action={
-            <Button asChild>
-              <Link href="/author/new">{t('author.list.empty-cta')}</Link>
-            </Button>
-          }
-        />
-      )}
-
-      {query.isSuccess && items.length > 0 && (
-        <>
-          <Tabs
-            value={filter}
-            onValueChange={(value) => {
-              setFilter(value as StateFilter);
-            }}
-          >
-            <TabsList className="h-auto max-w-full flex-wrap justify-start [&>[data-slot=tabs-trigger]]:min-h-11">
-              {STATE_FILTERS.map((value) => (
-                <TabsTrigger key={value} value={value}>
-                  {renderCopy({
-                    key: 'author.list.filter.tab',
-                    params: { label: t(filterLabelKey(value)), n: counts[value] },
-                  })}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-            {/*
-              ⚠ DANH SÁCH PHẢI NẰM TRONG `TabsContent`, không phải ngoài `Tabs`.
-
-              Radix đặt `aria-controls={contentId}` lên MỌI `TabsTrigger`, kể cả
-              khi panel tương ứng chưa mount. axe miễn trừ một `aria-controls`
-              treo khi trigger mang `aria-selected="false"` — nên các tab KHÔNG
-              active không bao giờ bị bắt, và một trang dùng `Tabs` đúng cách chỉ
-              cần panel của tab đang chọn có thật.
-
-              Bản trước đóng `</Tabs>` ngay sau `TabsList` rồi render danh sách
-              BÊN NGOÀI, tức không có một panel nào. Trigger ĐANG active vì thế
-              trỏ vào hư không, và axe báo mức **critical**:
-
-                [critical] aria-valid-attr-value — #radix-_r_0_-trigger-all
-
-              (đo trên cụm 2026-09-07, `/author`; các trang `Tabs` khác — `/me`,
-              `/labs/:id` — xanh đúng vì chúng CÓ khai `TabsContent`.)
-
-              Bọc bằng đúng MỘT `TabsContent` mang `value={filter}`: nó luôn khớp
-              tab đang chọn nên luôn mount, và giao diện không đổi một pixel —
-              `Tabs` không tự vẽ gì quanh panel.
-            */}
-            <TabsContent value={filter}>
+          {query.isSuccess && items.length > 0 && (
+            <StudioListBody
+              filterLabel={t('author.studio.list.filter-label')}
+              filters={filters}
+              filter={filter}
+              onFilterChange={setFilter}
+              searchLabel={t('author.studio.list.search-label')}
+              searchPlaceholder={t('author.studio.list.search-placeholder')}
+              search={search}
+              onSearchChange={setSearch}
+            >
               {shown.length === 0 ? (
                 <EmptyState
-                  title={renderCopy({
-                    key: 'author.list.filter.empty.title',
-                    params: { filter: t(filterLabelKey(filter)) },
-                  })}
-                  description={t('author.list.filter.empty.body')}
+                  title={
+                    needle === ''
+                      ? renderCopy({
+                          key: 'author.list.filter.empty.title',
+                          params: { filter: t(filterLabelKey(filter)) },
+                        })
+                      : t('author.studio.list.no-match', { query: search.trim() })
+                  }
+                  description={needle === '' ? t('author.list.filter.empty.body') : undefined}
                 />
               ) : (
-                <ul className="flex flex-col gap-3">
-                  {shown.map((item) => (
-                    <li key={item.id}>
-                      <ItemCard item={item} now={now} />
-                    </li>
+                <Board label={t('author.list.board-label')}>
+                  {shown.map((item, index) => (
+                    <ItemRow key={item.id} item={item} index={index + 1} now={now} />
                   ))}
-                </ul>
+                </Board>
               )}
-            </TabsContent>
-          </Tabs>
-        </>
-      )}
-    </div>
-  );
-}
-
-function ItemCard({ item, now }: { readonly item: AuthoredItem; readonly now: Date }) {
-  const failure = lastPublishFailure(item);
-
-  return (
-    <Card>
-      <CardContent className="flex flex-col gap-3 py-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="flex min-w-0 flex-col gap-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <Link
-                href={`/author/${encodeURIComponent(item.id)}`}
-                className="text-base font-medium text-foreground underline-offset-4 hover:underline"
-              >
-                {item.title}
-              </Link>
-              <Badge variant={STATE_BADGE[item.state]}>{t(STATE_KEYS[item.state])}</Badge>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              {renderCopy(describeItem(item))} · <code className="font-mono">{item.id}</code>
-            </p>
-            <p className="text-xs text-muted-foreground">
-              {renderCopy(describeUpdatedAt(item.updatedAt, now))}
-            </p>
-          </div>
-          <Button asChild variant="outline" size="sm">
-            <Link href={`/author/${encodeURIComponent(item.id)}`}>{t('common.action.open')}</Link>
-          </Button>
+            </StudioListBody>
+          )}
         </div>
-
-        {failure !== null && (
-          <Alert variant="destructive">
-            <AlertTitle>{t('author.list.publish-failed.title')}</AlertTitle>
-            <AlertDescription>
-              <pre className="max-h-40 overflow-auto whitespace-pre-wrap font-mono text-xs">
-                {failure}
-              </pre>
-              <p className="mt-2">{t('author.list.publish-failed.next')}</p>
-            </AlertDescription>
-          </Alert>
-        )}
-      </CardContent>
-    </Card>
+      </PageContainer>
+    </>
   );
 }
 
-function ListSkeleton() {
+function ItemRow(props: {
+  readonly item: AuthoredItem;
+  readonly index: number;
+  readonly now: Date;
+}): ReactElement {
+  const { item } = props;
+  const failure = lastPublishFailure(item);
+  // Lỗi máy chủ có thể dài cả trang. Hàng chỉ mang dòng đầu; nguyên văn nằm ở
+  // chế độ Xuất bản của bài, nơi người soạn sửa được nó.
+  const reason = failure?.split('\n').find((line) => line.trim() !== '')?.trim() ?? null;
+
   return (
-    <div className="flex flex-col gap-3" aria-hidden>
-      {[0, 1, 2].map((row) => (
-        <Skeleton key={row} className="h-24 w-full" />
-      ))}
-    </div>
+    <BoardRow
+      href={`/author/${encodeURIComponent(item.id)}`}
+      index={props.index}
+      order={props.index - 1}
+      line={lineForTopic({ id: item.id })}
+      title={item.title}
+      sub={
+        <span className="flex flex-col gap-1">
+          <span>
+            {renderCopy(describeItem(item))} · <code className="font-mono text-xs">{item.id}</code>
+          </span>
+          {reason !== null && (
+            <span className="line-clamp-1 font-medium text-destructive">
+              {t('author.list.publish-failed', { reason })}
+            </span>
+          )}
+        </span>
+      }
+      meta={
+        <>
+          <Badge variant="outline">{t(KIND_KEYS[item.kind])}</Badge>
+          <span className="font-mono text-xs text-muted-foreground">
+            {renderCopy(describeUpdatedAt(item.updatedAt, props.now))}
+          </span>
+        </>
+      }
+      state={<StateChip state={item.state} label={t(STATE_KEYS[item.state])} />}
+    />
   );
 }
