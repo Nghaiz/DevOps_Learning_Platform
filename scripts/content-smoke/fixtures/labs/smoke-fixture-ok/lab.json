@@ -1,0 +1,14 @@
+{
+  "id": "smoke-fixture-ok",
+  "title": "Fixture của content-smoke: hai task phải xanh",
+  "description": "Lab giả cho bộ kiểm thử nội dung. Không phải nội dung học, không seed, không phục vụ. Hai task có solution.sh; harness phải thấy verify trượt trước và đạt sau ở cả hai.",
+  "difficulty": "beginner",
+  "estimatedMinutes": 2,
+  "source": null,
+  "backend": { "imageid": "ubuntu" },
+  "tasks": [
+    { "id": "write-greeting", "title": "Tạo file lời chào" },
+    { "id": "publish-config", "title": "Chuyển cấu hình sang chế độ công bố" }
+  ],
+  "setup": { "background": "setup/background.sh" }
+}

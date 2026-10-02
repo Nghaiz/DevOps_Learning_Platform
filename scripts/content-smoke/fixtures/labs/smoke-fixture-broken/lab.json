@@ -1,0 +1,17 @@
+{
+  "id": "smoke-fixture-broken",
+  "title": "Fixture của content-smoke: CỐ Ý hỏng",
+  "description": "Lab giả, cố ý vi phạm hợp đồng §C3 để chứng minh harness biết đỏ. Mỗi task hỏng một kiểu: lời giải phá task khác, verify luôn đạt, thiếu solution.sh, lời giải sai.",
+  "difficulty": "beginner",
+  "estimatedMinutes": 2,
+  "source": null,
+  "backend": { "imageid": "ubuntu" },
+  "tasks": [
+    { "id": "make-file", "title": "Tạo a.txt (đúng, nhưng sẽ bị task sau phá)" },
+    { "id": "clobber", "title": "Tạo b.txt (lời giải xoá luôn a.txt)" },
+    { "id": "always-pass", "title": "Verify không kiểm gì" },
+    { "id": "no-solution", "title": "Thiếu solution.sh" },
+    { "id": "wrong-answer", "title": "Lời giải làm sai yêu cầu" }
+  ],
+  "setup": { "background": "setup/background.sh" }
+}
