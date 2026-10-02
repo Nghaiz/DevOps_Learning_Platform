@@ -29,9 +29,9 @@ import { DEFAULT_SORT_KEY } from './catalog-sort';
 import { hasActiveFilter, type CatalogFilterState } from './catalog-input';
 
 /**
- * Chip lọc kiểu cũ, giữ chữ ký cho `app/games/games-toolbar.tsx` (lane game).
- * Hình là `Chip` vuông của `packages/ui`; dấu tích là kênh thứ hai ngoài màu nền.
- * Xoá được khi lane game thôi import nó.
+ * Chip lọc độ khó và sandbox: `Chip` vuông của `packages/ui`, cộng dấu tích khi
+ * chọn. Dấu tích là kênh thứ hai ngoài màu nền, cho người mù màu và cho người
+ * đang liếc nhanh một hàng chip.
  */
 export function FilterChip(props: {
   readonly active: boolean;
