@@ -430,21 +430,38 @@ test.describe('bàn phím — đi hết luồng chính', () => {
   });
 
   /**
-   * Sáu mục điều hướng chính (`components/shell/nav.ts` PRIMARY_NAV).
+   * Bốn section học tập trên header (bản dựng lại PTIT, `components/shell/nav.ts`
+   * NAV_SECTIONS): mỗi section là một liên kết tới trang con đầu tiên của nó.
    *
-   * Chép tay ở đây chứ không import: `nav.ts` nằm trong `src/` và là mã SẢN
-   * PHẨM do lane khác sở hữu. Nếu spec import chính hằng của sản phẩm thì một
-   * lần xoá nhầm mục "Quiz" khỏi `PRIMARY_NAV` sẽ làm spec quét ít hơn mà vẫn
-   * xanh — cùng lớp lỗi với "để cảnh tự khai báo chính nó" ở `routes.ts`.
+   * Chép tay ở đây chứ không import: nếu spec import chính hằng của sản phẩm thì
+   * một lần xoá nhầm một section sẽ làm spec quét ít hơn mà vẫn xanh.
    */
   const PRIMARY_NAV: { label: string; path: string }[] = [
-    { label: 'Bài học', path: '/lessons' },
-    { label: 'Lab', path: '/labs' },
-    { label: 'Playground', path: '/playgrounds' },
-    { label: 'Lộ trình', path: '/paths' },
-    { label: 'Quiz', path: '/quiz' },
-    { label: 'Của tôi', path: '/me' },
+    { label: 'Học', path: '/paths' },
+    { label: 'Thực hành', path: '/labs' },
+    { label: 'Luyện đề', path: '/problems' },
+    { label: 'Trò chơi', path: '/games' },
   ];
+
+  test('mega menu mở bằng bàn phím và Tab đi vào được trang con', async ({ page }) => {
+    await openScreen(page, '/me', 'user');
+    await parkMouse(page);
+    const nav = page.getByRole('navigation', { name: 'Điều hướng chính' });
+    const toggle = nav.getByRole('button', { name: 'Mở danh sách mục Học' });
+    await toggle.focus();
+    await page.keyboard.press('Enter');
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    let reached = false;
+    for (let i = 0; i < 12 && !reached; i += 1) {
+      await page.keyboard.press('Tab');
+      const info = await activeInfo(page);
+      if (info === null) break;
+      reached = info.href === '/lessons';
+    }
+    expect(reached, 'Tab từ nút mở mega menu "Học" không tới được /lessons').toBe(true);
+    await page.keyboard.press('Escape');
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  });
 
   for (const item of PRIMARY_NAV) {
     test(`điều hướng tới ${item.path} chỉ bằng bàn phím`, async ({ page }) => {

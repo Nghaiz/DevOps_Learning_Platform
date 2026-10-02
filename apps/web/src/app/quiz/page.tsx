@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { t } from '@devops-platform/copy';
 import { redirect } from 'next/navigation';
 import { readCanAuthor, readViewerSession } from '../../components/catalog/viewer-role.server';
-import { readCatalogCounts } from '../../components/marketing/catalog-stats.server';
+import { readCatalogCounts } from '../../components/catalog/catalog-counts.server';
 import { QuizClient } from './quiz-client';
 
 export const metadata: Metadata = {

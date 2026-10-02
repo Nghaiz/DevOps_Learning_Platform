@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { t } from '@devops-platform/copy';
 import { readCanAuthor } from '../../components/catalog/viewer-role.server';
-import { readCatalogCounts } from '../../components/marketing/catalog-stats.server';
+import { readCatalogCounts } from '../../components/catalog/catalog-counts.server';
 import { LessonsClient } from './lessons-client';
 
 export const metadata: Metadata = {
