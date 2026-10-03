@@ -7,6 +7,7 @@ import { t } from '@devops-platform/copy';
 import { stationEventAt } from '../../journey-timeline';
 import { landingStore } from '../../motion/store';
 import { glow } from '../palette';
+import { stageNames } from '../copy-derived';
 import { css, DarkMaterial, GlowEdges, Label } from './kit';
 import type { StationProps } from './stations';
 
@@ -16,15 +17,6 @@ const GREEN_AT = [0.14, 0.5, 0.66, 0.86];
 const RED_FROM = 0.28;
 const PACKETS = 4;
 const RAIL_HALF = 5.2;
-
-/** Tên stage lấy từ dòng lệnh của ga trong copy: `stages: [build, test, scan, deploy]`. */
-export function stageNames(command: string): readonly string[] {
-  const inside = /\[(.*)\]/.exec(command)?.[1] ?? '';
-  return inside
-    .split(',')
-    .map((name) => name.trim())
-    .filter((name) => name.length > 0);
-}
 
 /**
  * Ga CI/CD: bốn cổng trên một đường ray, gói build chạy qua. Sự kiện: cổng lần lượt bật xanh;

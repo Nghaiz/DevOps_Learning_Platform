@@ -7,6 +7,7 @@ import { t } from '@devops-platform/copy';
 import { clamp01, stationEventAt } from '../../journey-timeline';
 import { landingStore } from '../../motion/store';
 import type { LabelSpec } from '../labels';
+import { layerLabels } from '../copy-derived';
 import { css, DarkMaterial, easeOutCubic, GlowEdges, Label } from './kit';
 import type { StationProps } from './stations';
 
@@ -16,17 +17,6 @@ const RIBS = 9;
 /** Mỗi layer rơi trong một khoảng ngắn, lệch nhau ngần này phần của sự kiện. */
 const DROP_STAGGER = 0.11;
 const DROP_SPAN = 0.14;
-
-/** Nhãn layer lấy từ chính output `docker build` trong copy, bỏ tiền tố "=> [n/4]". */
-export function layerLabels(buildOutput: string): readonly string[] {
-  const lines = buildOutput.split('\n').slice(1);
-  return lines.map((line) =>
-    line
-      .replace(/^\s*=>\s*(\[\d+\/\d+\]\s*)?/, '')
-      .replace(/^naming to docker\.io\/library\//, 'TAG ')
-      .trim(),
-  );
-}
 
 const bounce = (x: number): number => {
   if (x < 1 / 2.75) return 7.5625 * x * x;
