@@ -1,5 +1,4 @@
 import type { ReactElement, ReactNode } from 'react';
-import { ARC_PATH_D, ARC_STROKE, ARC_VIEWBOX } from '@devops-platform/motion/motif';
 import { cn } from './cn.ts';
 
 export interface EmptyStateProps {
@@ -23,29 +22,29 @@ export interface EmptyStateProps {
 }
 
 /**
- * Vòng ellipse hở, ruột rỗng — hình mặc định của trạng thái rỗng.
+ * Hình mặc định của trạng thái rỗng trong bản dựng lại PTIT (design-brief §1):
+ * một đoạn tuyến tàu, hai ga đã có và ga cuối viền đứt, chưa ai tới. Vuông
+ * như mọi thứ khác trong hệ; vòng ellipse hở của bản cũ đã bỏ vì nó là hình
+ * tròn duy nhất còn lại trên trang.
  *
- * Vẽ `ARC_PATH_D` THẲNG thay vì gọi `arcTrackProps()`, cùng lý do đã ghi ở
- * `BrandMark` của `apps/web/src/components/shell/app-shell.tsx`: hàm đó ghim
- * `stroke: var(--border)`/`var(--input)` vì nó mô tả cái RÃNH của một thanh
- * tiến độ. Ở đây cung không phải rãnh của thứ gì. Nó lấy `currentColor` để
- * thừa hưởng `text-muted-foreground` của lớp bọc — cùng sắc độ mà icon cũ
- * dùng, và là sắc độ đọc được, khác `--border` (1.30:1) vốn dành cho ranh giới
- * chứ không cho một hình mang thông điệp.
- *
- * KHÔNG có `<circle>` nền, không glyph ở giữa: "bên trong không có gì" là NỘI
- * DUNG của hình này, không phải một chỗ còn trống chờ ai đó lấp.
+ * Màu lấy `currentColor` để thừa hưởng `text-muted-foreground` của lớp bọc.
  */
-function EmptyArc(): ReactElement {
+function EmptyStation(): ReactElement {
   return (
-    <svg viewBox={ARC_VIEWBOX} role="presentation" className="size-full">
-      <path
-        d={ARC_PATH_D}
+    <svg viewBox="0 0 96 32" role="presentation" className="size-full" data-empty-glyph="station">
+      <line x1="10" y1="16" x2="66" y2="16" stroke="currentColor" strokeWidth="4" />
+      <line x1="66" y1="16" x2="86" y2="16" stroke="currentColor" strokeWidth="4" strokeDasharray="3 4" />
+      <rect x="4" y="10" width="12" height="12" fill="currentColor" />
+      <rect x="38" y="10" width="12" height="12" fill="currentColor" />
+      <rect
+        x="78"
+        y="10"
+        width="12"
+        height="12"
         fill="none"
         stroke="currentColor"
-        strokeWidth={ARC_STROKE}
-        strokeLinecap="round"
-        vectorEffect="non-scaling-stroke"
+        strokeWidth="2.5"
+        strokeDasharray="3 2.5"
       />
     </svg>
   );
@@ -80,7 +79,7 @@ function EmptyArc(): ReactElement {
 export function EmptyState(props: EmptyStateProps): ReactElement {
   const { icon, glyph: glyphProp, title, description, action, className } = props;
   const chosen = glyphProp === undefined ? icon : glyphProp;
-  const glyph = chosen === undefined ? <EmptyArc /> : chosen;
+  const glyph = chosen === undefined ? <EmptyStation /> : chosen;
 
   return (
     <div
@@ -95,7 +94,7 @@ export function EmptyState(props: EmptyStateProps): ReactElement {
       {glyph !== null && (
         <div
           aria-hidden="true"
-          className="flex size-20 items-center justify-center text-muted-foreground"
+          className="flex h-12 w-36 items-center justify-center text-muted-foreground"
         >
           {glyph}
         </div>
