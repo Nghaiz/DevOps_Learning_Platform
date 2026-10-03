@@ -28,24 +28,26 @@ export function Hero({ catalog }: { readonly catalog: Promise<LandingCatalog> })
     () => {
       const hero = ref.current;
       if (hero === null) return;
+      const sync = (self: ScrollTrigger) => {
+        landingStore.heroOut = self.progress;
+        landingStore.visible.hero = self.isActive || self.progress === 0;
+      };
       ScrollTrigger.create({
         trigger: hero,
         start: 'top top',
         end: 'bottom top',
-        onUpdate: (self) => {
-          landingStore.heroOut = self.progress;
-        },
-        onToggle: (self) => {
-          landingStore.visible.hero = self.isActive || self.progress === 0;
-        },
+        onUpdate: sync,
+        onToggle: sync,
+        onRefresh: sync,
       });
       /*
-        Tiêu đề co bề ngang (trục wdth của Archivo, 112 xuống 72) và trôi lên khi hero cuộn
-        đi: kinetic type gắn thẳng vào vị trí cuộn, không phải một hiệu ứng chạy một lần.
+        Tiêu đề trôi lên khi hero cuộn đi. KHÔNG scrub trục wdth của font nữa: mỗi giá trị wdth là
+        một instance font mới, trace đo ra layout ~5 ms cộng một lượt tô lại cả tiêu đề trên GPU
+        MỖI khung, đẩy khung trung bình của hero lên ~20 ms. transform thì chỉ compositor lo.
       */
       gsap
         .timeline({ scrollTrigger: { trigger: hero, start: 'top top', end: 'bottom top', scrub: true } })
-        .to(hero.querySelector('[data-hero-title]'), { '--wdth': 72, yPercent: -18, ease: 'none' }, 0)
+        .to(hero.querySelector('[data-hero-title]'), { yPercent: -18, ease: 'none' }, 0)
         .to(hero.querySelector('[data-hero-copy]'), { autoAlpha: 0, y: -60, ease: 'none' }, 0)
         .to(hero.querySelector('[data-hero-cue]'), { autoAlpha: 0, ease: 'none', duration: 0.3 }, 0);
     },
@@ -121,7 +123,8 @@ function HeroStats({ catalog }: { readonly catalog: Promise<LandingCatalog> }) {
   const { counts } = use(catalog);
   if (!hasAnyCount(counts)) return <StatsSkeleton />;
   return (
-    <dl className={styles.stats} aria-label={t('home.hero.stats')}>
+    <div role="group" aria-label={t('home.hero.stats')} className={styles.statsGroup}>
+      <dl className={styles.stats}>
       {HERO_STATS.map((kind) => {
         const value = counts[kind];
         return (
@@ -140,6 +143,7 @@ function HeroStats({ catalog }: { readonly catalog: Promise<LandingCatalog> }) {
           </div>
         );
       })}
-    </dl>
+      </dl>
+    </div>
   );
 }

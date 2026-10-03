@@ -5,7 +5,7 @@ import Lenis from 'lenis';
 import 'lenis/dist/lenis.css';
 import { useReducedMotion } from '@devops-platform/motion/reduced-motion';
 import { gsap, registerLandingGsap, ScrollTrigger } from './gsap';
-import { landingStore } from './store';
+import { landingStore, resetLandingStore } from './store';
 
 /**
  * `pending`: HTML từ server và khung đầu tiên sau hydrate. Mọi khu render ở bố cục tĩnh, chảy
@@ -40,7 +40,7 @@ export function LandingMotion({ children }: { readonly children: ReactNode }) {
       lerp: 0.085,
       smoothWheel: true,
       syncTouch: false,
-      anchors: true,
+      anchors: false,
       stopInertiaOnNavigate: true,
     });
     landingStore.lenis = lenis;
@@ -59,6 +59,33 @@ export function LandingMotion({ children }: { readonly children: ReactNode }) {
     };
     if (finePointer) window.addEventListener('pointermove', onPointer, { passive: true });
 
+    /*
+      Neo trong trang (#hanh-trinh, skip link...) tự xử lý thay vì `anchors: true` của Lenis: Lenis
+      không chặn cú nhảy gốc của trình duyệt (một khung giật tới đích rồi kéo về), và không biết
+      phần tử đang ghim nằm trong pin-spacer. Đo theo spacer mới ra đúng điểm đầu đoạn ghim.
+    */
+    const onAnchorClick = (event: MouseEvent) => {
+      if (event.defaultPrevented || event.button !== 0) return;
+      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      const link = event.target instanceof Element ? event.target.closest('a[href^="#"]') : null;
+      if (!(link instanceof HTMLAnchorElement)) return;
+      const id = decodeURIComponent(link.hash.slice(1));
+      const target = id === '' ? null : document.getElementById(id);
+      if (target === null) return;
+      event.preventDefault();
+      const spacer = target.parentElement;
+      const anchor = spacer !== null && spacer.classList.contains('pin-spacer') ? spacer : target;
+      lenis.scrollTo(anchor, {
+        duration: 1.4,
+        onComplete: () => {
+          if (!target.hasAttribute('tabindex')) target.setAttribute('tabindex', '-1');
+          target.focus({ preventScroll: true });
+        },
+      });
+      window.history.replaceState(null, '', link.hash);
+    };
+    document.addEventListener('click', onAnchorClick);
+
     /* Font tải xong làm đổi chiều cao chữ, tức đổi điểm bắt đầu của mọi đoạn ghim. */
     let alive = true;
     void document.fonts?.ready.then(() => {
@@ -68,11 +95,12 @@ export function LandingMotion({ children }: { readonly children: ReactNode }) {
     return () => {
       alive = false;
       window.removeEventListener('pointermove', onPointer);
+      document.removeEventListener('click', onAnchorClick);
       gsap.ticker.remove(tick);
       gsap.ticker.lagSmoothing(500, 33);
       lenis.destroy();
       landingStore.lenis = null;
-      landingStore.velocity = 0;
+      resetLandingStore();
     };
   }, [mode]);
 

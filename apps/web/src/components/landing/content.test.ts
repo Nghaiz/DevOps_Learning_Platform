@@ -74,3 +74,16 @@ describe('content · mọi href của landing trỏ tới route có thật', () 
     expect(resolveHref('/')).toBe(path.join(APP_ROOT, 'page.tsx'));
   });
 });
+
+describe('GAMES đọc từ games-catalog (nguồn duy nhất)', () => {
+  it('đủ cả năm game của landing, không thẻ nào bị bỏ vì thiếu trong catalog', () => {
+    expect(GAMES.map((game) => game.id)).toEqual(['k8s', 'git', 'cicd', 'maze', 'forge']);
+  });
+
+  it('href khớp từng chữ với catalog, kể cả null cho game chưa mở', async () => {
+    const { GAMES: CATALOG } = await import('../../app/games/games-catalog');
+    for (const game of GAMES) {
+      expect(game.href).toBe(CATALOG.find((entry) => entry.id === game.id)?.href);
+    }
+  });
+});

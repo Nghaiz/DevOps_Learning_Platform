@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { AdditiveBlending, BufferAttribute, BufferGeometry, ShaderMaterial } from 'three';
 import { glow, type StagePalette } from '../palette';
@@ -77,6 +77,10 @@ export function Dust({ palette, count }: { readonly palette: StagePalette; reado
       }),
     [],
   );
+
+  /* Đổi tầng chất lượng (PerformanceMonitor) dựng lại geometry: giải phóng bản cũ khỏi GPU. */
+  useEffect(() => () => geometry.dispose(), [geometry]);
+  useEffect(() => () => material.dispose(), [material]);
 
   useFrame(({ clock }) => {
     const { uTime, uPixelRatio } = material.uniforms;

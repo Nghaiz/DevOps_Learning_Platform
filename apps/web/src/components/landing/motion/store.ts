@@ -41,6 +41,28 @@ export const landingStore: LandingStore = {
   visible: { hero: true, journey: false, terminal: false, closing: false },
 };
 
+/**
+ * Về trạng thái đầu trang. Store là object tầng module nên SỐNG QUA lần điều hướng client: rời
+ * `/` khi đang ở terminal rồi quay lại, camera sẽ đọc `terminalIn = 1` cũ và dựng nhầm cảnh giá
+ * máy thay cho hero. Gọi khi landing unmount.
+ */
+export function resetLandingStore(): void {
+  landingStore.velocity = 0;
+  landingStore.pointerX = 0;
+  landingStore.pointerY = 0;
+  landingStore.heroOut = 0;
+  landingStore.journey = 0;
+  landingStore.terminalIn = 0;
+  landingStore.terminal = 0;
+  landingStore.closingIn = 0;
+  landingStore.closing = 0;
+  landingStore.runningPods = 0;
+  landingStore.visible.hero = true;
+  landingStore.visible.journey = false;
+  landingStore.visible.terminal = false;
+  landingStore.visible.closing = false;
+}
+
 export const canvasWanted = (): boolean => {
   const { visible } = landingStore;
   return visible.hero || visible.journey || visible.terminal || visible.closing;

@@ -1,6 +1,6 @@
 'use client';
 
-import { useImperativeHandle, useRef, type Ref } from 'react';
+import { useEffect, useImperativeHandle, useRef, type Ref } from 'react';
 import { gsap, registerLandingGsap } from '../motion/gsap';
 import fx from './fx.module.css';
 
@@ -30,6 +30,8 @@ export function SplitFlap({
   const rowRef = useRef<HTMLSpanElement>(null);
   const timelineRef = useRef<gsap.core.Timeline | null>(null);
   const chars = Array.from(text.toUpperCase());
+
+  useEffect(() => () => void timelineRef.current?.kill(), []);
 
   useImperativeHandle(
     ref,

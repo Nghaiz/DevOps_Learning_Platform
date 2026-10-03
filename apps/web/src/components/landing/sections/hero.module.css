@@ -80,7 +80,6 @@
     color-mix(in oklab, var(--l-red), var(--l-git) var(--to-git)),
     var(--l-linux) var(--to-linux)
   );
-  text-shadow: 0 0 42px color-mix(in oklab, var(--l-red) 45%, transparent);
 }
 
 .copy {
@@ -124,6 +123,10 @@
   min-height: 74px;
   margin: 0;
   border-top: 1px solid var(--l-rule);
+}
+
+.statsGroup {
+  min-width: 0;
 }
 
 .stats[data-skeleton] {
@@ -204,9 +207,13 @@
     background: linear-gradient(180deg, rgb(10 13 20 / 0.3) 0%, rgb(10 13 20 / 0.82) 64%);
   }
 
+  .statsGroup,
+  .stats {
+    width: 100%;
+  }
+
   .stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    width: 100%;
   }
 
   .stat:nth-child(2) {

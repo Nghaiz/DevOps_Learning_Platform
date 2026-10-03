@@ -7,6 +7,8 @@
  * các biến đó lúc mount, nên DOM và WebGL không bao giờ lệch màu nhau.
  */
 
+import { GAMES as CATALOG_GAMES } from '../../app/games/games-catalog';
+
 export const STATION_IDS = ['linux', 'git', 'docker', 'k8s', 'cicd', 'prod'] as const;
 export type StationId = (typeof STATION_IDS)[number];
 
@@ -42,13 +44,28 @@ export interface GameCard {
   readonly line: LineId;
 }
 
-export const GAMES: readonly GameCard[] = [
-  { id: 'k8s', href: '/games/k8s', line: 'k8s' },
-  { id: 'git', href: '/games/git', line: 'git' },
-  { id: 'cicd', href: '/games/cicd', line: 'cicd' },
-  { id: 'maze', href: null, line: 'prod' },
-  { id: 'forge', href: null, line: 'docker' },
-];
+const GAME_LINES: Readonly<Record<GameId, LineId>> = {
+  k8s: 'k8s',
+  git: 'git',
+  cicd: 'cicd',
+  maze: 'prod',
+  forge: 'docker',
+};
+
+/**
+ * Game nào chơi được (và đường dẫn của nó) đọc từ `app/games/games-catalog.ts`, nguồn mà trang
+ * `/games` dùng; landing chỉ giữ màu tuyến và chữ riêng. Không chép `href`: ngày "Mê cung mạng"
+ * mở, landing phải tự đổi từ "Đang làm" sang "Chơi ngay" mà không ai phải nhớ sửa chỗ thứ hai.
+ * Một id mất khỏi catalog thì thẻ đó bị bỏ, kèm lỗi ghi log, chứ không hiện một thẻ chết.
+ */
+export const GAMES: readonly GameCard[] = GAME_IDS.flatMap((id) => {
+  const entry = CATALOG_GAMES.find((game) => game.id === id);
+  if (entry === undefined) {
+    console.error(`[landing] game "${id}" is missing from games-catalog; its card is hidden`);
+    return [];
+  }
+  return [{ id, href: entry.href, line: GAME_LINES[id] }];
+});
 
 export const SECTION_IDS = {
   hero: 'dau-trang',

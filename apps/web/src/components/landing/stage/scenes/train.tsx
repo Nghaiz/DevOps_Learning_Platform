@@ -7,7 +7,7 @@ import { STATION_IDS } from '../../content';
 import { STATION_COUNT, trackAt } from '../../journey-timeline';
 import { landingStore } from '../../motion/store';
 import { glow, type StagePalette } from '../palette';
-import { TRUNK, trackU } from '../world';
+import { frameAt, makeFrame, trackU } from '../world';
 import { DarkMaterial, GlowEdges } from './kit';
 
 const TRAIL = 7;
@@ -21,7 +21,17 @@ export function Train({ palette }: { readonly palette: StagePalette }) {
   const group = useRef<Group>(null);
   const trail = useRef<InstancedMesh>(null);
   const work = useMemo(
-    () => ({ point: new Vector3(), ahead: new Vector3(), color: new Color(), dummy: new Object3D(), history: [] as Vector3[] }),
+    () => ({
+      frame: makeFrame(),
+      point: new Vector3(),
+      ahead: new Vector3(),
+      color: new Color(),
+      dummy: new Object3D(),
+      /* Vòng đệm vị trí cũ cho vệt đuôi: cấp phát một lần, không clone mỗi khung. */
+      history: Array.from({ length: TRAIL * 2 }, () => new Vector3()),
+      cursor: 0,
+      filled: 0,
+    }),
     [],
   );
   const head = useRef<Color>(palette.red.clone());
@@ -46,8 +56,8 @@ export function Train({ palette }: { readonly palette: StagePalette }) {
     const track = store.journey > 0 ? trackAt(store.journey) : -1;
     const idle = store.journey > 0 ? 0 : Math.sin(clock.elapsedTime * 1.4) * 0.002;
     const u = MathUtils.clamp(trackU(track) + 0.046 + idle, 0, 0.99);
-    TRUNK.getPointAt(u, work.point).addScaledVector(UP, 0.42);
-    TRUNK.getPointAt(Math.min(1, u + 0.004), work.ahead).addScaledVector(UP, 0.42);
+    work.point.copy(frameAt(u, work.frame).point).addScaledVector(UP, 0.42);
+    work.ahead.copy(frameAt(Math.min(1, u + 0.004), work.frame).point).addScaledVector(UP, 0.42);
     node.position.copy(work.point);
     node.lookAt(work.ahead);
 
@@ -55,10 +65,13 @@ export function Train({ palette }: { readonly palette: StagePalette }) {
     const target = store.journey > 0 ? palette[STATION_IDS[index] ?? 'linux'] : palette.red;
     head.current.lerp(target, 0.08);
 
-    work.history.unshift(work.point.clone());
-    if (work.history.length > TRAIL * 2) work.history.pop();
+    const size = work.history.length;
+    work.cursor = (work.cursor + 1) % size;
+    work.history[work.cursor]?.copy(work.point);
+    work.filled = Math.min(size, work.filled + 1);
     for (let i = 0; i < TRAIL; i += 1) {
-      const past = work.history[Math.min(work.history.length - 1, i * 2 + 1)] ?? work.point;
+      const back = i * 2 + 1;
+      const past = back < work.filled ? (work.history[(work.cursor - back + size) % size] ?? work.point) : work.point;
       work.dummy.position.copy(past);
       work.dummy.lookAt(work.ahead);
       const shrink = 1 - i / TRAIL;

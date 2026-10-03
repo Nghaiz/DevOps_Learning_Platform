@@ -165,7 +165,8 @@
 .segDir {
   margin-left: -6px;
   background: var(--l-docker);
-  color: var(--l-bg);
+  /* Chữ trắng: chữ tối trên xanh docker chỉ 3,75:1. */
+  color: rgb(255, 255, 255);
 }
 
 .segGit {
@@ -263,7 +264,8 @@
 }
 
 .tResource {
-  color: var(--l-k8s);
+  /* Indigo k8s gốc chỉ 2,9:1 trên nền terminal; pha sáng để đạt AA. */
+  color: color-mix(in oklab, var(--l-k8s) 58%, var(--l-ink));
 }
 
 .tKey {
@@ -288,7 +290,7 @@
 }
 
 .head {
-  color: var(--l-faint);
+  color: var(--l-muted);
   font-weight: 700;
 }
 
@@ -405,9 +407,9 @@
     grid-template-columns: 1fr;
   }
 
+  /* Đoạn ghim và phép tính terminalIn đều giả định khu cao đúng một màn hình. */
   :global([data-motion='full']) .section {
-    height: auto;
-    min-height: 100svh;
+    height: 100svh;
   }
 
   :global([data-motion='full']) .copy [data-term-lede] {
@@ -421,5 +423,18 @@
 
   .screen {
     min-height: 340px;
+  }
+}
+
+/* Màn hình thấp (điện thoại nhỏ): co chữ terminal theo chiều cao để khung vẫn vừa một màn. */
+@media (max-width: 760px) and (max-height: 760px) {
+  .screen {
+    gap: 6px;
+    font-size: clamp(0.56rem, 1.55svh, 0.68rem);
+    line-height: 1.5;
+  }
+
+  .copy .title {
+    font-size: 1.7rem;
   }
 }

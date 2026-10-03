@@ -8,6 +8,7 @@ import { useViewer } from '../../shell/viewer-context';
 import { lineVar, SECTION_IDS, type LineId } from '../content';
 import type { LandingCatalog, LandingPath } from '../data/catalog-shape';
 import { EASE_OUT, gsap, ScrollTrigger } from '../motion/gsap';
+import { landingStore } from '../motion/store';
 import { useLandingGSAP } from '../motion/use-landing-gsap';
 import base from '../landing.module.css';
 import { routePathD, routePoints, ROUTE_HEIGHT, ROUTE_WIDTH, stopPoints } from './route-geometry';
@@ -120,6 +121,25 @@ function PathsBody({ catalog, gate }: { readonly catalog: Promise<LandingCatalog
             onEnter: () => timeline.play(),
           });
         });
+        /*
+          Dải thẻ trôi ngang bằng transform và không ancestor nào cuộn ngang được: Tab vào một thẻ
+          còn nằm ngoài bên phải sẽ cho focus vô hình (WCAG 2.4.7). Khi focus vào thẻ, cuộn trang
+          tới đúng vị trí dọc làm thẻ đó trượt vào khung.
+        */
+        const onFocus = (event: FocusEvent) => {
+          const card = event.target instanceof Element ? event.target.closest<HTMLElement>('[data-path-card]') : null;
+          const trigger = horizontal.scrollTrigger;
+          const max = distance();
+          if (card === null || trigger === undefined || max <= 0) return;
+          const lead = Number.parseFloat(getComputedStyle(track).paddingLeft) || 0;
+          const wanted = Math.min(max, Math.max(0, card.offsetLeft - lead));
+          const y = trigger.start + (wanted / max) * (trigger.end - trigger.start);
+          const lenis = landingStore.lenis;
+          if (lenis === null) window.scrollTo(0, y);
+          else lenis.scrollTo(y, { immediate: true });
+        };
+        track.addEventListener('focusin', onFocus);
+        return () => track.removeEventListener('focusin', onFocus);
       });
       media.add('(max-width: 899px)', () => {
         cards.forEach((card) => {
@@ -128,7 +148,7 @@ function PathsBody({ catalog, gate }: { readonly catalog: Promise<LandingCatalog
         });
       });
       gsap.from(cards, {
-        autoAlpha: 0,
+        opacity: 0,
         y: 40,
         duration: 0.9,
         stagger: 0.1,

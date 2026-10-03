@@ -13,8 +13,19 @@
 .char {
   display: inline-block;
   transform-origin: 50% 100%;
-  animation: char-rise 1050ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  /* `backwards`, không `both`: khung cuối trùng style gốc nên giữ hiệu ứng sau khi chạy xong là
+     thừa, và Chrome giữ MỖI ký tự trên một lớp compositor riêng chừng nào hiệu ứng còn hiệu lực
+     (trace: 44 lớp tô lại cùng lúc ở khung hero). */
+  animation: char-rise 1050ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
   animation-delay: calc(var(--kinetic-delay, 0ms) + var(--i, 0) * 30ms);
+}
+
+/* globals.css rút animation-duration về 0,01ms dưới reduced-motion nhưng KHÔNG đụng delay: ký tự
+   sẽ đứng ở opacity 0,02 tới cả giây. Tắt hẳn animation để chữ hiện ngay. */
+@media (prefers-reduced-motion: reduce) {
+  .char {
+    animation: none;
+  }
 }
 
 .charManual {

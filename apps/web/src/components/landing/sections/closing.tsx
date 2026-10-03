@@ -35,12 +35,18 @@ export function Closing({ catalog }: { readonly catalog: Promise<LandingCatalog>
         onUpdate: (self) => {
           landingStore.closingIn = self.progress;
         },
+        onRefresh: (self) => {
+          landingStore.closingIn = self.progress;
+        },
       });
       ScrollTrigger.create({
         trigger: section,
         start: 'top top',
         end: 'bottom bottom',
         onUpdate: (self) => {
+          landingStore.closing = self.progress;
+        },
+        onRefresh: (self) => {
           landingStore.closing = self.progress;
         },
       });
@@ -78,6 +84,9 @@ export function Closing({ catalog }: { readonly catalog: Promise<LandingCatalog>
           landingStore.visible.closing = self.isActive;
           if (self.isActive) pulse.play();
           else pulse.pause();
+        },
+        onRefresh: (self) => {
+          landingStore.visible.closing = self.isActive;
         },
       });
       return () => {

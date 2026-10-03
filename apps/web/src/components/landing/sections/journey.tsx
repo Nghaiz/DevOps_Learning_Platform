@@ -51,6 +51,15 @@ export function Journey() {
       const panels = Array.from(section.querySelectorAll<HTMLElement>('[data-panel]'));
       const fill = section.querySelector('[data-rail-fill]');
       let lastActive = -2;
+      const sync = (self: ScrollTrigger) => {
+        landingStore.journey = self.progress;
+        landingStore.visible.journey = self.isActive;
+        const next = activeStationAt(self.progress);
+        if (next !== lastActive) {
+          lastActive = next;
+          setActive(next);
+        }
+      };
 
       const timeline = gsap.timeline({
         defaults: { ease: 'none' },
@@ -62,33 +71,34 @@ export function Journey() {
           scrub: true,
           anticipatePin: 1,
           invalidateOnRefresh: true,
-          onUpdate: (self) => {
-            landingStore.journey = self.progress;
-            const next = activeStationAt(self.progress);
-            if (next !== lastActive) {
-              lastActive = next;
-              setActive(next);
-            }
-          },
+          onUpdate: (self) => sync(self),
           onToggle: (self) => {
             landingStore.visible.journey = self.isActive;
           },
+          /* Lượt đo đầu (và mọi lượt đo lại) không bắn onUpdate: đồng bộ store ở đây, nếu không
+             tải trang giữa chừng thì camera đứng sai chỗ cho tới cú cuộn đầu tiên. */
+          onRefresh: (self) => sync(self),
         },
       });
       triggerRef.current = timeline.scrollTrigger ?? null;
 
-      timeline.to(intro, { autoAlpha: 0, y: -80, duration: JOURNEY_INTRO * 0.85 }, JOURNEY_INTRO * 0.15);
+      /*
+        opacity chứ KHÔNG autoAlpha: autoAlpha đặt visibility:hidden, gỡ lời dẫn và các ga đã qua
+        khỏi cây trợ năng. Người dùng trình đọc màn hình duyệt theo heading sẽ chỉ thấy đúng một
+        ga, và axe báo heading-order (h1 nhảy thẳng xuống h3).
+      */
+      timeline.to(intro, { opacity: 0, y: -80, duration: JOURNEY_INTRO * 0.85 }, JOURNEY_INTRO * 0.15);
       if (fill !== null) timeline.fromTo(fill, { scaleY: 0 }, { scaleY: 1, duration: 1 - JOURNEY_INTRO }, JOURNEY_INTRO);
 
       panels.forEach((panel, index) => {
         const start = stationStart(index);
         const event = panel.querySelector('[data-event]');
-        gsap.set(panel, { autoAlpha: 0 });
+        gsap.set(panel, { opacity: 0 });
         timeline.fromTo(
           panel,
-          { autoAlpha: 0, y: 90, clipPath: 'inset(0% 0% 100% 0%)' },
+          { opacity: 0, y: 90, clipPath: 'inset(0% 0% 100% 0%)' },
           {
-            autoAlpha: 1,
+            opacity: 1,
             y: 0,
             clipPath: 'inset(0% 0% 0% 0%)',
             duration: STATION_SPAN * PANEL_IN_END,
@@ -99,15 +109,15 @@ export function Journey() {
         if (event !== null) {
           timeline.fromTo(
             event,
-            { autoAlpha: 0, x: -24 },
-            { autoAlpha: 1, x: 0, duration: STATION_SPAN * 0.08, ease: EASE_OUT },
+            { opacity: 0, x: -24 },
+            { opacity: 1, x: 0, duration: STATION_SPAN * 0.08, ease: EASE_OUT },
             start + STATION_SPAN * TRAVEL_START * 0.82,
           );
         }
         if (index < STATION_COUNT - 1) {
           timeline.to(
             panel,
-            { autoAlpha: 0, y: -90, duration: STATION_SPAN * (1 - PANEL_OUT_START), ease: 'power2.in' },
+            { opacity: 0, y: -90, duration: STATION_SPAN * (1 - PANEL_OUT_START), ease: 'power2.in' },
             start + STATION_SPAN * PANEL_OUT_START,
           );
         }
@@ -133,6 +143,9 @@ export function Journey() {
     const lenis = landingStore.lenis;
     if (mode !== 'full' || trigger === null || lenis === null) return;
     event.preventDefault();
+    /* Bộ xử lý neo chung (motion-provider) bỏ qua cú bấm đã preventDefault; stopPropagation để
+       không listener nào khác đổi đích cuộn. */
+    event.stopPropagation();
     const fraction = stationStart(index) + STATION_SPAN * 0.32;
     lenis.scrollTo(trigger.start + (trigger.end - trigger.start) * fraction, { duration: 1.6 });
   };
@@ -197,7 +210,7 @@ export function Journey() {
         <nav className={styles.rail} aria-label={t('home.journey.rail')}>
           <div className={styles.railHead}>
             <IconMorph station={current} className={styles.railIcon} />
-            <span className={styles.railCount} aria-live="polite">
+            <span className={styles.railCount}>
               {active >= 0 ? t('home.journey.progress', { n: active + 1, total: STATION_COUNT }) : ''}
             </span>
           </div>

@@ -9,7 +9,8 @@
   --l-bg-3: rgb(25, 30, 45);
   --l-ink: rgb(240, 242, 247);
   --l-muted: rgb(154, 162, 181);
-  --l-faint: rgb(98, 106, 126);
+  /* 5,2:1 trên --l-bg: chữ mờ vẫn đạt AA (bản 98, 106, 126 cũ chỉ 3,6:1, axe báo serious). */
+  --l-faint: rgb(124, 132, 152);
   --l-rule: rgb(255 255 255 / 0.12);
   --l-rule-strong: rgb(255 255 255 / 0.24);
   --l-red: rgb(222, 34, 26);

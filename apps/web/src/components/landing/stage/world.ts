@@ -42,10 +42,28 @@ export interface Frame {
 
 export const makeFrame = (): Frame => ({ point: new Vector3(), tangent: new Vector3(), right: new Vector3() });
 
+/*
+  Bảng tra dọc tuyến đỏ, dựng một lần khi module nạp. `Curve.getTangentAt` của three cấp phát hai
+  Vector3 mỗi lần gọi, và camera gọi `frameAt` vài lần mỗi khung: tra bảng rồi nội suy tuyến tính
+  thì không cấp phát gì (sai số dưới 1 phần nghìn đơn vị với 4096 mẫu trên ~280 đơn vị tuyến).
+*/
+const LUT_SIZE = 4096;
+const LUT_POINTS: readonly Vector3[] = Array.from({ length: LUT_SIZE + 1 }, (_, i) => TRUNK.getPointAt(i / LUT_SIZE));
+const LUT_TANGENTS: readonly Vector3[] = Array.from({ length: LUT_SIZE + 1 }, (_, i) => TRUNK.getTangentAt(i / LUT_SIZE));
+
 export function frameAt(u: number, out: Frame = makeFrame()): Frame {
-  const clamped = MathUtils.clamp(u, 0, 1);
-  TRUNK.getPointAt(clamped, out.point);
-  TRUNK.getTangentAt(clamped, out.tangent);
+  const x = MathUtils.clamp(u, 0, 1) * LUT_SIZE;
+  const i = Math.min(LUT_SIZE - 1, Math.floor(x));
+  const f = x - i;
+  const p0 = LUT_POINTS[i];
+  const p1 = LUT_POINTS[i + 1];
+  const t0 = LUT_TANGENTS[i];
+  const t1 = LUT_TANGENTS[i + 1];
+  if (p0 === undefined || p1 === undefined || t0 === undefined || t1 === undefined) {
+    throw new RangeError(`frameAt: LUT index ${i} out of range`);
+  }
+  out.point.lerpVectors(p0, p1, f);
+  out.tangent.lerpVectors(t0, t1, f).normalize();
   out.right.crossVectors(out.tangent, UP).normalize();
   return out;
 }

@@ -11,8 +11,8 @@ import { useMotionMode } from './motion-provider';
  * trước component CHA, nên ScrollTrigger của từng khu sẽ được tạo trước khi provider kịp
  * `registerPlugin`. `registerLandingGsap` là idempotent, gọi ở đây không tốn gì.
  *
- * Mọi tween/ScrollTrigger tạo trong `callback` được `useGSAP` gom vào một context và tự revert
- * khi đổi chế độ (bật giảm chuyển động giữa chừng) hoặc khi unmount.
+ * Mọi tween/ScrollTrigger tạo trong `callback` được `useGSAP` gom vào một context và revert khi
+ * đổi chế độ (bật giảm chuyển động giữa chừng) hoặc khi unmount, nhờ `revertOnUpdate`.
  */
 export function useLandingGSAP(
   callback: () => void | (() => void),
@@ -28,6 +28,9 @@ export function useLandingGSAP(
     {
       ...(options.scope === undefined ? {} : { scope: options.scope }),
       dependencies: [mode, ...(options.dependencies ?? [])],
+      /* Thiếu cờ này, useGSAP CHỈ revert lúc unmount: đổi dependency (bật giảm chuyển động giữa
+         chừng) chỉ chạy callback chồng thêm, mọi pin và vòng lặp cũ vẫn sống. */
+      revertOnUpdate: true,
     },
   );
 }

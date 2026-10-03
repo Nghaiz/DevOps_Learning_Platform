@@ -29,8 +29,16 @@ const COMMAND_KEYS = [
   'home.term.cmd.curl',
 ] as const;
 
+/* Chỉ ghi khi giá trị đổi: hàm này chạy mỗi khung lúc cuộn qua đoạn ghim, và mỗi lần ghi DOM
+   (kể cả ghi lại đúng giá trị cũ) đều có thể buộc trình duyệt tính lại style. */
 const setFlag = (element: Element | null, name: string, on: boolean) => {
-  if (element instanceof HTMLElement) element.dataset[name] = on ? 'true' : 'false';
+  if (!(element instanceof HTMLElement)) return;
+  const next = on ? 'true' : 'false';
+  if (element.dataset[name] !== next) element.dataset[name] = next;
+};
+
+const setText = (element: HTMLElement, text: string) => {
+  if (element.textContent !== text) element.textContent = text;
 };
 
 export function Terminal() {
@@ -72,14 +80,18 @@ export function Terminal() {
         cmdEls.forEach((element, index) => {
           const typed = state.typed[index] ?? 0;
           const full = commands[index] ?? '';
-          element.textContent = full.slice(0, typed);
+          setText(element, full.slice(0, typed));
           setFlag(element, 'typing', typed > 0 && typed < full.length);
         });
         buildEls.forEach((element, index) => {
           const fill = Math.min(1, Math.max(0, state.build * buildEls.length - index));
           setFlag(element, 'shown', fill > 0);
           setFlag(element, 'done', fill >= 1);
-          element.style.setProperty('--fill', String(fill));
+          const fillText = fill.toFixed(3);
+          if (element.dataset.fill !== fillText) {
+            element.dataset.fill = fillText;
+            element.style.setProperty('--fill', fillText);
+          }
         });
         applyEls.forEach((element, index) => setFlag(element, 'shown', index < state.applyLines));
         setFlag(headEl, 'shown', state.header);
@@ -119,6 +131,7 @@ export function Terminal() {
         anticipatePin: 1,
         invalidateOnRefresh: true,
         onUpdate: (self) => apply(self.progress),
+        onRefresh: (self) => apply(self.progress),
       });
       ScrollTrigger.create({
         trigger: section,
@@ -130,6 +143,10 @@ export function Terminal() {
           landingStore.terminalIn = Math.min(1, self.progress * (TERMINAL_SCREENS + 2));
         },
         onToggle: (self) => {
+          landingStore.visible.terminal = self.isActive;
+        },
+        onRefresh: (self) => {
+          landingStore.terminalIn = Math.min(1, self.progress * (TERMINAL_SCREENS + 2));
           landingStore.visible.terminal = self.isActive;
         },
       });

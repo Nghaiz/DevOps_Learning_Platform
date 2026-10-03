@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Canvas, useThree } from '@react-three/fiber';
 import { PerformanceMonitor } from '@react-three/drei';
-import { NeutralToneMapping } from 'three';
+import { HalfFloatType, type Material, type Mesh, NeutralToneMapping, type Texture, WebGLRenderTarget } from 'three';
 import { gsap } from '../motion/gsap';
 import { canvasWanted } from '../motion/store';
 import { Effects } from './effects';
@@ -28,6 +28,7 @@ export default function StageCanvas({ onReady, onLost }: StageCanvasProps) {
   const [fonts, setFonts] = useState<SceneFonts | null>(null);
   const [tier, setTier] = useState<QualityTier>('high');
   const [ready, setReady] = useState(false);
+  const [warm, setWarm] = useState(false);
   const callbacks = useRef({ onReady, onLost });
   callbacks.current = { onReady, onLost };
 
@@ -57,6 +58,10 @@ export default function StageCanvas({ onReady, onLost }: StageCanvasProps) {
           camera={{ fov: 42, near: 0.1, far: 560, position: [-12, 10.5, 36] }}
           onCreated={(state) => {
             state.gl.toneMapping = NeutralToneMapping;
+            /* Production không hỏi trạng thái link đồng bộ: mỗi lần hỏi là một lần chờ GPU. */
+            state.gl.debug.checkShaderErrors = process.env.NODE_ENV !== 'production';
+            /* Tự reset để đếm draw call của CẢ khung (cảnh + mọi pass hậu kỳ), không phải pass cuối. */
+            state.gl.info.autoReset = false;
             const name = rendererName(state.gl.getContext());
             state.gl.domElement.dataset.renderer = name;
             if (SOFTWARE_RENDERER.test(name)) setTier('low');
@@ -72,6 +77,7 @@ export default function StageCanvas({ onReady, onLost }: StageCanvasProps) {
           }}
         >
           <Driver
+            enabled={warm}
             onFirstFrame={() => {
               setReady(true);
               callbacks.current.onReady();
@@ -80,13 +86,67 @@ export default function StageCanvas({ onReady, onLost }: StageCanvasProps) {
           <PerformanceMonitor flipflops={3} onDecline={() => setTier((current) => downgrade(current))} />
           <Scene palette={palette} fonts={fonts} tier={tier} />
           {tier === 'low' ? null : <Effects tier={tier} />}
+          <Warmup onWarm={() => setWarm(true)} />
         </Canvas>
       ) : null}
     </div>
   );
 }
 
-function Driver({ onFirstFrame }: { readonly onFirstFrame: () => void }) {
+/**
+ * Biên dịch TRƯỚC mọi shader và tải sẵn mọi texture, rồi mới cho vẽ khung đầu.
+ *
+ * Đo 2026-10-03 trên RTX 4060: thiếu bước này, mỗi ga link shader của nó lúc lần đầu lọt vào
+ * khung hình, và three chờ trạng thái link đồng bộ (`GetProgramiv` 214 ms): một khung 246 đến
+ * 288 ms ngay giữa lúc người dùng đang cuộn. `compile()` duyệt MỌI vật liệu, kể cả của vật thể
+ * đang ẩn (ga ở xa, container chưa đóng); `compileAsync` dùng KHR_parallel_shader_compile nên
+ * không chặn luồng chính trong lúc chờ.
+ *
+ * ⚠ Biến thể shader phụ thuộc ĐÍCH VẼ: vẽ ra màn hình thì có tone mapping và sRGB, vẽ vào render
+ * target (đường của EffectComposer) thì không. Biên dịch trước chỉ cho màn hình là biên dịch
+ * nhầm biến thể: đo lại sau bản sửa đầu, khung tệ nhất vẫn 333 ms ở đúng chỗ cũ. Nên biên dịch
+ * cả hai: vào một render target (tầng có hậu kỳ) và ra màn hình (tầng thấp, không hậu kỳ).
+ */
+function Warmup({ onWarm }: { readonly onWarm: () => void }) {
+  const gl = useThree((state) => state.gl);
+  const scene = useThree((state) => state.scene);
+  const camera = useThree((state) => state.camera);
+  const notify = useRef(onWarm);
+  notify.current = onWarm;
+
+  useEffect(() => {
+    let alive = true;
+    const textures = new Set<Texture>();
+    scene.traverse((object) => {
+      const material = (object as Partial<Mesh>).material;
+      const materials: Material[] = Array.isArray(material) ? material : material === undefined ? [] : [material];
+      for (const entry of materials) {
+        const map = (entry as Material & { map?: Texture | null }).map;
+        if (map !== undefined && map !== null) textures.add(map);
+      }
+    });
+    textures.forEach((texture) => gl.initTexture(texture));
+    const offscreen = new WebGLRenderTarget(4, 4, { type: HalfFloatType });
+    const previous = gl.getRenderTarget();
+    gl.setRenderTarget(offscreen);
+    const viaComposer = gl.compileAsync(scene, camera);
+    gl.setRenderTarget(previous);
+    const viaScreen = gl.compileAsync(scene, camera);
+    Promise.all([viaComposer, viaScreen])
+      .catch((error: unknown) => console.warn('[landing] shader precompile failed, compiling lazily', error))
+      .finally(() => {
+        offscreen.dispose();
+        if (alive) notify.current();
+      });
+    return () => {
+      alive = false;
+    };
+  }, [gl, scene, camera]);
+
+  return null;
+}
+
+function Driver({ enabled, onFirstFrame }: { readonly enabled: boolean; readonly onFirstFrame: () => void }) {
   const advance = useThree((state) => state.advance);
   const gl = useThree((state) => state.gl);
   const drawn = useRef(false);
@@ -94,13 +154,20 @@ function Driver({ onFirstFrame }: { readonly onFirstFrame: () => void }) {
   notify.current = onFirstFrame;
 
   useEffect(() => {
+    if (!enabled) return undefined;
     let frame = 0;
     const tick = () => {
       if (drawn.current && (!canvasWanted() || document.visibilityState !== 'visible')) return;
+      gl.info.reset();
       advance(performance.now());
       frame += 1;
-      /* Số draw call cho e2e đo, ghi thưa để không tự làm chậm chính phép đo. */
-      if (frame % 30 === 0) gl.domElement.dataset.calls = String(gl.info.render.calls);
+      /* Số draw call của cả khung cho e2e đo, ghi thưa để không tự làm chậm chính phép đo. */
+      if (frame % 30 === 0) {
+        gl.domElement.dataset.calls = String(gl.info.render.calls);
+        /* Số chương trình shader: tăng trong lúc cuộn nghĩa là có biến thể lọt khỏi bước biên dịch
+           trước, tức có một khung giật đang chờ người dùng. e2e so con số này trước và sau khi cuộn. */
+        gl.domElement.dataset.programs = String(gl.info.programs?.length ?? 0);
+      }
       if (!drawn.current) {
         drawn.current = true;
         notify.current();
@@ -108,7 +175,7 @@ function Driver({ onFirstFrame }: { readonly onFirstFrame: () => void }) {
     };
     gsap.ticker.add(tick);
     return () => gsap.ticker.remove(tick);
-  }, [advance, gl]);
+  }, [enabled, advance, gl]);
 
   return null;
 }

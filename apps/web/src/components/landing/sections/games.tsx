@@ -36,7 +36,7 @@ export function Games() {
       const section = ref.current;
       if (section === null) return;
       gsap.from(section.querySelectorAll('[data-game]'), {
-        autoAlpha: 0,
+        opacity: 0,
         y: 80,
         rotateX: -18,
         transformPerspective: 900,
