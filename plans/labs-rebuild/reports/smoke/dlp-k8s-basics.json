@@ -1,0 +1,569 @@
+{
+  "kind": "lesson",
+  "id": "dlp-k8s-basics",
+  "title": "Cụm đầu tiên: node, Pod và kubectl",
+  "contentDir": "D:\\NCKH\\dlp-labs-w4\\content\\scenarios\\dlp-k8s-basics",
+  "image": "ghcr.io/nghaiz/dlp-sandbox-base:labs-b1",
+  "profile": "k8s",
+  "pod": "smoke-lesson-dlp-k8s-basics-4556b3",
+  "startedAt": "2026-10-03T00:32:53.362Z",
+  "durationMs": 246834,
+  "verdict": "pass",
+  "deviations": [],
+  "warnings": [],
+  "infra": {
+    "podReadyMs": 9890,
+    "dockerReadyMs": 9114,
+    "k8sReadyMs": 69265,
+    "agent": true,
+    "terminalMs": 14105,
+    "execBaselineMs": 1036,
+    "loadavg": "30.68 22.20 17.35 26/1984 7709"
+  },
+  "units": [
+    {
+      "key": "intro",
+      "title": "Giới thiệu",
+      "setup": [],
+      "pre": null,
+      "actions": [
+        {
+          "kind": "foreground",
+          "code": "echo \"Cụm k3s đang khởi động ngay trong sandbox của bạn, thường mất 20 đến 70 giây. Đọc phần giới thiệu trong lúc chờ.\"\ndlp-k8s-wait 90 && kubectl -n kube-system wait --for=condition=Available deployment/coredns --timeout=60s >/dev/null && echo \"Cụm đã sẵn sàng và kubectl đã trỏ vào nó. Sang bước 1 được rồi.\" || echo \"Cụm chưa lên kịp. Gõ dlp-k8s-wait 90 để chờ thêm rồi làm tiếp.\"\n",
+          "rc": 0,
+          "cwd": "/root",
+          "durationMs": 2106,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  echo \"Cụm k3s đang khởi động ngay trong sandbox của bạn, thường mất 20 đến 70 giây. Đọc phần giới thiệu trong lúc chờ.\"\nCụm k3s đang khởi động ngay trong sandbox của bạn, thường mất 20 đến 70 giây. Đọc phần giới thiệu trong lúc chờ.\n  dlp   ~                                                                                                                                                                                00:36:13\n❯  dlp-k8s-wait 90 && kubectl -n kube-system wait --for=condition=Available deployment/coredns --timeout=60s >/dev/null && echo \"Cụm đã sẵn sàng và kubectl đã trỏ vào nó. Sang bước 1 được rồi.\" || ech\no \"Cụm chưa lên kịp. Gõ dlp-k8s-wait 90 để chờ thêm rồi làm tiếp.\"\nCluster con da san sang sau 1s (1/1 node Ready).\nCụm đã sẵn sàng và kubectl đã trỏ vào nó. Sang bước 1 được rồi.\n  dlp   ~                                                                                                                                                                       1.392s  00:36:15\n❯"
+        }
+      ],
+      "post": null,
+      "detailed": true
+    },
+    {
+      "key": "step1",
+      "title": "Cụm của bạn nằm ở đâu",
+      "setup": [],
+      "pre": null,
+      "actions": [
+        {
+          "kind": "exec",
+          "code": "kubectl cluster-info",
+          "rc": 0,
+          "cwd": "/root",
+          "durationMs": 1042,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  kubectl cluster-info\nKubernetes control plane is running at https://127.0.0.1:6443\nCoreDNS is running at https://127.0.0.1:6443/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy\n\nTo further debug and diagnose cluster problems, use 'kubectl cluster-info dump'.\n  dlp   ~                                                                                                                                                                                00:36:16\n❯"
+        },
+        {
+          "kind": "exec",
+          "code": "kubectl get nodes -o wide",
+          "rc": 0,
+          "cwd": "/root",
+          "durationMs": 1289,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  kubectl get nodes -o wide\nNAME           STATUS   ROLES           AGE   VERSION        INTERNAL-IP   EXTERNAL-IP   OS-IMAGE           KERNEL-VERSION         CONTAINER-RUNTIME\n9a15c52bc45d   Ready    control-plane   29s   v1.34.1+k3s1   172.17.0.2    <none>        K3s v1.34.1+k3s1   6.12.101+deb13-amd64   containerd://2.1.4-k3s2\n  dlp   ~                                                                                                                                                                        618ms  00:36:17\n❯"
+        },
+        {
+          "kind": "exec",
+          "code": "docker ps",
+          "rc": 0,
+          "cwd": "/root",
+          "durationMs": 1425,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  docker ps\nCONTAINER ID   IMAGE                      COMMAND                  CREATED              STATUS              PORTS                      NAMES\n9a15c52bc45d   rancher/k3s:v1.34.1-k3s1   \"/bin/sh /k3s-boot.s…\"   About a minute ago   Up About a minute   127.0.0.1:6443->6443/tcp   dlp-k3s\n  dlp   ~                                                                                                                                                                        773ms  00:36:19\n❯"
+        },
+        {
+          "kind": "exec",
+          "code": "kubectl get pods -A",
+          "rc": 0,
+          "cwd": "/root",
+          "durationMs": 1134,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  kubectl get pods -A\nNAMESPACE     NAME                                      READY   STATUS              RESTARTS   AGE\nkube-system   coredns-7896679cc-ddswf                   0/1     ContainerCreating   0          25s\nkube-system   local-path-provisioner-578895bd58-cvvb6   0/1     ContainerCreating   0          25s\n  dlp   ~                                                                                                                                                                        555ms  00:36:20\n❯"
+        }
+      ],
+      "post": null,
+      "detailed": true
+    },
+    {
+      "key": "step2",
+      "title": "Pod đầu tiên",
+      "setup": [],
+      "pre": {
+        "expect": "fail",
+        "exitCode": 1,
+        "passed": false,
+        "durationMs": 2319,
+        "podMs": 1283,
+        "slow": false,
+        "criteria": [
+          {
+            "ok": false,
+            "label": "Có Pod web trong namespace default (chưa có: kubectl run web --image=nginx:1.27-alpine)"
+          }
+        ],
+        "notes": "",
+        "infraError": null,
+        "ok": true
+      },
+      "actions": [
+        {
+          "kind": "exec",
+          "code": "kubectl run web --image=nginx:1.27-alpine",
+          "rc": 0,
+          "cwd": "/root",
+          "durationMs": 1308,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  kubectl run web --image=nginx:1.27-alpine\npod/web created\n  dlp   ~                                                                                                                                                                        619ms  00:36:23\n❯"
+        },
+        {
+          "kind": "exec",
+          "code": "kubectl get pods",
+          "rc": 0,
+          "cwd": "/root",
+          "durationMs": 1268,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  kubectl get pods\nNAME   READY   STATUS              RESTARTS   AGE\nweb    0/1     ContainerCreating   0          2s\n  dlp   ~                                                                                                                                                                        680ms  00:36:25\n❯"
+        },
+        {
+          "kind": "exec",
+          "code": "kubectl wait --for=condition=Ready pod/web --timeout=120s",
+          "rc": 0,
+          "cwd": "/root",
+          "durationMs": 31889,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  kubectl wait --for=condition=Ready pod/web --timeout=120s\npod/web condition met\n  dlp   ~                                                                                                                                                                      31.208s  00:36:57\n❯"
+        },
+        {
+          "kind": "exec",
+          "code": "kubectl get pods -o wide",
+          "rc": 0,
+          "cwd": "/root",
+          "durationMs": 1271,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  kubectl get pods -o wide\nNAME   READY   STATUS    RESTARTS   AGE   IP          NODE           NOMINATED NODE   READINESS GATES\nweb    1/1     Running   0          35s   10.42.0.4   9a15c52bc45d   <none>           <none>\n  dlp   ~                                                                                                                                                                        680ms  00:36:58\n❯"
+        }
+      ],
+      "post": {
+        "expect": "pass",
+        "exitCode": 0,
+        "passed": true,
+        "durationMs": 3760,
+        "podMs": 2724,
+        "slow": false,
+        "criteria": [
+          {
+            "ok": true,
+            "label": "Có Pod web trong namespace default"
+          },
+          {
+            "ok": true,
+            "label": "Pod web chạy image nginx:1.27-alpine"
+          },
+          {
+            "ok": true,
+            "label": "Pod web đã Ready"
+          }
+        ],
+        "notes": "",
+        "infraError": null,
+        "ok": true
+      },
+      "detailed": true
+    },
+    {
+      "key": "step3",
+      "title": "Nhìn vào trong Pod",
+      "setup": [],
+      "pre": {
+        "expect": "fail",
+        "exitCode": 1,
+        "passed": false,
+        "durationMs": 3692,
+        "podMs": 2656,
+        "slow": false,
+        "criteria": [
+          {
+            "ok": false,
+            "label": "nginx trong Pod web trả về trang 'xin chào từ web' (hiện: <!DOCTYPE html> <html> <head> <title>Welcome to nginx!</titl; chạy lại lệnh echo của bước này)"
+          }
+        ],
+        "notes": "",
+        "infraError": null,
+        "ok": true
+      },
+      "actions": [
+        {
+          "kind": "exec",
+          "code": "kubectl describe pod web",
+          "rc": 0,
+          "cwd": "/root",
+          "durationMs": 971,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  kubectl describe pod web\nName:             web\nNamespace:        default\nPriority:         0\nService Account:  default\nNode:             9a15c52bc45d/172.17.0.2\nStart Time:       Sat, 03 Oct 2026 00:36:23 +0000\nLabels:           run=web\nAnnotations:      <none>\nStatus:           Running\nIP:               10.42.0.4\nIPs:\n  IP:  10.42.0.4\nContainers:\n  web:\n    Container ID:   containerd://b09d8c66014e8aedcefaf6d6d6b27d838f4d179e62559a15460af8d7efaf418b\n    Image:          nginx:1.27-alpine\n    Image ID:       docker.io/library/nginx@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10\n    Port:           <none>\n    Host Port:      <none>\n    State:          Running\n      Started:      Sat, 03 Oct 2026 00:36:55 +0000\n    Ready:          True\n    Restart Count:  0\n    Environment:    <none>\n    Mounts:\n      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-pjdmn (ro)\nConditions:\n  Type                        Status\n  PodReadyToStartContainers   True\n  Initialized                 True\n  Ready                       True\n  ContainersReady             True\n  PodScheduled                True\nVolumes:\n  kube-api-access-pjdmn:\n    Type:                    Projected (a volume that contains injected data from multiple sources)\n    TokenExpirationSeconds:  3607\n    ConfigMapName:           kube-root-ca.crt\n    Optional:                false\n    DownwardAPI:             true\nQoS Class:                   BestEffort\nNode-Selectors:              <none>\nTolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s\n                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s\nEvents:\n  Type    Reason     Age   From               Message\n  ----    ------     ----  ----               -------\n  Normal  Scheduled  42s   default-scheduler  Successfully assigned default/web to 9a15c52bc45d\n  Normal  Pulling    31s   kubelet            Pulling image \"nginx:1.27-alpine\"\n  Normal  Pulled     14s   kubelet            Successfully pulled image \"nginx:1.27-alpine\" in 16.898s (16.898s including waiting). Image size: 20984244 bytes.\n  Normal  Created    13s   kubelet            Created container: web\n  Normal  Started    10s   kubelet            Started container web\n  dlp   ~                                                                                                                                                                                00:37:06\n❯"
+        },
+        {
+          "kind": "exec",
+          "code": "kubectl exec web -- nginx -v",
+          "rc": 0,
+          "cwd": "/root",
+          "durationMs": 1889,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  kubectl exec web -- nginx -v\nnginx version: nginx/1.27.5\n  dlp   ~                                                                                                                                                                        1.38s  00:37:08\n❯"
+        },
+        {
+          "kind": "exec",
+          "code": "kubectl exec web -- sh -c 'echo \"xin chào từ $(hostname)\" > /usr/share/nginx/html/index.html'",
+          "rc": 0,
+          "cwd": "/root",
+          "durationMs": 1884,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  kubectl exec web -- sh -c 'echo \"xin chào từ $(hostname)\" > /usr/share/nginx/html/index.html'\n  dlp   ~                                                                                                                                                                       1.208s  00:37:10\n❯"
+        },
+        {
+          "kind": "exec",
+          "code": "kubectl exec web -- wget -qO- http://localhost",
+          "rc": 0,
+          "cwd": "/root",
+          "durationMs": 1520,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  kubectl exec web -- wget -qO- http://localhost\nxin chào từ web\n  dlp   ~                                                                                                                                                                        950ms  00:37:12\n❯"
+        },
+        {
+          "kind": "exec",
+          "code": "kubectl logs web --tail=3",
+          "rc": 0,
+          "cwd": "/root",
+          "durationMs": 1175,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  kubectl logs web --tail=3\n2026/10/03 00:36:56 [notice] 1#1: start worker process 89\n::1 - - [03/Oct/2026:00:37:05 +0000] \"GET / HTTP/1.1\" 200 615 \"-\" \"Wget\" \"-\"\n::1 - - [03/Oct/2026:00:37:11 +0000] \"GET / HTTP/1.1\" 200 19 \"-\" \"Wget\" \"-\"\n  dlp   ~                                                                                                                                                                        637ms  00:37:13\n❯"
+        }
+      ],
+      "post": {
+        "expect": "pass",
+        "exitCode": 0,
+        "passed": true,
+        "durationMs": 2608,
+        "podMs": 1572,
+        "slow": false,
+        "criteria": [
+          {
+            "ok": true,
+            "label": "nginx trong Pod web trả về trang 'xin chào từ web'"
+          }
+        ],
+        "notes": "",
+        "infraError": null,
+        "ok": true
+      },
+      "detailed": true
+    },
+    {
+      "key": "step4",
+      "title": "Xoá Pod, và không ai dựng lại",
+      "setup": [],
+      "pre": {
+        "expect": "fail",
+        "exitCode": 1,
+        "passed": false,
+        "durationMs": 2119,
+        "podMs": 1083,
+        "slow": false,
+        "criteria": [
+          {
+            "ok": false,
+            "label": "Pod web không còn trong namespace default (vẫn còn: kubectl delete pod web)"
+          }
+        ],
+        "notes": "",
+        "infraError": null,
+        "ok": true
+      },
+      "actions": [
+        {
+          "kind": "exec",
+          "code": "kubectl delete pod web",
+          "rc": 0,
+          "cwd": "/root",
+          "durationMs": 3951,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  kubectl delete pod web\npod \"web\" deleted from default namespace\n  dlp   ~                                                                                                                                                                       3.412s  00:37:21\n❯"
+        },
+        {
+          "kind": "exec",
+          "code": "kubectl get pods",
+          "rc": 0,
+          "cwd": "/root",
+          "durationMs": 1233,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  kubectl get pods\nNo resources found in default namespace.\n  dlp   ~                                                                                                                                                                        627ms  00:37:23\n❯"
+        }
+      ],
+      "post": {
+        "expect": "pass",
+        "exitCode": 0,
+        "passed": true,
+        "durationMs": 3148,
+        "podMs": 2112,
+        "slow": false,
+        "criteria": [
+          {
+            "ok": true,
+            "label": "Pod web không còn trong namespace default"
+          }
+        ],
+        "notes": "",
+        "infraError": null,
+        "ok": true
+      },
+      "detailed": true
+    },
+    {
+      "key": "step5",
+      "title": "Viết YAML thay vì gõ cờ",
+      "setup": [],
+      "pre": {
+        "expect": "fail",
+        "exitCode": 1,
+        "passed": false,
+        "durationMs": 2915,
+        "podMs": 1879,
+        "slow": false,
+        "criteria": [
+          {
+            "ok": false,
+            "label": "Có file /root/web-pod.yaml (chưa có: chạy lệnh kubectl run … --dry-run=client -o yaml > web-pod.yaml)"
+          },
+          {
+            "ok": false,
+            "label": "Pod web có mặt trong namespace default (chưa có: kubectl apply -f web-pod.yaml)"
+          }
+        ],
+        "notes": "",
+        "infraError": null,
+        "ok": true
+      },
+      "actions": [
+        {
+          "kind": "exec",
+          "code": "kubectl run web --image=nginx:1.27-alpine --labels=app=web,tier=frontend --port=80 --dry-run=client -o yaml > web-pod.yaml",
+          "rc": 0,
+          "cwd": "/root",
+          "durationMs": 1358,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  kubectl run web --image=nginx:1.27-alpine --labels=app=web,tier=frontend --port=80 --dry-run=client -o yaml > web-pod.yaml\n  dlp   ~                                                                                                                                                                        564ms  00:37:30\n❯"
+        },
+        {
+          "kind": "exec",
+          "code": "cat web-pod.yaml",
+          "rc": 0,
+          "cwd": "/root",
+          "durationMs": 1403,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  cat web-pod.yaml\n───────┬────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n       │ File: web-pod.yaml\n───────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n   1   │ apiVersion: v1\n   2   │ kind: Pod\n   3   │ metadata:\n   4   │   labels:\n   5   │     app: web\n   6   │     tier: frontend\n   7   │   name: web\n   8   │ spec:\n   9   │   containers:\n  10   │   - image: nginx:1.27-alpine\n  11   │     name: web\n  12   │     ports:\n  13   │     - containerPort: 80\n  14   │     resources: {}\n  15   │   dnsPolicy: ClusterFirst\n  16   │   restartPolicy: Always\n  17   │ status: {}\n───────┴────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n  dlp   ~                                                                                                                                                                        861ms  00:37:32\n❯"
+        },
+        {
+          "kind": "exec",
+          "code": "kubectl apply -f web-pod.yaml",
+          "rc": 0,
+          "cwd": "/root",
+          "durationMs": 1579,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  kubectl apply -f web-pod.yaml\npod/web created\n  dlp   ~                                                                                                                                                                       1.031s  00:37:33\n❯"
+        },
+        {
+          "kind": "exec",
+          "code": "kubectl wait --for=condition=Ready pod/web --timeout=120s",
+          "rc": 0,
+          "cwd": "/root",
+          "durationMs": 30220,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  kubectl wait --for=condition=Ready pod/web --timeout=120s\npod/web condition met\n  dlp   ~                                                                                                                                                                      29.644s  00:38:03\n❯"
+        },
+        {
+          "kind": "exec",
+          "code": "kubectl get pod web --show-labels",
+          "rc": 0,
+          "cwd": "/root",
+          "durationMs": 1469,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  kubectl get pod web --show-labels\nNAME   READY   STATUS    RESTARTS   AGE   LABELS\nweb    1/1     Running   0          32s   app=web,tier=frontend\n  dlp   ~                                                                                                                                                                        804ms  00:38:05\n❯"
+        },
+        {
+          "kind": "exec",
+          "code": "kubectl apply -f web-pod.yaml",
+          "rc": 0,
+          "cwd": "/root",
+          "durationMs": 1779,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  kubectl apply -f web-pod.yaml\npod/web unchanged\n  dlp   ~                                                                                                                                                                       1.105s  00:38:06\n❯"
+        }
+      ],
+      "post": {
+        "expect": "pass",
+        "exitCode": 0,
+        "passed": true,
+        "durationMs": 2490,
+        "podMs": 1454,
+        "slow": false,
+        "criteria": [
+          {
+            "ok": true,
+            "label": "/root/web-pod.yaml mô tả Pod nginx:1.27-alpine với nhãn app=web, tier=frontend"
+          },
+          {
+            "ok": true,
+            "label": "Pod web mang nhãn app=web và tier=frontend"
+          },
+          {
+            "ok": true,
+            "label": "Pod web đã Ready"
+          }
+        ],
+        "notes": "",
+        "infraError": null,
+        "ok": true
+      },
+      "detailed": true
+    },
+    {
+      "key": "step6",
+      "title": "Namespace",
+      "setup": [],
+      "pre": {
+        "expect": "fail",
+        "exitCode": 1,
+        "passed": false,
+        "durationMs": 3190,
+        "podMs": 2154,
+        "slow": false,
+        "criteria": [
+          {
+            "ok": false,
+            "label": "Có namespace lab (chưa có: kubectl create namespace lab)"
+          }
+        ],
+        "notes": "",
+        "infraError": null,
+        "ok": true
+      },
+      "actions": [
+        {
+          "kind": "exec",
+          "code": "kubectl get namespaces",
+          "rc": 0,
+          "cwd": "/root",
+          "durationMs": 1185,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  kubectl get namespaces\nNAME              STATUS   AGE\ndefault           Active   2m41s\nkube-node-lease   Active   2m41s\nkube-public       Active   2m41s\nkube-system       Active   2m42s\n  dlp   ~                                                                                                                                                                        557ms  00:38:13\n❯"
+        },
+        {
+          "kind": "exec",
+          "code": "kubectl create namespace lab",
+          "rc": 0,
+          "cwd": "/root",
+          "durationMs": 1360,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  kubectl create namespace lab\nnamespace/lab created\n  dlp   ~                                                                                                                                                                        567ms  00:38:15\n❯"
+        },
+        {
+          "kind": "exec",
+          "code": "kubectl apply -f web-pod.yaml -n lab",
+          "rc": 0,
+          "cwd": "/root",
+          "durationMs": 1373,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  kubectl apply -f web-pod.yaml -n lab\npod/web created\n  dlp   ~                                                                                                                                                                        799ms  00:38:16\n❯"
+        },
+        {
+          "kind": "exec",
+          "code": "kubectl wait --for=condition=Ready pod/web -n lab --timeout=120s",
+          "rc": 0,
+          "cwd": "/root",
+          "durationMs": 10518,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  kubectl wait --for=condition=Ready pod/web -n lab --timeout=120s\npod/web condition met\n  dlp   ~                                                                                                                                                                       9.952s  00:38:27\n❯"
+        },
+        {
+          "kind": "exec",
+          "code": "kubectl get pods -A -l app=web",
+          "rc": 0,
+          "cwd": "/root",
+          "durationMs": 1405,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  kubectl get pods -A -l app=web\nNAMESPACE   NAME   READY   STATUS    RESTARTS   AGE\ndefault     web    1/1     Running   0          55s\nlab         web    1/1     Running   0          12s\n  dlp   ~                                                                                                                                                                        747ms  00:38:28\n❯"
+        },
+        {
+          "kind": "exec",
+          "code": "kubectl get pods",
+          "rc": 0,
+          "cwd": "/root",
+          "durationMs": 1266,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  kubectl get pods\nNAME   READY   STATUS    RESTARTS   AGE\nweb    1/1     Running   0          56s\n  dlp   ~                                                                                                                                                                        568ms  00:38:29\n❯"
+        }
+      ],
+      "post": {
+        "expect": "pass",
+        "exitCode": 0,
+        "passed": true,
+        "durationMs": 3529,
+        "podMs": 2493,
+        "slow": false,
+        "criteria": [
+          {
+            "ok": true,
+            "label": "Có namespace lab"
+          },
+          {
+            "ok": true,
+            "label": "Pod lab/web chạy nginx:1.27-alpine và đã Ready"
+          }
+        ],
+        "notes": "",
+        "infraError": null,
+        "ok": true
+      },
+      "detailed": true
+    },
+    {
+      "key": "finish",
+      "title": "Kết thúc",
+      "setup": [],
+      "pre": null,
+      "actions": [],
+      "post": null,
+      "detailed": true
+    }
+  ],
+  "final": []
+}

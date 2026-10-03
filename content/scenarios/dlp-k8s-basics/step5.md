@@ -1,40 +1,38 @@
-# Service — gọi được từ trong cụm
+# Viết YAML thay vì gõ cờ
 
-Deployment cho bạn Pod luôn tồn tại, nhưng địa chỉ IP của Pod đổi mỗi lần nó
-bị thay. **Service** cho bạn một địa chỉ ỔN ĐỊNH đứng trước một nhóm Pod.
+Lệnh `kubectl run` tiện để thử, nhưng không ai review được một dòng lệnh đã gõ hôm
+qua. Thứ đi vào Git là file YAML mô tả trạng thái mong muốn. Viết YAML từ trí nhớ
+thì dễ sai thụt lề; để `kubectl` sinh khung cho bạn:
 
-```
-kubectl expose deployment/web --name=web-svc --port=80 --target-port=80
-```{{exec}}
+`kubectl run web --image=nginx:1.27-alpine --labels=app=web,tier=frontend --port=80 --dry-run=client -o yaml > web-pod.yaml`{{exec}}
 
-Xem nó:
+`--dry-run=client` nghĩa là không gửi gì lên cụm, chỉ in ra object sẽ được tạo.
+`-o yaml` in nó dưới dạng YAML, và `>` ghi vào file.
 
-```
-kubectl get service web-svc
-```{{exec}}
+`cat web-pod.yaml`{{exec}}
 
-`CLUSTER-IP` là địa chỉ nội bộ, ổn định — nhưng chỉ gọi được **từ bên trong
-cụm**, không từ sandbox bên ngoài (đó là lý do bạn không `curl` thẳng nó từ
-đây). Kubernetes tự nối Service với Pod bằng nhãn (`selector`), và ghi lại kết
-quả nối đó vào một object riêng — `Endpoints`:
+Bốn khoá ở cấp ngoài cùng có mặt trong mọi object Kubernetes:
 
-```
-kubectl get endpoints web-svc
-```{{exec}}
+- `apiVersion` và `kind`: loại object (`v1`, `Pod`).
+- `metadata`: tên và nhãn (`labels`). Nhãn là cặp khoá–giá trị tuỳ bạn đặt, và là
+  cách các object tìm thấy nhau. Bài Service sẽ dựa hẳn vào chúng.
+- `spec`: thứ bạn muốn. Ở đây là một container nginx mở cổng 80.
 
-Nếu cột `ENDPOINTS` có ít nhất một `IP:PORT`, Service đã tìm thấy đúng Pod để
-đứng trước. Cột đó **rỗng** là lỗi hay gặp nhất khi dùng Service: `selector`
-của Service không khớp `label` của Pod — Service tồn tại, nhưng không trỏ tới
-đâu cả.
+`creationTimestamp: null` và `status: {}` là phần thừa của chế độ dry-run, để đó
+cũng không sao. Gửi file lên cụm:
 
-Gọi thử THẬT, từ bên trong một Pod của chính Deployment — qua tên Service,
-không qua IP:
+`kubectl apply -f web-pod.yaml`{{exec}}
 
-```
-POD=$(kubectl get pod -l app=web -o jsonpath='{.items[0].metadata.name}') && kubectl exec "$POD" -- bash -c 'exec 3<>/dev/tcp/web-svc/80 && printf "GET / HTTP/1.0\r\n\r\n" >&3 && timeout 2 head -c 80 <&3'
-```{{exec}}
+`kubectl wait --for=condition=Ready pod/web --timeout=120s`{{exec}}
 
-Bạn sẽ thấy vài dòng đầu của phản hồi HTTP (`HTTP/1.1 200 OK`, …) — bằng
-chứng DNS nội bộ của cụm (`web-svc`) đã trỏ đúng, và cổng 80 đã thông.
+`kubectl get pod web --show-labels`{{exec}}
+
+Chạy lại đúng lệnh `apply` lần nữa:
+
+`kubectl apply -f web-pod.yaml`{{exec}}
+
+Lần này là `pod/web unchanged`. `apply` không có nghĩa "tạo thêm một cái". Nó có
+nghĩa "làm cho cụm giống file này", và cụm đã giống rồi. Chạy bao nhiêu lần cũng
+ra cùng một kết quả.
 
 Bấm **Kiểm tra**.

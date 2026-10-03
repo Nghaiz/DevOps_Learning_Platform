@@ -1,46 +1,40 @@
-# Deployment — Pod biết tự phục hồi
+# Nhìn vào trong Pod
 
-Xoá Pod trần bạn vừa tạo — nó đã làm xong nhiệm vụ minh hoạ:
+Ba lệnh bạn sẽ gõ nhiều nhất khi một Pod có chuyện: `describe`, `logs`, `exec`.
+
+`kubectl describe pod web`{{exec}}
+
+Output dài, nhưng kéo xuống cuối, phần `Events`. Đó là nhật ký của chính Pod:
+`Scheduled` (scheduler chọn node), `Pulling` và `Pulled` (kéo image), `Created`,
+`Started`. Khi một Pod kẹt ở `Pending` hay `ContainerCreating`, câu trả lời gần như
+luôn nằm ở đây, trước cả log.
+
+`kubectl exec` chạy một lệnh bên trong container. Dấu `--` tách cờ của `kubectl`
+khỏi lệnh muốn chạy:
+
+`kubectl exec web -- nginx -v`{{exec}}
+
+Thay trang chủ của nginx bằng một dòng của bạn. Lệnh `sh -c` chạy trong Pod, nên
+`$(hostname)` là tên của Pod chứ không phải của sandbox:
+
+`kubectl exec web -- sh -c 'echo "xin chào từ $(hostname)" > /usr/share/nginx/html/index.html'`{{exec}}
+
+Gọi thử từ ngay trong Pod:
+
+`kubectl exec web -- wget -qO- http://localhost`{{exec}}
+
+Lượt gọi vừa rồi để lại dấu vết:
+
+`kubectl logs web --tail=3`{{exec}}
+
+Dòng cuối có `"GET / HTTP/1.1" 200` và user agent `Wget`. `kubectl logs` không đọc
+file nào cả, nó trả về stdout và stderr của container. Image nginx chính thức trỏ
+`access.log` vào stdout, nên mọi request hiện ra ở đây.
+
+Muốn một shell thật trong Pod thì thêm `-it`, gõ `exit` để ra:
 
 ```
-kubectl delete pod solo-pod
-```{{exec}}
+kubectl exec -it web -- sh
+```{{copy}}
 
-Tạo một **Deployment** thay vào đó. Deployment không tự nó chạy container —
-nó tạo ra một **ReplicaSet**, và ReplicaSet mới là thứ giữ đúng số Pod bạn
-muốn luôn tồn tại:
-
-```
-kubectl create deployment web --image=nginx:1.29.0
-```{{exec}}
-
-```
-kubectl rollout status deployment/web --timeout=60s
-```{{exec}}
-
-Xem cây quan hệ Deployment → ReplicaSet → Pod:
-
-```
-kubectl get deployment,replicaset,pod -l app=web
-```{{exec}}
-
-## Tự chứng minh khả năng phục hồi
-
-Lấy tên Pod hiện tại rồi xoá nó:
-
-```
-POD=$(kubectl get pod -l app=web -o jsonpath='{.items[0].metadata.name}') && kubectl delete pod "$POD"
-```{{exec}}
-
-Xem lại ngay:
-
-```
-kubectl get pod -l app=web
-```{{exec}}
-
-Một Pod **MỚI**, tên khác, đã xuất hiện — không phải bạn tạo nó, ReplicaSet
-làm việc đó thay bạn. Đây chính là khác biệt bạn vừa quan sát được trực tiếp:
-Pod trần biến mất vĩnh viễn khi bị xoá (bước trước); Pod của Deployment được
-thay ngay.
-
-Bấm **Kiểm tra** khi Deployment `web` báo `1/1` sẵn sàng.
+Bấm **Kiểm tra**.
