@@ -34,7 +34,7 @@ describe('LineMarker', () => {
     const { container } = render(<LineMarker line="k8s" state="current" />);
     const classes = markerClasses(container);
     expect(classes).toEqual(
-      expect.arrayContaining(['bg-line-k8s', 'outline-signal', 'outline-2', 'animate-pulse-station']),
+      expect.arrayContaining(['bg-line-k8s', 'outline-ink', 'outline-2', 'animate-pulse-station']),
     );
     expect(classes.filter((name) => name.startsWith('ring-'))).toEqual([]);
   });

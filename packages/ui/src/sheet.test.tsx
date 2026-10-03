@@ -51,6 +51,14 @@ describe('Sheet', () => {
     );
   });
 
+  /** review-1 #23: tấm phải trượt từ mép phải, không nhô lên (`animate-rise`) như hộp thoại. */
+  it('mép phải trượt vào từ phải, không dùng hiệu ứng nhô lên', async () => {
+    render(<Example />);
+    const classes = (await open()).className.split(/\s+/);
+    expect(classes).toContain('motion-safe:starting:translate-x-full');
+    expect(classes).not.toContain('animate-rise');
+  });
+
   it('`side` đặt ở `Sheet` có tác dụng; `SheetContent` thắng khi cả hai có mặt', async () => {
     render(<Example rootSide="bottom" />);
     expect((await open()).getAttribute('data-side')).toBe('bottom');

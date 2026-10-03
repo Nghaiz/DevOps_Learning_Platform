@@ -31,7 +31,10 @@ export const SheetTrigger = RadixDialog.Trigger;
 export const SheetClose = RadixDialog.Close;
 
 const SIDE: Record<SheetSide, string> = {
-  right: 'inset-y-0 right-0 h-full w-full max-w-md border-l border-ink shadow-float animate-rise',
+  // Tấm phải TRƯỢT VÀO từ mép phải, không nhô lên như hộp thoại. Dùng
+  // `@starting-style` (biến thể `starting:`) thay cho một keyframe riêng.
+  right:
+    'inset-y-0 right-0 h-full w-full max-w-md border-l border-ink shadow-float transition-transform duration-[var(--motion-slow)] ease-out motion-safe:starting:translate-x-full',
   bottom: 'inset-x-0 bottom-0 max-h-[85dvh] w-full border-t border-ink shadow-float animate-rise',
   full: 'inset-0 h-full w-full animate-reveal-down',
 };

@@ -129,7 +129,8 @@ function ToastCard({ title, description, variant = 'default', onDismiss }: Toast
         aria-label="Đóng thông báo"
         onClick={onDismiss}
         className={cn(
-          'inline-flex size-6 items-center justify-center rounded-control opacity-70 outline-none hover:opacity-100',
+          // `size-8` (32px): sàn vùng bấm của design-brief §9. `size-6` cũ chỉ 24px.
+          'inline-flex size-8 items-center justify-center rounded-control opacity-70 outline-none hover:opacity-100',
           'transition-opacity duration-[var(--motion-fast)] ease-out',
           'focus-visible:ring-2 focus-visible:ring-current',
         )}
