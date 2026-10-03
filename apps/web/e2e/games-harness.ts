@@ -393,7 +393,29 @@ export async function tabUntil(
 /** Chép nguyên văn từ `a11y.spec.ts` — xem khối chú thích đầu file. */
 const MUST_NOT_FIRE = ['landmark-unique', 'landmark-no-duplicate-main', 'landmark-one-main'];
 
+/**
+ * Chờ mọi hiệu ứng CÓ HẠN chạy xong trước khi đo tương phản.
+ *
+ * Các bảng HUD vào màn bằng `animate-rise` (mờ dần lên). axe tính tương phản
+ * theo opacity HIỆN TẠI, nên một lượt quét rơi vào giữa hiệu ứng báo
+ * `color-contrast` cho chữ mà người dùng chỉ thấy mờ trong ~200ms. CI đỏ kiểu đó
+ * theo nhịp máy (ô "đường ống rỗng" xanh ở lượt này, đỏ ở lượt sau). Hiệu ứng lặp
+ * vô hạn (nhịp ga) không bao giờ "xong" nên được bỏ qua.
+ */
+async function waitForFiniteAnimations(page: Page): Promise<void> {
+  await page.waitForFunction(
+    () =>
+      document.getAnimations().every((animation) => {
+        const iterations = animation.effect?.getComputedTiming().iterations;
+        return animation.playState !== 'running' || iterations === Infinity;
+      }),
+    undefined,
+    { timeout: 5_000 },
+  );
+}
+
 export async function scanAxe(page: Page, testInfo: TestInfo, label: string): Promise<void> {
+  await waitForFiniteAnimations(page);
   const results = await new AxeBuilder({ page }).analyze();
 
   expect(
