@@ -1,42 +1,17 @@
-# Dựng image Docker không cần mạng
-
-Sandbox này chạy Docker **bên trong** container (DinD), nhờ Sysbox — không cần
-quyền `privileged`, và không dùng chung Docker daemon của máy chủ. Kiểm tra:
+Có những lệnh không bao giờ tự kết thúc: theo dõi một tệp log, chờ kết nối, một vòng lặp viết hỏng. Máy này có sẵn một lệnh như thế tên `dong-ho`, in giờ mỗi giây. Khối dưới đây chỉ để chép, không chạy khi bấm. Gõ hoặc dán nó vào terminal rồi Enter:
 
 ```
-docker version --format '{{.Server.Version}}'
-```{{exec}}
+dong-ho
+```{{copy}}
 
-Sandbox **không nối thẳng ra Internet** (bước sau sẽ giải thích). Nó chỉ được mở
-đúng một cánh cửa: một bản sao Docker Hub đặt trong cụm, đủ để `docker pull` các
-image chính thức. Mọi kho khác vẫn đóng.
+Dấu nhắc biến mất và terminal không nhận lệnh mới: shell đang chờ `dong-ho` chạy xong, mà nó thì không bao giờ xong. Bấm **Ctrl+C**. Phím này gửi tín hiệu `SIGINT` tới chương trình đang chạy ở phía trước, và chương trình tử tế sẽ dừng. `dong-ho` in một dòng xác nhận trước khi thoát, rồi dấu nhắc quay lại.
 
-Bước này cố ý **không dùng cánh cửa đó**: với `FROM scratch` — image nền rỗng —
-bạn dựng được một image mà không phải tải về bất cứ thứ gì.
+Người quen Windows hay vấp chỗ này: trong terminal, Ctrl+C là dừng lệnh, không phải chép chữ. Bấm nó để chép một dòng output là ngắt luôn thứ đang chạy.
 
-Tạo thư mục build và một tệp để đóng gói:
+Giờ làm màn hình rối lên một chút:
 
-```
-mkdir -p /root/lab/img && cd /root/lab/img && echo 'xin chao' > payload.txt
-```{{exec}}
+`ls -la /usr/bin | head -n 40`{{exec}}
 
-Viết Dockerfile:
+Bấm **Ctrl+L**. Màn hình được lau sạch, dấu nhắc lên đầu, còn lịch sử lệnh vẫn nguyên. Lệnh `clear` làm đúng việc đó, chỉ dài hơn bốn phím.
 
-```
-printf 'FROM scratch\nCOPY payload.txt /payload.txt\n' > /root/lab/img/Dockerfile
-```{{exec}}
-
-Dựng image, gắn tên `dlp-lab:1`:
-
-```
-cd /root/lab/img && docker build -t dlp-lab:1 .
-```{{exec}}
-
-Xem kết quả:
-
-```
-docker images dlp-lab
-```{{exec}}
-
-> Nếu lệnh `docker` báo không kết nối được daemon, đợi vài giây rồi thử lại —
-> `dockerd` khởi động nền cùng lúc với phiên của bạn.
+Còn một phím nên biết để tránh: Ctrl+D ở dấu nhắc trống nghĩa là "hết dữ liệu vào", và shell hiểu đó là lệnh thoát.
