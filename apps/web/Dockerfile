@@ -205,6 +205,7 @@ RUN addgroup -g 1001 -S nodejs && adduser -S nextjs -u 1001 -G nodejs
 # prune chỉ còn dependency thật sự dùng lúc chạy — không cần node_modules đầy đủ.
 COPY --from=builder /repo/apps/web/.next/standalone ./
 COPY --from=builder /repo/apps/web/.next/static ./apps/web/.next/static
+COPY --from=builder /repo/apps/web/public ./apps/web/public
 
 # Nội dung bài học (P2 — trụ cột Lessons).
 #

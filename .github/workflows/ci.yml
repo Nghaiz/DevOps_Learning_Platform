@@ -1147,7 +1147,7 @@ jobs:
           trap 'docker rm -f "$cid" >/dev/null 2>&1 || true' EXIT
           docker exec "$cid" tmux new-session -d -s t -x 120 -y 30
           ready=0
-          for i in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             docker exec "$cid" tmux send-keys -t t 'echo RDY-$((2*3))' Enter
             sleep 1
             if docker exec "$cid" tmux capture-pane -p -t t | grep -q 'RDY-6'; then ready=1; break; fi
@@ -1156,7 +1156,7 @@ jobs:
           docker exec "$cid" tmux send-keys -t t '# chu thich nhu trong foreground.sh' Enter
           docker exec "$cid" tmux send-keys -t t '#!/bin/bash' Enter
           docker exec "$cid" tmux send-keys -t t 'echo DONE-$((1+1))' Enter
-          for i in $(seq 1 10); do
+          for _ in $(seq 1 10); do
             out=$(docker exec "$cid" tmux capture-pane -p -t t -S -)
             grep -q 'DONE-2' <<<"$out" && break
             sleep 1
@@ -1210,7 +1210,7 @@ jobs:
 
           # Vế âm.
           off=$(docker run -d "$img")
-          for i in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             docker exec "$off" pgrep -fx 'sleep infinity' >/dev/null 2>&1 && break
             sleep 1
           done
