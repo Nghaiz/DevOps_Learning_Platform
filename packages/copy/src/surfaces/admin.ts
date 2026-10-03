@@ -38,7 +38,7 @@ export const admin = {
   'admin.overview.kicker': 'Quản trị · số đọc trực tiếp từ cụm',
   'admin.overview.title': 'Tổng quan',
   'admin.overview.lead':
-    'Còn bao nhiêu chỗ, pool có đủ pod ấm không, và ai vừa bấm gì trong trang quản trị.',
+    'Còn bao nhiêu chỗ, có đủ pod chờ sẵn không, và ai vừa bấm gì trong trang quản trị.',
   'admin.overview.board-load': (p: { running: string; free: string; total: string }) =>
     `${p.running} phiên đang chạy, còn ${p.free}/${p.total} chỗ cho bài thường.`,
   'admin.overview.board-running': (p: { running: string }) =>
@@ -56,8 +56,8 @@ export const admin = {
   'admin.capacity.title': 'Sức chứa',
   'admin.capacity.loading': 'Đang đọc sức chứa từ orchestrator.',
   'admin.capacity.unreadable':
-    'Chưa đọc được sức chứa. Bấm Đọc lại; vẫn không có số thì xem nguồn Orchestrator ở phần sức khoẻ bên dưới.',
-  'admin.capacity.retry': 'Đọc lại',
+    'Chưa đọc được sức chứa. Bấm Tải lại; vẫn không có số thì xem nguồn Orchestrator ở phần sức khoẻ bên dưới.',
+  'admin.capacity.retry': 'Tải lại',
   'admin.capacity.fetched-at': (p: { at: string }) => `Đọc lúc ${p.at}, tự làm mới mỗi 15 giây.`,
   'admin.capacity.fetched-unknown': 'Không rõ thời điểm đọc.',
   'admin.capacity.meter-label': 'Số chỗ đã dùng cho bài thường',
@@ -78,12 +78,12 @@ export const admin = {
   // ── Sức khoẻ nền tảng ────────────────────────────────────────────────────
   'admin.health.title': 'Sức khoẻ nền tảng',
   'admin.health.loading': 'Đang đọc /metrics của orchestrator và gateway.',
-  'admin.health.refetch': 'Đọc lại',
+  'admin.health.refetch': 'Tải lại',
   'admin.health.fetched-at': (p: { at: string }) => `Đọc lúc ${p.at}, không tự làm mới.`,
-  'admin.health.pool-title': 'Pool pod ấm',
+  'admin.health.pool-title': 'Pod chờ sẵn',
   'admin.health.pool-sentence': (p: { free: string; quarantine: string }) =>
-    `${p.free} pod ấm sẵn sàng, ${p.quarantine} pod đang cách ly.`,
-  'admin.health.pool-dry': 'Không còn pod ấm. Phiên mới phải đợi tạo pod từ đầu, chậm hơn vài chục giây.',
+    `${p.free} pod chờ sẵn, ${p.quarantine} pod đang cách ly.`,
+  'admin.health.pool-dry': 'Hết pod chờ sẵn. Phiên mới phải đợi tạo pod từ đầu, chậm hơn vài chục giây.',
   'admin.health.pool-free': 'Sẵn sàng',
   'admin.health.pool-quarantine': 'Cách ly',
   'admin.health.sources-title': 'Nguồn metric',
@@ -124,9 +124,9 @@ export const admin = {
     `Đọc được ${p.ok}/${p.total} nguồn. Chưa đọc được: ${p.names}.`,
 
   'admin.health.pool.unknown':
-    'Không đọc được pool từ orchestrator, và đó không phải "pool trống". Xem trạng thái nguồn Orchestrator bên dưới.',
+    'Không đọc được số pod chờ sẵn từ orchestrator, và đó không phải "hết pod". Xem trạng thái nguồn Orchestrator bên dưới.',
   'admin.health.pool.known': (p: { free: number; quarantine: number }) =>
-    `${p.free} pod ấm sẵn sàng, ${p.quarantine} pod đang cách ly.`,
+    `${p.free} pod chờ sẵn, ${p.quarantine} pod đang cách ly.`,
 
   'admin.health.metric.nan': 'NaN (nguồn báo không đo được)',
   'admin.health.metric.pos-inf': 'vô cực (+Inf)',
@@ -152,10 +152,10 @@ export const admin = {
   // Câu tự đính chính phạm vi: bảng chỉ nói về TRANG đang xem.
   'admin.users.note': (p: { count: number; page: number }) =>
     `${String(p.count)} người ở trang ${String(p.page)}`,
-  'admin.users.note-more': ', còn trang sau nên đừng đếm tổng từ bảng này.',
+  'admin.users.note-more': ', còn trang sau.',
   'admin.users.empty-title': 'Chưa có tài khoản nào',
   'admin.users.empty-title-query': (p: { query: string }) => `Không ai khớp "${p.query}"`,
-  'admin.users.empty-body': 'Bảng users đang trống, chưa ai đăng ký.',
+  'admin.users.empty-body': 'Chưa có ai đăng ký.',
   'admin.users.empty-body-query':
     'Tìm khớp một phần trên email và tên, không phân biệt hoa thường. Thử một đoạn ngắn hơn.',
   'admin.users.back-first': 'Bỏ lọc, về trang đầu',
@@ -183,9 +183,9 @@ export const admin = {
   'admin.sessions.title': 'Phiên đang chạy',
   'admin.sessions.lead':
     'Phiên của mọi người đang mở lúc này. Kết thúc một phiên là thu hồi pod ngay, người đang gõ không được báo trước.',
-  'admin.sessions.alert-title': 'Danh sách này chỉ có phiên CÒN SỐNG',
+  'admin.sessions.alert-title': 'Danh sách này chỉ có phiên còn chạy',
   'admin.sessions.alert-body':
-    'Orchestrator bỏ phiên đã hết hạn, đã thu hồi hoặc lỗi trước khi trả về. Một phiên biến khỏi bảng là nó đã kết thúc, không phải bị ẩn.',
+    'Phiên đã hết hạn, đã thu hồi hoặc lỗi không có ở đây. Một phiên biến khỏi bảng là nó đã kết thúc, không phải bị ẩn.',
   'admin.sessions.col-session': 'Phiên',
   'admin.sessions.col-owner': 'Chủ phiên',
   'admin.sessions.col-status': 'Trạng thái',
@@ -199,7 +199,7 @@ export const admin = {
   'admin.sessions.note': (p: { count: number; page: number }) =>
     `${String(p.count)} phiên ở trang ${String(p.page)}`,
   'admin.sessions.note-more':
-    ', còn trang sau nên đây KHÔNG phải tổng số phiên. Số tổng nằm ở trang Tổng quan.',
+    ', còn trang sau. Tổng số phiên nằm ở trang Tổng quan.',
   'admin.sessions.empty-title': 'Không có phiên nào đang chạy',
   'admin.sessions.empty-body':
     'Chưa ai mở sandbox lúc này. Số này khớp với sức chứa ở trang Tổng quan.',
@@ -211,7 +211,7 @@ export const admin = {
   // đọc ra "Đang chạy" và cũng không được thành ô trống.
   'admin.session-status.unspecified': 'Chưa xác định',
   'admin.session-status.pending': 'Đang chờ cấp pod',
-  'admin.session-status.warm': 'Pod ấm trong pool',
+  'admin.session-status.warm': 'Pod chờ sẵn',
   'admin.session-status.claimed': 'Đã nhận pod',
   'admin.session-status.running': 'Đang chạy',
   'admin.session-status.expired': 'Hết hạn',
@@ -222,13 +222,13 @@ export const admin = {
   'admin.expiry.unknown': 'không rõ hạn',
   'admin.expiry.remaining': (p: { minutes: number }) => `còn ${p.minutes} phút`,
   'admin.expiry.now': 'tới hạn ngay bây giờ',
-  // Quá hạn mà phiên vẫn còn trong danh sách là thông tin THẬT: reaper chưa
-  // chạy tới nó. Hiện "còn -3 phút" thì không ai đọc ra điều đó.
-  'admin.expiry.overdue': (p: { minutes: number }) => `quá hạn ${p.minutes} phút (reaper chưa dọn)`,
+  // Quá hạn mà phiên vẫn còn trong danh sách là thông tin THẬT: lượt dọn phiên
+  // chưa chạy tới nó. Hiện "còn -3 phút" thì không ai đọc ra điều đó.
+  'admin.expiry.overdue': (p: { minutes: number }) => `quá hạn ${p.minutes} phút, sắp được dọn`,
 
   'admin.terminate.title': (p: { id: string }) => `Kết thúc phiên ${p.id}?`,
   'admin.terminate.body': (p: { owner: string }) =>
-    `Phiên này thuộc về ${p.owner}. Pod sẽ bị thu hồi ngay và mọi thứ chưa lưu trong đó sẽ mất; người đang dùng không được báo trước. Nhật ký ghi việc này dưới tên BẠN với lý do admin_terminated, không phải dưới tên chủ phiên.`,
+    `Phiên này thuộc về ${p.owner}. Pod bị thu hồi ngay và mọi thứ chưa lưu trong đó sẽ mất; người đang dùng không được báo trước. Nhật ký ghi việc này dưới tên bạn, không phải tên chủ phiên.`,
   'admin.terminate.owner-self': 'chính bạn',
   'admin.terminate.confirm': 'Kết thúc phiên',
 
@@ -243,7 +243,7 @@ export const admin = {
     'Nút Lưu trữ đi qua đường của người soạn bài, không qua đường quản trị, nên nó không tạo dòng nào ở trang Nhật ký. Đổi vai trò, kết thúc phiên, thao tác lớp học và kỳ thi thì có ghi.',
   'admin.content.filter-label': 'Lọc theo trạng thái',
   'admin.content.state-all': 'Tất cả',
-  'admin.content.refetch': 'Đọc lại',
+  'admin.content.refetch': 'Tải lại',
   'admin.content.col-title': 'Bài',
   'admin.content.col-kind': 'Loại',
   'admin.content.col-state': 'Trạng thái',
@@ -256,7 +256,7 @@ export const admin = {
   'admin.content.empty-title-all': 'Chưa có bài nào',
   'admin.content.empty-title-filtered': 'Không có bài nào ở trạng thái này',
   'admin.content.empty-body-all':
-    'Chưa ai soạn bài trên nền tảng. Nội dung nướng sẵn trong image không nằm ở bảng này.',
+    'Chưa ai soạn bài trên nền tảng. Bài có sẵn trong image không nằm ở bảng này.',
   'admin.content.empty-body-filtered': 'Chọn trạng thái khác để xem các bài còn lại.',
   'admin.content.open-author': 'Mở Xưởng soạn',
   'admin.content.show-all': 'Xem tất cả',
@@ -285,7 +285,7 @@ export const admin = {
   'admin.archive.title': (p: { what: string }) => `Lưu trữ ${p.what}?`,
   'admin.archive.confirm': 'Lưu trữ',
   'admin.archive.body': (p: { what: string }) =>
-    `${p.what} sẽ biến khỏi danh mục người học, nhưng KHÔNG bị xoá: tiến độ và lượt làm lab đã ghi vẫn trỏ đúng vào nó. Người soạn vẫn mở lại và xuất bản lại được.`,
+    `${p.what} sẽ biến khỏi danh mục người học nhưng không bị xoá: tiến độ và lượt làm lab đã ghi vẫn trỏ đúng vào nó. Người soạn vẫn mở lại và xuất bản lại được.`,
   'admin.archive.blocked-archived': 'Bài này đã ở trạng thái lưu trữ rồi.',
   'admin.archive.body-archived': (p: { what: string }) => `${p.what} đã được lưu trữ.`,
   'admin.archive.blocked-publishing':
@@ -300,7 +300,7 @@ export const admin = {
     'Ai đã đổi vai trò, kết thúc phiên, sửa lớp hay kỳ thi, mới nhất trước. Không dòng nào sửa hay xoá được.',
   'admin.audit.alert-title': 'Đây là một nửa của nhật ký',
   'admin.audit.alert-body':
-    'Bảng này ghi hành động của quản trị viên phía ứng dụng. Orchestrator ghi riêng sessions_audit cho mỗi lần thu hồi pod. Hai bảng biết hai chuyện khác nhau: bảng kia không biết tới vai trò, bảng này không biết phiên có thật sự chết hay không.',
+    'Bảng này ghi việc quản trị viên làm trong trang quản trị. Lần thu hồi pod nào cũng được ghi ở một nhật ký riêng phía máy chủ phiên. Hai nhật ký biết hai chuyện khác nhau: nhật ký kia không biết tới vai trò, bảng này không biết phiên đã thật sự dừng hay chưa.',
   'admin.audit.col-when': 'Thời điểm',
   'admin.audit.col-actor': 'Người thực hiện',
   'admin.audit.col-action': 'Hành động',
@@ -308,7 +308,7 @@ export const admin = {
   'admin.audit.col-detail': 'Chi tiết',
   'admin.audit.caption':
     'Cột "Người thực hiện" chỉ có id: bảng nhật ký cố ý không tham chiếu tới bảng người dùng, nên một tài khoản đã xoá vẫn để lại id ở đây.',
-  // Hành động lạ (một bản BFF mới hơn ghi một `action` FE chưa biết) hiện
+  // Hành động lạ (một bản máy chủ mới hơn ghi một `action` FE chưa biết) hiện
   // NGUYÊN chuỗi gốc; chỉ khi dòng nhật ký không ghi gì thì mới tới câu này.
   'admin.audit.action-missing': 'hành động không rõ (dòng nhật ký không ghi action)',
   'admin.audit.target': (p: { type: string; id: string }) => `${p.type} ${p.id}`,
@@ -317,7 +317,7 @@ export const admin = {
   // làm", trong khi sự thật là "có người làm, ta chỉ không tra được tên nữa".
   'admin.audit.actor-unknown': 'không rõ',
   'admin.audit.actor-unknown-note':
-    'Dòng nhật ký này không ghi id người thực hiện. Bản BFF ghi ra nó có lỗi, chứ không phải "không ai làm".',
+    'Dòng này thiếu người thực hiện do lỗi lúc ghi, không phải "không ai làm".',
   'admin.audit.actor-note':
     'Chỉ có id: bảng nhật ký cố ý không tham chiếu tới bảng người dùng, nên một tài khoản đã xoá vẫn để lại id ở đây.',
   'admin.audit.note': (p: { count: number; page: number }) =>
@@ -406,7 +406,7 @@ export const admin = {
   'admin.classes.remove-body':
     'Người này rời danh sách sinh viên và bảng điểm của lớp. Thêm lại được bất cứ lúc nào.',
   'admin.classes.remove-loss':
-    'Tư cách thành viên lớp. Lịch sử làm bài của người này KHÔNG bị xoá.',
+    'Tư cách thành viên lớp. Lịch sử làm bài của người này vẫn giữ nguyên.',
   'admin.classes.remove-confirm': 'Bỏ khỏi lớp',
   'admin.classes.removed-toast-title': (p: { name: string }): string => `Đã bỏ ${p.name} khỏi lớp`,
   'admin.classes.removed-toast-body': 'Bảng điểm không còn tính người này.',
@@ -453,16 +453,9 @@ export const admin = {
   'admin.exams.updated-toast': (p: { title: string }): string => `Đã lưu ${p.title}`,
   'admin.exams.removed-toast': (p: { title: string }): string => `Đã xoá kỳ thi ${p.title}`,
 
-  // Cửa sổ thi: hai mốc, mỗi mốc có thể bỏ trống, nên có bốn cách nói.
-  'admin.exams.window.always': 'Mở ngay, không hạn chung',
-  'admin.exams.window.from': (p: { opens: string }): string => `Từ ${p.opens}, không hạn chung`,
-  'admin.exams.window.until': (p: { closes: string }): string => `Mở ngay, tới ${p.closes}`,
-  'admin.exams.window.between': (p: { opens: string; closes: string }): string =>
-    `${p.opens} tới ${p.closes}`,
-
-  'admin.exams.state.upcoming': 'Chưa mở',
-  'admin.exams.state.open': 'Đang mở',
-  'admin.exams.state.closed': 'Đã đóng',
+  // Trạng thái cửa sổ và câu giờ thi KHÔNG có khoá riêng ở đây: trang quản trị
+  // dùng chung `exam.window.*` và `exam.when.*` với màn của sinh viên, để hai
+  // bên gọi một kỳ thi bằng cùng một lời.
 
   // Trang chi tiết
   'admin.exams.detail-title': 'Kỳ thi',
@@ -491,7 +484,7 @@ export const admin = {
 
   'admin.exams.scoreboard-title': 'Bảng điểm',
   'admin.exams.scoreboard-description':
-    'Mỗi bài một cột. Điểm lấy lượt nộp tốt nhất TRONG cửa sổ thi, nên bài làm trước hôm thi không được tính.',
+    'Mỗi bài một cột. Điểm lấy lượt nộp tốt nhất trong giờ thi, nên bài làm trước hôm thi không được tính.',
   'admin.exams.sb-col-name': 'Họ tên',
   'admin.exams.sb-col-started': 'Bắt đầu',
   'admin.exams.sb-col-submitted': 'Nộp lúc',
@@ -513,7 +506,7 @@ export const admin = {
   'admin.exams.strategy-fixed': 'Một đề chung cho cả lớp',
   'admin.exams.strategy-per-student': 'Mỗi người một đề theo seed riêng',
   'admin.exams.strategy-note':
-    'Đề riêng từng người chỉ nhận bài bật cờ seedable. Máy chủ chặn đề sai luật ngay lúc lưu, không để hỏng giữa giờ thi.',
+    'Đề riêng từng người chỉ nhận bài sinh được nhiều biến thể. Bài không đủ điều kiện bị chặn ngay lúc lưu, không để hỏng giữa giờ thi.',
 
   // ── Form ra đề (tạo và sửa dùng chung) ───────────────────────────────────
   'admin.exams.form.create-title': 'Kỳ thi mới',
@@ -526,7 +519,7 @@ export const admin = {
   'admin.exams.form.step.time': 'Thời gian',
   'admin.exams.form.step.problems': 'Đề',
   'admin.exams.form.lead.info': 'Tên hiện trên màn làm bài của sinh viên. Chỉ sinh viên của lớp này vào thi được.',
-  'admin.exams.form.lead.time': 'Mốc giờ theo đồng hồ máy bạn, gửi lên máy chủ đã quy về UTC.',
+  'admin.exams.form.lead.time': 'Giờ theo đồng hồ máy bạn.',
   'admin.exams.form.lead.problems': 'Mã bài lấy ở trang Bài tập. Bài phải đã xuất bản.',
   'admin.exams.form.title-label': 'Tên kỳ thi',
   'admin.exams.form.title-placeholder': 'Giữa kỳ DevOps, nhóm thực hành thứ Ba',
@@ -583,23 +576,23 @@ export const admin = {
   // ── Lỗi ──────────────────────────────────────────────────────────────────
   'admin.error.users-list': (p: { reason: string }): ErrorEntry => ({
     what: `Không tải được danh sách người dùng: ${p.reason}`,
-    next: 'Bấm Thử lại. Vẫn lỗi thì kiểm kết nối tới cơ sở dữ liệu.',
+    next: 'Bấm Tải lại. Vẫn lỗi thì máy chủ đang không đọc được dữ liệu, thử lại sau ít phút.',
   }),
   'admin.error.sessions-list': (p: { reason: string }): ErrorEntry => ({
     what: `Không tải được danh sách phiên: ${p.reason}`,
-    next: 'Bấm Thử lại. Vẫn lỗi thì kiểm xem BFF có gọi được orchestrator qua gRPC không.',
+    next: 'Bấm Tải lại. Vẫn lỗi thì máy chủ phiên đang không trả lời, xem phần sức khoẻ ở trang Tổng quan.',
   }),
   'admin.error.content-list': (p: { reason: string }): ErrorEntry => ({
     what: `Không tải được danh sách nội dung: ${p.reason}`,
-    next: 'Bấm Thử lại. Vẫn lỗi thì kiểm kết nối tới cơ sở dữ liệu.',
+    next: 'Bấm Tải lại. Vẫn lỗi thì máy chủ đang không đọc được dữ liệu, thử lại sau ít phút.',
   }),
   'admin.error.audit-list': (p: { reason: string }): ErrorEntry => ({
     what: `Không tải được nhật ký: ${p.reason}`,
-    next: 'Bấm Về đầu nếu lỗi nói về cursor. Dòng nhật ký không biến mất, nhưng cursor cũ có thể đã hết hiệu lực.',
+    next: 'Bấm Tải lại. Đang ở trang sau thì bấm Về đầu: dòng nhật ký không mất, chỉ là vị trí trang cũ có thể không còn dùng được.',
   }),
   'admin.error.health': (p: { reason: string }): ErrorEntry => ({
     what: `Không đọc được phần sức khoẻ: ${p.reason}`,
-    next: 'Bấm Thử lại. Vẫn lỗi thì kiểm xem BFF có gọi được orchestrator không.',
+    next: 'Bấm Tải lại. Vẫn lỗi thì máy chủ phiên đang không trả lời.',
   }),
   // `FORBIDDEN` là phán quyết có chủ đích của `setUserRole` (tự hạ quyền). Mọi
   // mã khác có thể là mạng chập, nên KHÔNG được nói chắc rằng dữ liệu chưa đổi.
@@ -625,15 +618,15 @@ export const admin = {
   }),
   'admin.error.archive': (p: { message: string }): ErrorEntry => ({
     what: `Không lưu trữ được bài: ${p.message}`,
-    next: 'Đọc lại danh sách để xem trạng thái hiện tại trước khi thử lại.',
+    next: 'Tải lại danh sách để xem trạng thái hiện tại trước khi thử lại.',
   }),
   'admin.error.classes-list': (p: { reason: string }): ErrorEntry => ({
     what: `Không đọc được danh sách lớp: ${p.reason}`,
-    next: 'Bấm Thử lại. Vẫn lỗi thì kiểm xem BFF có kết nối được Postgres không.',
+    next: 'Bấm Tải lại. Vẫn lỗi thì máy chủ đang không đọc được dữ liệu, thử lại sau ít phút.',
   }),
   'admin.error.class-get': (p: { reason: string }): ErrorEntry => ({
     what: `Không mở được lớp: ${p.reason}`,
-    next: 'Quay về danh sách lớp. Lớp có thể vừa bị xoá cùng tài khoản chủ lớp.',
+    next: 'Bấm Tải lại, hoặc về danh sách lớp. Lớp có thể vừa bị xoá cùng tài khoản chủ lớp.',
   }),
   // `CONFLICT` là phán quyết có chủ đích của `createClass` (trùng tên).
   'admin.error.class-create-conflict': (p: { message: string }): ErrorEntry => ({
@@ -646,7 +639,7 @@ export const admin = {
   }),
   'admin.error.class-members': (p: { reason: string }): ErrorEntry => ({
     what: `Không đọc được danh sách sinh viên: ${p.reason}`,
-    next: 'Bấm Thử lại. Bảng điểm bên dưới vẫn đọc độc lập với danh sách này.',
+    next: 'Bấm Tải lại. Bảng điểm bên dưới vẫn đọc độc lập với danh sách này.',
   }),
   'admin.error.class-add-known': (p: { message: string }): ErrorEntry => ({
     what: `${p.message}.`,
@@ -662,19 +655,19 @@ export const admin = {
   }),
   'admin.error.class-scoreboard': (p: { reason: string }): ErrorEntry => ({
     what: `Không đọc được bảng điểm: ${p.reason}`,
-    next: 'Bấm Thử lại. Danh sách sinh viên bên trên vẫn đọc độc lập với bảng này.',
+    next: 'Bấm Tải lại. Danh sách sinh viên bên trên vẫn đọc độc lập với bảng này.',
   }),
   'admin.error.exams-list': (p: { reason: string }): ErrorEntry => ({
     what: `Không đọc được danh sách kỳ thi: ${p.reason}`,
-    next: 'Bấm Thử lại. Vẫn lỗi thì kiểm xem BFF có kết nối được Postgres không.',
+    next: 'Bấm Tải lại. Vẫn lỗi thì máy chủ đang không đọc được dữ liệu, thử lại sau ít phút.',
   }),
   'admin.error.exam-get': (p: { reason: string }): ErrorEntry => ({
     what: `Không mở được kỳ thi: ${p.reason}`,
-    next: 'Quay về danh sách kỳ thi. Kỳ thi có thể vừa bị xoá, hoặc lớp của nó đã bị xoá.',
+    next: 'Bấm Tải lại, hoặc về danh sách kỳ thi. Kỳ thi có thể vừa bị xoá, hoặc lớp của nó đã bị xoá.',
   }),
   'admin.error.exam-scoreboard': (p: { reason: string }): ErrorEntry => ({
     what: `Không đọc được bảng điểm kỳ thi: ${p.reason}`,
-    next: 'Bấm Thử lại. Thông tin kỳ thi bên trên vẫn đọc độc lập với bảng này.',
+    next: 'Bấm Tải lại. Thông tin kỳ thi bên trên vẫn đọc độc lập với bảng này.',
   }),
   'admin.error.exam-classes': (p: { reason: string }): ErrorEntry => ({
     what: `Không tải được danh sách lớp để chọn: ${p.reason}`,
@@ -703,8 +696,6 @@ export const adminIntentionalThree = {
     '2026-09-10: đúng ba loại nội dung tồn tại trong CONTENT_KINDS tại packages/shared-types/src/authoring.ts (lesson, lab, playground). Bảng KIND_LABEL là Record<ContentKind, ...> nên loại thứ tư là lỗi biên dịch trước khi là một câu thiếu.',
   'admin.health.metric':
     '2026-09-10: đúng ba giá trị double của IEEE 754 không phải số hữu hạn (NaN, +Infinity, -Infinity), và formatMetricValue phân nhánh đúng ba lần vì Number.isFinite chia miền thành đúng bốn ca. Không phải một phân loại ba, mà là ba ca còn lại sau khi loại số hữu hạn.',
-  'admin.exams.state':
-    '2026-10-03: một thời điểm so với cửa sổ thi [mở, đóng) chỉ rơi vào đúng ba vùng: trước giờ mở, trong cửa sổ, sau giờ đóng. examWindowState trong components/admin/exam-form-model.ts trả union đóng của đúng ba giá trị đó.',
   'admin.exams.form.step':
     '2026-10-03: form ra đề có đúng ba bước theo yêu cầu của chủ dự án (Thông tin, Thời gian, Đề), mỗi bước gom các ô mà composeInput của server kiểm cùng nhau. EXAM_FORM_STEPS trong exam-form-model.ts là mảng const đúng ba phần tử.',
   'admin.exams.form.lead':

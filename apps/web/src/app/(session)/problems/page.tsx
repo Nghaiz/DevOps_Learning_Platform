@@ -2,6 +2,7 @@ import { Suspense } from 'react';
 import type { Metadata } from 'next';
 import { t } from '@devops-platform/copy';
 import { redirect } from 'next/navigation';
+import { withReturnPath } from '../../login/return-path';
 import { readViewerSession } from '../../../components/catalog/viewer-role.server';
 import { ProblemsClient } from './problems-client';
 import { ProblemsPoster, ProblemsSkeleton } from './problems-poster';
@@ -22,7 +23,8 @@ export const metadata: Metadata = {
  */
 export default async function ProblemsPage() {
   if ((await readViewerSession()) === null) {
-    redirect('/login');
+    // Mang đường về theo: đăng nhập xong thì quay lại đúng trang này.
+    redirect(withReturnPath('/login', '/problems'));
   }
 
   return (

@@ -297,6 +297,9 @@ export function examWindowState(
  * Câu "giờ thi". `format` truyền từ nơi gọi (`formatMoment`): định dạng ngày
  * phụ thuộc locale và múi giờ của máy chạy, nhét nó vào đây là biến một test
  * xác định thành một test đỏ tuỳ máy.
+ *
+ * Dùng chung bộ câu `exam.when.*` với màn của sinh viên: một kỳ thi chỉ có một
+ * cách nói giờ thi, bất kể ai đang xem.
  */
 export function describeExamWindow(
   span: { readonly opensAt: string | null; readonly closesAt: string | null },
@@ -304,12 +307,10 @@ export function describeExamWindow(
 ): string {
   const { opensAt, closesAt } = span;
   if (opensAt === null) {
-    return closesAt === null
-      ? t('admin.exams.window.always')
-      : t('admin.exams.window.until', { closes: format(closesAt) });
+    return closesAt === null ? t('exam.when.any') : t('exam.when.until', { at: format(closesAt) });
   }
   if (closesAt === null) {
-    return t('admin.exams.window.from', { opens: format(opensAt) });
+    return t('exam.when.from', { at: format(opensAt) });
   }
-  return t('admin.exams.window.between', { opens: format(opensAt), closes: format(closesAt) });
+  return t('exam.when.range', { from: format(opensAt), to: format(closesAt) });
 }

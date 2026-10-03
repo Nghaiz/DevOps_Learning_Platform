@@ -2,6 +2,7 @@
 
 import { useId, useMemo, useState, type ReactElement } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { getQueryKey } from '@trpc/react-query';
 import { Check } from 'lucide-react';
 import { err, t } from '@devops-platform/copy';
 import { Button, Input, Label, Skeleton, cn } from '@devops-platform/ui';
@@ -24,8 +25,17 @@ import { describeTrpcError } from '../../lib/trpc';
  * máy chủ lỡ trả lại cùng một cursor; chạm trần thì danh sách hiện câu
  * "mới đọc N lớp đầu tiên, còn nữa" thay vì giả vờ là đủ.
  *
- * Gọi qua `utils.classes.list.fetch` để mỗi trang vẫn nằm trong cache tRPC, và
- * `invalidate()` sau lượt tạo lớp làm mới được cả ô này.
+ * Gọi qua `utils.classes.list.fetch` để mỗi trang vẫn nằm trong cache tRPC.
+ *
+ * ## Khoá cache nằm DƯỚI khoá của `classes.list`
+ *
+ * Bản trước dùng một khoá tự đặt (`['admin', 'exam-form', 'all-classes']`), và
+ * `utils.classes.list.invalidate()` (gọi sau mỗi lượt tạo lớp, thêm hay bỏ sinh
+ * viên) so khớp theo TIỀN TỐ `[['classes', 'list']]`: khoá tự đặt không bao giờ
+ * khớp, nên ô chọn lớp giữ danh sách cũ và lớp vừa tạo không chọn được tới khi
+ * tải lại trang. Nay khoá bắt đầu bằng đúng khoá của procedure
+ * (`getQueryKey(api.classes.list)`), nên mọi lượt `invalidate()` của
+ * `classes.list` làm mới cả ô này mà không nơi gọi nào phải nhớ tới nó.
  */
 const CLASSES_PAGE_LIMIT = 100;
 const CLASSES_MAX_PAGES = 20;
@@ -52,7 +62,7 @@ export function ClassPicker(props: {
   const errorId = useId();
 
   const all = useQuery({
-    queryKey: ['admin', 'exam-form', 'all-classes'],
+    queryKey: [...getQueryKey(api.classes.list), { picker: 'all-pages' }],
     queryFn: async (): Promise<{ readonly items: readonly PickerClass[]; readonly truncated: boolean }> => {
       const items: PickerClass[] = [];
       let cursor: string | undefined;

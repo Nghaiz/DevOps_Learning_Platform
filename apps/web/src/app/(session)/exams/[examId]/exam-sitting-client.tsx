@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react';
+import { useCallback, useState, type ReactElement } from 'react';
 import { Flag, Play } from 'lucide-react';
 import { renderCopy, t } from '@devops-platform/copy';
 import {
@@ -21,17 +21,12 @@ import {
 } from '@devops-platform/ui';
 
 import { api } from '../../../../lib/trpc-react';
-import { describeTrpcError } from '../../../../lib/trpc';
+import { describeTrpcError, trpcErrorCode } from '../../../../lib/trpc';
 import { formatMoment } from '../../../../lib/format-moment';
 import { problemPreviewHref } from '../../../../lib/problem-preview-href';
 import { Board, BoardRow, PageContainer, ToolHeader, lineForTopic } from '../../../../components/kit';
-import {
-  COUNTDOWN_RESYNC_MS,
-  COUNTDOWN_TICK_MS,
-  formatCountdown,
-  remainingFrom,
-  type CountdownAnchor,
-} from '../countdown';
+import { formatCountdown } from '../countdown';
+import { useCountdown } from '../use-countdown';
 import { ATTEMPT_PHASE_KEYS, attemptPhase, examWhen } from '../exam-status';
 import { CountdownBoard } from './countdown-board';
 
@@ -86,7 +81,10 @@ export function ExamSittingClient({ examId }: { readonly examId: string }): Reac
   const lookups = api.useQueries((q) =>
     codes.map((code) => q.problems.byCode({ code }, { enabled: attempt !== null })),
   );
-  const refetch = useCallback(() => void query.refetch(), [query]);
+  // Phụ thuộc `query.refetch` (ổn định suốt vòng đời observer), KHÔNG phụ thuộc
+  // `query`: đối tượng kết quả là bản mới ở mỗi lượt render.
+  const { refetch: refetchQuery } = query;
+  const refetch = useCallback(() => void refetchQuery(), [refetchQuery]);
   const remaining = useCountdown(attempt?.remainingMs ?? null, attempt?.closed ?? true, refetch);
 
   const crumbs = [{ href: '/exams', label: t('exam.title') }];
@@ -188,18 +186,27 @@ export function ExamSittingClient({ examId }: { readonly examId: string }): Reac
             >
               {t('exam.start')}
             </Button>
-            {start.isError && (
-              /*
-               * `startAttempt` chỉ ném FORBIDDEN cho đúng một lý do: kỳ thi ngoài
-               * cửa sổ thời gian. Người ngoài lớp nhận NOT_FOUND và không bao giờ
-               * thấy nút này. Nên tiêu đề nói đúng tên vấn đề thay vì để một câu
-               * lỗi trần đứng một mình.
-               */
-              <Alert variant="warning" role="alert" className="md:col-span-2">
-                <AlertTitle>{t('exam.not-open-title')}</AlertTitle>
-                <AlertDescription>{t('exam.not-open-body')}</AlertDescription>
-              </Alert>
-            )}
+            {start.isError &&
+              (trpcErrorCode(start.error) === 'FORBIDDEN' ? (
+                /*
+                 * `startAttempt` chỉ ném FORBIDDEN cho đúng một lý do: kỳ thi
+                 * ngoài cửa sổ thời gian. Nên tiêu đề nói đúng tên vấn đề.
+                 */
+                <Alert variant="warning" role="alert" className="md:col-span-2">
+                  <AlertTitle>{t('exam.not-open-title')}</AlertTitle>
+                  <AlertDescription>{t('exam.not-open-body')}</AlertDescription>
+                </Alert>
+              ) : (
+                /*
+                 * Mọi mã khác (mạng chập, máy chủ lỗi, NOT_FOUND khi kỳ thi vừa
+                 * bị xoá) KHÔNG được đọc ra "chưa mở hoặc đã đóng": đó là một
+                 * chẩn đoán sai, và người học sẽ ngồi chờ một kỳ thi đang mở.
+                 */
+                <Alert variant="destructive" role="alert" className="md:col-span-2">
+                  <AlertTitle>{t('exam.start-error-title')}</AlertTitle>
+                  <AlertDescription>{describeTrpcError(start.error)}</AlertDescription>
+                </Alert>
+              ))}
           </section>
         ) : (
           <>
@@ -283,69 +290,4 @@ export function ExamSittingClient({ examId }: { readonly examId: string }): Reac
       </Dialog>
     </>
   );
-}
-
-/**
- * Đếm ngược tại chỗ, neo vào một lần đọc đồng hồ ĐƠN ĐIỆU.
- *
- * Tách thành hook để mọi phép toán nằm ở `../countdown.ts`, nơi test chạm tới
- * được mà không cần dựng DOM.
- */
-function useCountdown(
-  remainingMsFromServer: number | null,
-  closed: boolean,
-  onExpire: () => void,
-): number {
-  const anchor = useRef<CountdownAnchor | null>(null);
-  const [display, setDisplay] = useState(remainingMsFromServer ?? 0);
-  const expired = useRef(false);
-
-  // Mỗi câu trả lời mới của máy chủ ĐẶT LẠI mốc neo. Không cộng dồn: một mốc mới
-  // ghi đè hoàn toàn mốc cũ, nên sai lệch tích luỹ trước đó biến mất.
-  useEffect(() => {
-    if (remainingMsFromServer === null) {
-      anchor.current = null;
-      return;
-    }
-    anchor.current = {
-      remainingMsAtSync: remainingMsFromServer,
-      monotonicAtSync: performance.now(),
-    };
-    expired.current = false;
-    setDisplay(remainingMsFromServer);
-  }, [remainingMsFromServer]);
-
-  useEffect(() => {
-    if (closed || remainingMsFromServer === null) {
-      return;
-    }
-    const tick = setInterval(() => {
-      const current = anchor.current;
-      if (current === null) {
-        return;
-      }
-      const left = remainingFrom(current, performance.now());
-      setDisplay(left);
-      /*
-       * Chạm 0 thì HỎI máy chủ, không tự tuyên bố đã khoá: máy chủ là nơi duy
-       * nhất biết hạn thật (nó cộng cả `closes_at` của kỳ thi). `expired` chặn
-       * việc gọi lặp mỗi 250ms sau khi đã chạm 0.
-       */
-      if (left <= 0 && !expired.current) {
-        expired.current = true;
-        onExpire();
-      }
-    }, COUNTDOWN_TICK_MS);
-
-    // Hiệu chỉnh định kỳ: `performance.now()` DỪNG khi máy ngủ, nên không có
-    // lượt này thì một lần gập máy tính mua thêm đúng ngần ấy thời gian.
-    const resync = setInterval(onExpire, COUNTDOWN_RESYNC_MS);
-
-    return () => {
-      clearInterval(tick);
-      clearInterval(resync);
-    };
-  }, [closed, remainingMsFromServer, onExpire]);
-
-  return display;
 }

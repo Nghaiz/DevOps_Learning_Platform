@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useId, type ReactNode } from 'react';
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 import { LINE_CLASSES, LineMarker, Skeleton, cn, type LineMarkerState } from '@devops-platform/ui';
@@ -87,6 +87,16 @@ export function BoardRow({
   disabled = false,
   order = 0,
 }: BoardRowProps) {
+  /*
+   * Cả dòng là MỘT liên kết, nên không có nhãn riêng thì tên truy cập của nó là
+   * toàn bộ chữ trong dòng: số thứ tự, tên, dòng phụ, mọi mẩu meta, trạng thái.
+   * Trình đọc màn hình đọc cả đoạn đó cho mỗi dòng. Tên = tiêu đề; dòng phụ là
+   * mô tả. Dòng vẫn bấm được ở mọi chỗ như cũ. `useId` chạy được cả ở Server
+   * Component.
+   */
+  const titleId = useId();
+  const subId = useId();
+  const labelProps = { 'aria-labelledby': titleId, ...(sub ? { 'aria-describedby': subId } : {}) };
   const body = (
     <>
       {index !== undefined && (
@@ -96,8 +106,14 @@ export function BoardRow({
       )}
       <StationMarker line={line} state={lineState} className="mt-1.5 self-start md:mt-0 md:self-center" />
       <span className="min-w-0 flex-1">
-        <span className="block type-title">{title}</span>
-        {sub && <span className="mt-1 block text-sm text-muted-foreground">{sub}</span>}
+        <span id={titleId} className="block type-title">
+          {title}
+        </span>
+        {sub && (
+          <span id={subId} className="mt-1 block text-sm text-muted-foreground">
+            {sub}
+          </span>
+        )}
         {meta && <span className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 md:hidden">{meta}</span>}
       </span>
       {meta && <span className="hidden shrink-0 flex-wrap items-center justify-end gap-x-5 md:flex">{meta}</span>}
@@ -112,11 +128,11 @@ export function BoardRow({
   return (
     <li className="stagger animate-rise border-b border-border last:border-b-0" style={staggerStyle(order, TINT[line])}>
       {href && !disabled ? (
-        <Link href={href} className={rowClass}>
+        <Link href={href} className={rowClass} {...labelProps}>
           {body}
         </Link>
       ) : onClick && !disabled ? (
-        <button type="button" onClick={onClick} className={rowClass}>
+        <button type="button" onClick={onClick} className={rowClass} {...labelProps}>
           {body}
         </button>
       ) : (

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { t } from '@devops-platform/copy';
 import {
   EXAM_FORM_STEPS,
   EXAM_MAX_DURATION_MINUTES,
@@ -203,10 +204,18 @@ describe('describeExamWindow', () => {
   const fmt = (iso: string): string => `[${iso}]`;
 
   it('bốn cách nói cho bốn tổ hợp mốc', () => {
-    expect(describeExamWindow({ opensAt: null, closesAt: null }, fmt)).toBe('Mở ngay, không hạn chung');
-    expect(describeExamWindow({ opensAt: 'a', closesAt: null }, fmt)).toBe('Từ [a], không hạn chung');
-    expect(describeExamWindow({ opensAt: null, closesAt: 'b' }, fmt)).toBe('Mở ngay, tới [b]');
-    expect(describeExamWindow({ opensAt: 'a', closesAt: 'b' }, fmt)).toBe('[a] tới [b]');
+    expect(describeExamWindow({ opensAt: null, closesAt: null }, fmt)).toBe('Mở bất cứ lúc nào');
+    expect(describeExamWindow({ opensAt: 'a', closesAt: null }, fmt)).toBe('Mở từ [a]');
+    expect(describeExamWindow({ opensAt: null, closesAt: 'b' }, fmt)).toBe('Đóng lúc [b]');
+    expect(describeExamWindow({ opensAt: 'a', closesAt: 'b' }, fmt)).toBe('[a] đến [b]');
+  });
+
+  /** review-1 #28: giảng viên và sinh viên gọi một kỳ thi bằng cùng một lời. */
+  it('cùng một câu với màn của sinh viên (exam.when.*)', () => {
+    expect(describeExamWindow({ opensAt: 'a', closesAt: 'b' }, fmt)).toBe(
+      t('exam.when.range', { from: '[a]', to: '[b]' }),
+    );
+    expect(describeExamWindow({ opensAt: null, closesAt: null }, fmt)).toBe(t('exam.when.any'));
   });
 });
 

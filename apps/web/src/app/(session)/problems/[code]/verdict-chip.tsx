@@ -15,10 +15,20 @@ const ICON = {
   ungraded: CircleDashed,
 } as const satisfies Record<SubmissionVerdictKind, unknown>;
 
+/**
+ * Mỗi sắc là một cặp đã qua cổng token: nền đặc với `-foreground` của nó, hoặc
+ * viền + chữ trên mặt trong suốt. Bản trước đặt chữ màu lên chính nền pha 10–15%
+ * của màu đó (`text-warning` trên `warning/15`, `text-destructive` trên
+ * `destructive/10`): dưới 4.5:1.
+ *
+ * WA không dùng nền đỏ đặc: đỏ `destructive` lệch `primary` 2.3° nên một khối
+ * đỏ đặc trông y như nút chính (xem chú thích biến thể `destructive` ở
+ * `packages/ui/src/badge.tsx`).
+ */
 const TONE: Readonly<Record<SubmissionVerdictKind, string>> = {
   ac: 'bg-success text-success-foreground',
-  wa: 'bg-destructive/10 text-destructive',
-  ce: 'bg-warning/15 text-warning',
+  wa: 'border border-destructive text-destructive',
+  ce: 'bg-warning text-warning-foreground',
   ungraded: 'bg-muted text-muted-foreground',
 };
 

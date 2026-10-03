@@ -157,8 +157,9 @@ export function ProblemClient({ code }: { readonly code: string }): ReactElement
                 bài chạy đồng hồ đã mất một phần thời gian của chính lượt đó.
               */}
               {problem.timeLimitSec !== null && (
-                <p className="mt-4 flex items-start gap-2 bg-warning/10 px-4 py-3 text-sm text-warning">
-                  <Timer aria-hidden className="mt-0.5 size-4 shrink-0" />
+                <p className="mt-4 flex items-start gap-2 bg-warning/10 px-4 py-3 text-sm text-foreground">
+                  {/* Màu cảnh báo ở biểu tượng, chữ là mực: `text-warning` trên `warning/10` chỉ ~4.1:1. */}
+                  <Timer aria-hidden className="mt-0.5 size-4 shrink-0 text-warning" />
                   {t('problem.oj.detail.time-limit', {
                     limit: renderCopy(formatTimeLimit(problem.timeLimitSec)),
                   })}
@@ -205,6 +206,7 @@ export function ProblemClient({ code }: { readonly code: string }): ReactElement
                   errorMessage={describeTrpcError(submissions.error)}
                   hasMore={submissions.data?.nextCursor != null}
                   onRetry={() => void submissions.refetch()}
+                  retrying={submissions.isFetching}
                 />
               </TabsContent>
             </Tabs>

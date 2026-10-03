@@ -169,13 +169,47 @@ export function ProblemsToolbar({
             <span id={directionLabelId} className="type-label text-muted-foreground">
               {t('problem.oj.filter.direction')}
             </span>
-            <div role="group" aria-labelledby={directionLabelId} className="flex h-12 items-center gap-1">
+            {/*
+              Chiều sắp xếp là MỘT lựa chọn trong hai, không phải hai công tắc
+              độc lập: nhóm radio (một điểm dừng Tab, mũi tên đổi chiều), không
+              phải hai nút `aria-pressed` mà trình đọc màn hình đọc như hai thứ
+              bật/tắt riêng.
+            */}
+            <div
+              role="radiogroup"
+              aria-labelledby={directionLabelId}
+              className="flex h-12 items-center gap-1"
+              onKeyDown={(event) => {
+                const step =
+                  event.key === 'ArrowRight' || event.key === 'ArrowDown'
+                    ? 1
+                    : event.key === 'ArrowLeft' || event.key === 'ArrowUp'
+                      ? -1
+                      : 0;
+                if (step === 0) {
+                  return;
+                }
+                event.preventDefault();
+                const at = DIRECTIONS.indexOf(controls.query.direction);
+                const next = DIRECTIONS[(at + step + DIRECTIONS.length) % DIRECTIONS.length];
+                if (next !== undefined) {
+                  controls.setDirection(next);
+                  event.currentTarget.querySelector<HTMLElement>(`[data-direction="${next}"]`)?.focus();
+                }
+              }}
+            >
               {DIRECTIONS.map((direction) => {
                 const Icon = direction === 'asc' ? ArrowUpNarrowWide : ArrowDownWideNarrow;
+                const checked = controls.query.direction === direction;
                 return (
                   <Chip
                     key={direction}
-                    selected={controls.query.direction === direction}
+                    data-direction={direction}
+                    role="radio"
+                    aria-checked={checked}
+                    aria-pressed={undefined}
+                    tabIndex={checked ? 0 : -1}
+                    selected={checked}
                     onClick={() => {
                       controls.setDirection(direction);
                     }}

@@ -72,7 +72,7 @@ test.describe('luồng 6 — quản trị', { tag: '@flow' }, () => {
     await adminNav.getByRole('link', { name: 'Phiên đang chạy' }).click();
     await page.waitForURL('**/admin/sessions');
     await expect(page.getByRole('heading', { name: 'Phiên đang chạy', level: 1 })).toBeVisible();
-    await expect(page.getByText('Danh sách này chỉ có phiên CÒN SỐNG')).toBeVisible();
+    await expect(page.getByText('Danh sách này chỉ có phiên còn chạy')).toBeVisible();
 
     // Danh sách có thể RỖNG hợp lệ (không ai đang học). Nên phép kiểm là: hoặc
     // có bảng với cột "Chủ phiên", hoặc có trạng thái rỗng — chứ không phải một

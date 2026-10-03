@@ -38,7 +38,7 @@ describe('planArchive', () => {
   it('bài nháp: cho lưu trữ, và nói rõ KHÔNG phải xoá', () => {
     const plan = planArchive({ title: 'Docker cơ bản', kind: 'lesson', state: 'draft' });
     expect(plan.allowed).toBe(true);
-    expect(plan.body).toContain('KHÔNG bị xoá');
+    expect(plan.body).toContain('không bị xoá');
     expect(plan.body).toContain('tiến độ');
   });
 

@@ -31,6 +31,8 @@ export function ProblemSubmissions(props: {
   readonly isError: boolean;
   readonly errorMessage: string;
   readonly onRetry: () => void;
+  /** Lượt tải lại đang chạy: nút thử lại ở trạng thái chờ, không bấm chồng được. */
+  readonly retrying: boolean;
   /** Máy chủ còn con trỏ ⇒ còn lượt cũ hơn. Nói ra thay vì để danh sách trông như đã đủ. */
   readonly hasMore: boolean;
 }): ReactElement {
@@ -50,6 +52,7 @@ export function ProblemSubmissions(props: {
         title={t('problem.oj.subs.error-title')}
         message={props.errorMessage}
         onRetry={props.onRetry}
+        retrying={props.retrying}
       />
     );
   }

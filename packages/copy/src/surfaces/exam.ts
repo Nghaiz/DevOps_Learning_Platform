@@ -11,7 +11,11 @@ import type { IntentionalThree } from '../types.ts';
  * sẽ làm hai màn khác luật dùng chung một kho từ, và lúc sửa câu cho màn này thì
  * màn kia đổi theo mà không ai định thế.
  *
- * Chữ của phía GIẢNG VIÊN nằm ở `admin.exams.*`, cùng lý do tách.
+ * Chữ của phía GIẢNG VIÊN nằm ở `admin.exams.*`, cùng lý do tách. Ngoại lệ có
+ * chủ ý: trạng thái cửa sổ (`exam.window.*`) và câu giờ thi (`exam.when.*`) là
+ * MỘT bộ từ cho cả hai phía. Giảng viên nói "Chưa mở" còn sinh viên đọc "Sắp
+ * mở" cho cùng một kỳ thi là hai người nhìn một sự thật mà không khớp lời; trang
+ * quản trị gọi thẳng các khoá này.
  *
  * ## Hai trục trạng thái, không được trộn
  *
@@ -51,7 +55,7 @@ export const exam = {
   'exam.summary': (p: { name: string; count: number; minutes: number }): string =>
     `Lớp ${p.name} · ${String(p.count)} bài · ${String(p.minutes)} phút`,
 
-  'exam.window.upcoming': 'Sắp mở',
+  'exam.window.upcoming': 'Chưa mở',
   'exam.window.open': 'Đang mở',
   'exam.window.closed': 'Đã đóng',
 
@@ -72,6 +76,7 @@ export const exam = {
   'exam.start': 'Bắt đầu làm bài',
 
   'exam.not-open-title': 'Kỳ thi chưa mở hoặc đã đóng',
+  'exam.start-error-title': 'Chưa bắt đầu được lượt thi',
   'exam.not-open-body':
     'Giờ mở và giờ đóng do máy chủ giữ. Nếu thấy sai, hỏi giảng viên phụ trách lớp.',
 

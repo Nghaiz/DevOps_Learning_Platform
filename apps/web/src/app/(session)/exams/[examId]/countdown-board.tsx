@@ -27,6 +27,7 @@ export function CountdownBoard(props: {
 }): ReactElement {
   const urgent = !props.closed && isCountdownUrgent(props.remainingMs);
   const text = props.closed ? formatCountdown(0) : formatCountdown(props.remainingMs);
+  const secondsFrom = text.lastIndexOf(':') + 1;
 
   return (
     <section
@@ -50,6 +51,13 @@ export function CountdownBoard(props: {
               : t('exam.countdown-label')}
           </p>
           <output aria-live="off" className="flex items-center gap-1.5 md:gap-2">
+            {/*
+              Ô chữ số mang `animate-reveal-down`, chạy lại mỗi lần React dựng ô
+              mới. Khoá theo cả chữ số thì ô GIÂY dựng lại mỗi giây và hiệu ứng
+              chớp liên tục. Chỉ các ô đứng trước dấu ":" cuối (phút, giờ) mang
+              chữ số trong khoá: chúng lật một lần mỗi phút; ô giây khoá theo vị
+              trí và chỉ đổi chữ.
+            */}
             {[...text].map((char, index) =>
               char === ':' ? (
                 <span
@@ -60,7 +68,7 @@ export function CountdownBoard(props: {
                 </span>
               ) : (
                 <span
-                  key={`${String(index)}-${char}`}
+                  key={index < secondsFrom ? `${String(index)}-${char}` : String(index)}
                   className={cn(
                     'inline-flex h-[clamp(4rem,12vw,8.5rem)] w-[clamp(2.75rem,8vw,5.75rem)] animate-reveal-down items-center justify-center',
                     'font-mono text-[clamp(2.75rem,9vw,6.5rem)] leading-none font-bold tabular-nums',

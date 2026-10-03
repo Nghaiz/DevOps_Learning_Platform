@@ -591,7 +591,7 @@ export const problem = {
   'problem.oj.tests.hidden-item': 'Tên ẩn tới khi bạn nộp bài',
   'problem.oj.tests.hidden-badge': 'Ẩn',
   'problem.oj.tests.hidden-note': (p: { hidden: number }) =>
-    `${p.hidden} testcase ẩn tên để một lượt nộp không biến thành một lượt dò đáp án.`,
+    `${p.hidden} testcase ẩn tên để không dò được đáp án qua lượt nộp.`,
 
   'problem.oj.hints.list': 'Danh sách gợi ý',
   'problem.oj.hints.none': 'Bài này không có gợi ý.',

@@ -149,7 +149,9 @@ function WindowMark({ slot }: { readonly slot: ExamWindow }): ReactElement {
     <span
       className={cn(
         'inline-flex h-6 w-24 items-center gap-2 px-2 font-mono text-xs font-medium',
-        slot === 'open' && 'bg-success/10 text-success',
+        // Chữ mực trên nền nhạt; màu trạng thái nằm ở chấm. Chữ `text-success`
+        // trên chính nền `success/10` của nó chỉ đạt ~4.0:1, dưới AA.
+        slot === 'open' && 'bg-success/10 text-foreground',
         slot === 'upcoming' && 'bg-signal text-signal-foreground',
         slot === 'closed' && 'bg-muted text-muted-foreground',
       )}

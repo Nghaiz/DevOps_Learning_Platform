@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
+import { withReturnPath } from '../../../login/return-path';
 import { t } from '@devops-platform/copy';
 /*
  * `isAnyProblemCode`, KHÔNG phải `isProblemCode` của barrel.
@@ -51,7 +52,8 @@ export default async function ProblemPage({ params }: { params: Promise<{ code: 
   const { code } = await params;
 
   if ((await readViewerSession()) === null) {
-    redirect('/login');
+    // Mang đường về theo: đăng nhập xong thì quay lại đúng bài này.
+    redirect(withReturnPath('/login', `/problems/${encodeURIComponent(code)}`));
   }
 
   const canonical = code.toUpperCase();
