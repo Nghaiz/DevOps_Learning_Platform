@@ -5,6 +5,7 @@ import { closeTestDb, ctxFor, purgeLeakedFixtures, testDb, uniqueId } from '../.
 import { contentSourceFor } from '../content/source';
 import { labAttempts, sessionOrigins, users } from '../db/schema';
 import { appRouter } from '../trpc/routers/app-router';
+import type * as SessionList from './list';
 import { recordSessionOrigin, resolveSessionContents } from './origins';
 
 /**
@@ -20,7 +21,7 @@ import { recordSessionOrigin, resolveSessionContents } from './origins';
 const listedSessionIds: string[] = [];
 
 vi.mock('./list', async (importOriginal) => {
-  const real = await importOriginal<typeof import('./list')>();
+  const real = await importOriginal<typeof SessionList>();
   return {
     ...real,
     listSessionsPage: vi.fn(async (_ctx: unknown, options: { userId: string }) => ({

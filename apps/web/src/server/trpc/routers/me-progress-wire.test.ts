@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { eq, inArray } from 'drizzle-orm';
+import { inArray } from 'drizzle-orm';
 import { closeTestDb, ctxFor, testDb, uniqueId } from '../../../security/test-helpers';
 import { contentSourceFor } from '../../content/source';
 import { progress, users } from '../../db/schema';
