@@ -21,7 +21,7 @@ import {
   useToast,
 } from '@devops-platform/ui';
 import type { AppRouter } from '../../../../server/trpc/routers/app-router';
-import { Split } from '../../../../components/kit';
+import { Split, numSlot, WithNums } from '../../../../components/kit';
 import { api } from '../../../../lib/trpc-react';
 import { describeTrpcError, trpcErrorCode } from '../../../../lib/trpc';
 import {
@@ -33,7 +33,6 @@ import {
   LedgerSkeleton,
 } from '../../../../components/admin/admin-page';
 import { ConfirmDialog } from '../../../../components/kit/confirm-dialog';
-import { numSlot, WithNums } from '../../../../components/admin/with-nums';
 import {
   FIRST_PAGE,
   currentCursor,

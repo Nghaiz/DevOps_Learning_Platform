@@ -13,3 +13,4 @@ export {
 export { RouteLine, type RouteStation } from './route-line';
 export { lineForTopic, type TopicLine } from '../../lib/topic-line';
 export { ConfirmDialog } from './confirm-dialog';
+export { WithNums, numSlot } from './with-nums';

@@ -34,7 +34,7 @@ import {
   type HealthSourceView,
   type HealthTone,
 } from './health-reading';
-import { numSlot, WithNums } from './with-nums';
+import { numSlot, WithNums } from '../kit';
 
 type HealthOutput = inferRouterOutputs<AppRouter>['admin']['health'];
 

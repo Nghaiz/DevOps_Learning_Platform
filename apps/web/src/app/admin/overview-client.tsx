@@ -18,10 +18,9 @@ import {
   TableHeader,
   TableRow,
 } from '@devops-platform/ui';
-import { Split } from '../../components/kit';
+import { Split, numSlot, WithNums } from '../../components/kit';
 import { AdminPage } from '../../components/admin/admin-page';
 import { HealthPanel } from '../../components/admin/health-panel';
-import { numSlot, WithNums } from '../../components/admin/with-nums';
 import {
   describeAuditAction,
   describeAuditActor,

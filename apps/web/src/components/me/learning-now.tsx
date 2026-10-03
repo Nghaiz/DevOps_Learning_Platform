@@ -6,8 +6,7 @@ import { err, t } from '@devops-platform/copy';
 import { Button, EmptyState, ErrorState, Meter, Num, Skeleton } from '@devops-platform/ui';
 import { api } from '../../lib/trpc-react';
 import { describeTrpcError } from '../../lib/trpc';
-import { BoardSkeleton, RouteLine, lineForTopic, staggerStyle, type RouteStation } from '../kit';
-import { WithNums, numSlot } from '../admin/with-nums';
+import { BoardSkeleton, RouteLine, WithNums, lineForTopic, numSlot, staggerStyle, type RouteStation } from '../kit';
 import { buildPathItemViews, stationStateLabel } from '../../app/paths/[id]/path-view';
 import { summarizePathProgress } from './path-progress';
 
