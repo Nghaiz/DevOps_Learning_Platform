@@ -34,12 +34,13 @@ export interface ProblemQuery {
   readonly orderBy: ProblemOrderKey;
   readonly direction: 'asc' | 'desc';
   /**
-   * Game đang chọn ở khối lọc chủ đề — §18 khối 6.
+   * Game đang chọn — §18 khối 6. Nó làm hai việc: đổi TỪ VỰNG chủ đề của khối
+   * lọc, và thu hẹp danh sách về bài của game đó (`buildProblemListInput` luôn
+   * gửi nó thành `filter.gameId`).
    *
-   * ⚠ Nằm ở `ProblemQuery` chứ KHÔNG ở `filter`, và chỗ đứng đó là một lời
-   * khẳng định: nó không thu hẹp tập kết quả, nó đổi TỪ VỰNG chủ đề. Để nó
-   * trong `filter` sẽ làm `hasActiveFilter` đọc ra `true` cho một trang chưa lọc
-   * gì — và lúc đó màn hình "không bài nào khớp bộ lọc" mời người dùng bấm "xoá
+   * ⚠ Vẫn nằm ở `ProblemQuery` chứ KHÔNG ở `filter`: game luôn có giá trị, nên
+   * để nó trong `filter` sẽ làm `hasActiveFilter` đọc ra `true` cho một trang
+   * chưa lọc gì, và màn hình "không bài nào khớp bộ lọc" mời người dùng bấm "xoá
    * lọc" để gỡ một bộ lọc không tồn tại. Cùng lý do `orderBy` cũng không ở
    * trong `filter`.
    */
@@ -237,7 +238,7 @@ export type ProblemListInput = Omit<ProblemListOptions, 'cursor'> & { readonly c
 
 export function buildProblemListInput(query: ProblemQuery, cursor: string | undefined): ProblemListInput {
   return {
-    ...(hasActiveFilter(query.filter) ? { filter: query.filter } : {}),
+    filter: { ...(hasActiveFilter(query.filter) ? query.filter : {}), gameId: query.game },
     orderBy: query.orderBy,
     direction: query.direction,
     limit: PROBLEM_PAGE_SIZE,
