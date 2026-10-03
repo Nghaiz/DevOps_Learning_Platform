@@ -39,8 +39,10 @@ const C = uniqueId('u-ectx-c');
 const D = uniqueId('u-ectx-d');
 const E = uniqueId('u-ectx-e');
 const F = uniqueId('u-ectx-f');
+/** Chỉ dùng cho cửa sổ chấm: lượt đề chính đã bấm nộp, lượt nộp bài chèn thẳng. */
+const G = uniqueId('u-ectx-g');
 const OUTSIDER = uniqueId('u-ectx-out');
-const LEARNERS = [A, B, C, D, E, F];
+const LEARNERS = [A, B, C, D, E, F, G];
 const ALL_USERS = [ADMIN, ...LEARNERS, OUTSIDER];
 
 /** Bài nộp được thật: trạng thái đầu đã thoả testcase, nên nhật ký rỗng vẫn phát lại được. */
@@ -142,6 +144,7 @@ let unrelatedExamId = '';
 let laterExamId = '';
 const LATER_TITLE = uniqueId('Ky-thi-sau');
 let mainStartedAt = new Date();
+let gSubmittedAt = new Date();
 
 async function insertAttempt(
   examId: string,
@@ -214,6 +217,9 @@ beforeAll(async () => {
   await insertAttempt(mainExamId, E, 505, mainStartedAt, 60, new Date(now - 60 * 1000));
   await insertAttempt(mainExamId, F, 606, new Date(now - 20 * 60 * 1000));
   await insertAttempt(laterExamId, F, 707, new Date(now - 5 * 60 * 1000));
+  // G: lượt đề chính bắt đầu cùng A, BẤM NỘP 5 phút trước; hạn còn ~50 phút nữa.
+  gSubmittedAt = new Date(now - 5 * 60 * 1000);
+  await insertAttempt(mainExamId, G, 808, mainStartedAt, 60, gSubmittedAt);
 
   const sub = (userId: string, code: string, solved: boolean, submittedAt: Date) => ({
     problemCode: code,
@@ -236,6 +242,12 @@ beforeAll(async () => {
     sub(B, K8S_OTHER, true, new Date(mainStartedAt.getTime() + 60 * 1000)),
     // A giải bài Git trong lượt chính.
     sub(A, GIT_CODE, true, new Date(mainStartedAt.getTime() + 2 * 60 * 1000)),
+    // G: giải bài Git TRƯỚC lúc bấm nộp ⇒ tính.
+    { ...sub(G, GIT_CODE, true, new Date(mainStartedAt.getTime() + 60 * 1000)), passed: ['t1'], total: 1 },
+    // G: giải bài nộp được ĐÚNG mốc bấm nộp ⇒ tính (hai đầu cửa sổ đều đóng).
+    { ...sub(G, SUBMITTABLE, true, gSubmittedAt), passed: ['t1'], total: 1 },
+    // G: giải bài K8s thứ hai SAU lúc bấm nộp, còn trước hạn ⇒ KHÔNG tính.
+    { ...sub(G, K8S_OTHER, true, new Date(gSubmittedAt.getTime() + 2 * 60 * 1000)), passed: ['t1'], total: 1 },
   ]);
 });
 
@@ -303,12 +315,59 @@ describe('examSitting.get · problems', () => {
   });
 });
 
+describe('cửa sổ chấm dừng ở lúc BẤM NỘP, không ở hạn', () => {
+  const afterSubmit = () => new Date(gSubmittedAt.getTime() + 2 * 60 * 1000);
+
+  it('ĐỐI CHỨNG: lượt giải sau lúc bấm nộp vẫn nằm TRƯỚC hạn', () => {
+    // Không có ô này thì ba ô dưới xanh cả khi cửa sổ vẫn dừng ở hạn mà lượt
+    // giải "sau nộp" lỡ rơi ra ngoài hạn.
+    expect(afterSubmit().getTime()).toBeLessThan(mainStartedAt.getTime() + HOUR_MS);
+  });
+
+  it('examSitting.get: giải trước lúc nộp có dấu tích, giải sau lúc nộp thì không', async () => {
+    const view = await callerAs(G).examSitting.get({ examId: mainExamId });
+    expect(Object.fromEntries(view.problems.map((p) => [p.code, p.solved]))).toEqual({
+      [GIT_CODE]: true,
+      [K8S_OTHER]: false,
+      [SUBMITTABLE]: true,
+    });
+  });
+
+  it('bảng điểm: lượt giải sau lúc nộp không vào ô, không vào solvedCount', async () => {
+    const board = await callerAs(ADMIN, 'admin').exams.scoreboard({ examId: mainExamId });
+    const row = board.rows.find((r) => r.userId === G);
+    expect(row?.submittedAt).toBe(gSubmittedAt.toISOString());
+    expect(row?.cells.map((c) => [c.problemCode, c.solved, c.passed])).toEqual([
+      [GIT_CODE, true, 1],
+      [K8S_OTHER, false, null],
+      [SUBMITTABLE, true, 1],
+    ]);
+    expect(row?.solvedCount).toBe(2);
+  });
+
+  it('CSV: cùng cửa sổ — ô của bài giải sau lúc nộp để trống', async () => {
+    const { csv } = await callerAs(ADMIN, 'admin').exams.scoreboardCsv({ examId: mainExamId });
+    const line = csv.split('\r\n').find((l) => l.includes(`"${G}@test.local"`));
+    // Cột bài theo thứ tự đề: GIT, K8S_OTHER, SUBMITTABLE — rồi Số bài AC.
+    expect(line).toContain('"AC","","AC","2"');
+  });
+});
+
 describe('problems.submit · không có examId thì là luyện tập', () => {
   it('lượt thi MỞ chứa bài, không gửi examId, seed bất kỳ ⇒ được ghi, cổng seed không chạm tới', async () => {
     // 999 ≠ seed 101 của lượt chính. Có cổng thi thì lượt này bị FORBIDDEN.
     const result = await callerAs(A).problems.submit(payload(SUBMITTABLE, 999) as never);
     expect(result.submission.problemCode).toBe(SUBMITTABLE);
     expect(await submissionCount(A, SUBMITTABLE)).toBe(3);
+  });
+
+  it('bài K8s, seed NGẪU NHIÊN như arena, lượt thi đang mở, không gửi examId ⇒ được ghi', async () => {
+    // Đúng biểu thức của `components/k8s-arena/arena-session.ts`: mỗi phiên một
+    // seed ngẫu nhiên, và client không bao giờ biết seed 101 của lượt thi.
+    const arenaSeed = Math.floor(Math.random() * 2 ** 31);
+    const result = await callerAs(A).problems.submit(payload(SUBMITTABLE, arenaSeed) as never);
+    expect(result.submission.problemCode).toBe(SUBMITTABLE);
+    expect(await submissionCount(A, SUBMITTABLE)).toBe(4);
   });
 
   it('lượt luyện tập đó nằm trong cửa sổ của lượt thi đang mở ⇒ bảng điểm vẫn thấy nó', async () => {
@@ -372,7 +431,7 @@ describe('problems.submit · có examId thì luật thi áp đủ, câu lỗi kh
     // Kỳ thi A chưa mở lượt nào.
     const notStarted = await submitError(callerAs(A), payload(SUBMITTABLE, 1, laterExamId));
     expect(notStarted?.code).toBe('FORBIDDEN');
-    expect(notStarted?.message).toContain('chưa mở lượt');
+    expect(notStarted?.message).toBe('Bạn chưa mở lượt thi này, nên bài nộp không được tính');
     expect(await submissionCount(A, SUBMITTABLE)).toBe(before);
   });
 

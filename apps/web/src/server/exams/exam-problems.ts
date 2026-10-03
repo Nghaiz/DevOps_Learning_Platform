@@ -1,9 +1,9 @@
-import { and, eq, gte, inArray, lte } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import type { GameId } from '@devops-platform/games';
 
 import type { Database } from '../db/client';
-import { problems, problemSubmissions } from '../db/schema';
-import { attemptDeadline, type AttemptClock } from './clock';
+import { examAttempts, exams, problems, problemSubmissions } from '../db/schema';
+import { inScoringWindow } from './scoring-window';
 
 /**
  * Danh sách bài của MỘT kỳ thi như người học thấy trong màn làm bài
@@ -31,19 +31,17 @@ export interface ExamProblemView {
 /**
  * ## Cửa sổ của lượt thi — CÙNG cửa sổ với bảng điểm
  *
- * `[started_at, attemptDeadline(attempt, closesAt)]`, hai đầu đều đóng — đúng
- * phép lọc mà `scoreboard.ts` dựng lại bằng SQL (`>= a.started_at` và
- * `<= least(started_at + duration, coalesce(closes_at, 'infinity'))`). Ở đây hạn
- * lấy từ `clock.ts` vì đã có sẵn lượt thi trong tay, nên không phải dựng lại phép
- * tính đó lần thứ ba. Hai chỗ phải đổi CÙNG NHAU; lệch nhau là dấu tích của sinh
- * viên và điểm của giảng viên nói hai điều khác nhau.
+ * `[started_at, least(submitted_at, hạn)]` — lọc bằng ĐÚNG mảnh SQL mà
+ * `scoreboard.ts` dùng (`inScoringWindow`, `scoring-window.ts`), nên dấu tích của
+ * sinh viên và điểm của giảng viên không thể nói hai điều khác nhau. Lượt giải
+ * SAU khi bấm nộp thì không có dấu tích, dù còn trước hạn.
  *
  * Vì sao cửa sổ chứ không phải "mọi lượt `solved` của bài này": một sinh viên có
  * thể đã giải bài đó từ tuần trước, hoặc trong một kỳ thi khác. Lượt đó không
  * thuộc lượt thi này và không được hiện dấu tích ở đây.
  *
- * ⚠ `attempt = null` (chưa bắt đầu) ⇒ mọi bài `solved: false`, KHÔNG truy vấn
- * bảng nộp bài: chưa có cửa sổ thì không có lượt nộp nào thuộc về nó.
+ * ⚠ Chưa bắt đầu ⇒ không có dòng `exam_attempts` để join ⇒ mọi bài
+ * `solved: false`: chưa có cửa sổ thì không có lượt nộp nào thuộc về nó.
  *
  * ⚠ Mã không còn tra ra bài (bài đã bị xoá sau khi soạn đề — `problem_codes` là
  * mảng, không có khoá ngoại) bị BỎ QUA chứ không bịa tên hay `gameId`. Mã đó vẫn
@@ -52,11 +50,10 @@ export interface ExamProblemView {
 export async function listExamProblems(
   db: Database,
   input: {
+    readonly examId: string;
     readonly problemCodes: readonly string[];
     /** Người đang xem — `ctx.user.id`, KHÔNG bao giờ từ input. */
     readonly userId: string;
-    readonly attempt: AttemptClock | null;
-    readonly closesAt: Date | null;
   },
 ): Promise<readonly ExamProblemView[]> {
   const codes = [...new Set(input.problemCodes)];
@@ -72,9 +69,7 @@ export async function listExamProblems(
     .where(inArray(problems.code, codes));
   const byCode = new Map(rows.map((row) => [row.code, row]));
 
-  const solved = input.attempt === null
-    ? new Set<string>()
-    : await solvedCodesInWindow(db, input.userId, codes, input.attempt, input.closesAt);
+  const solved = await solvedCodesInWindow(db, input.examId, input.userId, codes);
 
   const views: ExamProblemView[] = [];
   for (const code of input.problemCodes) {
@@ -89,21 +84,26 @@ export async function listExamProblems(
 
 async function solvedCodesInWindow(
   db: Database,
+  examId: string,
   userId: string,
   codes: readonly string[],
-  attempt: AttemptClock,
-  closesAt: Date | null,
 ): Promise<ReadonlySet<string>> {
+  // `exam_attempts` và `exams` join KHÔNG bí danh: `inScoringWindow` tham chiếu
+  // chúng bằng tên bảng.
   const rows = await db
     .selectDistinct({ code: problemSubmissions.problemCode })
     .from(problemSubmissions)
+    .innerJoin(
+      examAttempts,
+      and(eq(examAttempts.examId, examId), eq(examAttempts.userId, problemSubmissions.userId)),
+    )
+    .innerJoin(exams, eq(exams.id, examAttempts.examId))
     .where(
       and(
         eq(problemSubmissions.userId, userId),
         inArray(problemSubmissions.problemCode, [...codes]),
         eq(problemSubmissions.solved, true),
-        gte(problemSubmissions.submittedAt, attempt.startedAt),
-        lte(problemSubmissions.submittedAt, attemptDeadline(attempt, closesAt)),
+        inScoringWindow(problemSubmissions.submittedAt),
       ),
     );
   return new Set(rows.map((row) => row.code));

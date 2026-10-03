@@ -71,10 +71,9 @@ export const examSittingRouter = createTRPCRouter({
     const exam = await getExamForStudent(ctx.db, input.examId, ctx.user.id);
     const attempt = await getAttemptFor(ctx.db, input.examId, ctx.user.id);
     const problems = await listExamProblems(ctx.db, {
+      examId: exam.id,
       problemCodes: exam.problemCodes,
       userId: ctx.user.id,
-      attempt,
-      closesAt: exam.closesAt,
     });
     return {
       exam: {
