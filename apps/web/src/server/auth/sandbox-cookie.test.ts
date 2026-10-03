@@ -117,7 +117,6 @@ describe('attachSandboxCookie — tuổi thọ = trần cứng của phiên (D7.
 
     await attachSandboxCookie(ctx, 'user-a', {
       id: 'sess-cap',
-      createdAt: ts(now - 30 * 60),
       expiresAt: ts(now + 5 * 60),
       hardCapAt: ts(hardCapAt),
     });
