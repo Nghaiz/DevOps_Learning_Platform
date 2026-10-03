@@ -71,6 +71,26 @@ export function toProgressRowDTO(row: typeof progress.$inferSelect): ProgressRow
   };
 }
 
+/**
+ * Tên bài học theo id, cho lịch sử của CHÍNH người gọi.
+ *
+ * Tầm nhìn `admin` (thấy mọi state, kể cả `archived`) — cùng lý do khối đầu file
+ * ghi cho lab/quiz: lịch sử của người học không được mất tên chỉ vì tác giả đã
+ * archive bài sau đó. Đây là phép ĐỌC tên, không cấp quyền mở bài: link vẫn đi
+ * qua `lessons.get`, nơi tầm nhìn thật của người gọi được áp.
+ *
+ * Bài không tra ra ⇒ vắng khỏi map (chỗ gọi đọc thành `null`).
+ */
+async function lessonTitlesFor(lessonIds: readonly string[]): Promise<ReadonlyMap<string, string>> {
+  const source = contentSourceFor({ kind: 'admin' });
+  const entries = await Promise.all(
+    [...new Set(lessonIds)].map(async (id) => [id, (await source.get(id))?.title ?? null] as const),
+  );
+  return new Map(
+    entries.filter((entry): entry is readonly [string, string] => entry[1] !== null),
+  );
+}
+
 /** Bracket ADMIN THEO NGHĨA "thấy mọi state", KHÔNG cấp quyền ghi — chỉ dùng để đọc lại lịch sử. */
 const HISTORY_QUIZ_VISIBILITY: QuizVisibility = { authorId: null, isAdmin: true };
 
@@ -386,8 +406,19 @@ export const meRouter = createTRPCRouter({
 
     const hasMore = rows.length > input.limit;
     const page = hasMore ? rows.slice(0, input.limit) : rows;
+    const titles = await lessonTitlesFor(page.map((row) => row.lessonId));
     return {
-      items: page.map(toProgressRowDTO),
+      /*
+       * `lessonTitle` đi KÈM dòng, cùng lối `listLabAttempts` mang `labTitle` —
+       * để tab lịch sử không phải gọi `lessons.get` một lượt cho mỗi dòng.
+       * `null` = bài không còn đọc được ở BẤT KỲ nguồn nào (đĩa lẫn DB). Khác lab,
+       * dòng KHÔNG bị bỏ: tiến độ không cần nội dung bài để có nghĩa, nên một tên
+       * vắng mặt là thiếu một nhãn, không phải một dòng nói dối.
+       */
+      items: page.map((row) => ({
+        ...toProgressRowDTO(row),
+        lessonTitle: titles.get(row.lessonId) ?? null,
+      })),
       limit: input.limit,
       nextCursor: hasMore && page.length > 0 ? (page[page.length - 1]?.id ?? null) : null,
     };
