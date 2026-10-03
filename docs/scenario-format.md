@@ -132,6 +132,7 @@ còn đúng.
 {
   "id": "ckad-configmap-as-files",   // = tên thư mục, = progress.lesson_id
   "difficulty": "intermediate",
+  "topic": "kubernetes",             // bắt buộc — CONTENT_TOPICS (2026-10-03)
   "estimatedMinutes": 15,
   "source": { "repo", "commit", "path", "license", "licenseUrl", "upstreamTitle" },
   "acknowledgedUnknownFields": [],
@@ -279,3 +280,29 @@ là không chạy được**, và hỏng theo kiểu khó đọc.
    thuộc về terminal của người học, không thuộc lượt chấm. Mọi lệnh chạm mạng
    trong verify **phải** có `timeout`/`--max-time`: default-deny DROP im lặng,
    không REJECT, nên thiếu trần thời gian là treo tới hết 30s.
+
+## 7. Thay đổi 2026-10-03 (labs rebuild)
+
+Kế hoạch và hợp đồng: `plans/labs-rebuild/{plan,contracts}.md`. Cách viết bài:
+`docs/content-style.md`.
+
+- **`topic`** bắt buộc trong `dlp.json` (`CONTENT_TOPICS`: linux, bash, git, docker,
+  kubernetes, observability, networking). Ở DTO nó tuỳ chọn vì bài soạn trong DB
+  chưa có cột này; `lessons.list` lọc được theo `topic`.
+- **Sơ đồ TikZ**: dòng `![alt](diagrams/<tên>.svg "chú thích")` đứng riêng thành
+  block `diagram`; loader đọc SVG đã dựng vào `Scenario.diagrams`. Ảnh `diagrams/`
+  giữa câu, alt dưới 20 ký tự, hay file thiếu đều bị từ chối lúc nạp. Công cụ và
+  cổng CI: `docs/diagrams.md`.
+- **`lessons.get` trả `ScenarioForLearner`**: mỗi phase còn `title`, `markdown`,
+  `hasVerify`, `hasSetup` — không `verifyScript`, không script setup.
+- **Prelude verify**: `checkStep` ghép `withVerifyPrelude` trước script, cùng hàm
+  với lab (`docs/lab-format.md` §4.3b).
+- **Setup chờ dockerd**: script `background` được ghép đoạn chờ dockerd tối đa 45
+  giây (không chặn), vì pod dựng lạnh tới tay người học khi dockerd còn khởi động
+  (`apps/web/src/server/lessons/setup-plan.ts` `DOCKERD_WAIT_PREFIX`).
+- **`stepN/solution.sh`** (tuỳ chọn): chỉ cho bước cần thao tác không viết được
+  bằng `{{exec}}`, ví dụ sửa file trong IDE. Bộ kiểm thử dùng nó; loader không đọc.
+- **Chứng minh hai trạng thái của mọi verify** bằng
+  `node scripts/content-smoke/smoke.mjs lesson <id>` trên cụm thật.
+- **LF**: `content/scenarios/dlp-*/**` là `text=auto eol=lf` và
+  `content-lf.test.ts` chặn `\r` ở CI; bài nhập upstream vẫn byte-exact.
