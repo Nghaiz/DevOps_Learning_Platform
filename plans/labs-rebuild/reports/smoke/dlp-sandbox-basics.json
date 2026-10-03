@@ -1,0 +1,330 @@
+{
+  "kind": "lesson",
+  "id": "dlp-sandbox-basics",
+  "title": "Ngày đầu với terminal",
+  "contentDir": "D:\\NCKH\\dlp-labs-w1\\content\\scenarios\\dlp-sandbox-basics",
+  "image": "ghcr.io/nghaiz/dlp-sandbox-base:labs-b1",
+  "profile": "",
+  "pod": "smoke-lesson-dlp-sandbox-basics-ae3a29",
+  "startedAt": "2026-10-03T00:29:28.893Z",
+  "durationMs": 79783,
+  "verdict": "pass",
+  "deviations": [],
+  "warnings": [],
+  "infra": {
+    "podReadyMs": 14555,
+    "dockerReadyMs": 11768,
+    "agent": true,
+    "terminalMs": 18149,
+    "execBaselineMs": 1139,
+    "loadavg": "18.62 18.33 14.91 11/1821 1421"
+  },
+  "units": [
+    {
+      "key": "intro",
+      "title": "Giới thiệu",
+      "setup": [
+        {
+          "kind": "background",
+          "exitCode": 0,
+          "durationMs": 2002,
+          "output": ""
+        }
+      ],
+      "pre": null,
+      "actions": [],
+      "post": null,
+      "detailed": true
+    },
+    {
+      "key": "step1",
+      "title": "Bạn đang ở đâu",
+      "setup": [],
+      "pre": null,
+      "actions": [
+        {
+          "kind": "exec",
+          "code": "whoami",
+          "rc": 0,
+          "cwd": "/root",
+          "durationMs": 779,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  whoami\nroot\n  dlp   ~                                                                                                                                                                                00:31:53\n❯"
+        },
+        {
+          "kind": "exec",
+          "code": "hostname",
+          "rc": 0,
+          "cwd": "/root",
+          "durationMs": 613,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  hostname\nsmoke-lesson-dlp-sandbox-basics-ae3a29\n  dlp   ~                                                                                                                                                                                00:31:54\n❯"
+        },
+        {
+          "kind": "exec",
+          "code": "cat /etc/os-release",
+          "rc": 0,
+          "cwd": "/root",
+          "durationMs": 1750,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  cat /etc/os-release\n───────┬────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n       │ File: /etc/os-release\n───────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n   1   │ PRETTY_NAME=\"Ubuntu 24.04.4 LTS\"\n   2   │ NAME=\"Ubuntu\"\n   3   │ VERSION_ID=\"24.04\"\n   4   │ VERSION=\"24.04.4 LTS (Noble Numbat)\"\n   5   │ VERSION_CODENAME=noble\n   6   │ ID=ubuntu\n   7   │ ID_LIKE=debian\n   8   │ HOME_URL=\"https://www.ubuntu.com/\"\n   9   │ SUPPORT_URL=\"https://help.ubuntu.com/\"\n  10   │ BUG_REPORT_URL=\"https://bugs.launchpad.net/ubuntu/\"\n  11   │ PRIVACY_POLICY_URL=\"https://www.ubuntu.com/legal/terms-and-policies/privacy-policy\"\n  12   │ UBUNTU_CODENAME=noble\n  13   │ LOGO=ubuntu-logo\n───────┴────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n  dlp   ~                                                                                                                                                                       1.176s  00:31:55\n❯"
+        },
+        {
+          "kind": "exec",
+          "code": "pwd",
+          "rc": 0,
+          "cwd": "/root",
+          "durationMs": 576,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  pwd\n/root\n  dlp   ~                                                                                                                                                                                00:31:56\n❯"
+        },
+        {
+          "kind": "exec",
+          "code": "ls -a",
+          "rc": 0,
+          "cwd": "/root",
+          "durationMs": 599,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  ls -a\n󱆃 .bash_logout  󱆃 .bashrc   .cache   .dlp-smoke  󱆃 .profile   .tmux.conf   .zcompdump  󱆃 .zsh_history  󱆃 .zshrc   kho\n  dlp   ~                                                                                                                                                                                00:31:57\n❯"
+        }
+      ],
+      "post": null,
+      "detailed": true
+    },
+    {
+      "key": "step2",
+      "title": "Gõ ít, để Tab gõ hộ",
+      "setup": [],
+      "pre": {
+        "expect": "fail",
+        "exitCode": 1,
+        "passed": false,
+        "durationMs": 4317,
+        "podMs": 3178,
+        "slow": false,
+        "criteria": [
+          {
+            "ok": false,
+            "label": "Chưa có /root/kho/bao-cao-van-hanh-thang-09-ban-chot/da-doc.txt (gọi lại lệnh cat bằng mũi tên lên, đổi thành touch … da-doc.txt)"
+          },
+          {
+            "ok": true,
+            "label": "Ghi chú doc-truoc.txt vẫn còn"
+          }
+        ],
+        "notes": "",
+        "infraError": null,
+        "ok": true
+      },
+      "actions": [
+        {
+          "kind": "exec",
+          "code": "history | tail -n 5",
+          "rc": 0,
+          "cwd": "/root",
+          "durationMs": 604,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  history | tail -n 5\n    1  whoami\n    2  hostname\n    3  cat /etc/os-release\n    4  pwd\n    5  ls -a\n  dlp   ~                                                                                                                                                                                00:32:01\n❯"
+        },
+        {
+          "kind": "solution",
+          "code": "#!/bin/bash\n# Bước này người học gõ tay (để tập Tab), nên không có khối {{exec}} nào làm hộ.\n# Bộ kiểm thử nội dung dùng lời giải này thay cho bàn phím.\nset -euo pipefail\ncat /root/kho/bao-cao-van-hanh-thang-09-ban-chot/doc-truoc.txt\ntouch /root/kho/bao-cao-van-hanh-thang-09-ban-chot/da-doc.txt\n",
+          "rc": 0,
+          "cwd": "/root",
+          "durationMs": 613,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  bash /root/.dlp-smoke/solutions/step2.sh\nGhi chú bàn giao, ca đêm 30/09:\n- Máy này dựng lại mỗi phiên, đừng để thứ quan trọng ở đây.\n- Đọc xong thì tạo tệp da-doc.txt ngay trong thư mục này để ca sau biết.\n  dlp   ~                                                                                                                                                                                00:32:02\n❯"
+        }
+      ],
+      "post": {
+        "expect": "pass",
+        "exitCode": 0,
+        "passed": true,
+        "durationMs": 1326,
+        "podMs": 187,
+        "slow": false,
+        "criteria": [
+          {
+            "ok": true,
+            "label": "Có tệp da-doc.txt trong /root/kho/bao-cao-van-hanh-thang-09-ban-chot"
+          },
+          {
+            "ok": true,
+            "label": "Ghi chú doc-truoc.txt vẫn còn"
+          }
+        ],
+        "notes": "",
+        "infraError": null,
+        "ok": true
+      },
+      "detailed": true
+    },
+    {
+      "key": "step3",
+      "title": "Khi lệnh không chịu dừng",
+      "setup": [],
+      "pre": {
+        "expect": "fail",
+        "exitCode": 1,
+        "passed": false,
+        "durationMs": 1897,
+        "podMs": 758,
+        "slow": false,
+        "criteria": [
+          {
+            "ok": false,
+            "label": "dong-ho chưa nhận Ctrl+C nào: gõ dong-ho, chờ vài giây, rồi bấm Ctrl+C"
+          },
+          {
+            "ok": true,
+            "label": "Không còn dong-ho nào đang chạy"
+          }
+        ],
+        "notes": "",
+        "infraError": null,
+        "ok": true
+      },
+      "actions": [
+        {
+          "kind": "exec",
+          "code": "ls -la /usr/bin | head -n 40",
+          "rc": 0,
+          "cwd": "/root",
+          "durationMs": 711,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  ls -la /usr/bin | head -n 40\n.rwxr-xr-x   56k root 23 Jan 13:30 [\n.rwxr-xr-x   15k root  6 Mar 16:00 addpart\n.rwxr-xr-x   19k root 22 Oct  2024 apt\n.rwxr-xr-x   89k root 22 Oct  2024 apt-cache\n.rwxr-xr-x   27k root 22 Oct  2024 apt-cdrom\n.rwxr-xr-x   31k root 22 Oct  2024 apt-config\n.rwxr-xr-x   52k root 22 Oct  2024 apt-get\n.rwxr-xr-x   29k root 22 Oct  2024 apt-key\n.rwxr-xr-x   56k root 22 Oct  2024 apt-mark\n.rwxr-xr-x   35k root 23 Jan 13:30 arch\nlrwxrwxrwx     - root  8 Apr  2024 awk -> /etc/alternatives/awk\n.rwxr-xr-x   56k root 23 Jan 13:30 b2sum\n.rwxr-xr-x   39k root 23 Jan 13:30 base32\n.rwxr-xr-x   39k root 23 Jan 13:30 base64\n.rwxr-xr-x   35k root 23 Jan 13:30 basename\n.rwxr-xr-x   48k root 23 Jan 13:30 basenc\n.rwxr-xr-x  1.4M root 31 Mar  2024 bash\n.rwxr-xr-x  7.0k root 31 Mar  2024 bashbug\n.rwxr-xr-x  5.3M root  4 Dec  2023 batcat\n.rwxr-xr-x  6.8k root 16 Sep 18:47 c_rehash\nlrwxrwxrwx     - root 31 Aug 11:36 captoinfo -> tic\n.rwxr-xr-x   39k root 23 Jan 13:30 cat\n.rwxr-sr-x   72k root 30 May  2024 chage\n.rwxr-xr-x   15k root 28 Apr  2024 chattr\n.rwxr-xr-x   60k root 23 Jan 13:30 chcon\n.rwsr-xr-x   73k root 30 May  2024 chfn\n.rwxr-xr-x   60k root 23 Jan 13:30 chgrp\n.rwxr-xr-x   56k root 23 Jan 13:30 chmod\n.rwxr-xr-x   23k root  6 Mar 16:00 choom\n.rwxr-xr-x   60k root 23 Jan 13:30 chown\n.rwxr-xr-x   31k root  6 Mar 16:00 chrt\n.rwsr-xr-x   45k root 30 May  2024 chsh\n.rwxr-xr-x  105k root 23 Jan 13:30 cksum\n.rwxr-xr-x   15k root 31 Aug 11:36 clear\n.rwxr-xr-x   15k root 31 Mar  2024 clear_console\n.rwxr-xr-x   43k root  8 Apr  2024 cmp\n.rwxr-xr-x   39k root 23 Jan 13:30 comm\n.rwxr-xr-x   43M root 25 Sep 14:55 containerd\n.rwxr-xr-x  8.8M root 25 Sep 14:55 containerd-shim-runc-v2\n.rwxr-xr-x   15k root 14 Sep 17:50 corelist\n  dlp   ~                                                                                                                                                                                00:32:06\n❯"
+        },
+        {
+          "kind": "solution",
+          "code": "#!/bin/bash\n# Thay cho \"gõ dong-ho rồi bấm Ctrl+C\": chạy nó 3 giây rồi gửi đúng SIGINT.\n# `timeout` giữ dong-ho ở tiền cảnh (không phải job nền), nên SIGINT không bị\n# bỏ qua và trap của nó chạy như khi người học bấm phím.\nset -uo pipefail\ntimeout --preserve-status -s INT 3 dong-ho\nrc=$?\n# 130 = dong-ho thoát qua trap SIGINT; mọi mã khác là lời giải hỏng.\n[ \"$rc\" -eq 130 ] || { echo \"dong-ho thoát $rc, mong đợi 130\" >&2; exit 1; }\n",
+          "rc": 0,
+          "cwd": "/root",
+          "durationMs": 3612,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  bash /root/.dlp-smoke/solutions/step3.sh\nĐồng hồ đang chạy. Bấm Ctrl+C để dừng.\n00:32:07\n00:32:08\n00:32:09\n\nNhận Ctrl+C (tín hiệu SIGINT). Đồng hồ dừng.\n  dlp   ~                                                                                                                                                                       3.062s  00:32:10\n❯"
+        }
+      ],
+      "post": {
+        "expect": "pass",
+        "exitCode": 0,
+        "passed": true,
+        "durationMs": 1532,
+        "podMs": 393,
+        "slow": false,
+        "criteria": [
+          {
+            "ok": true,
+            "label": "dong-ho đã nhận Ctrl+C lúc 2026-10-03 00:32:10"
+          },
+          {
+            "ok": true,
+            "label": "Không còn dong-ho nào đang chạy"
+          }
+        ],
+        "notes": "",
+        "infraError": null,
+        "ok": true
+      },
+      "detailed": true
+    },
+    {
+      "key": "step4",
+      "title": "Tệp đầu tiên và nút Kiểm tra",
+      "setup": [],
+      "pre": {
+        "expect": "fail",
+        "exitCode": 1,
+        "passed": false,
+        "durationMs": 1175,
+        "podMs": 36,
+        "slow": false,
+        "criteria": [
+          {
+            "ok": false,
+            "label": "Chưa có tệp /root/ghi-chu/ngay-dau.txt (chạy mkdir -p ~/ghi-chu rồi lệnh echo của bước này)"
+          }
+        ],
+        "notes": "",
+        "infraError": null,
+        "ok": true
+      },
+      "actions": [
+        {
+          "kind": "exec",
+          "code": "mkdir -p ~/ghi-chu",
+          "rc": 0,
+          "cwd": "/root",
+          "durationMs": 1169,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  mkdir -p ~/ghi-chu\n  dlp   ~                                                                                                                                                                                00:32:14\n❯"
+        },
+        {
+          "kind": "exec",
+          "code": "echo \"xin chào từ $(hostname)\" > ~/ghi-chu/ngay-dau.txt",
+          "rc": 0,
+          "cwd": "/root",
+          "durationMs": 877,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  echo \"xin chào từ $(hostname)\" > ~/ghi-chu/ngay-dau.txt\n  dlp   ~                                                                                                                                                                                00:32:15\n❯"
+        },
+        {
+          "kind": "exec",
+          "code": "cat ~/ghi-chu/ngay-dau.txt",
+          "rc": 0,
+          "cwd": "/root",
+          "durationMs": 1731,
+          "timedOut": false,
+          "shellErrors": [],
+          "output": "❯  cat ~/ghi-chu/ngay-dau.txt\n───────┬────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n       │ File: /root/ghi-chu/ngay-dau.txt\n───────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n   1   │ xin chào từ smoke-lesson-dlp-sandbox-basics-ae3a29\n───────┴────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n  dlp   ~                                                                                                                                                                        883ms  00:32:16\n❯"
+        }
+      ],
+      "post": {
+        "expect": "pass",
+        "exitCode": 0,
+        "passed": true,
+        "durationMs": 2900,
+        "podMs": 1761,
+        "slow": false,
+        "criteria": [
+          {
+            "ok": true,
+            "label": "Có tệp /root/ghi-chu/ngay-dau.txt"
+          },
+          {
+            "ok": true,
+            "label": "Tệp có đúng một dòng"
+          },
+          {
+            "ok": true,
+            "label": "Dòng đó là \"xin chào từ smoke-lesson-dlp-sandbox-basics-ae3a29\""
+          }
+        ],
+        "notes": "",
+        "infraError": null,
+        "ok": true
+      },
+      "detailed": true
+    },
+    {
+      "key": "finish",
+      "title": "Kết thúc",
+      "setup": [],
+      "pre": null,
+      "actions": [],
+      "post": null,
+      "detailed": true
+    }
+  ],
+  "final": []
+}
