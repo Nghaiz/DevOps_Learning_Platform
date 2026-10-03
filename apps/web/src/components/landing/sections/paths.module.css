@@ -1,0 +1,171 @@
+.section {
+  border-top: 1px solid var(--l-rule);
+  background:
+    linear-gradient(var(--l-rule) 1px, transparent 1px) 0 0 / 100% 64px,
+    var(--l-bg);
+}
+
+.stage {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: clamp(32px, 4vw, 56px);
+  padding-block: clamp(96px, 12vw, 160px);
+}
+
+.header {
+  max-width: var(--l-max);
+}
+
+.gate {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 18px 0 0;
+  font-family: var(--l-mono);
+  font-size: 0.76rem;
+  color: var(--l-muted);
+}
+
+.viewport {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: thin;
+}
+
+.message {
+  margin: 0;
+  color: var(--l-muted);
+}
+
+.track {
+  display: flex;
+  gap: 18px;
+  width: max-content;
+  margin: 0;
+  padding: 4px var(--l-pad) 24px;
+  list-style: none;
+}
+
+.card {
+  --line: var(--l-red);
+  /* Màu tuyến khi làm CHỮ: pha sáng để đạt 4.5:1 trên nền tối (docker, k8s gốc chỉ ~3:1). */
+  --line-ink: color-mix(in oklab, var(--line) 62%, var(--l-ink));
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: min(440px, 82vw);
+  padding: 22px 24px 26px;
+  border-top: 3px solid var(--line);
+  background: var(--l-bg-2);
+  box-shadow: inset 0 0 0 1px var(--l-rule);
+  scroll-snap-align: start;
+  transition: background-color 400ms var(--l-ease);
+}
+
+.card:hover {
+  background: color-mix(in oklab, var(--line) 10%, var(--l-bg-2));
+}
+
+.map {
+  width: 100%;
+  height: auto;
+  margin-bottom: 18px;
+  overflow: visible;
+}
+
+.ghost {
+  fill: none;
+  stroke: var(--l-rule-strong);
+  stroke-width: 1;
+  stroke-dasharray: 3 5;
+}
+
+.route {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 6;
+  stroke-linejoin: miter;
+  stroke-linecap: square;
+}
+
+.stop {
+  fill: var(--l-bg);
+  stroke: var(--l-ink);
+  stroke-width: 3;
+}
+
+.train {
+  fill: var(--l-star);
+  opacity: 0;
+}
+
+.code {
+  display: flex;
+  justify-content: space-between;
+  margin: 0 0 10px;
+  font-family: var(--l-mono);
+  font-size: 0.74rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--line-ink);
+}
+
+.code span:last-child {
+  color: var(--l-muted);
+}
+
+.title {
+  margin: 0;
+  font-family: var(--l-display);
+  font-size: clamp(1.5rem, 2vw, 1.9rem);
+  font-weight: 900;
+  font-stretch: 112%;
+  font-variation-settings: 'wdth' 112;
+  line-height: 1.08;
+}
+
+.description {
+  margin: 12px 0 0;
+  color: var(--l-muted);
+  line-height: 1.6;
+}
+
+.link {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: auto;
+  padding-top: 22px;
+  font-weight: 700;
+  color: var(--l-ink);
+  text-decoration: none;
+}
+
+.link::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+
+.card:focus-within {
+  outline: 2px solid var(--l-star);
+  outline-offset: 2px;
+}
+
+.link:focus-visible {
+  outline: none;
+}
+
+/* Desktop + full: khu ghim, dải thẻ trôi ngang theo cuộn dọc. */
+@media (min-width: 900px) {
+  :global([data-motion='full']) .stage {
+    min-height: 100svh;
+  }
+
+  :global([data-motion='full']) .viewport {
+    overflow: visible;
+    scroll-snap-type: none;
+  }
+}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { useState, type CSSProperties, type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Box, Menu } from 'lucide-react';
@@ -160,6 +160,12 @@ export function AppShell({
   const immersive = isImmersiveRoute(pathname);
   const auth = ['/login', '/register', '/forgot-password', '/reset-password'].includes(pathname);
   /*
+    Landing `/` tự vẽ thanh trên, chân trang và cảnh 3D toàn màn hình, nên vỏ chỉ giữ provider
+    và đúng MỘT `<main>` (hợp đồng landmark). Hợp đồng đã chốt với phiên làm lại vỏ app: vỏ mới
+    cũng để trống chrome trên `/`.
+  */
+  const landing = pathname === '/';
+  /*
     Tính trên TOÀN BỘ `PRIMARY_NAV`, kể cả mục người xem này không thấy: đây là
     nhãn của trang đang mở, không phải một mục đang sáng. Việc đánh dấu
     `is-active` thì chạy trên tập đã lọc vai trò ở `Navigation`, nên một mục bị
@@ -175,12 +181,13 @@ export function AppShell({
             immersive && 'practice-immersive',
             auth && 'practice-auth',
           )}
+          style={landing ? ({ '--workspace-sidebar': '0px' } as CSSProperties) : undefined}
           data-area={AREA_BY_GROUP[active?.group ?? 'learn']}
         >
           <a href="#noi-dung" className="practice-skip">
             {t('shell.skip.label')}
           </a>
-          {!immersive && (
+          {!immersive && !landing && (
             <>
               {!auth && (
                 <aside className="practice-sidebar" aria-label={t('shell.sidebar.aria')}>
@@ -248,7 +255,7 @@ export function AppShell({
             </>
           )}
           <main id="noi-dung" tabIndex={-1} className="practice-main">
-            {viewer && !immersive && <CapacityFullBanner />}
+            {viewer && !immersive && !landing && <CapacityFullBanner />}
             {children}
           </main>
         </div>
