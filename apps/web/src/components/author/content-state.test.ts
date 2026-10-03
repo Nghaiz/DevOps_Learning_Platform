@@ -103,7 +103,7 @@ describe('describeItem — nhãn nói đúng thứ ta biết', () => {
     expect(text).not.toContain('0 bước');
     // Nhánh playground không được mang `n` sang bản đồ: một tham số thừa ở đây
     // là một con số chờ ai đó quyết định hiện nó ra.
-    expect(ref.params).toEqual({ kind: 'Playground' });
+    expect(ref.params).toEqual({ kind: 'Sân chơi' });
   });
 
   it('lab đếm task, lesson đếm bước', () => {

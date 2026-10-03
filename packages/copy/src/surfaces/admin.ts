@@ -272,7 +272,7 @@ export const admin = {
 
   'admin.content-kind.lesson': 'Bài học',
   'admin.content-kind.lab': 'Lab',
-  'admin.content-kind.playground': 'Playground',
+  'admin.content-kind.playground': 'Sân chơi',
 
   'admin.content-state.draft': 'Nháp',
   'admin.content-state.publishing': 'Đang xuất bản',

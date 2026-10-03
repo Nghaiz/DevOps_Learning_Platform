@@ -59,7 +59,7 @@ export const author = {
    */
   'author.kind.lesson': 'Bài học',
   'author.kind.lab': 'Lab',
-  'author.kind.playground': 'Playground',
+  'author.kind.playground': 'Sân chơi',
 
   // ── Trạng thái của một bài ────────────────────────────────────────────────
   'author.state.draft': 'Nháp',
@@ -135,7 +135,7 @@ export const author = {
   'author.new.identity-heading': 'Định danh, không sửa lại được',
   'author.new.kind.label': 'Loại nội dung',
   'author.new.kind.hint':
-    'Bài học dẫn từng bước · Lab giao việc rồi chấm · Playground là sandbox trống. Không đổi được sau khi tạo.',
+    'Bài học dẫn từng bước · Lab giao việc rồi chấm · Sân chơi là sandbox trống. Không đổi được sau khi tạo.',
   'author.new.id.label': 'Id',
   'author.new.id.placeholder': 'dlp-chan-doan-cpu',
   'author.new.id.hint':
@@ -596,7 +596,7 @@ export const author = {
     'Môi trường mỗi người học nhận khi mở bài. Chọn thừa thì ai mở bài cũng phải chờ dựng phần thừa đó.',
   'author.draft-form-view-noi-dung': 'Nội dung',
   'author.draft-form-view-playground-la-mot-sandbox-trong-khong-co-buoc-khong-co-script-cham-nguoi-ho':
-    'Playground là một sandbox trống: không có bước, không có script chấm. Người học nhận đúng môi trường và thời hạn khai ở mục Sandbox.',
+    'Sân chơi là một sandbox trống: không có bước, không có script chấm. Người học nhận đúng môi trường và thời hạn khai ở mục Sandbox.',
   'author.draft-form-view-mo-dau': 'Mở đầu',
   'author.draft-form-view-mo-dau-ghi-chu': 'Phần đọc trước bước đầu tiên. Không bắt buộc.',
   'author.draft-form-view-bai-co-phan-mo-dau': 'Bài có phần mở đầu',
@@ -710,7 +710,7 @@ export const author = {
   'author.phase-fields-dat-khi-exit-code-0-bo-trong-nghia-la-phan-nay-khong-cham':
     'Đạt khi exit code = 0. Bỏ trống nghĩa là phần này không chấm.',
   'author.preview-panel-playground-khong-co-noi-dung-de-xem-truoc':
-    'Playground không có nội dung để xem trước',
+    'Sân chơi không có nội dung để xem trước',
   'author.preview-panel-nguoi-hoc-nhan-dung-mot-sandbox-trong-voi-tier-capability-va-thoi-han-da-kh':
     'Người học nhận đúng một sandbox trống với tier, capability và thời hạn đã khai ở tab Soạn. Không có bước nào, không có script chấm nào.',
   'author.preview-panel-chua-co-gi-de-xem-truoc': 'Chưa có gì để xem trước',
