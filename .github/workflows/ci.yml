@@ -1120,6 +1120,44 @@ jobs:
           [ "$got" = "_kubectl _kubectl k=kubectl" ] \
             || { echo "::error::completion/alias kubectl trong zsh sai (nhận: '$got')"; exit 1; }
 
+      # Luồng bài học GÕ `intro/foreground.sh` vào zsh của người học qua tmux.
+      # Không có `interactivecomments` + `nobanghist` (skel/.zshrc) thì mỗi dòng
+      # chú thích thành `command not found: #` và shebang thành `event not
+      # found: /bin/bash`. Đo bằng ĐÚNG đường thật — `tmux send-keys` vào zsh
+      # mặc định của tmux — chứ không `zsh -c` (không tương tác, không đọc
+      # .zshrc, không có history expansion ⇒ xanh cả khi image sai).
+      # Đã thử đỏ trên image trước bản này: cả hai thông báo lỗi hiện ra.
+      # Mốc sẵn sàng là một lệnh echo có PHÉP TÍNH (`RDY-$((2*3))` → `RDY-6`):
+      # chuỗi `RDY-6` chỉ xuất hiện khi zsh đã CHẠY lệnh, không phải khi tmux
+      # mới vọng lại phím gõ — gửi phím trước khi zsh khởi tạo xong là rơi vào
+      # khoảng trống (README, "send-keys cần zsh khởi tạo xong").
+      - name: 'zsh tương tác: gõ chú thích + shebang KHÔNG ra lỗi (foreground.sh)'
+        run: |
+          set -euo pipefail
+          cid=$(docker run -d -t dlp-sandbox-base:pr)
+          trap 'docker rm -f "$cid" >/dev/null 2>&1 || true' EXIT
+          docker exec "$cid" tmux new-session -d -s t -x 120 -y 30
+          ready=0
+          for i in $(seq 1 30); do
+            docker exec "$cid" tmux send-keys -t t 'echo RDY-$((2*3))' Enter
+            sleep 1
+            if docker exec "$cid" tmux capture-pane -p -t t | grep -q 'RDY-6'; then ready=1; break; fi
+          done
+          [ "$ready" = 1 ] || { echo "::error::zsh trong tmux không chạy lệnh sau 30s — phép đo không có mốc"; exit 1; }
+          docker exec "$cid" tmux send-keys -t t '# chu thich nhu trong foreground.sh' Enter
+          docker exec "$cid" tmux send-keys -t t '#!/bin/bash' Enter
+          docker exec "$cid" tmux send-keys -t t 'echo DONE-$((1+1))' Enter
+          for i in $(seq 1 10); do
+            out=$(docker exec "$cid" tmux capture-pane -p -t t -S -)
+            grep -q 'DONE-2' <<<"$out" && break
+            sleep 1
+          done
+          echo "$out" | grep -aE 'not found|DONE-2' || true
+          grep -q 'DONE-2' <<<"$out" || { echo "::error::lệnh sau chú thích/shebang không chạy"; exit 1; }
+          if grep -qE 'command not found: #|event not found' <<<"$out"; then
+            echo "::error::zsh tương tác báo lỗi khi gõ chú thích/shebang — thiếu setopt interactivecomments/nobanghist"; exit 1
+          fi
+
       # ─────────────────────────────────────────── IDE (D6, labs rebuild)
       #
       # Ba khẳng định, cả ba đỏ được:
@@ -1363,6 +1401,31 @@ jobs:
           docker rm -f "$cid" >/dev/null
           [ "$state" = "running" ] \
             || { echo "::error::entrypoint không CMD → state=$state (muốn running). PID 1 thoát = pod Succeeded = warm-pool đếm một xác."; exit 1; }
+
+      # Cổng đi kèm ba dòng handlebars trong .trivyignore (xem lý do ở đó). Một
+      # .trivyignore không giới hạn được theo đường dẫn, nên ba ID ấy che MỌI
+      # handlebars trong image. Cổng này giữ cho điều đó vô hại, theo CẢ HAI
+      # chiều:
+      #  · có thêm một package handlebars THẬT (bất kỳ đâu) ⇒ ĐỎ: ba CVE có thể
+      #    đang che một lỗ thật.
+      #  · extension `vscode.handlebars` biến mất (nâng digest Theia) ⇒ ĐỎ: ba
+      #    dòng ignore thành rác không ai rà lại — xoá chúng.
+      # Khẳng định theo DANH TÍNH (đường dẫn), không theo số đếm.
+      - name: 'Trivy ignore: handlebars chỉ là extension ngữ pháp của VS Code'
+        run: |
+          set -euo pipefail
+          out=$(docker run --rm --entrypoint /bin/bash dlp-sandbox-base:pr -c '
+            grep -rlE --include=package.json "\"name\": *\"handlebars\"" / 2>/dev/null | sort
+            echo "---"
+            find /opt/theia/plugins/vscode.handlebars -type f \( -name "*.js" -o -name "*.mjs" -o -name "*.cjs" -o -name "*.node" \) 2>/dev/null | wc -l
+          ')
+          echo "$out"
+          found=$(sed '/^---$/,$d' <<<"$out")
+          code=$(sed -n '/^---$/{n;p}' <<<"$out")
+          want=/opt/theia/plugins/vscode.handlebars/extension/package.json
+          [ -n "$found" ] || { echo "::error::không còn package handlebars nào — XOÁ ba dòng CVE handlebars khỏi .trivyignore"; exit 1; }
+          [ "$found" = "$want" ] || { echo "::error::có package handlebars KHÁC ngoài extension ngữ pháp — ba dòng ignore đang che nó. Danh sách ở trên."; exit 1; }
+          [ "$code" = "0" ] || { echo "::error::extension vscode.handlebars nay có mã JS ($code file) — lý do ignore không còn đúng"; exit 1; }
 
       # ⛔ `--exit-code 1` trả 0 KHÔNG có nghĩa là "0 CRITICAL". Trivy FATAL khi
       # không tải được DB lỗ hổng (ghcr rate-limit là ca hay gặp), và khi đó nó

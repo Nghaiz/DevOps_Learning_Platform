@@ -10,6 +10,23 @@ HISTSIZE=10000
 SAVEHIST=10000
 setopt SHARE_HISTORY HIST_IGNORE_DUPS HIST_IGNORE_SPACE HIST_REDUCE_BLANKS
 
+# ── Dán/gõ script vào terminal phải chạy như script (labs rebuild 2026-10-03) ─
+# Luồng bài học GÕ `intro/foreground.sh` vào chính zsh này qua tmux, từng dòng
+# như người gõ. zsh mặc định khác bash ở hai chỗ, và cả hai đều nổ ở ngay dòng
+# đầu của mọi script (đo trên image trước bản này, cả qua `tmux send-keys`):
+#   · `#` KHÔNG phải chú thích ở shell tương tác ⇒ mỗi dòng chú thích thành
+#     `zsh: command not found: #`.
+#   · `!` là history expansion ⇒ dòng shebang `#!/bin/bash` thành
+#     `zsh: event not found: /bin/bash`.
+# Người học thấy một tràng lỗi đỏ trước cả khi bài bắt đầu, và người sinh viên
+# copy một khối có chú thích từ tài liệu cũng gặp đúng tràng đó.
+#
+# Cái giá của `nobanghist`: mất `!!` / `!$` / `sudo !!`. Chấp nhận — mũi tên
+# lên làm được cùng việc, còn một shebang nổ là lỗi ở MỌI script được gõ vào.
+# Ai cần lại thì `setopt banghist` trong dotfiles riêng (allowlist cho .zshrc).
+setopt INTERACTIVE_COMMENTS
+setopt NO_BANG_HIST
+
 # ── Completion ───────────────────────────────────────────────────────────────
 # `-i` (bỏ qua file insecure) chứ KHÔNG phải `-u` (dùng bừa file insecure):
 # E8 sắp chép dotfiles do sinh viên cung cấp vào $HOME, và `-u` chính là cờ khiến
