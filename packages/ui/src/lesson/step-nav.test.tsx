@@ -57,19 +57,19 @@ describe('StepNav: tuyến dọc', () => {
 
   it('Trước khoá ở bước đầu, Tiếp thì không', () => {
     renderNav('intro');
-    expect((screen.getByRole('button', { name: 'Trước', exact: true }) as HTMLButtonElement).disabled).toBe(true);
-    expect((screen.getByRole('button', { name: 'Tiếp', exact: true }) as HTMLButtonElement).disabled).toBe(false);
+    expect((screen.getByRole('button', { name: 'Trước' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: 'Tiếp' }) as HTMLButtonElement).disabled).toBe(false);
   });
 
   it('Tiếp ở bước cuối bị khoá', () => {
     renderNav('finish');
-    expect((screen.getByRole('button', { name: 'Tiếp', exact: true }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: 'Tiếp' }) as HTMLButtonElement).disabled).toBe(true);
   });
 
   it('Trước/Tiếp đi đúng sang bước kề', async () => {
     const onSelect = renderNav('step0');
-    await userEvent.click(screen.getByRole('button', { name: 'Tiếp', exact: true }));
-    await userEvent.click(screen.getByRole('button', { name: 'Trước', exact: true }));
+    await userEvent.click(screen.getByRole('button', { name: 'Tiếp' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Trước' }));
     expect(onSelect.mock.calls).toEqual([['step1'], ['intro']]);
   });
 

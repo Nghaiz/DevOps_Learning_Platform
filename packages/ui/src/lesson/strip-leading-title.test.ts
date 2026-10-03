@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ContentBlock } from '@devops-platform/scenario/content-blocks';
-import { stripLeadingTitle } from './content-view';
+import { stripLeadingTitle } from './content-view.tsx';
 
 const md = (markdown: string): ContentBlock => ({ kind: 'markdown', markdown }) as ContentBlock;
 
