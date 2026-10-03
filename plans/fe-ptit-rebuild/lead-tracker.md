@@ -1,44 +1,30 @@
 # Lead tracker (session 00), feat/fe-ptit-rebuild
 
-Updated 2026-10-03 06:40. Source of truth for what the lead still owes after the lanes.
+Updated 2026-10-03. Source of truth for what the lead still owes.
 
 ## Lanes
 | Lane | Area | State |
 |---|---|---|
-| ui | packages/ui primitives | done (a20c865b…7d98772f) |
-| L1 | catalog: lessons/labs/playgrounds lists, paths, quiz | done (fa8168cb) |
-| L2 | workspace: lesson/lab/playground players, terminal/IDE | running |
-| L3 | games: hub, k8s picker, git, cicd chrome | running |
-| L4 | judge: problems, exams | done (09d09533) |
-| L5 | studio: author lists/editors, git builder | done except problem-editor sub-lane (running) |
-| L6 | admin | done (aa62c6c3) |
-| L7 | account: auth, /me, /settings | running |
+| ui, L1..L7 | all page lanes | done |
+| L3b | games copy migration (CI/CD HUD, scenes) | resumed after turn cap (commits 2fd46c76, 176c3346) |
+| F1 | review-1 fixes (reports/review-1.md) | resumed after turn cap (90a72394, 9ab4c465; error-state + admin-page in flight) |
+| S1 | server: problems.list gameId (39c9a309), examSitting problems[], submit exam context, me.activeSessions content, me.listProgress lessonTitle | resumed after turn cap |
+| T1 | dead CSS + 39 unread tokens (practice.css, globals.css, tokens contract, docs/design-system.md) | running |
 
 ## Peer sessions
-- 5a: landing `/` (owns app/page.tsx, components/marketing → components/landing, e2e/landing-*, home.* copy, Dockerfile public/ COPY). Merges independently.
-- 0c: content, packages/{scenario,terminal,shared-types}, server/**, services, images. Session ENDED ~06:38. Cherry-picked: DTO change (109025ac..690a4022) and terminal fixes (…6ae75c59).
-  Promised but not landed: problems.list `gameId?`, examSitting.get `problems[{code,title,gameId,solved}]`, server-inferred exam context on problems.submit. If 0c never returns: implement in server/** ourselves before merge.
+- 5a: landing `/` (app/page.tsx, components/marketing -> landing, e2e/landing-*, home.* copy). Merges independently; re-adds landing-visual.spec.ts to e2e:ci. Shared GSAP/CSS traps (none apply: no element mixes framer-motion and CSS keyframes, checked).
+- 0c: session ended. Its 3 promised server items are S1's job now.
 
-## Lead TODO (integration)
-- [ ] Move components/admin/confirm-dialog.tsx → components/kit (studio + admin import it); update imports + copy-gate anchors.
-- [ ] Maybe move components/admin/with-nums.tsx → kit if a second lane needs it.
-- [ ] kit `Split`: sticky offset prop (studio mode bar overlaps at lg:top-24).
-- [ ] kit `RouteLine`: render slot for station rows (paths/[id] composes its own today).
-- [ ] L1 pages import readCatalogCounts from components/marketing/catalog-stats.server.ts, which 5a deletes → move into components/catalog before merge.
-- [ ] e2e/keyboard.spec.ts PRIMARY_NAV labels ('Playground'→'Sân chơi', 'Quiz'→'Trắc nghiệm'), skip-link and nav names.
-- [ ] e2e:ci: add games-hub.spec.ts (L3) once green.
-- [ ] Dead copy keys after all lanes: common.action.next/open (mine), session.* (L2), author.problem.* (L5 sub-lane).
-- [ ] Delete apps/web/src/app/practice.css once nothing uses practice-* classes (grep), and its import in layout.tsx.
-- [ ] Delete components/practice/games-hub.tsx if L3 left it.
-- [ ] arena look: verify k8s arena screenshots vs main (Badge/Tabs/Switch/Button/Input/Dialog class changes leak; tokens frozen).
-- [ ] Full gates: turbo lint/typecheck/build/test (--concurrency 4 --continue), tokens:check, bundle:check, env-check, e2e:ci locally, gitleaks.
-- [ ] Screenshots of every route 1440/390 × light/dark, fix visual defects.
-- [ ] PR + CI + merge; deploy web (+migrator) image to the VM cluster, smoke on https://dlp.192.168.94.130.sslip.io:30443.
-- [ ] Tell user: stray empty folder C:\c\Users\… left by a mis-resolved screenshot path (blocked from deleting it myself).
-- [x] ConfirmDialog → kit (41ae9306); Split sticky var (c08e7186); readCatalogCounts → catalog (2608cd83); keyboard spec (2608cd83); no-commerce fix (785c2340); k8s arena verified identical to main (screenshots).
-- [ ] L3 done (e900f329). L3b (games copy migration, ~260 CI/CD strings) running.
-- [ ] games-hub.spec.ts: run green twice locally, then add to e2e:ci.
-- [ ] With 5a: `/` still renders old GamesHub on this branch; asked 5a for ETA / permission for interim redirect. Delete components/practice/games-hub.tsx + catalog.empty.games.title/body + catalog.games.soon together.
-- [ ] e2e/games.spec.ts + games-git.spec.ts were already broken before (not in e2e:ci): fix or retire with reason.
-- [ ] EmptyState default glyph is the round arc motif; consider a square station glyph.
-- [ ] 0c's 3 server items not on feat/labs-rebuild: implement ourselves if 0c doesn't return.
+## Lead TODO
+- [ ] After S1: /problems game switch sends filter.gameId; exam sitting reads problems[] (solved state); /me resume links + lesson titles.
+- [ ] After F1: move components/admin/with-nums.tsx into kit, repoint me-client, learning-now, admin.
+- [ ] After all lanes: delete dead copy keys (dead-key test lists them: common.action.next/open, author.issues.row, ...).
+- [ ] games-hub.spec.ts green twice locally (already in e2e:ci). e2e/games.spec.ts + games-git.spec.ts were broken before: fix or retire with reason.
+- [ ] docs/: design-system.md and any FE docs describing the old sidebar/practice shell need the new system (docs pass at the end).
+- [ ] Full gates after the final commit: turbo lint/typecheck/build/test (--concurrency 4 --continue), tokens:check, bundle:check, env-check, check-no-commerce, gitleaks, e2e:ci locally (E2E_START_SERVER=1, localhost origin).
+- [ ] Screenshots of every route 1440/390 x light/dark; fix defects.
+- [ ] PR + CI + merge; deploy web + migrator images to the VM, helm upgrade with all per-component tags, smoke https://dlp.192.168.94.130.sslip.io:30443.
+- [ ] Tell user: stray empty folder C:/c/Users/... from a mis-resolved screenshot path (deleting it was blocked).
+
+## Done (lead)
+ConfirmDialog -> kit (41ae9306) · Split sticky var (c08e7186) · readCatalogCounts -> catalog (2608cd83) · keyboard spec (2608cd83) · no-commerce fix (785c2340) · k8s arena identical to main (screenshots) · lesson title de-dup + plain code label (b9e407ff) · EmptyState square station glyph (a908dfe2) · interim `/` redirect to /games (5a approved).
