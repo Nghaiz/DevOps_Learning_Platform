@@ -8,6 +8,11 @@ Updated 2026-10-03 ~08:20. Source of truth for what the lead still owes.
 | ui, L1..L7, L3b, F1 (review-1, 29/29), S1+S2 (server), T1 (dead CSS/tokens), E1 (@flow specs) | done |
 | G: game stats/achievements + save warning UI (phase-14-exec §8.3/§8.6) | running in worktree D:/NCKH/dlp-fe-g, branch feat/fe-game-stats; lands as a follow-up PR |
 
+## Demo cut (2026-10-03, owner: stable demo first, rest to pending.md)
+- PR #163 (this branch) open; merged origin/feat/labs-rebuild up to 22fba29 + identical lint fix (2c047643).
+- Order: #161 squash-merges -> merge origin/main into #163 -> CI (strict: up to date + ci-ok) -> auto-merge squash -> 0c deploys main once (migrator hook before web).
+- Pending work moved to plans/fe-ptit-rebuild/pending.md. G (stats) and docs lanes stopped.
+
 ## Agreed with peers (2026-10-03)
 - 0c: PR #161 (feat/labs-rebuild: per-session cookie, Session.hard_cap_at, Theia sandbox image labs-b2, two rewritten lessons) merges to main FIRST. Then we merge main into this branch, open our PR, CI green, merge. 5a does the same for the landing.
 - ONE deploy from main after all three merge (CI images sha-<main>, migrator before web for migration 0018). 0c runs it. No separate deploys.
