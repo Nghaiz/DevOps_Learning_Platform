@@ -83,3 +83,23 @@ xanh, một cổng đỏ rồi chạy lại), Production (địa cầu điểm +
 - Landing luôn tối, bất kể theme sáng/tối của app.
 - Font Archivo + JetBrains Mono nạp tạm trong landing tới khi layout gốc của 00 nạp chung.
 - Dockerfile thêm `COPY public` (cụm đang 404 logo + favicon; 0c đồng ý).
+
+## Nợ còn lại (ghi 2026-10-03, khi chủ dự án chuyển ưu tiên sang bản ổn định để demo)
+
+Landing đã chạy đủ và qua cổng CI; các mục dưới đây KHÔNG chặn demo, để làm lượt sau.
+
+1. **Khung giật lượt cuộn nguội (AC 7, chỉ đo được trên GPU thật).** Shader đã biên dịch trước
+   cả hai biến thể (render target của composer lẫn màn hình): số program giữ 35 trước và sau khi
+   cuộn hết trang. Phần còn lại là GPU tô lớp DOM lần đầu: tác vụ `RendererRasterWorker` 30–60 ms
+   ở đầu hành trình (y≈1550), đầu terminal (y≈9100, bảng lật Solari đổi glyph) và khu trò chơi
+   (y≈16500). Một lượt `e2e:landing3d` đo được p95 8–17 ms nhưng max 46–71 ms, dao động theo tải
+   máy. Hướng xử lý: hạn chế số lớp được tô lại khi bảng lật chạy, thử `content-visibility` cho
+   các khu dưới màn hình đầu, đo lại bằng `trace.mjs` (cách đo ghi trong báo cáo PR).
+2. **Trục `wdth` theo cuộn đã gỡ khỏi tiêu đề hero** vì tốn layout ~5 ms + tô lại cả tiêu đề mỗi
+   khung. Muốn đưa lại thì lượng tử hoá (bước 4 đơn vị) hoặc thay bằng `scaleX` trên compositor.
+3. **Lenis `onNativeScroll` ép layout** khi cuộn bằng thanh cuộn/bàn phím (đọc `scrollTop` lúc
+   DOM bẩn), ~5 ms một khung. Không xảy ra với cuộn bánh xe do Lenis tự lái.
+4. **Đầu khu lộ trình (y≈15170)** có một nhịp GSAP 27 ms (style + layout 18 ms) lúc ghim ngang
+   bắt đầu.
+5. **`fonts.ts` là tạm**: xoá khi layout gốc của 00 nạp chung Archivo + JetBrains Mono.
+
