@@ -20,7 +20,7 @@ vi.mock('@connectrpc/connect-node', () => ({
   },
 }));
 vi.mock('@connectrpc/connect', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@connectrpc/connect')>();
+  const actual = await importOriginal<Record<string, unknown>>();
   return { ...actual, createClient: () => ({}) };
 });
 
