@@ -185,7 +185,7 @@ phía BFF là `apps/web/src/server/lessons/validate.ts`.
 | Bản phác | Thực tế | Vì sao |
 |---|---|---|
 | `stdout` | **`output`** | One-shot đặt `Stderr: true` (khác đường terminal), và cả hai chiều gộp vào một buffer — thứ người học sẽ thấy nếu tự gõ lệnh. Gọi nó là `stdout` là nói dối về nội dung. |
-| "auth bằng chính cookie `dlp_sandbox`" (đọc như *forward cookie của người dùng*) | **BFF tự mint token server-side** | Cookie mang `Path=/ws`, nên trình duyệt **không gửi nó tới `/api/trpc/*`** — BFF không có gì để forward. Đây không phải bất tiện: hệ quả là endpoint này **không phơi ra trình duyệt** chút nào. |
+| "auth bằng chính cookie `dlp_sandbox`" (đọc như *forward cookie của người dùng*) | **BFF tự mint token server-side** | Cookie mang `Path=/ws/session/<id>` (trước 2026-10-03 là `Path=/ws`), nên trình duyệt **không gửi nó tới `/api/trpc/*`** — BFF không có gì để forward. Đây không phải bất tiện: hệ quả là endpoint này **không phơi ra trình duyệt** chút nào. |
 | (không nói) | **`sh` đọc script từ STDIN, không từ argv** | `Command` của `PodExecOptions` nằm trong **query string** của URL apiserver. Một verify script vài KB phình URL tới ngưỡng bị từ chối, và triệu chứng ("bài này bấm Check thì lỗi, bài kia thì không") không trỏ về độ dài script. |
 
 ### 4.1 Chuỗi authz: a→h, **KHÔNG có i**
