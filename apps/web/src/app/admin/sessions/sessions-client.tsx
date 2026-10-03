@@ -10,7 +10,6 @@ import {
   Button,
   CursorPager,
   EmptyState,
-  ErrorState,
   StatusDot,
   Table,
   TableBody,
@@ -23,7 +22,13 @@ import {
 import type { AppRouter } from '../../../server/trpc/routers/app-router';
 import { api } from '../../../lib/trpc-react';
 import { describeTrpcError, trpcErrorCode } from '../../../lib/trpc';
-import { AdminNote, AdminPage, LedgerSkeleton } from '../../../components/admin/admin-page';
+import {
+  AdminNote,
+  AdminPage,
+  FirstPageButton,
+  LedgerError,
+  LedgerSkeleton,
+} from '../../../components/admin/admin-page';
 import { ConfirmDialog } from '../../../components/kit/confirm-dialog';
 import {
   describeExpiry,
@@ -76,15 +81,20 @@ export function AdminSessionsClient({ viewerId }: { readonly viewerId: string })
         {query.isPending ? (
           <LedgerSkeleton />
         ) : query.isError ? (
-          <SessionsError
-            reason={describeTrpcError(query.error)}
+          <LedgerError
+            failure={err('admin.error.sessions-list', { reason: describeTrpcError(query.error) })}
             onRetry={() => void query.refetch()}
             retrying={query.isFetching}
+            page={pageNumber(stack)}
+            onFirst={() => setStack(FIRST_PAGE)}
           />
         ) : query.data.items.length === 0 ? (
           <EmptyState
             title={t('admin.sessions.empty-title')}
             description={t('admin.sessions.empty-body')}
+            {...(pageNumber(stack) > 1
+              ? { action: <FirstPageButton page={pageNumber(stack)} onFirst={() => setStack(FIRST_PAGE)} /> }
+              : {})}
           />
         ) : (
           <div className="flex flex-col gap-4">
@@ -125,22 +135,6 @@ export function AdminSessionsClient({ viewerId }: { readonly viewerId: string })
         )}
       </div>
     </AdminPage>
-  );
-}
-
-/** Hai nửa của `ErrorEntry` vào hai khe của `ErrorState`. */
-function SessionsError({
-  reason,
-  onRetry,
-  retrying,
-}: {
-  readonly reason: string;
-  readonly onRetry: () => void;
-  readonly retrying: boolean;
-}): ReactElement {
-  const failure = err('admin.error.sessions-list', { reason });
-  return (
-    <ErrorState title={failure.what} message={failure.next} onRetry={onRetry} retrying={retrying} />
   );
 }
 

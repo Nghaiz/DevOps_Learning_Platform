@@ -9,7 +9,6 @@ import {
   Button,
   CursorPager,
   EmptyState,
-  ErrorState,
   Input,
   Label,
   Table,
@@ -25,7 +24,13 @@ import type { AppRouter } from '../../../server/trpc/routers/app-router';
 import { Split } from '../../../components/kit';
 import { api } from '../../../lib/trpc-react';
 import { describeTrpcError, trpcErrorCode } from '../../../lib/trpc';
-import { AdminNote, AdminPage, LedgerSkeleton } from '../../../components/admin/admin-page';
+import {
+  AdminNote,
+  AdminPage,
+  FirstPageButton,
+  LedgerError,
+  LedgerSkeleton,
+} from '../../../components/admin/admin-page';
 import {
   FIRST_PAGE,
   currentCursor,
@@ -196,13 +201,13 @@ function ClassesBody(props: {
   }
 
   if (props.error !== null) {
-    const failure = err('admin.error.classes-list', { reason: props.error });
     return (
-      <ErrorState
-        title={failure.what}
-        message={failure.next}
+      <LedgerError
+        failure={err('admin.error.classes-list', { reason: props.error })}
         onRetry={props.onRetry}
         retrying={props.fetching}
+        page={props.page}
+        onFirst={props.onFirst}
       />
     );
   }
@@ -210,7 +215,11 @@ function ClassesBody(props: {
   const items = props.items ?? [];
   if (items.length === 0) {
     return (
-      <EmptyState title={t('admin.classes.empty-title')} description={t('admin.classes.empty-body')} />
+      <EmptyState
+        title={t('admin.classes.empty-title')}
+        description={t('admin.classes.empty-body')}
+        {...(props.page > 1 ? { action: <FirstPageButton page={props.page} onFirst={props.onFirst} /> } : {})}
+      />
     );
   }
 

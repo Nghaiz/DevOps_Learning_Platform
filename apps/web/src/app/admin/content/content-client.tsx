@@ -183,7 +183,13 @@ function ContentError({
 }): ReactElement {
   const failure = err('admin.error.content-list', { reason });
   return (
-    <ErrorState title={failure.what} message={failure.next} onRetry={onRetry} retrying={retrying} />
+    <ErrorState
+      title={failure.what}
+      message={failure.next}
+      onRetry={onRetry}
+      retrying={retrying}
+      retryLabel={t('admin.reload')}
+    />
   );
 }
 

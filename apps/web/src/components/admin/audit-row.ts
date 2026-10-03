@@ -78,8 +78,15 @@ export function describeAuditTarget(targetType: string, targetId: string): strin
 
 export interface ActorView {
   readonly text: string;
-  /** Câu phụ giải thích vì sao chỉ có id, hiện dưới dạng chú thích cột. */
+  /** Câu phụ giải thích vì sao chỉ có id, hoặc vì sao không có id. */
   readonly note: string;
+  /**
+   * `true` khi dòng nhật ký không ghi id người thực hiện. Câu giải thích chung
+   * ("chỉ có id") đã nằm ở chú thích bảng; ca thiếu id thì câu riêng của nó phải
+   * hiện ngay trong ô, không nấp trong `title` (chuột mới thấy, bàn phím và màn
+   * hình cảm ứng không bao giờ thấy).
+   */
+  readonly missing: boolean;
 }
 
 /**
@@ -93,9 +100,10 @@ export function describeAuditActor(actorId: string): ActorView {
     return {
       text: t('admin.audit.actor-unknown'),
       note: t('admin.audit.actor-unknown-note'),
+      missing: true,
     };
   }
-  return { text: actorId, note: t('admin.audit.actor-note') };
+  return { text: actorId, note: t('admin.audit.actor-note'), missing: false };
 }
 
 /**

@@ -1,4 +1,4 @@
-import type { ReactElement } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { cn } from './cn.ts';
 import { Button } from './button.tsx';
@@ -15,6 +15,16 @@ export interface ErrorStateProps {
   readonly onRetry?: () => void;
   /** `true` = nút "Thử lại" đang chạy (Button.loading) — chặn bấm lại chồng lượt gọi. */
   readonly retrying?: boolean;
+  /**
+   * Nhãn nút thử lại. Mặc định "Thử lại"; nơi gọi có bộ chữ riêng truyền động
+   * từ của mình ("Tải lại") để cả màn nói một động từ cho cùng một việc.
+   */
+  readonly retryLabel?: string;
+  /**
+   * Nút phụ đặt cạnh nút thử lại: lối ra khi thử lại không đủ, ví dụ "Về đầu"
+   * cho một danh sách phân trang hỏng ở trang sau.
+   */
+  readonly actions?: ReactNode;
   readonly className?: string;
 }
 
@@ -30,7 +40,16 @@ export interface ErrorStateProps {
  * đã được cổng token đo sẵn, không cần mượn gì.
  */
 export function ErrorState(props: ErrorStateProps): ReactElement {
-  const { title = 'Không tải được dữ liệu', message, detail, onRetry, retrying = false, className } = props;
+  const {
+    title = 'Không tải được dữ liệu',
+    message,
+    detail,
+    onRetry,
+    retrying = false,
+    retryLabel = 'Thử lại',
+    actions,
+    className,
+  } = props;
   return (
     <div
       role="alert"
@@ -53,11 +72,14 @@ export function ErrorState(props: ErrorStateProps): ReactElement {
           <p className="font-mono text-xs break-all text-muted-foreground">{detail}</p>
         )}
       </div>
-      {onRetry !== undefined && (
-        <div className="col-start-2">
-          <Button variant="outline" size="sm" onClick={onRetry} loading={retrying}>
-            Thử lại
-          </Button>
+      {(onRetry !== undefined || actions !== undefined) && (
+        <div className="col-start-2 flex flex-wrap gap-2">
+          {onRetry !== undefined && (
+            <Button variant="outline" size="sm" onClick={onRetry} loading={retrying}>
+              {retryLabel}
+            </Button>
+          )}
+          {actions}
         </div>
       )}
     </div>

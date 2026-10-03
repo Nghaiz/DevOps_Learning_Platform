@@ -20,11 +20,16 @@ import {
   useToast,
 } from '@devops-platform/ui';
 import type { AppRouter } from '../../../../server/trpc/routers/app-router';
-import { PageContainer, Split } from '../../../../components/kit';
+import { Split } from '../../../../components/kit';
 import { api } from '../../../../lib/trpc-react';
 import { describeTrpcError } from '../../../../lib/trpc';
 import { formatDay, formatMoment } from '../../../../lib/format-moment';
-import { AdminDetailPage, AdminNote, LedgerSkeleton } from '../../../../components/admin/admin-page';
+import {
+  AdminDetailPage,
+  AdminNote,
+  DetailError,
+  LedgerSkeleton,
+} from '../../../../components/admin/admin-page';
 import { ConfirmDialog } from '../../../../components/kit/confirm-dialog';
 import { ExamFormSheet, useSheetServerError } from '../../../../components/admin/exam-form-sheet';
 import { ExamStateBadge } from '../../../../components/admin/exam-state-badge';
@@ -62,25 +67,29 @@ const CSV_REVOKE_DELAY_MS = 30_000;
 export function AdminExamDetailClient({ examId }: { readonly examId: string }): ReactElement {
   const exam = api.exams.get.useQuery({ examId });
 
-  if (exam.isPending) {
+  // Lúc đang tải và lúc lỗi vẫn dựng đủ khung trang (đường dẫn, `h1`): trang
+  // không có tiêu đề nào thì trình đọc màn hình không biết mình đang ở đâu, và
+  // đường dẫn là lối về danh sách khi kỳ thi không mở được.
+  if (exam.isPending || exam.isError) {
     return (
-      <PageContainer className="py-10">
-        <LedgerSkeleton rows={4} />
-      </PageContainer>
-    );
-  }
-
-  if (exam.isError) {
-    const failure = err('admin.error.exam-get', { reason: describeTrpcError(exam.error) });
-    return (
-      <PageContainer className="py-10">
-        <ErrorState
-          title={failure.what}
-          message={failure.next}
-          onRetry={() => void exam.refetch()}
-          retrying={exam.isFetching}
-        />
-      </PageContainer>
+      <AdminDetailPage
+        crumbs={[{ href: '/admin/exams', label: t('admin.exams.title') }]}
+        title={t('admin.exams.detail-title')}
+      >
+        <div className="pt-10">
+          {exam.isPending ? (
+            <LedgerSkeleton rows={4} />
+          ) : (
+            <DetailError
+              failure={err('admin.error.exam-get', { reason: describeTrpcError(exam.error) })}
+              onRetry={() => void exam.refetch()}
+              retrying={exam.isFetching}
+              backHref="/admin/exams"
+              backLabel={t('admin.exams.back-list')}
+            />
+          )}
+        </div>
+      </AdminDetailPage>
     );
   }
 
@@ -342,6 +351,7 @@ function ExamScoreboard({ examId }: { readonly examId: string }): ReactElement {
         message={failure.next}
         onRetry={() => void board.refetch()}
         retrying={board.isFetching}
+        retryLabel={t('admin.reload')}
       />
     );
   }

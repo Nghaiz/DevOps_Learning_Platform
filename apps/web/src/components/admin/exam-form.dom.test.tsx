@@ -50,7 +50,7 @@ function flushLikeABrowser(): () => void {
   return () => window.removeEventListener('click', listener);
 }
 
-type ActGlobal = typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean };
+type ActGlobal = typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean | undefined };
 
 function renderForm(initial: ExamFormValues = VALID): { readonly onSubmit: ReturnType<typeof vi.fn> } {
   const onSubmit = vi.fn();

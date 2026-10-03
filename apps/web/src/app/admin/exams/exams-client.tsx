@@ -9,7 +9,6 @@ import {
   Button,
   CursorPager,
   EmptyState,
-  ErrorState,
   Table,
   TableBody,
   TableCell,
@@ -21,7 +20,13 @@ import {
 import type { AppRouter } from '../../../server/trpc/routers/app-router';
 import { api } from '../../../lib/trpc-react';
 import { describeTrpcError } from '../../../lib/trpc';
-import { AdminNote, AdminPage, LedgerSkeleton } from '../../../components/admin/admin-page';
+import {
+  AdminNote,
+  AdminPage,
+  FirstPageButton,
+  LedgerError,
+  LedgerSkeleton,
+} from '../../../components/admin/admin-page';
 import { ExamFormSheet, useSheetServerError } from '../../../components/admin/exam-form-sheet';
 import {
   describeExamWindow,
@@ -160,13 +165,13 @@ function ExamsBody(props: {
     return <LedgerSkeleton />;
   }
   if (props.error !== null) {
-    const failure = err('admin.error.exams-list', { reason: props.error });
     return (
-      <ErrorState
-        title={failure.what}
-        message={failure.next}
+      <LedgerError
+        failure={err('admin.error.exams-list', { reason: props.error })}
         onRetry={props.onRetry}
         retrying={props.fetching}
+        page={props.page}
+        onFirst={props.onFirst}
       />
     );
   }
@@ -177,9 +182,13 @@ function ExamsBody(props: {
         title={t('admin.exams.empty-title')}
         description={t('admin.exams.empty-body')}
         action={
-          <Button onClick={props.onCreate} iconLeft={<Plus aria-hidden="true" />}>
-            {t('admin.exams.open-create')}
-          </Button>
+          props.page > 1 ? (
+            <FirstPageButton page={props.page} onFirst={props.onFirst} />
+          ) : (
+            <Button onClick={props.onCreate} iconLeft={<Plus aria-hidden="true" />}>
+              {t('admin.exams.open-create')}
+            </Button>
+          )
         }
       />
     );

@@ -1,6 +1,7 @@
 import type { ReactElement, ReactNode } from 'react';
-import { t } from '@devops-platform/copy';
-import { Skeleton } from '@devops-platform/ui';
+import { t, type ErrorEntry } from '@devops-platform/copy';
+import Link from 'next/link';
+import { Button, ErrorState, Skeleton } from '@devops-platform/ui';
 import { PageContainer, PosterHeader, ToolHeader } from '../kit';
 
 /**
@@ -89,5 +90,78 @@ export function AdminNote({ children }: { readonly children: ReactNode }): React
     <p role="status" className="font-mono text-xs text-muted-foreground">
       {children}
     </p>
+  );
+}
+
+/**
+ * Nút "Về đầu" cho trạng thái lỗi và trạng thái trống của một ledger phân trang.
+ *
+ * Ở trang 2 trở đi, lỗi hay trang trống THAY CHỖ cả bảng lẫn thanh phân trang,
+ * nên nút "Về đầu" của `CursorPager` biến mất cùng bảng và người dùng kẹt lại ở
+ * một trang không đọc được. Ở trang 1 thì không có gì để về: trả `null`.
+ */
+export function FirstPageButton(props: { readonly page: number; readonly onFirst: () => void }): ReactElement | null {
+  if (props.page <= 1) {
+    return null;
+  }
+  return (
+    <Button variant="outline" size="sm" onClick={props.onFirst}>
+      {t('admin.pager.first')}
+    </Button>
+  );
+}
+
+/**
+ * Lỗi tải một ledger của trang quản trị: hai nửa của `ErrorEntry` vào hai khe
+ * của `ErrorState`, nút "Tải lại", và "Về đầu" khi lỗi xảy ra ở trang sau.
+ */
+export function LedgerError(props: {
+  readonly failure: ErrorEntry;
+  readonly onRetry: () => void;
+  readonly retrying: boolean;
+  /** Trang đang xem và lối về trang đầu. Bỏ trống cho danh sách không phân trang. */
+  readonly page?: number;
+  readonly onFirst?: () => void;
+}): ReactElement {
+  const first =
+    props.page === undefined || props.onFirst === undefined ? null : (
+      <FirstPageButton page={props.page} onFirst={props.onFirst} />
+    );
+  return (
+    <ErrorState
+      title={props.failure.what}
+      message={props.failure.next}
+      onRetry={props.onRetry}
+      retrying={props.retrying}
+      retryLabel={t('admin.reload')}
+      {...(first === null ? {} : { actions: first })}
+    />
+  );
+}
+
+/**
+ * Lỗi mở một trang chi tiết (một lớp, một kỳ thi): "Tải lại" và lối về danh
+ * sách. Câu `next` của các lỗi này hứa cả hai việc, nên cả hai nút phải có mặt.
+ */
+export function DetailError(props: {
+  readonly failure: ErrorEntry;
+  readonly onRetry: () => void;
+  readonly retrying: boolean;
+  readonly backHref: string;
+  readonly backLabel: string;
+}): ReactElement {
+  return (
+    <ErrorState
+      title={props.failure.what}
+      message={props.failure.next}
+      onRetry={props.onRetry}
+      retrying={props.retrying}
+      retryLabel={t('admin.reload')}
+      actions={
+        <Button asChild variant="outline" size="sm">
+          <Link href={props.backHref}>{props.backLabel}</Link>
+        </Button>
+      }
+    />
   );
 }

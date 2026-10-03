@@ -12,6 +12,7 @@ import {
   Skeleton,
   Table,
   TableBody,
+  TableCaption,
   TableCell,
   TableHead,
   TableHeader,
@@ -26,6 +27,7 @@ import {
   describeAuditActor,
   describeAuditTarget,
 } from '../../components/admin/audit-row';
+import { AuditActor } from '../../components/admin/audit-actor';
 import {
   DEFAULT_PROFILE,
   LOW_CAPACITY_RATIO,
@@ -227,6 +229,7 @@ function RecentAudit(): ReactElement {
         message={failure.next}
         onRetry={() => void query.refetch()}
         retrying={query.isFetching}
+        retryLabel={t('admin.reload')}
       />
     );
   }
@@ -263,13 +266,14 @@ function RecentAudit(): ReactElement {
                 <TableCell className="font-mono text-xs">
                   {describeAuditTarget(row.targetType, row.targetId)}
                 </TableCell>
-                <TableCell className="font-mono text-xs" title={actor.note}>
-                  {actor.text}
+                <TableCell className="font-mono text-xs">
+                  <AuditActor actor={actor} />
                 </TableCell>
               </TableRow>
             );
           })}
         </TableBody>
+        <TableCaption>{t('admin.audit.caption')}</TableCaption>
       </Table>
       {footer}
     </div>

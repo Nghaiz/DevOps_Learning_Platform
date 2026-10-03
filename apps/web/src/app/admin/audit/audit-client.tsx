@@ -8,7 +8,6 @@ import {
   AlertTitle,
   CursorPager,
   EmptyState,
-  ErrorState,
   Table,
   TableBody,
   TableCaption,
@@ -19,13 +18,20 @@ import {
 } from '@devops-platform/ui';
 import { api } from '../../../lib/trpc-react';
 import { describeTrpcError } from '../../../lib/trpc';
-import { AdminNote, AdminPage, LedgerSkeleton } from '../../../components/admin/admin-page';
+import {
+  AdminNote,
+  AdminPage,
+  FirstPageButton,
+  LedgerError,
+  LedgerSkeleton,
+} from '../../../components/admin/admin-page';
 import {
   describeAuditAction,
   describeAuditActor,
   describeAuditDetail,
   describeAuditTarget,
 } from '../../../components/admin/audit-row';
+import { AuditActor } from '../../../components/admin/audit-actor';
 import { formatMoment } from '../../../lib/format-moment';
 import {
   FIRST_PAGE,
@@ -72,13 +78,21 @@ export function AdminAuditClient(): ReactElement {
         {query.isPending ? (
           <LedgerSkeleton />
         ) : query.isError ? (
-          <AuditError
-            reason={describeTrpcError(query.error)}
+          <LedgerError
+            failure={err('admin.error.audit-list', { reason: describeTrpcError(query.error) })}
             onRetry={() => void query.refetch()}
             retrying={query.isFetching}
+            page={pageNumber(stack)}
+            onFirst={() => setStack(FIRST_PAGE)}
           />
         ) : query.data.items.length === 0 ? (
-          <EmptyState title={t('admin.audit.empty-title')} description={t('admin.audit.empty-body')} />
+          <EmptyState
+            title={t('admin.audit.empty-title')}
+            description={t('admin.audit.empty-body')}
+            {...(pageNumber(stack) > 1
+              ? { action: <FirstPageButton page={pageNumber(stack)} onFirst={() => setStack(FIRST_PAGE)} /> }
+              : {})}
+          />
         ) : (
           <div className="flex flex-col gap-4">
             <Table>
@@ -99,8 +113,8 @@ export function AdminAuditClient(): ReactElement {
                       <TableCell className="font-mono text-xs whitespace-nowrap text-muted-foreground">
                         {formatMoment(row.occurredAt)}
                       </TableCell>
-                      <TableCell className="font-mono text-xs" title={actor.note}>
-                        {actor.text}
+                      <TableCell className="font-mono text-xs">
+                        <AuditActor actor={actor} />
                       </TableCell>
                       <TableCell className="font-medium">{describeAuditAction(row.action)}</TableCell>
                       <TableCell className="font-mono text-xs">
@@ -139,22 +153,3 @@ export function AdminAuditClient(): ReactElement {
   );
 }
 
-/**
- * Hai nửa của `ErrorEntry` vào hai khe của `ErrorState`. Component riêng chứ
- * không gọi `err()` giữa biểu thức ba ngôi: lời gọi đó sẽ chạy ở MỌI lượt
- * render, kể cả lượt `isPending`, lúc `query.error` là `null`.
- */
-function AuditError({
-  reason,
-  onRetry,
-  retrying,
-}: {
-  readonly reason: string;
-  readonly onRetry: () => void;
-  readonly retrying: boolean;
-}): ReactElement {
-  const failure = err('admin.error.audit-list', { reason });
-  return (
-    <ErrorState title={failure.what} message={failure.next} onRetry={onRetry} retrying={retrying} />
-  );
-}

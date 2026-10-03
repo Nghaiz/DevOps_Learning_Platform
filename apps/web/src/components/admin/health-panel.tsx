@@ -78,6 +78,7 @@ export function HealthPanel(): ReactElement {
         message={failure.next}
         onRetry={() => void query.refetch()}
         retrying={query.isFetching}
+        retryLabel={t('admin.reload')}
       />
     );
   }

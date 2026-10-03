@@ -30,6 +30,9 @@ import type { ErrorEntry, IntentionalThree, Surface } from '../types.ts';
 export const admin = {
   // ── Khung chung ──────────────────────────────────────────────────────────
   'admin.crumb.root': 'Quản trị',
+  // Một động từ cho việc "lấy lại dữ liệu" ở mọi màn quản trị.
+  'admin.reload': 'Tải lại',
+  'admin.pager.first': 'Về đầu',
 
   // ── /admin, tổng quan ────────────────────────────────────────────────────
   'admin.overview.kicker': 'Quản trị · số đọc trực tiếp từ cụm',
@@ -379,6 +382,8 @@ export const admin = {
   'admin.classes.created-toast-title': (p: { name: string }): string => `Đã tạo lớp ${p.name}`,
   'admin.classes.created-toast-body': 'Mở lớp để thêm sinh viên bằng email.',
 
+  'admin.classes.detail-title': 'Lớp học',
+  'admin.classes.back-list': 'Về danh sách lớp',
   'admin.classes.detail-lead': (p: { owner: string; count: string }): string =>
     `Chủ lớp ${p.owner}. Sĩ số ${p.count}.`,
   'admin.classes.members-title': 'Sinh viên',
@@ -460,6 +465,8 @@ export const admin = {
   'admin.exams.state.closed': 'Đã đóng',
 
   // Trang chi tiết
+  'admin.exams.detail-title': 'Kỳ thi',
+  'admin.exams.back-list': 'Về danh sách kỳ thi',
   'admin.exams.edit': 'Sửa',
   'admin.exams.remove': 'Xoá',
   'admin.exams.info-title': 'Thông tin',

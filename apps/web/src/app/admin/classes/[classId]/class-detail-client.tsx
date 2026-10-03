@@ -21,12 +21,15 @@ import {
   useToast,
 } from '@devops-platform/ui';
 import type { AppRouter } from '../../../../server/trpc/routers/app-router';
-import { PageContainer, Split } from '../../../../components/kit';
+import { Split } from '../../../../components/kit';
 import { api } from '../../../../lib/trpc-react';
 import { describeTrpcError, trpcErrorCode } from '../../../../lib/trpc';
 import {
   AdminDetailPage,
   AdminNote,
+  DetailError,
+  FirstPageButton,
+  LedgerError,
   LedgerSkeleton,
 } from '../../../../components/admin/admin-page';
 import { ConfirmDialog } from '../../../../components/kit/confirm-dialog';
@@ -66,25 +69,26 @@ export function AdminClassDetailClient({ classId }: { readonly classId: string }
   const detail = api.classes.get.useQuery({ classId });
   const crumbs = [{ href: '/admin/classes', label: t('admin.classes.title') }];
 
-  if (detail.isPending) {
+  // Lúc đang tải và lúc lỗi vẫn dựng đủ khung trang (đường dẫn, `h1`): trang
+  // không có tiêu đề nào thì trình đọc màn hình không biết mình đang ở đâu, và
+  // đường dẫn là lối về danh sách khi lớp không mở được.
+  if (detail.isPending || detail.isError) {
     return (
-      <PageContainer className="py-10">
-        <LedgerSkeleton rows={4} />
-      </PageContainer>
-    );
-  }
-
-  if (detail.isError) {
-    const failure = err('admin.error.class-get', { reason: describeTrpcError(detail.error) });
-    return (
-      <PageContainer className="py-10">
-        <ErrorState
-          title={failure.what}
-          message={failure.next}
-          onRetry={() => void detail.refetch()}
-          retrying={detail.isFetching}
-        />
-      </PageContainer>
+      <AdminDetailPage crumbs={crumbs} title={t('admin.classes.detail-title')}>
+        <div className="pt-10">
+          {detail.isPending ? (
+            <LedgerSkeleton rows={4} />
+          ) : (
+            <DetailError
+              failure={err('admin.error.class-get', { reason: describeTrpcError(detail.error) })}
+              onRetry={() => void detail.refetch()}
+              retrying={detail.isFetching}
+              backHref="/admin/classes"
+              backLabel={t('admin.classes.back-list')}
+            />
+          )}
+        </div>
+      </AdminDetailPage>
     );
   }
 
@@ -241,13 +245,13 @@ function MembersBody(props: {
   }
 
   if (props.error !== null) {
-    const failure = err('admin.error.class-members', { reason: props.error });
     return (
-      <ErrorState
-        title={failure.what}
-        message={failure.next}
+      <LedgerError
+        failure={err('admin.error.class-members', { reason: props.error })}
         onRetry={props.onRetry}
         retrying={props.fetching}
+        page={props.page}
+        onFirst={props.onFirst}
       />
     );
   }
@@ -258,6 +262,7 @@ function MembersBody(props: {
       <EmptyState
         title={t('admin.classes.members-empty-title')}
         description={t('admin.classes.members-empty-body')}
+        {...(props.page > 1 ? { action: <FirstPageButton page={props.page} onFirst={props.onFirst} /> } : {})}
       />
     );
   }
@@ -407,6 +412,7 @@ function ScoreboardBody(props: {
         message={failure.next}
         onRetry={props.onRetry}
         retrying={props.fetching}
+        retryLabel={t('admin.reload')}
       />
     );
   }
