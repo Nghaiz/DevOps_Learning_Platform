@@ -1402,6 +1402,48 @@ jobs:
           [ "$state" = "running" ] \
             || { echo "::error::entrypoint không CMD → state=$state (muốn running). PID 1 thoát = pod Succeeded = warm-pool đếm một xác."; exit 1; }
 
+      # `dlp-k8s-wait` — hợp đồng mã thoát 0/1/2 + chờ coredns (2026-10-03).
+      # Runner không có Sysbox nên không dựng được k3s thật; thay `kubectl` bằng
+      # một stub đứng TRƯỚC trên PATH để lái script qua đúng các nhánh của nó.
+      # Ca quan trọng là ca 2: node Ready nhưng coredns CHƯA Available phải là
+      # HẾT GIỜ (mã 1), không phải "sẵn sàng". Bản trước của script trả 0 ở ca
+      # đó — đã chạy thử cổng này trên bản trước và nó ĐỎ đúng ở ca 2.
+      # Ca 3 là đối chứng dương: coredns Available ở lượt hỏi thứ 2 ⇒ mã 0 —
+      # thiếu nó thì một script không bao giờ trả 0 cũng làm ca 2 xanh.
+      - name: 'dlp-k8s-wait: mã 0/1/2 và chờ coredns trong cùng ngân sách'
+        run: |
+          set -euo pipefail
+          docker run --rm --entrypoint /bin/bash dlp-sandbox-base:pr -c '
+            set -u
+            mkdir -p /tmp/stub /var/lib/dlp/k3s
+            cat > /tmp/stub/kubectl <<"EOS"
+          #!/bin/bash
+          case "$*" in
+            *"get nodes"*) echo "dlp-k3s Ready control-plane 1m v1.34.1+k3s1" ;;
+            *coredns*)
+              n=$(( $(cat /tmp/stub/n 2>/dev/null || echo 0) + 1 )); echo "$n" > /tmp/stub/n
+              [ "$n" -ge "${STUB_DNS_AFTER:-999}" ] && printf 1 ;;
+          esac
+          exit 0
+          EOS
+            chmod +x /tmp/stub/kubectl
+            export PATH=/tmp/stub:$PATH
+            fail=0
+            DLP_K8S=0 dlp-k8s-wait 4 >/dev/null 2>&1; rc=$?
+            echo "ca 1 (không bật k8s): rc=$rc"; [ "$rc" = 2 ] || fail=1
+            echo apiVersion: v1 > /var/lib/dlp/k3s/kubeconfig.yaml
+            rm -f /tmp/stub/n
+            out=$(DLP_K8S=1 dlp-k8s-wait 4 2>&1); rc=$?
+            echo "ca 2 (node Ready, coredns chưa): rc=$rc — $out" | head -1
+            [ "$rc" = 1 ] || fail=1
+            grep -q coredns <<<"$out" || { echo "thông báo hết giờ không nói tên coredns"; fail=1; }
+            rm -f /tmp/stub/n
+            out=$(STUB_DNS_AFTER=2 DLP_K8S=1 dlp-k8s-wait 20 2>&1); rc=$?
+            echo "ca 3 (coredns Available ở lượt 2): rc=$rc — $out"
+            [ "$rc" = 0 ] || fail=1
+            exit $fail
+          ' || { echo "::error::dlp-k8s-wait sai hợp đồng — xem ba ca ở trên"; exit 1; }
+
       # Cổng đi kèm ba dòng handlebars trong .trivyignore (xem lý do ở đó). Một
       # .trivyignore không giới hạn được theo đường dẫn, nên ba ID ấy che MỌI
       # handlebars trong image. Cổng này giữ cho điều đó vô hại, theo CẢ HAI
