@@ -101,6 +101,9 @@ export const exam = {
   'exam.problems-heading': 'Bài trong đề',
   'exam.problem-play': 'Làm bài',
   'exam.problem-closed': 'Đã khoá',
+  'exam.problem-solved': 'Đã giải',
+  'exam.solved-count': (p: { solved: number; total: number }): string =>
+    `Đã giải ${String(p.solved)}/${String(p.total)} bài`,
 } as const;
 
 /**

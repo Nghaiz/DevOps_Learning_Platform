@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useState, type ReactElement } from 'react';
-import { Flag, Play } from 'lucide-react';
+import { Check, Flag, Play } from 'lucide-react';
 import { renderCopy, t } from '@devops-platform/copy';
 import {
   Alert,
@@ -50,13 +50,13 @@ import { CountdownBoard } from './countdown-board';
  * Chạm 0 thì client hỏi lại máy chủ một lượt. Máy chủ là nơi duy nhất quyết định
  * lượt đã khoá hay chưa, nên client không tự tuyên bố, nó chỉ hỏi sớm hơn.
  *
- * ## Tên bài và đường vào game
+ * ## Tên bài, đường vào game và dấu "đã giải"
  *
- * `examSitting.get` chỉ trả MÃ bài. Tên và `gameId` (để mở thẳng vào game bằng
- * `?problem=`) đọc từ `problems.byCode`, thủ tục mà trang đề của chính bài đó
- * vẫn gọi, nên không mở thêm quyền đọc nào. Khi một lượt tra chưa về hoặc hỏng,
- * dòng hiện mã bài và dẫn sang trang đề như trước. Đã xin máy chủ trả sẵn
- * `{ code, title, gameId }` trong `examSitting.get` để bỏ N lượt tra này.
+ * `examSitting.get` trả sẵn `problems: { code, title, gameId, solved }[]`, nên
+ * trang không tra từng bài. `solved` tính ở máy chủ trong cửa sổ chấm của lượt
+ * này, cùng định nghĩa với bảng điểm của giảng viên. Một mã còn trong đề nhưng
+ * không còn bài nào khớp thì vắng khỏi `problems`: dòng đó hiện mã bài và dẫn
+ * sang trang đề như trước.
  */
 export function ExamSittingClient({ examId }: { readonly examId: string }): ReactElement {
   const query = api.examSitting.get.useQuery({ examId });
@@ -77,10 +77,6 @@ export function ExamSittingClient({ examId }: { readonly examId: string }): Reac
   });
 
   const attempt = query.data?.attempt ?? null;
-  const codes = query.data?.exam.problemCodes ?? [];
-  const lookups = api.useQueries((q) =>
-    codes.map((code) => q.problems.byCode({ code }, { enabled: attempt !== null })),
-  );
   // Phụ thuộc `query.refetch` (ổn định suốt vòng đời observer), KHÔNG phụ thuộc
   // `query`: đối tượng kết quả là bản mới ở mỗi lượt render.
   const { refetch: refetchQuery } = query;
@@ -227,12 +223,20 @@ export function ExamSittingClient({ examId }: { readonly examId: string }): Reac
             )}
 
             <section aria-labelledby="exam-problems" className="flex flex-col gap-4">
-              <h2 id="exam-problems" className="type-headline">
-                {t('exam.problems-heading')}
-              </h2>
+              <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+                <h2 id="exam-problems" className="type-headline">
+                  {t('exam.problems-heading')}
+                </h2>
+                <p className="font-mono text-sm text-muted-foreground tabular-nums">
+                  {t('exam.solved-count', {
+                    solved: query.data.problems.filter((problem) => problem.solved).length,
+                    total: exam.problemCodes.length,
+                  })}
+                </p>
+              </div>
               <Board label={t('exam.problems-heading')}>
                 {exam.problemCodes.map((code, index) => {
-                  const found = lookups[index]?.data?.problem ?? null;
+                  const found = query.data.problems.find((problem) => problem.code === code) ?? null;
                   const playHref = found === null ? null : problemPreviewHref(found.gameId, code);
                   return (
                     <BoardRow
@@ -245,9 +249,16 @@ export function ExamSittingClient({ examId }: { readonly examId: string }): Reac
                       title={found?.title ?? code}
                       sub={<span className="font-mono">{code}</span>}
                       state={
-                        <span className="font-mono text-xs font-semibold">
-                          {attempt.closed ? t('exam.problem-closed') : t('exam.problem-play')}
-                        </span>
+                        found?.solved === true ? (
+                          <span className="inline-flex items-center gap-1.5 font-mono text-xs font-semibold">
+                            <Check aria-hidden="true" className="size-4 text-success" />
+                            {t('exam.problem-solved')}
+                          </span>
+                        ) : (
+                          <span className="font-mono text-xs font-semibold">
+                            {attempt.closed ? t('exam.problem-closed') : t('exam.problem-play')}
+                          </span>
+                        )
                       }
                     />
                   );
