@@ -46,7 +46,7 @@ export function withVerifyPrelude(script: string): string {
   return VERIFY_PRELUDE + body;
 }
 
-export interface ParsedCheckOutput {
+export interface ParsedCheckResult {
   readonly criteria: CheckCriterion[];
   /** Mọi dòng không phải tiêu chí, giữ nguyên thứ tự, đã cắt dòng trống ở hai đầu. */
   readonly notes: string;
@@ -65,7 +65,7 @@ const FAIL_MARK = '✗ ';
  * Nhãn rỗng sau dấu bị bỏ qua thay vì vẽ một dòng trống có dấu tích: tiêu chí
  * không có tên thì người học không biết mình đạt cái gì.
  */
-export function parseCheckCriteria(output: string): ParsedCheckOutput {
+export function parseCheckCriteria(output: string): ParsedCheckResult {
   const criteria: CheckCriterion[] = [];
   const notes: string[] = [];
   for (const raw of output.replace(/\r\n?/g, '\n').split('\n')) {

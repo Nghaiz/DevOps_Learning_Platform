@@ -1211,10 +1211,10 @@ jobs:
           # Vế âm.
           off=$(docker run -d "$img")
           for i in $(seq 1 30); do
-            docker exec "$off" pgrep -x sleep >/dev/null 2>&1 && break
+            docker exec "$off" pgrep -fx 'sleep infinity' >/dev/null 2>&1 && break
             sleep 1
           done
-          docker exec "$off" pgrep -x sleep >/dev/null \
+          docker exec "$off" pgrep -fx 'sleep infinity' >/dev/null \
             || { echo "::error::entrypoint chưa tới CMD sau 30s — vế âm không có mốc để đo"; docker logs "$off" 2>&1 | tail -20; docker rm -f "$off" >/dev/null; exit 1; }
           procs=$(docker exec "$off" pgrep -fc 'backend/main.js' || true)
           code=$(docker exec "$off" curl -s -o /dev/null -w '%{http_code}' --max-time 3 http://127.0.0.1:4000/ || true)

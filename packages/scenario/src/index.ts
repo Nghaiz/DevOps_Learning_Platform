@@ -121,7 +121,7 @@ export {
   parseCheckCriteria,
   withVerifyPrelude,
   type CheckCriterion,
-  type ParsedCheckOutput,
+  type ParsedCheckResult,
 } from './verify-prelude.ts';
 
 // Sơ đồ TikZ đã dựng (plans/labs-rebuild/contracts.md §C4) — Node-only (đọc đĩa).
