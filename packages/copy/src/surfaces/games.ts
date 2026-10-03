@@ -355,6 +355,70 @@ export const games = {
   'games.git.sandbox.import-run': 'Nhập',
   'games.git.sandbox.import-bad': 'Không đọc được chuỗi này. Nó phải là bản xuất từ chính màn sandbox.',
 
+  // ── Git: nhãn đồ thị dùng chung cho cảnh 2D và 3D ──────────────────────────
+  // Nhãn trạng thái commit được games-git-colorblind.spec.ts chép nguyên văn để
+  // tìm nút theo aria-label. Đổi chữ ở đây thì sửa bảng ACCENTS trong spec đó.
+  'games.git.accent.normal': 'commit thường',
+  'games.git.accent.head': 'HEAD đang ở đây',
+  'games.git.accent.fresh': 'vừa được tạo',
+  'games.git.accent.orphaned': 'đã mất, không ref nào trỏ tới',
+  'games.git.accent.duplicate': 'bản sao của một commit khác',
+  'games.git.accent.conflicted': 'đang xung đột',
+  'games.git.edge.parent': 'cha thứ nhất',
+  'games.git.edge.merge-parent': 'cha thứ hai của commit merge',
+  'games.git.edge.cherry-source': 'nguồn của bản sao',
+  'games.git.edge.remote-mirror': 'cùng commit ở kho kia',
+  'games.git.ref.branch': 'nhánh',
+  'games.git.ref.remote': 'nhánh theo dõi từ xa',
+  'games.git.ref.tag': 'tag',
+  'games.git.ref.head': 'HEAD',
+  'games.git.repo.local': 'Kho trên máy bạn (local)',
+  'games.git.repo.origin': 'Kho từ xa (origin)',
+
+  // ── Git: cảnh 2D ───────────────────────────────────────────────────────────
+  'games.git.scene.commit': (p: { oid: string; message: string }) => `Commit ${p.oid}: ${p.message}`,
+  'games.git.scene.reachable': 'còn với tới được',
+  'games.git.scene.lost': 'đã mất, chỉ còn trong kho object',
+  'games.git.scene.no-refs': 'không ref nào trỏ tới',
+  'games.git.scene.pointed-by': (p: { names: string }) => `được trỏ tới bởi ${p.names}`,
+  'games.git.scene.author': (p: { name: string }) => `tác giả ${p.name}`,
+  'games.git.scene.label': 'Đồ thị commit của kho Git',
+  'games.git.scene.region': (p: { label: string; n: number }) => `${p.label}, ${String(p.n)} commit`,
+  'games.git.scene.two-repos': 'hai kho tách rời: kho trên máy bạn và kho từ xa',
+  'games.git.scene.one-repo': 'một kho duy nhất',
+  'games.git.scene.detached': 'HEAD đang ở trạng thái detached: nó trỏ thẳng vào một commit, không qua nhánh nào.',
+  'games.git.scene.attached': 'HEAD đang trỏ vào một nhánh.',
+  'games.git.scene.summary': (p: { nodes: number; edges: number; repos: string; head: string }) =>
+    `Đồ thị commit gồm ${String(p.nodes)} commit và ${String(p.edges)} liên kết, xếp thành ${p.repos}. ${p.head} Dùng Tab để đi qua từng commit; mũi tên trái và phải đi theo quan hệ cha con; mũi tên lên và xuống đổi làn nhánh; Enter để chọn.`,
+  'games.git.scene.more-refs': (p: { n: number }) => `+${String(p.n)} refs`,
+
+  // ── Git: nút chọn chế độ vẽ ────────────────────────────────────────────────
+  'games.git.mode.group': 'Chế độ hiển thị đồ thị',
+  'games.git.mode.full-2d': 'Sơ đồ 2D',
+  'games.git.mode.full-3d': 'Cảnh 3D',
+  'games.git.mode.switch': (p: { mode: string }) => `Chuyển sang ${p.mode}.`,
+  'games.git.mode.soon': (p: { mode: string }) =>
+    `${p.mode} sắp có. Bản 2D là chế độ đầy đủ, không phải bản rút gọn.`,
+  'games.git.mode.soon-label': (p: { mode: string }) => `${p.mode}, sắp có`,
+
+  // ── Git: cảnh 3D ───────────────────────────────────────────────────────────
+  'games.git.plate.unchanged': 'không đổi',
+  'games.git.plate.modified': 'đã sửa',
+  'games.git.plate.added': 'mới thêm',
+  'games.git.plate.deleted': 'đã xoá',
+  'games.git.plate.untracked': 'git chưa theo dõi',
+  'games.git.plate.conflicted': 'đang xung đột',
+  'games.git.plate.zone-worktree': 'Worktree · đang sửa',
+  'games.git.plate.zone-index': 'Index · đã stage',
+  'games.git.plate.zone-head': 'HEAD · đã commit',
+  'games.git.scene3d.ref': (p: { kind: string; name: string }) => `${p.kind} ${p.name}`,
+  'games.git.scene3d.ref-current': (p: { kind: string; name: string }) => `${p.kind} ${p.name}, đang đứng ở đây`,
+  'games.git.scene3d.lane': (p: { name: string }) => `làn nhánh ${p.name}`,
+  'games.git.scene3d.viewport': 'Khung nhìn 3D, điều khiển bằng bàn phím',
+  'games.git.scene3d.keys':
+    'Q và E xoay qua tám góc nhìn cố định. Dấu cộng và dấu trừ phóng to, thu nhỏ. Phím 0 đưa camera về khung nhìn toàn cảnh. Phím T nhảy tới ref kế tiếp, Shift T nhảy ngược lại. Các phím số từ 1 đến 9 nhảy thẳng tới ref tương ứng; ref của nhánh đang đứng luôn là phím 1.',
+  'games.git.scene3d.label': 'Sơ đồ 3D của kho Git',
+
   // ── /games/cicd: trang chọn màn ────────────────────────────────────────────
   'games.cicd.campaign.kicker': (p: { levels: number; chapters: number }) =>
     `Trò chơi · CI · ${String(p.levels)} màn · ${String(p.chapters)} chương`,

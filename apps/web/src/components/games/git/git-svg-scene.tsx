@@ -68,6 +68,7 @@ import {
 } from 'react';
 import { motion, useReducedMotion } from '@devops-platform/motion/react';
 import { cn } from '@devops-platform/ui';
+import { t } from '@devops-platform/copy';
 import {
   laneLabels,
   refsAt,
@@ -259,11 +260,13 @@ function isNavKey(key: string): key is NavKey {
 export function commitAriaLabel(placed: ScenePlacedNode, refNames: readonly string[]): string {
   const node = placed.node;
   const parts = [
-    `Commit ${node.shortOid}: ${node.message}`,
+    t('games.git.scene.commit', { oid: node.shortOid, message: node.message }),
     ACCENT_STYLE[node.accent].label,
-    node.reachable ? 'còn với tới được' : 'đã mất, chỉ còn trong kho object',
-    refNames.length === 0 ? 'không ref nào trỏ tới' : `được trỏ tới bởi ${refNames.join(', ')}`,
-    `tác giả ${node.author}`,
+    node.reachable ? t('games.git.scene.reachable') : t('games.git.scene.lost'),
+    refNames.length === 0
+      ? t('games.git.scene.no-refs')
+      : t('games.git.scene.pointed-by', { names: refNames.join(', ') }),
+    t('games.git.scene.author', { name: node.author }),
     REPO_LABEL[node.repo],
   ];
   return `${parts.join('. ')}.`;
@@ -413,7 +416,7 @@ export function GitSvgScene(props: GitSvgSceneProps): ReactElement {
       width="100%"
       className={cn('block h-auto w-full select-none', className)}
     >
-      <title id={titleId}>{label ?? 'Đồ thị commit của kho Git'}</title>
+      <title id={titleId}>{label ?? t('games.git.scene.label')}</title>
       <desc id={descId}>{summary}</desc>
       <style>{MOTION_CSS}</style>
       <defs>
@@ -536,16 +539,9 @@ function describeGraph(
   repoCount: number,
   detached: boolean,
 ): string {
-  const kho =
-    repoCount > 1 ? 'hai kho tách rời: kho trên máy bạn và kho từ xa' : 'một kho duy nhất';
-  const head = detached
-    ? 'HEAD đang ở trạng thái detached — nó trỏ thẳng vào một commit, không qua nhánh nào.'
-    : 'HEAD đang trỏ vào một nhánh.';
-  return (
-    `Đồ thị commit gồm ${nodeCount} commit và ${edgeCount} liên kết, xếp thành ${kho}. ` +
-    `${head} Dùng Tab để đi qua từng commit; mũi tên trái và phải đi theo quan hệ cha con; ` +
-    `mũi tên lên và xuống đổi làn nhánh; Enter để chọn.`
-  );
+  const kho = repoCount > 1 ? t('games.git.scene.two-repos') : t('games.git.scene.one-repo');
+  const head = detached ? t('games.git.scene.detached') : t('games.git.scene.attached');
+  return t('games.git.scene.summary', { nodes: nodeCount, edges: edgeCount, repos: kho, head });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -568,7 +564,7 @@ function RepoRegion({
   const lanes = laneLabels(view, region.layout, region.repo);
 
   return (
-    <g role="group" aria-label={`${region.label}, ${mine.length} commit`}>
+    <g role="group" aria-label={t('games.git.scene.region', { label: region.label, n: mine.length })}>
       <text
         x={8}
         y={region.top - 61}
@@ -833,7 +829,7 @@ function CommitNode({
             fontSize={10}
             fill="var(--git-muted, var(--muted-foreground))"
           >
-            +{refs.length - 2} refs
+            {t('games.git.scene.more-refs', { n: refs.length - 2 })}
           </text>
         )}
       </g>

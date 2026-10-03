@@ -115,6 +115,7 @@
  * bảng số trong chú thích.
  */
 
+import { t } from '@devops-platform/copy';
 import type {
   SceneAccent,
   SceneEdgeKind,
@@ -181,7 +182,7 @@ export const ACCENT_STYLE = {
     shape: 'round',
     motion: 'none',
     sigil: '',
-    label: 'commit thường',
+    label: t('games.git.accent.normal'),
   },
   head: {
     fill: '--primary',
@@ -191,7 +192,7 @@ export const ACCENT_STYLE = {
     shape: 'ringed',
     motion: 'pulse',
     sigil: '@',
-    label: 'HEAD đang ở đây',
+    label: t('games.git.accent.head'),
   },
   fresh: {
     fill: '--success',
@@ -201,7 +202,7 @@ export const ACCENT_STYLE = {
     shape: 'round',
     motion: 'pop',
     sigil: '+',
-    label: 'vừa được tạo',
+    label: t('games.git.accent.fresh'),
   },
   orphaned: {
     fill: '--muted',
@@ -211,7 +212,7 @@ export const ACCENT_STYLE = {
     shape: 'dashed',
     motion: 'none',
     sigil: '?',
-    label: 'đã mất, không ref nào trỏ tới',
+    label: t('games.git.accent.orphaned'),
   },
   duplicate: {
     fill: '--status-progress',
@@ -221,7 +222,7 @@ export const ACCENT_STYLE = {
     shape: 'stacked',
     motion: 'none',
     sigil: '=',
-    label: 'bản sao của một commit khác',
+    label: t('games.git.accent.duplicate'),
   },
   conflicted: {
     fill: '--destructive',
@@ -231,7 +232,7 @@ export const ACCENT_STYLE = {
     shape: 'sharp',
     motion: 'shake',
     sigil: '!',
-    label: 'đang xung đột',
+    label: t('games.git.accent.conflicted'),
   },
 } as const satisfies Record<SceneAccent, AccentStyle>;
 
@@ -262,28 +263,28 @@ export const EDGE_STYLE = {
     width: 2,
     dash: null,
     joint: false,
-    label: 'cha thứ nhất',
+    label: t('games.git.edge.parent'),
   },
   'merge-parent': {
     stroke: '--foreground',
     width: 3,
     dash: null,
     joint: true,
-    label: 'cha thứ hai của commit merge',
+    label: t('games.git.edge.merge-parent'),
   },
   'cherry-source': {
     stroke: '--muted-foreground',
     width: 1.5,
     dash: '2 4',
     joint: false,
-    label: 'nguồn của bản sao',
+    label: t('games.git.edge.cherry-source'),
   },
   'remote-mirror': {
     stroke: '--muted-foreground',
     width: 2,
     dash: '8 4',
     joint: false,
-    label: 'cùng commit ở kho kia',
+    label: t('games.git.edge.remote-mirror'),
   },
 } as const satisfies Record<SceneEdgeKind, EdgeStyle>;
 
@@ -306,15 +307,15 @@ export interface RefStyle {
  * tranh nhau trên màn hình.
  */
 export const REF_STYLE = {
-  branch: { fill: '--primary', text: '--primary-foreground', shape: 'plain', label: 'nhánh' },
+  branch: { fill: '--primary', text: '--primary-foreground', shape: 'plain', label: t('games.git.ref.branch') },
   remote: {
     fill: '--status-progress',
     text: '--status-progress-foreground',
     shape: 'dashed',
-    label: 'nhánh theo dõi từ xa',
+    label: t('games.git.ref.remote'),
   },
-  tag: { fill: '--warning', text: '--warning-foreground', shape: 'notched', label: 'tag' },
-  head: { fill: '--foreground', text: '--background', shape: 'double', label: 'HEAD' },
+  tag: { fill: '--warning', text: '--warning-foreground', shape: 'notched', label: t('games.git.ref.tag') },
+  head: { fill: '--foreground', text: '--background', shape: 'double', label: t('games.git.ref.head') },
 } as const satisfies Record<SceneRefKind, RefStyle>;
 
 /** Màu nét vẽ của một cạnh, đã thành chuỗi CSS dùng được. */
@@ -346,6 +347,6 @@ export function accentLabel(accent: SceneAccent): string {
  * remote trong git, và người chơi sẽ gõ chính hai chữ đó vào ô lệnh.
  */
 export const REPO_LABEL: Readonly<Record<SceneRepo, string>> = {
-  local: 'Kho trên máy bạn (local)',
-  origin: 'Kho từ xa (origin)',
+  local: t('games.git.repo.local'),
+  origin: t('games.git.repo.origin'),
 };

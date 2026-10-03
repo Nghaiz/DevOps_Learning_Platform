@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame, useThree } from '@react-three/fiber';
+import { t } from '@devops-platform/copy';
 
 import { layoutLabels, type LabelBox } from '../../../k8s-arena/scene/label-layout.ts';
 import { REF_STYLE, accentLabel, cssVar } from '../git-palette.ts';
@@ -395,7 +396,9 @@ function buildSources(
       refKind: target.kind,
       // Dấu `*` của nhánh đang đứng là quy ước của `git branch`; nó không đọc
       // ra thành lời, nên câu đọc phải nói thẳng.
-      aria: `${REF_STYLE[target.kind].label} ${target.name}${target.isCurrent ? ', đang đứng ở đây' : ''}`,
+      aria: target.isCurrent
+        ? t('games.git.scene3d.ref-current', { kind: REF_STYLE[target.kind].label, name: target.name })
+        : t('games.git.scene3d.ref', { kind: REF_STYLE[target.kind].label, name: target.name }),
     });
   }
 
@@ -470,7 +473,7 @@ function buildSources(
         nodeId: null,
         facts: null,
         refKind: null,
-        aria: primary ? `làn nhánh ${name}` : null,
+        aria: primary ? t('games.git.scene3d.lane', { name }) : null,
       });
     });
   }

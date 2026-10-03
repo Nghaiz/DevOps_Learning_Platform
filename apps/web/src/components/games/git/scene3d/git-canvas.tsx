@@ -16,6 +16,7 @@ import {
 } from 'react';
 import type { Object3D } from 'three';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { t } from '@devops-platform/copy';
 import { OrthoCameraRig } from './ortho-camera-rig.tsx';
 import {
   DEFAULT_ANGLE_INDEX,
@@ -328,7 +329,7 @@ export function GitCanvas({
          */
         role="group"
         tabIndex={0}
-        aria-label="Khung nhìn 3D, điều khiển bằng bàn phím"
+        aria-label={t('games.git.scene3d.viewport')}
         aria-describedby={helpId}
         /*
          * ⚠ Phải liệt kê ĐỦ, kể cả `1`–`9`.
@@ -362,9 +363,7 @@ export function GitCanvas({
         />
 
         <p id={helpId} className="sr-only">
-          Q và E xoay qua tám góc nhìn cố định. Dấu cộng và dấu trừ phóng to, thu nhỏ. Phím 0 đưa
-          camera về khung nhìn toàn cảnh. Phím T nhảy tới ref kế tiếp, Shift T nhảy ngược lại. Các
-          phím số từ 1 đến 9 nhảy thẳng tới ref tương ứng; ref của nhánh đang đứng luôn là phím 1.
+          {t('games.git.scene3d.keys')}
         </p>
 
         <Canvas
@@ -373,7 +372,7 @@ export function GitCanvas({
           dpr={dpr}
           gl={glOptions}
           role="img"
-          aria-label={label ?? 'Sơ đồ 3D của kho Git'}
+          aria-label={label ?? t('games.git.scene3d.label')}
         >
           <FramePump colorsVersion={colorsVersion} />
           <OrthoCameraRig

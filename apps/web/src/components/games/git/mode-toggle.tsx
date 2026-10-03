@@ -30,6 +30,7 @@
 
 import { type ReactElement } from 'react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger, cn } from '@devops-platform/ui';
+import { t } from '@devops-platform/copy';
 import {
   RENDERER_MODES,
   rendererModeReasonText,
@@ -39,8 +40,8 @@ import {
 
 const MODE_TEXT: Readonly<Record<RendererMode, { readonly short: string; readonly full: string }>> =
   {
-    '2d': { short: '2D', full: 'Sơ đồ 2D' },
-    '3d': { short: '3D', full: 'Cảnh 3D' },
+    '2d': { short: '2D', full: t('games.git.mode.full-2d') },
+    '3d': { short: '3D', full: t('games.git.mode.full-3d') },
   };
 
 export interface ModeToggleProps {
@@ -64,7 +65,7 @@ export function ModeToggle({ resolved, enabled, onChange }: ModeToggleProps): Re
       <div
         className="flex items-center border border-border"
         role="group"
-        aria-label="Chế độ hiển thị đồ thị"
+        aria-label={t('games.git.mode.group')}
       >
         {RENDERER_MODES.map((mode) => {
           const usable = enabled.includes(mode);
@@ -73,8 +74,8 @@ export function ModeToggle({ resolved, enabled, onChange }: ModeToggleProps): Re
           const why = usable
             ? active
               ? rendererModeReasonText(resolved)
-              : `Chuyển sang ${text.full}.`
-            : `${text.full} sắp có. Bản 2D là chế độ đầy đủ, không phải bản rút gọn.`;
+              : t('games.git.mode.switch', { mode: text.full })
+            : t('games.git.mode.soon', { mode: text.full });
 
           return (
             <Tooltip key={mode}>
@@ -83,7 +84,7 @@ export function ModeToggle({ resolved, enabled, onChange }: ModeToggleProps): Re
                   type="button"
                   aria-pressed={active}
                   aria-disabled={!usable}
-                  aria-label={`${text.full}${usable ? '' : ' — sắp có'}`}
+                  aria-label={usable ? text.full : t('games.git.mode.soon-label', { mode: text.full })}
                   title={why}
                   onClick={() => {
                     if (usable && !active) onChange(mode);
