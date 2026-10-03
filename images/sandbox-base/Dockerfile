@@ -92,13 +92,39 @@ ARG FASTFETCH_SHA256=d27b68638d49ae109294b47e7328b7868f5c5568e9cd2be83514eb0d674
 #     tác, còn script `#!/bin/bash`, `make`, `ansible` gọi `sudo` vẫn chết — tức
 #     dời lỗi sang chỗ khó hiểu hơn thay vì đóng nó.
 #
-#   vim-tiny — cung cấp `/usr/bin/vi`. `.zshrc`/`.bashrc` đặt `EDITOR=vi`, mà
-#     base Ubuntu KHÔNG có editor nào: thiếu gói này thì `git commit` (không -m)
-#     chết với "cannot run vi", và trên một nền tảng DẠY DevOps thì không sửa
-#     được YAML/Dockerfile nghĩa là không làm được bài — trong khi AC "10 binary"
-#     vẫn xanh trọn vẹn. ~1.5 MB.
+#   vim (thay `vim-tiny` từ labs rebuild 2026-10-03) — cung cấp `/usr/bin/vi`
+#     LẪN `/usr/bin/vim`. `.zshrc`/`.bashrc` đặt `EDITOR=vi`, mà base Ubuntu
+#     KHÔNG có editor nào: thiếu nó thì `git commit` (không -m) chết với "cannot
+#     run vi", và trên một nền tảng DẠY DevOps thì không sửa được YAML/Dockerfile
+#     nghĩa là không làm được bài — trong khi AC "10 binary" vẫn xanh trọn vẹn.
+#     Vì sao bỏ `vim-tiny`: nó chỉ cho `vi`, KHÔNG có lệnh `vim` (sinh viên gõ
+#     `vim deploy.yaml` theo mọi tài liệu và nhận `command not found`), và bản
+#     tiny không tô màu cú pháp — sửa YAML thụt lề mà không thấy cấu trúc là
+#     đúng chỗ người mới sai nhiều nhất. Cái giá: `vim` kéo libpython3.12 +
+#     vim-runtime, ước ~68 MB trên ubuntu:24.04 trần (số thật của image ghi ở
+#     README). `vi` vẫn còn: update-alternatives trỏ nó sang vim.basic — khối
+#     kiểm cuối RUN khẳng định điều đó thay vì tin.
 #
 #   tini — PID 1 tử tế, xem khối ENTRYPOINT ở cuối file.
+#
+# NHÓM GÓI CỦA LABS REBUILD (2026-10-03) — bài theo chủ đề networking/linux mới
+# gõ thẳng các lệnh này, và đo trên pod thật (`sha-6f19cbe`) cả nhóm đều THIẾU:
+#
+#   nano — editor cho người chưa biết vi. Bài học không được bắt người mới học
+#     vi trước khi học thứ bài định dạy.
+#   iproute2 — `ip`, `ss`. Không có nó thì bài mạng không xem được địa chỉ,
+#     route hay socket đang nghe; `ifconfig`/`netstat` (net-tools) đã bị thay
+#     thế nên không cài bản cũ.
+#   tree — xem cây thư mục bằng đúng lệnh mà tài liệu Linux viết. Alias `lt`
+#     (eza) KHÔNG thay được: verify.sh và lời giải chạy bash không tương tác,
+#     không có alias.
+#   netcat-openbsd — `nc` để mở/thử cổng TCP. Bản openbsd chứ không bản
+#     traditional: nó là bản Ubuntu chọn làm `nc` mặc định, và có `-z`/`-w`
+#     mà bài thử cổng cần.
+#   bind9-dnsutils — `dig`, `nslookup`, `host`. Ghi tên THẬT thay vì `dnsutils`:
+#     ở 24.04 `dnsutils` chỉ là gói chuyển tiếp rỗng (Depends: bind9-dnsutils,
+#     đã kiểm `apt-cache show`). Đây là gói nặng nhất nhóm (~44 MB ước tính, phần
+#     lớn là libicu74 qua libxml2); chấp nhận vì bài DNS không có đường nào khác.
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         zsh \
@@ -112,7 +138,12 @@ RUN apt-get update && \
         locales \
         ncurses-term \
         xxd \
-        vim-tiny \
+        vim \
+        nano \
+        iproute2 \
+        tree \
+        netcat-openbsd \
+        bind9-dnsutils \
         sudo \
         tini \
         fzf \
@@ -132,6 +163,14 @@ RUN apt-get update && \
     echo "${FASTFETCH_SHA256}  /tmp/fastfetch.deb" | sha256sum -c - && \
     apt-get install -y --no-install-recommends /tmp/fastfetch.deb && \
     rm -f /tmp/fastfetch.deb && \
+    # Khẳng định LỆNH, không chỉ gói: tên gói và tên lệnh lệch nhau ở bốn chỗ
+    # trong danh sách trên (vim→vi, iproute2→ip/ss, netcat-openbsd→nc,
+    # bind9-dnsutils→dig/nslookup), và `vi` giờ đi qua update-alternatives chứ
+    # không còn là file của một gói. Thiếu một cái thì build ĐỎ ở đây thay vì
+    # sinh viên gặp `command not found` giữa bài.
+    for b in vi vim nano ip ss tree nc dig nslookup; do \
+        command -v "$b" >/dev/null || { echo "LOI: thieu lenh $b sau apt" >&2; exit 1; }; \
+    done && \
     rm -rf /var/lib/apt/lists/*
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -211,8 +250,13 @@ RUN cp -a /etc/skel/. /root/
 # FROM lên một bản Docker chưa hỗ trợ thì `apt-get update` ĐỎ ngay tại đây. Gõ
 # cứng thì nó vẫn cài gói của noble lên base khác và hỏng ở runtime.
 #
-# KHÔNG cài `docker-compose-plugin`: chưa AC nào đòi, và nó là ~40 MB đi thẳng
-# vào tarball phải side-load mỗi lần bump `image.tag`.
+# `docker-compose-plugin` CÓ cài, từ labs rebuild 2026-10-03. Trước đó cố ý bỏ
+# với lý do "chưa AC nào đòi, ~40 MB vào tarball side-load"; lý do đó hết hiệu
+# lực khi chủ đề Docker có bài Compose. Không có plugin thì `docker compose up`
+# trả `'compose' is not a docker command` — thông báo đúng nhưng người học sẽ đọc
+# thành "mình gõ sai", không phải "image thiếu".
+# Cài TỪ CÙNG KHO download.docker.com (cùng khoá đã ghim ở trên) chứ không tải
+# binary rời: version đi cùng docker-ce và không thêm checksum nào phải nuôi.
 ARG INCLUDE_DOCKER=1
 ARG DOCKER_GPG_SHA256=1500c1f56fa9e26b9b8f42452a553675796ade0807cdce11975eb98170b3a570
 RUN if [ "$INCLUDE_DOCKER" = "1" ]; then \
@@ -226,7 +270,12 @@ RUN if [ "$INCLUDE_DOCKER" = "1" ]; then \
             > /etc/apt/sources.list.d/docker.list; \
         apt-get update; \
         DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-            docker-ce docker-ce-cli containerd.io docker-buildx-plugin; \
+            docker-ce docker-ce-cli containerd.io docker-buildx-plugin \
+            docker-compose-plugin; \
+        # compose là cli-plugin (/usr/libexec/docker/cli-plugins), KHÔNG nằm
+        # trên PATH ⇒ `command -v` không kiểm được. Hỏi qua chính CLI; lệnh này
+        # không cần dockerd đang chạy.
+        docker compose version; \
         rm -rf /var/lib/apt/lists/*; \
     fi
 
@@ -313,6 +362,17 @@ RUN if [ "$INCLUDE_K8S" = "1" ]; then \
         install -m 0755 /tmp/kubectl /usr/local/bin/kubectl; \
         rm -f /tmp/kubectl; \
         kubectl version --client=true >/dev/null; \
+        # Completion zsh SINH LÚC BUILD vào fpath, KHÔNG `source <(kubectl
+        # completion zsh)` trong .zshrc: cách đó chạy binary kubectl (~50 MB)
+        # mỗi lần mở shell — mỗi window tmux, mỗi lượt reconnect — để in ra
+        # đúng một đoạn text không bao giờ đổi trong image bất biến này.
+        # Thư mục /usr/local/share/zsh/site-functions nằm SẴN trong $fpath của
+        # zsh Ubuntu; khẳng định thay vì tin, vì đặt sai thư mục thì `compinit`
+        # im lặng không thấy file và completion chỉ "không có".
+        install -d -m 0755 /usr/local/share/zsh/site-functions; \
+        kubectl completion zsh > /usr/local/share/zsh/site-functions/_kubectl; \
+        head -1 /usr/local/share/zsh/site-functions/_kubectl | grep -q '^#compdef kubectl'; \
+        zsh -fc 'print -l -- $fpath' | grep -qx /usr/local/share/zsh/site-functions; \
     fi
 
 # Script boot cua cluster con + lenh cho. Chep KHONG DIEU KIEN (khong gac bang
@@ -543,6 +603,17 @@ LABEL org.opencontainers.image.title="dlp-sandbox-base" \
 # ─────────────────────────────────────────────────────────────────────────────
 # 6.B — IDE (Eclipse Theia) là layer OPT-IN qua `INCLUDE_IDE` (mặc định 0).
 #
+# ⚠ MẶC ĐỊNH 0 NHƯNG CI DỰNG VỚI 1 (labs rebuild 2026-10-03, D6). Cả hai job
+# `sandbox-image` (PR) và `images` (push main) truyền `INCLUDE_IDE=1`, nên MỌI
+# tag `sha-*` đều có /opt/theia. Trước đó không job nào truyền, mọi tag CI thiếu
+# Theia và `/ide` trên cụm trả 503 — đúng lỗi mà kế hoạch labs rebuild ghi ở mục
+# 4. Mặc định 0 được giữ cho build tay ở máy dev (đo 2026-10-03: 1.22 GB so với
+# 2.6 GB giải nén, 301 MB so với 657 MB nén; không pull image Theia) — build tay
+# để đưa lên cụm thì PHẢI truyền `=1`.
+#
+# CÓ trong image ≠ CHẠY trong pod: entrypoint chỉ khởi động Theia khi env
+# `DLP_IDE=1`, và env đó chỉ profile `ide` của chart đặt. Xem `start_theia`.
+#
 # VÌ SAO NHIỀU STAGE CHỨ KHÔNG PHẢI `RUN if`: khuôn `RUN if` của INCLUDE_DOCKER/
 # INCLUDE_PWSH không dùng được ở đây, vì thứ cần đưa vào đến từ MỘT IMAGE KHÁC và
 # `COPY --from=` không có dạng có điều kiện. Chép rồi `rm` là tệ nhất: file đã xoá
@@ -579,7 +650,14 @@ COPY --from=theia-src /home/theia /opt/theia
 # Binary link với glibc 2.36 (bookworm) chạy trên Ubuntu 24.04 (glibc 2.39): glibc
 # tương thích NGƯỢC theo chiều này. Chiều ngược lại thì không, nên đừng đảo hai base.
 COPY --from=theia-src /usr/local/bin/node /opt/theia/node/bin/node
-ENV THEIA_DEFAULT_PLUGINS=local-dir:/opt/theia/plugins     USE_LOCAL_GIT=true     DLP_IDE=1
+# ⛔ KHÔNG đặt `DLP_IDE=1` ở đây — bản trước đặt, và từ khi CI dựng image này
+# với `INCLUDE_IDE=1` (labs rebuild 2026-10-03, D6) thì dòng đó nghĩa là MỌI pod,
+# kể cả pod warm-pool của bài Linux thường, khởi động Theia và gánh thêm
+# 200–450Mi cho một editor không ai mở. Công tắc lúc chạy là env của PROFILE
+# (`sandbox.profiles.ide.env.DLP_IDE` trong chart), không phải của image:
+# image chỉ nói "có thể chạy IDE", profile mới nói "pod này chạy IDE".
+ENV THEIA_DEFAULT_PLUGINS=local-dir:/opt/theia/plugins \
+    USE_LOCAL_GIT=true
 
 # Image cuối. `INCLUDE_IDE=0` ⇒ `ide-0` ⇒ không một layer nào thêm vào `base`.
 FROM ide-${INCLUDE_IDE}

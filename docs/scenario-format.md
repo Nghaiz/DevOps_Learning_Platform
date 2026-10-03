@@ -132,6 +132,7 @@ còn đúng.
 {
   "id": "ckad-configmap-as-files",   // = tên thư mục, = progress.lesson_id
   "difficulty": "intermediate",
+  "topic": "kubernetes",             // bắt buộc — CONTENT_TOPICS (2026-10-03)
   "estimatedMinutes": 15,
   "source": { "repo", "commit", "path", "license", "licenseUrl", "upstreamTitle" },
   "acknowledgedUnknownFields": [],
@@ -184,7 +185,7 @@ phía BFF là `apps/web/src/server/lessons/validate.ts`.
 | Bản phác | Thực tế | Vì sao |
 |---|---|---|
 | `stdout` | **`output`** | One-shot đặt `Stderr: true` (khác đường terminal), và cả hai chiều gộp vào một buffer — thứ người học sẽ thấy nếu tự gõ lệnh. Gọi nó là `stdout` là nói dối về nội dung. |
-| "auth bằng chính cookie `dlp_sandbox`" (đọc như *forward cookie của người dùng*) | **BFF tự mint token server-side** | Cookie mang `Path=/ws`, nên trình duyệt **không gửi nó tới `/api/trpc/*`** — BFF không có gì để forward. Đây không phải bất tiện: hệ quả là endpoint này **không phơi ra trình duyệt** chút nào. |
+| "auth bằng chính cookie `dlp_sandbox`" (đọc như *forward cookie của người dùng*) | **BFF tự mint token server-side** | Cookie mang `Path=/ws/session/<id>` (trước 2026-10-03 là `Path=/ws`), nên trình duyệt **không gửi nó tới `/api/trpc/*`** — BFF không có gì để forward. Đây không phải bất tiện: hệ quả là endpoint này **không phơi ra trình duyệt** chút nào. |
 | (không nói) | **`sh` đọc script từ STDIN, không từ argv** | `Command` của `PodExecOptions` nằm trong **query string** của URL apiserver. Một verify script vài KB phình URL tới ngưỡng bị từ chối, và triệu chứng ("bài này bấm Check thì lỗi, bài kia thì không") không trỏ về độ dài script. |
 
 ### 4.1 Chuỗi authz: a→h, **KHÔNG có i**
@@ -279,3 +280,29 @@ là không chạy được**, và hỏng theo kiểu khó đọc.
    thuộc về terminal của người học, không thuộc lượt chấm. Mọi lệnh chạm mạng
    trong verify **phải** có `timeout`/`--max-time`: default-deny DROP im lặng,
    không REJECT, nên thiếu trần thời gian là treo tới hết 30s.
+
+## 7. Thay đổi 2026-10-03 (labs rebuild)
+
+Kế hoạch và hợp đồng: `plans/labs-rebuild/{plan,contracts}.md`. Cách viết bài:
+`docs/content-style.md`.
+
+- **`topic`** bắt buộc trong `dlp.json` (`CONTENT_TOPICS`: linux, bash, git, docker,
+  kubernetes, observability, networking). Ở DTO nó tuỳ chọn vì bài soạn trong DB
+  chưa có cột này; `lessons.list` lọc được theo `topic`.
+- **Sơ đồ TikZ**: dòng `![alt](diagrams/<tên>.svg "chú thích")` đứng riêng thành
+  block `diagram`; loader đọc SVG đã dựng vào `Scenario.diagrams`. Ảnh `diagrams/`
+  giữa câu, alt dưới 20 ký tự, hay file thiếu đều bị từ chối lúc nạp. Công cụ và
+  cổng CI: `docs/diagrams.md`.
+- **`lessons.get` trả `ScenarioForLearner`**: mỗi phase còn `title`, `markdown`,
+  `hasVerify`, `hasSetup` — không `verifyScript`, không script setup.
+- **Prelude verify**: `checkStep` ghép `withVerifyPrelude` trước script, cùng hàm
+  với lab (`docs/lab-format.md` §4.3b).
+- **Setup chờ dockerd**: script `background` được ghép đoạn chờ dockerd tối đa 45
+  giây (không chặn), vì pod dựng lạnh tới tay người học khi dockerd còn khởi động
+  (`apps/web/src/server/lessons/setup-plan.ts` `DOCKERD_WAIT_PREFIX`).
+- **`stepN/solution.sh`** (tuỳ chọn): chỉ cho bước cần thao tác không viết được
+  bằng `{{exec}}`, ví dụ sửa file trong IDE. Bộ kiểm thử dùng nó; loader không đọc.
+- **Chứng minh hai trạng thái của mọi verify** bằng
+  `node scripts/content-smoke/smoke.mjs lesson <id>` trên cụm thật.
+- **LF**: `content/scenarios/dlp-*/**` là `text=auto eol=lf` và
+  `content-lf.test.ts` chặn `\r` ở CI; bài nhập upstream vẫn byte-exact.

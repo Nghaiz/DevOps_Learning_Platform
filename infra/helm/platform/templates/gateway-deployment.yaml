@@ -135,6 +135,17 @@ spec:
             - name: GATEWAY_MAX_WS_PER_SESSION
               value: {{ .Values.gateway.env.maxWsPerSession | quote }}
             {{/*
+            IDE (P6/P13). Trước bản vá hai khoá `gateway.ide.*` KHÔNG tới gateway:
+            chỉ netpol đọc `ide.port`, còn gateway chạy bằng default trong
+            internal/config (4000 / 8) — trùng giá trị hôm nay nên không ai thấy,
+            và đổi values là đổi một mình netpol. Cùng `| default 4000` với netpol
+            để hai nơi đọc một khoá không thể ra hai con số.
+            */}}
+            - name: GATEWAY_IDE_PORT
+              value: {{ .Values.gateway.ide.port | default 4000 | quote }}
+            - name: GATEWAY_IDE_MAX_PER_SESSION
+              value: {{ .Values.gateway.ide.maxPerSession | quote }}
+            {{/*
             Lệnh exec là HẰNG SỐ PHÍA SERVER (contract §3c) — client không bao
             giờ chọn được nó. `required` ở đây là đúng chỗ, khác hẳn REDIS_URL ở
             dưới: values.yaml LUÔN có giá trị mặc định cho nó, nên nhánh này chỉ

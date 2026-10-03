@@ -91,6 +91,13 @@ func (c *CachedPodIP) PodIP(ctx context.Context, namespace, name string) (string
 	if pod.Status.PodIP == "" {
 		return "", ErrPodNotReady
 	}
+	// Pod đang bị xoá VẪN giữ IP suốt grace period, và chính vì thế nó nguy
+	// hiểm: proxy vào đó là nói chuyện với một Theia đang tắt, rồi tới đúng cửa
+	// sổ mà IP được tái cấp cho pod của người khác (rủi ro ở chú thích kiểu).
+	// Coi như "chưa có IP" và KHÔNG cache: lượt sau phải hỏi lại apiserver.
+	if pod.DeletionTimestamp != nil {
+		return "", ErrPodNotReady
+	}
 
 	c.mu.Lock()
 	c.m[k] = podIPEntry{ip: pod.Status.PodIP, when: now}

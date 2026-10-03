@@ -1,17 +1,5 @@
-# Xong
+Giờ bạn mở một máy lạ là biết ngay mình là ai, đứng ở đâu, máy chạy gì, và không còn sợ một lệnh chạy mãi.
 
-Bạn vừa đi qua bốn thứ mà mọi bài học sau đều dựa vào:
+Thử thêm, không chấm điểm: chạy `fastfetch` để xem máy này có mấy nhân CPU và bao nhiêu RAM, rồi so với `nproc` và `free -h`. Ba lệnh có khớp nhau không? Sau đó bấm Ctrl+R, gõ `whoami`, và để ý zsh tìm ra lệnh bạn chạy từ đầu bài.
 
-- Terminal bên phải là một máy Linux thật, không phải mô phỏng
-- Nút **Kiểm tra** chạy một script **bên trong** chính máy đó
-- Docker chạy được trong sandbox mà không cần quyền của máy chủ
-- Sandbox không ra được mạng tự do — và đó là chủ ý
-
-Mọi thứ trong `/root/lab` sẽ biến mất khi phiên kết thúc. Đó cũng là chủ ý: lần
-sau bạn mở lại, môi trường sạch y như lần đầu.
-
-## Đi tiếp
-
-Bài **Docker căn bản: kéo, chạy, dựng image** đi sâu vào phần Docker: kéo image
-thật từ Docker Hub, chạy container và mở cổng, dựng image từ Dockerfile, và xem
-chính xác cánh cửa mạng nào đang mở, cánh nào đóng.
+Bài tiếp theo là **Đi lại trong hệ thống tệp**: `/etc`, `/var/log`, `/tmp` chứa gì, và dọn một thư mục bàn giao bừa bộn mà không xoá nhầm thứ cần giữ.

@@ -1,0 +1,21 @@
+% Mô tả: Lồng nhau: cụm chứa control plane và hai node, mỗi node chạy pod, mỗi pod chứa container
+\begin{tikzpicture}
+  \node[container=blue] (c1) {nginx};
+  \node[container, right=4mm of c1] (c2) {log-agent};
+  \node[pod=web-7d9f, fit=(c1)(c2)] (p1) {};
+  \node[container=green, right=12mm of c2] (c3) {api};
+  \node[pod=api-55b1, fit=(c3)] (p2) {};
+  \node[host=node-1, fit=(p1)(p2), inner sep=12pt] (n1) {};
+
+  \node[container=blue, below=22mm of c1] (c4) {nginx};
+  \node[container, right=4mm of c4] (c5) {log-agent};
+  \node[pod=web-91ac, fit=(c4)(c5)] (p3) {};
+  \node[host=node-2, fit=(p3), inner sep=12pt] (n2) {};
+
+  \node[card=violet, right=12mm of n1.north east, anchor=north west] (cp)
+    {\dlptitle{control plane}\dlpmuted{\small apiserver}\\\dlpmuted{\small scheduler}};
+  \node[cluster=cụm k3s, fit=(n1)(n2)(cp), inner sep=12pt] {};
+
+  \draw[faint, ->] (cp.west) -- (cp.west -| n1.east);
+  \draw[faint, ->] (cp.south) |- node[note, pos=0.25, right] {qua kubelet} (n2.east);
+\end{tikzpicture}

@@ -1,0 +1,15 @@
+% Mô tả: Cụm k3s nằm trong sandbox: kubectl gọi API server qua 127.0.0.1:6443, control plane giao Pod cho kubelet trong container dlp-k3s
+\begin{tikzpicture}
+  \node[box] (term) {terminal zsh\\\dlpcode{kubectl}};
+  \node[card=violet, right=30mm of term] (cp) {\dlptitle{control plane}API server\\scheduler\\controller manager\\\dlpmuted{\small trạng thái lưu trong SQLite}};
+  \node[box=teal, right=20mm of cp] (kubelet) {kubelet\\\dlpcode{containerd}};
+  \node[box=blue, below=14mm of kubelet.south, anchor=north east, xshift=-1mm] (web) {Pod \dlpcode{web}};
+  \node[box=blue, right=3mm of web] (dns) {Pod \dlpcode{coredns}};
+  \node[cluster={container dlp-k3s là cả cụm}, fit=(cp)(kubelet)(web)(dns), inner sep=12pt] (k3s) {};
+  \node[host={sandbox của bạn}, fit=(term)(k3s), inner sep=12pt] {};
+
+  \draw[flow] (term) -- node[lbl, above=3pt] {HTTPS} node[note, below=3pt] {\dlpcode{:6443}} (cp);
+  \draw[flow=violet] (cp) -- node[lbl, above=3pt] {giao Pod} (kubelet);
+  \draw[flow=teal] (kubelet.south) -- (web.north);
+  \draw[flow=teal] (kubelet.south) -- (dns.north);
+\end{tikzpicture}

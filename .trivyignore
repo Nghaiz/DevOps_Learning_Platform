@@ -46,3 +46,28 @@ CVE-2026-56854
 # nó và là gói C, không mang stdlib Go.
 CVE-2024-24790
 CVE-2025-68121
+
+# CVE-2019-19919 + CVE-2021-23369 + CVE-2021-23383 — thư viện npm `handlebars`
+# (prototype pollution / RCE lúc compile template). DƯƠNG TÍNH GIẢ trong image
+# này, thêm 2026-10-03 khi CI bắt đầu dựng sandbox-base với INCLUDE_IDE=1 (D6).
+#
+# Trivy báo `pkg:npm/handlebars@1.108.2` tại
+# /opt/theia/plugins/vscode.handlebars/extension/package.json. Đó KHÔNG phải thư
+# viện handlebars: npm không có bản 1.108.x nào — 1.108.2 là version của VS Code.
+# File đó là extension NGỮ PHÁP dựng sẵn của VS Code ("Handlebars Language Basics
+# (built-in)", publisher `vscode`) mà image Theia ghim digest mang theo; manifest
+# của nó tình cờ khai `"name": "handlebars"` và Trivy khớp theo tên. Đã kiểm trên
+# image (2026-10-03): thư mục chỉ có package.json, package.nls.json, README,
+# LICENSE, language-configuration.json và một file .tmLanguage.json; KHÔNG có
+# file .js/.mjs/.cjs/.node nào, manifest không có `main`/`browser`. Không có mã
+# handlebars nào để chạy, nên không code path nào của ba CVE tồn tại.
+#
+# ⚠ Ba ID này che MỌI handlebars trong image, không riêng extension kia (định
+# dạng .trivyignore không giới hạn theo đường dẫn). Nên chúng có CỔNG ĐI KÈM:
+# bước "Trivy ignore: handlebars chỉ là extension ngữ pháp" của job
+# `sandbox-image` đỏ khi (a) xuất hiện một package handlebars THẬT ở bất kỳ đâu,
+# hoặc (b) extension kia biến mất (nâng digest Theia) — khi đó XOÁ ba dòng dưới.
+# RÀ LẠI: mỗi lần đổi THEIA_IMAGE trong Dockerfile.
+CVE-2019-19919
+CVE-2021-23369
+CVE-2021-23383

@@ -1,23 +1,17 @@
-# Sandbox bị cô lập mạng
+Nút **Kiểm tra** không chấm theo việc bạn đã bấm gì. Nó chạy một đoạn script ngay trong máy của bạn, soi trạng thái thật (tệp có chưa, nội dung đúng chưa) rồi in từng tiêu chí kèm dấu ✓ hoặc ✗. Bấm thử ngay bây giờ, trước khi làm gì: bạn sẽ thấy ✗ cùng lý do.
 
-Bước này không yêu cầu bạn sửa gì — nó yêu cầu bạn **quan sát**.
+Việc của bước này: tạo tệp `~/ghi-chu/ngay-dau.txt` chứa đúng một dòng `xin chào từ <tên máy>`.
 
-Pod chạy bài học nằm dưới một `NetworkPolicy` mặc định từ chối, chỉ mở đúng hai
-đường: DNS đi ra, và kết nối vào từ terminal gateway. Nghĩa là không có Internet,
-và cũng không truy cập được các dịch vụ nội bộ của cụm.
+Thư mục `ghi-chu` chưa có. Tạo nó trước, cờ `-p` để lệnh không kêu nếu thư mục đã tồn tại:
 
-Thử gọi endpoint metadata của máy chủ — địa chỉ mà một container thoát ra ngoài
-sẽ nhắm tới đầu tiên để lấy thông tin đám mây:
+`mkdir -p ~/ghi-chu`{{exec}}
 
-```
-curl -s --max-time 3 http://169.254.169.254/ ; echo "exit=$?"
-```{{exec}}
+Ghi một dòng vào tệp. Dấu `>` đưa chữ mà `echo` in ra vào tệp thay vì lên màn hình, còn `$(hostname)` được thay bằng output của lệnh `hostname` trước khi `echo` kịp chạy:
 
-Lệnh sẽ hết giờ và trả mã khác 0. Đó là kết quả **đúng**.
+`echo "xin chào từ $(hostname)" > ~/ghi-chu/ngay-dau.txt`{{exec}}
 
-Vì sao điều này quan trọng: bạn có quyền root trong sandbox, và có cả Docker. Nếu
-pod ra được mạng nội bộ của cụm, quyền root đó sẽ với tới được những thứ không
-thuộc về bài học. Lớp cô lập là thứ khiến việc phát root cho người học trở nên an
-toàn.
+Nhìn bằng mắt trước khi để máy nhìn:
 
-Bấm **Kiểm tra** — phép kiểm ở bước này khẳng định rằng kết nối **thất bại**.
+`cat ~/ghi-chu/ngay-dau.txt`{{exec}}
+
+Bấm Kiểm tra lần nữa. Lần này mọi dòng đều là ✓. Chạy lại lệnh `echo` bao nhiêu lần cũng vẫn đạt: `>` ghi đè cả tệp mỗi lần, nên tệp luôn chỉ có một dòng.

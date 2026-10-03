@@ -1,0 +1,17 @@
+% Mô tả: Phím gõ đi từ trình duyệt qua terminal-gateway vào phiên tmux dlp trong pod sandbox rồi tới zsh; chữ in ra đi đường ngược lại
+\begin{tikzpicture}
+  \node[box] (browser) {Trình duyệt\\\dlpmuted{\small tab bài học}};
+  \node[card=violet, right=24mm of browser] (gw) {\dlptitle{terminal-gateway}\dlpmuted{\small kiểm phiên, mở exec}};
+  \node[container=blue, right=22mm of gw] (tmux) {tmux \dlpcode{-s dlp}};
+  \node[container=green, right=8mm of tmux] (zsh) {zsh};
+  \node[pod=pod sandbox của bạn, fit=(tmux)(zsh)] (pod) {};
+
+  \draw[flow] ([yshift=4pt]browser.east) -- node[lbl, above=3pt] {phím gõ} ([yshift=4pt]gw.west);
+  \draw[flow=muted] ([yshift=-4pt]gw.west) -- node[note, below=3pt] {chữ in ra} ([yshift=-4pt]browser.east);
+  \draw[flow] ([yshift=4pt]gw.east) -- node[lbl, above=3pt] {exec} ([yshift=4pt]tmux.west);
+  \draw[flow=muted] ([yshift=-4pt]tmux.west) -- ([yshift=-4pt]gw.east);
+  \draw[both] (tmux) -- (zsh);
+
+  \node[note, below=10mm of pod.south, align=center] (keep) {đóng tab hay rớt mạng: tmux vẫn chạy,\\mở lại bài là gắn vào đúng phiên cũ};
+  \draw[faint, ->] (keep) -- (pod.south);
+\end{tikzpicture}

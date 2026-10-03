@@ -1,9 +1,9 @@
 {
   "id": "dlp-sandbox-basics",
   "difficulty": "beginner",
-"topic": "linux",
-  "estimatedMinutes": 10,
+  "topic": "linux",
+  "estimatedMinutes": 20,
   "source": null,
   "acknowledgedUnknownFields": [],
-  "notes": "Bài FIRST-PARTY (source: null) — soạn tại repo này, không nhập từ upstream nào. Lý do tồn tại: cả 4 bài đã vendor đều KHÔNG sinh được cặp pass/fail thật trên cụm hiện tại (ckad thiếu kubectl nên luôn fail; prolug verify là /bin/true nên luôn pass; loki không có verify nào; loxilb cần egress internet mà NetworkPolicy default-deny chặn). Bài này chỉ dùng thứ CÓ THẬT trong images/sandbox-base: bash, coreutils, jq, và Docker/DinD — đúng năng lực duy nhất P1 đã đo. Nó cũng mang 1 asset để chứng minh tầng asset-push, và một step khẳng định chính sự cô lập mạng."
+  "notes": "Bài first-party, soạn tại repo này cho lộ trình dlp-path-linux-cho-devops (giáo trình labs rebuild 2026-10-03). Không có bài upstream nào dạy đúng môi trường của nền tảng: terminal web nối qua gateway vào tmux + zsh trong pod sandbox, phiên một giờ rồi mất."
 }

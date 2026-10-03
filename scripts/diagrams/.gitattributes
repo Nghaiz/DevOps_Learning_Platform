@@ -1,0 +1,5 @@
+# Băm nguồn đã chuẩn hoá CRLF→LF nên cổng không phụ thuộc dòng này. Nhưng file TeX/JS/SVG vẫn
+# phải là LF ở mọi checkout: core.autocrlf=true trên Windows sẽ đổi sang CRLF nếu không pin.
+* text eol=lf
+*.ttf binary
+*.otf binary

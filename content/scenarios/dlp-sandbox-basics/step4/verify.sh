@@ -1,16 +1,30 @@
 #!/bin/bash
-# Phep kiem NGUOC: dat khi ket noi BI CHAN.
+# Đạt khi ~/ghi-chu/ngay-dau.txt có đúng một dòng "xin chào từ <hostname>".
 #
-# Khong dung `set -e` o day — ca thanh cong cua bai NAY la mot lenh that bai, va
-# `set -e` se giet script truoc khi no kip ket luan.
+# Phần giữa ("chào từ") so lỏng có chủ ý: người gõ tay bằng bộ gõ tiếng Việt có
+# thể sinh dấu tổ hợp (NFD) thay vì ký tự dựng sẵn, và bash không chuẩn hoá
+# Unicode được. Đầu dòng và tên máy thì so chặt.
 set -uo pipefail
 
-# `--max-time 3` la phan bat buoc: NetworkPolicy default-deny lam goi tin bi
-# DROP im lang (khong phai REJECT), nen khong co timeout thi curl treo den khi
-# gateway cat o 30s va ca luot cham tra 502 thay vi "dat".
-if curl -s --max-time 3 http://169.254.169.254/ > /dev/null 2>&1; then
-  echo "CANH BAO: pod GOI DUOC 169.254.169.254 — lop co lap mang khong con hieu luc."
+f=/root/ghi-chu/ngay-dau.txt
+host=$(hostname)
+
+if [ ! -f "$f" ]; then
+  fail "Chưa có tệp $f (chạy mkdir -p ~/ghi-chu rồi lệnh echo của bước này)"
   exit 1
 fi
+pass "Có tệp $f"
 
-echo "Dat — ket noi toi 169.254.169.254 bi chan dung nhu mong doi."
+lines=$(wc -l < "$f")
+if [ "$lines" -eq 1 ]; then
+  pass "Tệp có đúng một dòng"
+else
+  fail "Tệp có đúng một dòng (hiện: $lines dòng)"
+fi
+
+line=$(head -n 1 "$f")
+if [[ "$line" == "xin ch"* && "$line" == *" $host" ]]; then
+  pass "Dòng đó là \"xin chào từ $host\""
+else
+  fail "Dòng đó là \"xin chào từ $host\" (hiện: \"$line\")"
+fi

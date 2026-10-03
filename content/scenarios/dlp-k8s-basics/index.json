@@ -1,6 +1,6 @@
 {
-  "title": "Kubernetes căn bản: Pod, Deployment, ConfigMap, Service",
-  "description": "Sáu bước với một cụm k3s một-node chạy thật bên trong sandbox của bạn: từ kubectl get nodes tới Pod, Deployment tự phục hồi, ConfigMap tách cấu hình khỏi image, Service với Endpoints làm bằng chứng khách quan, và vì sao cụm này chỉ có một node.",
+  "title": "Cụm đầu tiên: node, Pod và kubectl",
+  "description": "Một cụm k3s thật chạy trong sandbox của bạn. Đọc trạng thái node, chạy Pod đầu tiên, chui vào xem nó làm gì, rồi viết YAML thay vì nhớ cờ.",
   "details": {
     "intro": {
       "text": "intro.md",
@@ -8,32 +8,31 @@
     },
     "steps": [
       {
-        "title": "Làm quen với cụm của bạn",
-        "text": "step1.md",
-        "verify": "step1/verify.sh"
+        "title": "Cụm của bạn nằm ở đâu",
+        "text": "step1.md"
       },
       {
-        "title": "Pod — đơn vị nhỏ nhất",
+        "title": "Pod đầu tiên",
         "text": "step2.md",
         "verify": "step2/verify.sh"
       },
       {
-        "title": "Deployment — Pod biết tự phục hồi",
+        "title": "Nhìn vào trong Pod",
         "text": "step3.md",
         "verify": "step3/verify.sh"
       },
       {
-        "title": "ConfigMap — tách cấu hình khỏi image",
+        "title": "Xoá Pod, và không ai dựng lại",
         "text": "step4.md",
         "verify": "step4/verify.sh"
       },
       {
-        "title": "Service — gọi được từ trong cụm",
+        "title": "Viết YAML thay vì gõ cờ",
         "text": "step5.md",
         "verify": "step5/verify.sh"
       },
       {
-        "title": "Vì sao cụm này chỉ có một node",
+        "title": "Namespace",
         "text": "step6.md",
         "verify": "step6/verify.sh"
       }
