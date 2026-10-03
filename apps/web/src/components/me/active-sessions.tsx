@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useState, type ReactElement } from 'react';
 import { SquareTerminal } from 'lucide-react';
-import { err, t } from '@devops-platform/copy';
+import { err, t, type StaticTextKey } from '@devops-platform/copy';
 import type { ErrorEntry } from '@devops-platform/copy/types';
 import {
   Button,
@@ -22,11 +22,18 @@ import {
 import { api } from '../../lib/trpc-react';
 import { describeTrpcError, trpcErrorCode } from '../../lib/trpc';
 import { formatMoment } from '../../lib/format-moment';
-import { Board, BoardSkeleton, staggerStyle } from '../kit';
+import { Board, BoardSkeleton, StationMarker, lineForTopic, staggerStyle } from '../kit';
 import { useCapacity } from '../shell';
 import { describeEndSessionError, describeMySessionStatus, describeSessionExpiry } from './session-summary';
 import { useCursorPages } from './use-cursor-pages';
 import { describeEmptyPage, shouldShowPager, type HistoryPageState } from './history-page-notice';
+
+/** Nhãn loại nội dung, cùng chữ với tên mục trên thanh điều hướng. */
+const CONTENT_KIND_LABEL = {
+  lesson: 'catalog.title.lessons',
+  lab: 'catalog.title.labs',
+  playground: 'catalog.title.playgrounds',
+} as const satisfies Record<'lesson' | 'lab' | 'playground', StaticTextKey>;
 
 interface PendingEnd {
   readonly id: string;
@@ -37,12 +44,16 @@ interface PendingEnd {
  * "Phiên đang mở": `me.activeSessions` trên bảng tuyến, kết thúc sớm bằng
  * `me.endSession` sau một hộp xác nhận.
  *
- * ## Đường "mở lại" chỉ có terminal, và đó là giới hạn của dữ liệu
+ * ## Tên dòng là nội dung đã mở phiên; đường "mở lại" vẫn chỉ có terminal
  *
- * `JsonSession` không mang bài học, lab hay sân chơi nào đã mở phiên (chỉ id,
- * trạng thái, pod, mốc giờ). Liên kết duy nhất nói thật là `/session/<id>/terminal`,
- * cửa sổ terminal gắn vào ĐÚNG máy đó. Trỏ sang `/labs/<id>` sẽ mở một lần thử
- * MỚI chứ không nối lại phiên này.
+ * Mỗi phiên mang `content` (bài học, lab hay sân chơi đã mở nó), nên dòng gọi
+ * tên bằng chính bài đó. `null` với phiên mở trước migration 0018 hoặc bài đã bị
+ * gỡ: khi đó dòng gọi tên bằng mốc giờ mở máy như trước.
+ *
+ * Trang bài học/lab/sân chơi chưa biết gắn lại vào một phiên có sẵn, nên liên
+ * kết duy nhất nói thật vẫn là `/session/<id>/terminal`, cửa sổ terminal gắn
+ * vào ĐÚNG máy đó. Trỏ sang `/labs/<id>` sẽ mở một lần thử MỚI chứ không nối
+ * lại phiên này.
  *
  * ## Id phiên không hiện ra màn hình
  *
@@ -131,8 +142,20 @@ export function ActiveSessions(): ReactElement {
                       {String(order + 1).padStart(2, '0')}
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block type-title">{t('me.sessions.row-title', { time: openedAt })}</span>
+                      {session.content === null ? (
+                        <span className="block type-title">{t('me.sessions.row-title', { time: openedAt })}</span>
+                      ) : (
+                        <span className="flex items-center gap-3">
+                          <StationMarker line={lineForTopic({ id: session.content.id })} />
+                          <span className="min-w-0 type-title">{session.content.title}</span>
+                        </span>
+                      )}
                       <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+                        {session.content !== null && (
+                          <span>
+                            {t(CONTENT_KIND_LABEL[session.content.kind])}, {t('me.sessions.row-opened', { time: openedAt })}
+                          </span>
+                        )}
                         <span className="inline-flex items-center gap-2 text-foreground">
                           <StatusDot tone={status.live ? 'live' : 'idle'} />
                           {status.label}

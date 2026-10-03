@@ -79,6 +79,7 @@ export const me = {
   'me.sessions.empty-description':
     'Phiên được tạo khi bạn bắt đầu một bài học, lab hoặc sân chơi, và tự hết hạn khi tới giờ.',
   'me.sessions.row-title': (p: { time: string }) => `Máy mở lúc ${p.time}`,
+  'me.sessions.row-opened': (p: { time: string }) => `mở lúc ${p.time}`,
   'me.sessions.resume': 'Mở terminal',
   'me.sessions.end': 'Kết thúc',
   'me.sessions.confirm-title': (p: { time: string }) => `Kết thúc phiên mở lúc ${p.time}?`,
@@ -119,7 +120,6 @@ export const me = {
   'me.history.tab.labs': 'Lab',
   'me.history.tab.quizzes': 'Trắc nghiệm',
   'me.history.loading': 'Đang tải lịch sử',
-  'me.history.title-loading': 'Đang tải tên bài…',
   'me.history.unreadable': 'Nội dung này không còn đọc được',
 
   /*

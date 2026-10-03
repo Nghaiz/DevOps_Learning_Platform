@@ -104,7 +104,11 @@ function LessonHistory(): ReactElement {
                 <TableCell>
                   <Link href={`/lessons/${encodeURIComponent(row.lessonId)}`} className={TITLE_LINK}>
                     <StationMarker line={lineForTopic({ id: row.lessonId })} />
-                    <LessonTitle lessonId={row.lessonId} />
+                    {row.lessonTitle === null ? (
+                      <span className="text-muted-foreground">{t('me.history.unreadable')}</span>
+                    ) : (
+                      <span>{row.lessonTitle}</span>
+                    )}
                   </Link>
                 </TableCell>
                 <TableCell>
@@ -123,22 +127,6 @@ function LessonHistory(): ReactElement {
       </Table>
     </HistoryFrame>
   );
-}
-
-/**
- * Tên bài học. `me.listProgress` chỉ trả `lessonId` (dòng `progress` không giữ
- * tên), nên mỗi dòng đọc tên qua `lessons.get`. Id thô không bao giờ hiện ra:
- * đang tải thì nói đang tải, đọc hỏng thì nói nội dung không còn đọc được.
- */
-function LessonTitle({ lessonId }: { readonly lessonId: string }): ReactElement {
-  const lesson = api.lessons.get.useQuery({ scenarioId: lessonId }, { retry: false, staleTime: 5 * 60_000 });
-  if (lesson.isSuccess) {
-    return <span>{lesson.data.scenario.title ?? t('me.history.unreadable')}</span>;
-  }
-  if (lesson.isError) {
-    return <span className="text-muted-foreground">{t('me.history.unreadable')}</span>;
-  }
-  return <span className="text-muted-foreground">{t('me.history.title-loading')}</span>;
 }
 
 function LabHistory(): ReactElement {
