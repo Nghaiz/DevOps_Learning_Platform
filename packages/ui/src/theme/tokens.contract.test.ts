@@ -200,18 +200,11 @@ const C1_MOTION_TOKENS = ['--motion-fast', '--motion-base', '--motion-slow', '--
  * 1. **Chỉ ở `:root`, CẤM lặp ở `.dark`.** Một màu logo đổi theo theme thì
  *    không còn là màu logo.
  * 2. **KHÔNG có dòng `--color-brand-*` trong `@theme inline`.** Đây là nửa còn
- *    lại, và nó là nửa hay bị quên: nếu map, Tailwind sinh ra `bg-brand-star`
- *    và `text-brand-emblem` — tức cấp cho mọi lane một đường tắt hợp lệ về mặt
- *    cú pháp để tô giao diện bằng màu logo. `--brand-star` trên nền sáng đo
- *    được 1.23:1; một class tồn tại là một class sẽ có người dùng.
+ *    lại, và nó là nửa hay bị quên: nếu map, Tailwind sinh ra `bg-brand-navy`
+ *    — tức cấp cho mọi lane một đường tắt hợp lệ về mặt cú pháp để tô giao diện
+ *    bằng màu logo; một class tồn tại là một class sẽ có người dùng.
  */
-const C1_BRAND_TOKENS = [
-  '--brand-emblem',
-  '--brand-star',
-  '--brand-star-shadow',
-  '--brand-ink',
-  '--brand-navy',
-] as const;
+const C1_BRAND_TOKENS = ['--brand-navy'] as const;
 
 /**
  * Bảng màu của CẢNH 3D trên landing (`d5bf768`, chỉ đạo 2026-09-13).
@@ -256,134 +249,22 @@ const C1_JOURNEY_TOKENS = [
 ] as const;
 
 /**
- * ── Lớp workspace (`practice.css`) ─────────────────────────────────────────
+ * Palette của MỘT trò chơi — mặt nền chung, ba vùng cảnh theo chương, và mặt
+ * riêng của từng khoang. Nó rơi đúng vào hình dạng mà khối `C1_JOURNEY_TOKENS`
+ * mô tả, nên theo tiền lệ ấy thay vì vào `C1_COLOR_TOKENS`. Hai lý do, cả hai
+ * đều là quyết định:
  *
- * 12 token mang GIÁ TRỊ cho hệ token thứ HAI của site. `practice.css` nạp SAU
- * `globals.css` trong `app/layout.tsx` và khai lại `:root`/`.dark` với cùng bộ
- * tên shadcn; cùng độ đặc hiệu, nạp sau ⇒ **nó thắng**. Bộ dưới đây mới là thứ
- * thật sự vẽ ra mọi trang, còn bảng PTIT ở `C1_COLOR_TOKENS` chỉ còn hiệu lực ở
- * những token mà lớp kia không nhắc tới — `--primary` đang là `rgb(169 67 38)`
- * cam-nâu, không phải `#BC2626` đỏ PTIT.
- *
- * Đó là một khoản NỢ kiến trúc, không phải một quyết định thiết kế; nhưng gỡ
- * lớp đè ra là đổi diện mạo toàn site, nên nó là một thay đổi riêng cần người
- * quyết. Hợp đồng ở đây đăng ký đúng thực trạng, và ghi lại nó để người sau
- * không phải tự phát hiện lại.
- *
- * ## Vì sao KHÔNG thêm 12 dòng này vào `C1_COLOR_TOKENS`
- *
- * Không phải vì "chúng là nhóm khác" — mà vì nhét vào đó sẽ ÉP RA đúng thứ mà
- * §1.5 và khối `C1_JOURNEY_TOKENS` cấm:
- *
- * 1. **Ô `@theme inline` sẽ đỏ.** Mọi `C1_COLOR_TOKENS` bị đòi một dòng
- *    `--color-*` trỏ về nó. Không có `--color-workspace-background`, và cách
- *    DUY NHẤT làm ô đó xanh lại là thêm 12 dòng map — tức cấp cho mọi lane sau
- *    một `bg-workspace-card` hợp lệ về cú pháp, trỏ thẳng vào tầng NGUỒN và đi
- *    vòng qua lớp vai trò ở giữa. Một class tồn tại là một class sẽ có người
- *    dùng.
- * 2. **Máy đo của file này chỉ đọc `oklch()`.** `parseOklch()` ném với mọi dạng
- *    khác, và khối gamut ở cuối file lọc `startsWith('oklch(')`. 12 token này
- *    cố ý ở dạng `rgb()`: đó là dạng duy nhất quy đổi từ hex mà không mất một
- *    bit nào, và ràng buộc của lượt di chuyển giá trị là diện mạo KHÔNG ĐỔI.
- *
- * ## Khác `C1_JOURNEY_TOKENS` ở đúng một điểm, và điểm đó quyết định cách gác
- *
- * Màu cảnh 3D bất biến theo theme nên nó bị gác bằng ô "CỐ Ý vắng mặt ở
- * `.dark`". 12 token này thì NGƯỢC LẠI: chúng là nguồn của
- * `--background`/`--foreground`/`--card` cho toàn bộ vùng practice, nên thiếu
- * nhánh tối là cả vùng đó hiện sáng ở chế độ tối — im lặng, đúng hạng hỏng
- * được liệt kê ở đầu file. Vì thế chúng đi vào ô "có mặt ở CẢ HAI theme", kèm
- * một ô nữa bắt hai nhánh phải KHÁC giá trị.
- */
-const C1_WORKSPACE_TOKENS = [
-  '--workspace-background',
-  '--workspace-foreground',
-  '--workspace-card',
-  '--workspace-primary',
-  '--workspace-primary-foreground',
-  '--workspace-secondary',
-  '--workspace-secondary-foreground',
-  '--workspace-muted-foreground',
-  '--workspace-accent',
-  '--workspace-accent-foreground',
-  '--workspace-border',
-  '--workspace-input',
-] as const;
-
-/**
- * Hai mực bóng của lớp workspace. Tách khỏi nhóm trên vì ràng buộc theme khác
- * hẳn: chúng CHỈ khai ở `:root`.
- *
- * Cố ý là hai token ĐỤC riêng chứ không phải bốn token khác độ trong — độ trong
- * sống ở chỗ dùng qua `color-mix()` (3–9% alpha ở `practice.css`), nên thêm một
- * sắc bóng là thêm một token, còn thêm một độ đậm thì không thêm gì cả.
- *
- * ⚠ Việc chúng nằm ngoài `.dark` là một khoảng trống CÓ TÊN, không phải một chỗ
- * bỏ sót. `C1_ELEVATION_TOKENS` có hẳn một ô bắt bóng nhánh tối phải khác nhánh
- * sáng, vì bóng lạnh nhạt trên nền tối là vô hình. Hai mực này KHÔNG chịu ô đó,
- * bởi chúng được di chuyển nguyên bản từ `practice.css` — nơi `.dark` vốn đã
- * không đè lên chúng. Cho chúng một nhánh tối riêng là một quyết định thiết kế
- * cần người quyết, không phải một lượt sửa lặng lẽ "cho giống elevation".
- */
-const C1_WORKSPACE_INK_TOKENS = ['--workspace-shadow-ink', '--workspace-lift-ink'] as const;
-
-/**
- * ── Ba bảng màu BỀ MẶT, cố định ở cả hai theme ─────────────────────────────
- *
- * `--art-*` (tấm nền + mực artwork thẻ game), `--challenge-*` (panel xanh rêu
- * cột phải practice) và `--odyssey-*` (palette của trò Git Odyssey) rơi đúng
- * vào hình dạng mà khối `C1_JOURNEY_TOKENS` mô tả, nên chúng theo tiền lệ ấy
- * thay vì vào `C1_COLOR_TOKENS`. Hai lý do, cả hai đều là quyết định:
- *
- * 1. **Bất biến theo theme.** `.dark` không đè lên `.practice-game-art`; panel
- *    challenge là một mảng đặc; `.git-odyssey` tự đặt `color-scheme: dark` rồi
+ * 1. **Bất biến theo theme.** `.git-odyssey` tự đặt `color-scheme: dark` rồi
  *    vẽ toàn bộ mặt nền của mình. Nhét vào `C1_COLOR_TOKENS` sẽ làm ô "có mặt ở
- *    CẢ HAI theme" đỏ, và cách duy nhất làm nó xanh lại là nhân đôi **61 dòng**
+ *    CẢ HAI theme" đỏ, và cách duy nhất làm nó xanh lại là nhân đôi **43 dòng**
  *    xuống `.dark` — tức bịa ra một biến thể theme mà thiết kế không đòi, chỉ
  *    để chiều một phép kiểm.
- * 2. **Dạng `rgb()`, không phải `oklch()`.** Cùng ràng buộc không-lệch-một-bit
- *    của `C1_WORKSPACE_TOKENS`, và cùng hệ quả: máy đo contrast/gamut của file
- *    này không chạm tới chúng.
+ * 2. **Dạng `rgb()`, không phải `oklch()`.** Máy đo contrast/gamut của file này
+ *    chỉ đọc `oklch()` (khối gamut lọc `startsWith('oklch(')`), nên không chạm
+ *    tới chúng.
  *
  * ⛔ KHÔNG map sang `@theme inline` — cùng lý lẽ nửa-hay-bị-quên của
  * `C1_BRAND_TOKENS`, và có ô gác riêng bên dưới cho đúng điều đó.
- *
- * ## Thứ ba nhóm này KHÔNG được gác ở đây, và vì sao
- *
- * `globals.css` ghi ba số đo thật cho `--art-*`: `--art-ink-k8s` 5.567:1 và
- * `--art-label-git` 5.445:1 đạt AA, còn `--art-ink-git` 3.985:1 cố ý dưới
- * ngưỡng vì nó là mực NÉT VẼ (`aria-hidden`), không phải mực chữ. Không ô nào ở
- * đây khẳng định lại ba con số đó: toàn bộ bộ máy đo của file dựng trên
- * `parseOklch()`, nên đo một cặp `rgb()` đòi một bộ phân tích thứ hai — việc
- * ngoài phạm vi lượt đăng ký này.
- *
- * Đó là một khoảng trống CÓ TÊN, ghi lại ở `docs/design-system.md` § "Token
- * ngoài bảng C1", để lần sau ai đổi `--art-surface-git` biết mình đang đổi thứ
- * gì và ô nào KHÔNG kêu.
- */
-const C1_ART_TOKENS = [
-  '--art-surface-default',
-  '--art-surface-k8s',
-  '--art-surface-git',
-  '--art-ink-k8s',
-  '--art-ink-git',
-  '--art-label-git',
-  '--art-play-scrim',
-] as const;
-
-const C1_CHALLENGE_TOKENS = [
-  '--challenge-surface',
-  '--challenge-ink',
-  '--challenge-border',
-  '--challenge-icon',
-  '--challenge-eyebrow',
-  '--challenge-body',
-  '--challenge-cta',
-] as const;
-
-/**
- * Palette của MỘT trò chơi — mặt nền chung, ba vùng cảnh theo chương, và mặt
- * riêng của từng khoang.
  *
  * Tiền tố `--odyssey-` chứ KHÔNG phải `--git-`, và đó là ràng buộc cứng: các
  * `.tsx` của game đọc `var(--git-abyss, var(--background))` — tức CÓ nhánh dự
@@ -420,8 +301,6 @@ const C1_ODYSSEY_TOKENS = [
 
   // Mặt nền + ánh sáng riêng từng khoang. Những cái mang sẵn alpha là SCRIM —
   // độ trong là một phần ĐỊNH NGHĨA của chúng, không phải một biến thể đậm nhạt.
-  '--odyssey-campaign-glow',
-  '--odyssey-map-glow',
   '--odyssey-map-grid',
   '--odyssey-legend-scrim',
   '--odyssey-feedback-scrim',
@@ -434,8 +313,6 @@ const C1_ODYSSEY_TOKENS = [
   '--odyssey-hint-surface',
   '--odyssey-reference-scrim',
   '--odyssey-victory-scrim',
-  '--odyssey-lobby-glow',
-  '--odyssey-node-done',
   '--odyssey-verdict-accepted',
   '--odyssey-terminal-bg',
   '--odyssey-form-focus',
@@ -464,9 +341,6 @@ const C1_GEOMETRY_TOKENS = [
   '--arc-start',
   '--arc-sweep',
   '--arc-gap',
-  '--arc-stroke-hairline',
-  '--arc-stroke',
-  '--arc-stroke-heavy',
 ] as const;
 
 /**
@@ -683,12 +557,12 @@ function composite(color: Oklch, backdrop: Srgb | undefined): Srgb {
 function resolve(
   theme: Record<string, string>,
   /*
-   * `ColorToken | BrandToken`, KHÔNG phải `string`: nới thành `string` sẽ để
+   * `ColorToken`, KHÔNG phải `string`: nới thành `string` sẽ để
    * một lỗi chính tả (`'--forground'`) đi qua biên dịch và chỉ ném lúc chạy,
    * với thông điệp "không có ở cả theme lẫn :root" — đọc ra như một token bị
    * xoá chứ không như một cái tên gõ sai.
    */
-  token: ColorToken | (typeof C1_BRAND_TOKENS)[number],
+  token: ColorToken,
   backdrop?: Srgb,
 ): Srgb {
   const raw = theme[token] ?? root[token];
@@ -773,8 +647,8 @@ describe('C1 — token có mặt ở CẢ HAI theme', () => {
   );
 
   /**
-   * AC-1 của `p16-tokens.md` §10 đòi khẳng định VẮNG MẶT ở `.dark` cho cả năm
-   * token thương hiệu và toàn bộ thang chữ/giãn dòng/khoảng cách. Hai nhóm này
+   * AC-1 của `p16-tokens.md` §10 đòi khẳng định VẮNG MẶT ở `.dark` cho token
+   * thương hiệu và toàn bộ thang chữ/giãn dòng/khoảng cách. Hai nhóm này
    * vắng vì hai lý do KHÁC nhau, nên chúng được tách khỏi khối trên:
    *
    *  • `--brand-*` vắng vì màu logo KHÔNG được đổi theo theme (§1.5);
@@ -787,43 +661,15 @@ describe('C1 — token có mặt ở CẢ HAI theme', () => {
     ...C1_BRAND_TOKENS,
     ...C1_JOURNEY_TOKENS,
     ...THEME_BLOCK_TOKENS,
-    ...C1_WORKSPACE_INK_TOKENS,
-    ...C1_ART_TOKENS,
-    ...C1_CHALLENGE_TOKENS,
     ...C1_ODYSSEY_TOKENS,
   ] as const)('%s CỐ Ý vắng mặt ở .dark', (token) => {
     expect(
       dark[token],
       `${token} xuất hiện ở .dark. Màu logo đổi theo theme thì không còn là màu logo; ` +
         'thang chữ đổi theo theme thì bố cục nhảy khi người dùng gạt công tắc; ' +
-        'tấm artwork / panel challenge / palette Git Odyssey là bề mặt CỐ ĐỊNH — ' +
+        'palette Git Odyssey là bề mặt CỐ ĐỊNH — ' +
         'một nhánh tối cho chúng là một chỗ nữa để quên đồng bộ, đổi lấy con số không.',
     ).toBeUndefined();
-  });
-
-  /**
-   * Nhóm workspace đi ngược lại khối trên, và đó là điều duy nhất phân biệt nó
-   * với `C1_JOURNEY_TOKENS`: nó là NGUỒN của `--background`/`--foreground`/
-   * `--card` cho toàn vùng practice, nên thiếu nhánh tối không phải "kém đồng
-   * bộ" mà là cả vùng đó hiện sáng ở chế độ tối.
-   */
-  it.each(C1_WORKSPACE_TOKENS)('%s khai ở CẢ HAI theme', (token) => {
-    expect(root[token], `${token} thiếu trong :root`).toBeDefined();
-    expect(
-      dark[token],
-      `${token} thiếu trong .dark — practice.css gán nó vào token shadcn, nên cả vùng ` +
-        'practice sẽ mang màu nhánh sáng ở chế độ tối, không lỗi nào kêu lên.',
-    ).toBeDefined();
-  });
-
-  it('nhánh tối của workspace KHÁC nhánh sáng (chép nguyên sang là hỏng câm)', () => {
-    for (const token of C1_WORKSPACE_TOKENS) {
-      expect(
-        dark[token],
-        `${token} ở .dark trùng y hệt :root — đúng hình dạng của "quên viết nhánh tối", ` +
-          'chỉ khác là nó còn qua được cả ô "khai ở CẢ HAI theme" ở trên.',
-      ).not.toBe(root[token]);
-    }
   });
 
   it('không có token THỪA ngoài hợp đồng C1 (thêm token = phải sửa C1 + docs/design-system.md)', () => {
@@ -834,10 +680,6 @@ describe('C1 — token có mặt ở CẢ HAI theme', () => {
       ...C1_BRAND_TOKENS,
       ...C1_JOURNEY_TOKENS,
       ...C1_GEOMETRY_TOKENS,
-      ...C1_WORKSPACE_TOKENS,
-      ...C1_WORKSPACE_INK_TOKENS,
-      ...C1_ART_TOKENS,
-      ...C1_CHALLENGE_TOKENS,
       ...C1_ODYSSEY_TOKENS,
       ...C1_TRANSIT_SHADOW_TOKENS,
       ...C1_TRANSIT_SHAPE_TOKENS,
@@ -852,12 +694,7 @@ describe('C1 — token có mặt ở CẢ HAI theme', () => {
    * về `unset` — im lặng y hệt ca ngược lại.
    */
   it('.dark không khai token nào NGOÀI hợp đồng, và không thiếu token nào của nó', () => {
-    const expected = [
-      ...C1_COLOR_TOKENS,
-      ...C1_ELEVATION_TOKENS,
-      ...C1_WORKSPACE_TOKENS,
-      ...C1_TRANSIT_SHADOW_TOKENS,
-    ];
+    const expected = [...C1_COLOR_TOKENS, ...C1_ELEVATION_TOKENS, ...C1_TRANSIT_SHADOW_TOKENS];
     expect(Object.keys(dark).toSorted()).toEqual(expected.toSorted());
   });
 });
@@ -1052,9 +889,8 @@ describe('C1 — `@theme inline` sinh được class Tailwind cho mọi token', 
 
   /**
    * Nửa còn lại của §1.5, và là nửa hay bị quên. Thiếu nó thì lệnh cấm "brand
-   * không phải màu giao diện" chỉ là một câu văn: map `--color-brand-star` là
-   * cấp cho bảy lane sau một class `bg-brand-star` hợp lệ về cú pháp, và
-   * `--brand-star` trên nền sáng đo được **1.23:1**.
+   * không phải màu giao diện" chỉ là một câu văn: map `--color-brand-navy` là
+   * cấp cho mọi lane sau một class `bg-brand-navy` hợp lệ về cú pháp.
    */
   it.each(C1_BRAND_TOKENS)(
     '%s KHÔNG có dòng `--color-*` — brand không phải màu giao diện',
@@ -1088,32 +924,20 @@ describe('C1 — `@theme inline` sinh được class Tailwind cho mọi token', 
   );
 
   /**
-   * Cùng nửa-hay-bị-quên ấy, cho lớp workspace và ba bảng màu bề mặt.
-   *
-   * Ở đây nó nặng hơn ca brand/journey một bậc, vì hai nhóm đầu KHÔNG phải màu
-   * lạ: `--workspace-card` là nguồn thật của `--card`. Map nó là cấp một
-   * `bg-workspace-card` trông hợp lý ở mọi chỗ, đi thẳng xuống tầng NGUỒN và bỏ
-   * qua lớp vai trò — thứ vẫn vẽ ĐÚNG hôm nay, rồi tách khỏi phần còn lại của
-   * giao diện đúng vào ngày ai đó đổi phép gán ở `practice.css`.
-   *
-   * `--art-*`/`--challenge-*`/`--odyssey-*` thì đúng ca journey: chúng chưa từng
-   * qua bảng contrast của hệ giao diện, và một `text-odyssey-muted-ink` trên nền
-   * trang là một cặp màu chưa ai đo.
+   * Cùng nửa-hay-bị-quên ấy, cho palette Git Odyssey — đúng ca journey: nó chưa
+   * từng qua bảng contrast của hệ giao diện, và một `text-odyssey-muted-ink` trên
+   * nền trang là một cặp màu chưa ai đo.
    */
-  it.each([
-    ...C1_WORKSPACE_TOKENS,
-    ...C1_WORKSPACE_INK_TOKENS,
-    ...C1_ART_TOKENS,
-    ...C1_CHALLENGE_TOKENS,
-    ...C1_ODYSSEY_TOKENS,
-  ] as const)('%s KHÔNG có dòng `--color-*` — nguồn/bề mặt không phải màu giao diện', (token) => {
-    expect(
-      themeInline[`--color${token.slice(1)}`],
-      `--color${token.slice(1)} tồn tại ⇒ Tailwind sinh ra bg/text/border cho nó. ` +
-        'Lớp workspace phải được tiêu thụ qua token vai trò ở practice.css, còn màu bề mặt ' +
-        'chưa qua bảng contrast — và một class tồn tại là một class sẽ có người dùng.',
-    ).toBeUndefined();
-  });
+  it.each(C1_ODYSSEY_TOKENS)(
+    '%s KHÔNG có dòng `--color-*` — bề mặt không phải màu giao diện',
+    (token) => {
+      expect(
+        themeInline[`--color${token.slice(1)}`],
+        `--color${token.slice(1)} tồn tại ⇒ Tailwind sinh ra bg/text/border cho nó. ` +
+          'Màu bề mặt chưa qua bảng contrast — và một class tồn tại là một class sẽ có người dùng.',
+      ).toBeUndefined();
+    },
+  );
 
   it('bo góc VUÔNG trong app, thang cũ chỉ sống lại trong phạm vi game K8s (design-brief §0.1)', () => {
     for (const size of ['sm', 'md', 'lg', 'xl']) {
@@ -1425,9 +1249,9 @@ describe('đối chứng — phép đo contrast ra đúng số đã biết, và 
     it.each([
       ['#ffffff', '#000000', 21.0, 'trần lý thuyết WCAG'],
       ['#BC2626', '#ffffff', 6.0985, '`--primary` sáng trên trắng (hợp đồng §1.2)'],
-      ['#EFF003', '#ffffff', 1.2255, '`--brand-star` trên trắng — CON SỐ của lệnh cấm §1.5'],
-      ['#373D4E', '#ffffff', 10.825, '`--brand-ink` = `--foreground` sáng (hợp đồng §1.2)'],
-      ['#B89C0E', '#ffffff', 2.6924, '`--brand-star-shadow` — nửa còn lại của lệnh cấm §1.5'],
+      ['#EFF003', '#ffffff', 1.2255, 'vàng sao logo PTIT trên trắng'],
+      ['#373D4E', '#ffffff', 10.825, 'mực wordmark PTIT (hợp đồng §1.2)'],
+      ['#B89C0E', '#ffffff', 2.6924, 'bóng vàng sao logo PTIT trên trắng'],
       ['#051A53', '#ffffff', 16.4176, '`--brand-navy` — nguồn của hue 263.7'],
     ])('%s trên %s = %s:1 (%s)', (fg, bg, expected) => {
       const measured = contrastRatio(
@@ -1438,9 +1262,9 @@ describe('đối chứng — phép đo contrast ra đúng số đã biết, và 
     });
 
     it('`#EFF003` trên ĐEN = 17.14:1 — cùng màu, cùng phép đo, nền khác ⇒ kết luận khác', () => {
-      // Chốt rằng lệnh cấm §1.5 là về CẶP chứ không về màu: chính `#EFF003` bị
-      // cấm trên nền sáng lại là màu duy nhất được phép làm dấu thành tựu trên
-      // nền tối. Một đối chứng chỉ đo một phía sẽ đọc ra "vàng này luôn xấu".
+      // Chốt rằng contrast là thuộc tính của CẶP chứ không của màu: cùng `#EFF003`
+      // dưới 3.0 trên trắng lại đạt 17.14 trên đen. Một đối chứng chỉ đo một phía
+      // sẽ đọc ra "vàng này luôn xấu".
       expect(
         contrastRatio(relativeLuminance(fromHex('#EFF003')), relativeLuminance(fromHex('#000000'))),
       ).toBeCloseTo(17.1355, 3);
@@ -1683,38 +1507,6 @@ describe('đối chứng hồi quy màu link tối', () => {
       expect(measure(previous, '--brand', surface)).toBeLessThan(4.5);
       expect(measure(dark, '--brand', surface)).toBeGreaterThanOrEqual(4.5);
     }
-  });
-});
-
-/**
- * §1.5 — `--brand-star` và `--brand-star-shadow` BỊ CẤM trên nền sáng, và lệnh
- * cấm đó ở đây là một CON SỐ chứ không phải một lời dặn.
- *
- * Chúng mang nghĩa "thành tựu", tức mang thông tin, nên ngưỡng thấp nhất áp
- * dụng được là 3.0 của SC 1.4.11 — không có nhánh "chỉ là trang trí" để lách.
- * `--brand-star` được 1.2247 và `--brand-star-shadow` 2.6954 trên nền trắng.
- *
- * Đây KHÔNG phải absence pin chờ ngày đóng: hai giá trị này là màu THƯƠNG HIỆU
- * cố định, chúng sẽ không sáng lên. Cái được gác là "nếu ai đó đổi một trong
- * hai để cho vừa nền sáng thì đó là đổi nhận diện, và phải đi qua hợp đồng".
- */
-describe('§1.5 — sao vàng chỉ sống trên nền tối', () => {
-  it('`--brand-star` trên nền SÁNG dưới 3.0 (1.2247) ⇒ cấm, không có ngoại lệ trang trí', () => {
-    const bg = resolve(root, '--background');
-    const star = resolve(root, '--brand-star', bg);
-    expect(contrastRatio(relativeLuminance(star), relativeLuminance(bg))).toBeLessThan(3);
-  });
-
-  it('`--brand-star-shadow` trên nền SÁNG cũng dưới 3.0 (2.6954) ⇒ cùng lệnh cấm', () => {
-    const bg = resolve(root, '--background');
-    const shade = resolve(root, '--brand-star-shadow', bg);
-    expect(contrastRatio(relativeLuminance(shade), relativeLuminance(bg))).toBeLessThan(3);
-  });
-
-  it('`--brand-star` trên nền TỐI đạt 16.15 — đó là mặt nền DUY NHẤT của nó', () => {
-    const bg = resolve(dark, '--background');
-    const star = resolve(dark, '--brand-star', bg);
-    expect(contrastRatio(relativeLuminance(star), relativeLuminance(bg))).toBeGreaterThanOrEqual(3);
   });
 });
 
