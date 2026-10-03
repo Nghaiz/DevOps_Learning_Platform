@@ -1,43 +1,25 @@
 #!/bin/bash
-# Hai gia tri THAT: truot khi Deployment 'web' chua ton tai hoac chua du ban
-# sao Ready, dat khi da du va dung image. KHONG doi hoi 'solo-pod' phai bi
-# xoa — mot verify chi doc TRANG THAI CUOI se khong the phan biet "chua bao
-# gio tao solo-pod" voi "da xoa solo-pod dung nhu bai day", nen day khong
-# phai dieu kien duoc cham; no chi la huong dan trong markdown.
+# Bước 3: trang chủ nginx trong Pod web đã được thay bằng "xin chào từ web".
+# Kiểm bằng một request HTTP thật trong Pod, không đọc file: đề nói về thứ nginx
+# trả ra, và một file đúng nội dung ở sai thư mục vẫn phải trượt.
 set -uo pipefail
+export KUBECONFIG=/var/lib/dlp/k3s/kubeconfig.yaml
+k() { kubectl --request-timeout=10s "$@"; }
 
-dlp-k8s-wait 15
-rc=$?
-if [ "$rc" -ne 0 ]; then
-  if [ "$rc" -eq 2 ]; then
-    echo "Phien nay khong bat cum Kubernetes con (loi cau hinh ha tang, khong phai loi lam bai)."
-    echo "Bao lai cho quan tri vien."
-  else
-    echo "Cum chua san sang sau vai giay cho them. Doi mot chut roi bam Kiem tra lai."
-  fi
+if ! k get --raw /readyz >/dev/null 2>&1; then
+  fail "Cụm Kubernetes trong sandbox đang trả lời (chưa: đợi vài giây rồi kiểm lại)"
   exit 1
 fi
 
-if ! kubectl get deployment web >/dev/null 2>&1; then
-  echo "Chua thay Deployment 'web'. Hay chay: kubectl create deployment web --image=nginx:1.29.0"
+if [ -z "$(k get pod web -n default --ignore-not-found -o name 2>/dev/null)" ]; then
+  fail "Pod web trong namespace default đang chạy (không thấy: quay lại bước 2)"
   exit 1
 fi
 
-DESIRED=$(kubectl get deployment web -o jsonpath='{.spec.replicas}' 2>/dev/null)
-READY=$(kubectl get deployment web -o jsonpath='{.status.readyReplicas}' 2>/dev/null)
-IMAGE=$(kubectl get deployment web -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null)
-DESIRED=${DESIRED:-0}
-READY=${READY:-0}
-
-if [ "$READY" -lt 1 ] || [ "$READY" -lt "$DESIRED" ]; then
-  echo "Deployment 'web' chua san sang du so ban sao (ready=$READY desired=$DESIRED)."
-  echo "Chay: kubectl rollout status deployment/web --timeout=60s"
-  exit 1
+body=$(k exec -n default web -- wget -qO- -T 3 http://localhost 2>/dev/null)
+if grep -q 'xin chào từ web' <<<"$body"; then
+  pass "nginx trong Pod web trả về trang 'xin chào từ web'"
+else
+  shown=$(head -c 60 <<<"$body" | tr '\n' ' ')
+  fail "nginx trong Pod web trả về trang 'xin chào từ web' (hiện: ${shown:-không có phản hồi}; chạy lại lệnh echo của bước này)"
 fi
-
-if [ "$IMAGE" != "nginx:1.29.0" ]; then
-  echo "Deployment 'web' dang dung image '$IMAGE', can dung nginx:1.29.0."
-  exit 1
-fi
-
-echo "Dat — Deployment 'web' san sang $READY/$DESIRED ban sao voi image nginx:1.29.0."

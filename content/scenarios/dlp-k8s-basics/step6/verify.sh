@@ -1,33 +1,30 @@
 #!/bin/bash
-# Hai gia tri THAT: truot khi node chua mang nhan 'dlp-lab=k8s-basics', dat
-# khi da mang dung gia tri.
+# Bước 6: namespace lab có Pod web (nginx:1.27-alpine) đang Ready.
 set -uo pipefail
+export KUBECONFIG=/var/lib/dlp/k3s/kubeconfig.yaml
+k() { kubectl --request-timeout=10s "$@"; }
 
-dlp-k8s-wait 15
-rc=$?
-if [ "$rc" -ne 0 ]; then
-  if [ "$rc" -eq 2 ]; then
-    echo "Phien nay khong bat cum Kubernetes con (loi cau hinh ha tang, khong phai loi lam bai)."
-    echo "Bao lai cho quan tri vien."
-  else
-    echo "Cum chua san sang sau vai giay cho them. Doi mot chut roi bam Kiem tra lai."
-  fi
+if ! k get --raw /readyz >/dev/null 2>&1; then
+  fail "Cụm Kubernetes trong sandbox đang trả lời (chưa: đợi vài giây rồi kiểm lại)"
   exit 1
 fi
 
-LABEL_VALUE=$(kubectl get nodes -o jsonpath='{.items[0].metadata.labels.dlp-lab}' 2>/dev/null)
-if [ "$LABEL_VALUE" != "k8s-basics" ]; then
-  echo "Node chua co nhan 'dlp-lab=k8s-basics'."
-  echo 'Hay chay: NODE=$(kubectl get nodes -o jsonpath="{.items[0].metadata.name}") && kubectl label node "$NODE" dlp-lab=k8s-basics --overwrite'
+if [ -z "$(k get namespace lab --ignore-not-found -o name 2>/dev/null)" ]; then
+  fail "Có namespace lab (chưa có: kubectl create namespace lab)"
+  exit 1
+fi
+pass "Có namespace lab"
+
+pod=$(k get pod web -n lab -o json 2>/dev/null)
+if [ -z "$pod" ]; then
+  fail "Có Pod web trong namespace lab (chưa có: kubectl apply -f web-pod.yaml -n lab)"
   exit 1
 fi
 
-# Canh bao mem — khong lam script that bai, vi day khong phai dieu nguoi hoc
-# kiem soat. No la mot doi chung: neu gia dinh mot-node bi pha vo, ai do can
-# biet, nhung khong nen chan nguoi hoc vi mot thu ho khong lam sai.
-NODE_COUNT=$(kubectl get nodes --no-headers 2>/dev/null | wc -l | tr -d ' ')
-if [ "${NODE_COUNT:-1}" -ne 1 ]; then
-  echo "CANH BAO: cum bao cao $NODE_COUNT node — khac gia dinh mot-node cua bai nay. Bao cho quan tri vien."
+image=$(jq -r '.spec.containers[0].image' <<<"$pod")
+ready=$(jq -r '.status.conditions[]? | select(.type == "Ready") | .status' <<<"$pod")
+if [ "$image" = "nginx:1.27-alpine" ] && [ "$ready" = "True" ]; then
+  pass "Pod lab/web chạy nginx:1.27-alpine và đã Ready"
+else
+  fail "Pod lab/web chạy nginx:1.27-alpine và đã Ready (hiện: image $image, Ready=$ready)"
 fi
-
-echo "Dat — node da mang nhan dlp-lab=k8s-basics."

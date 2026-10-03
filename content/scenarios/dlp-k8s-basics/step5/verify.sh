@@ -1,43 +1,41 @@
 #!/bin/bash
-# Hai gia tri THAT: truot khi Service 'web-svc' chua ton tai hoac Endpoints
-# rong, dat khi ca hai deu dung.
-#
-# Dung `Endpoints` — khong phai mot lan exec+curl — lam bang chung CHINH:
-# Endpoints la object Kubernetes tu ghi lai ket qua noi selector<->label, nen
-# no la cach kiem KHACH QUAN NHAT rang Service da tim dung Pod, doc lap voi
-# viec container co cong cu HTTP nao ben trong hay khong.
+# Bước 5: /root/web-pod.yaml mô tả Pod web (nginx:1.27-alpine, app=web,tier=frontend)
+# và Pod đó đang Ready trên cụm với đúng hai nhãn.
 set -uo pipefail
+export KUBECONFIG=/var/lib/dlp/k3s/kubeconfig.yaml
+k() { kubectl --request-timeout=10s "$@"; }
 
-dlp-k8s-wait 15
-rc=$?
-if [ "$rc" -ne 0 ]; then
-  if [ "$rc" -eq 2 ]; then
-    echo "Phien nay khong bat cum Kubernetes con (loi cau hinh ha tang, khong phai loi lam bai)."
-    echo "Bao lai cho quan tri vien."
-  else
-    echo "Cum chua san sang sau vai giay cho them. Doi mot chut roi bam Kiem tra lai."
-  fi
+if ! k get --raw /readyz >/dev/null 2>&1; then
+  fail "Cụm Kubernetes trong sandbox đang trả lời (chưa: đợi vài giây rồi kiểm lại)"
   exit 1
 fi
 
-if ! kubectl get service web-svc >/dev/null 2>&1; then
-  echo "Chua thay Service 'web-svc'."
-  echo "Hay chay: kubectl expose deployment/web --name=web-svc --port=80 --target-port=80"
+file=/root/web-pod.yaml
+if [ ! -s "$file" ]; then
+  fail "Có file $file (chưa có: chạy lệnh kubectl run … --dry-run=client -o yaml > web-pod.yaml)"
+elif grep -q '^kind: Pod' "$file" && grep -q 'image: nginx:1.27-alpine' "$file" &&
+  grep -q 'app: web' "$file" && grep -q 'tier: frontend' "$file"; then
+  pass "$file mô tả Pod nginx:1.27-alpine với nhãn app=web, tier=frontend"
+else
+  fail "$file mô tả Pod nginx:1.27-alpine với nhãn app=web, tier=frontend (file thiếu một trong các dòng đó)"
+fi
+
+pod=$(k get pod web -n default -o json 2>/dev/null)
+if [ -z "$pod" ]; then
+  fail "Pod web có mặt trong namespace default (chưa có: kubectl apply -f web-pod.yaml)"
   exit 1
 fi
 
-SVC_PORT=$(kubectl get service web-svc -o jsonpath='{.spec.ports[0].port}' 2>/dev/null)
-if [ "$SVC_PORT" != "80" ]; then
-  echo "Service 'web-svc' ton tai nhung cong la '${SVC_PORT:-trong}', can la 80."
-  exit 1
+labels=$(jq -r '.metadata.labels.app + "," + .metadata.labels.tier' <<<"$pod")
+if [ "$labels" = "web,frontend" ]; then
+  pass "Pod web mang nhãn app=web và tier=frontend"
+else
+  fail "Pod web mang nhãn app=web và tier=frontend (hiện: $(jq -c '.metadata.labels' <<<"$pod"))"
 fi
 
-EP_COUNT=$(kubectl get endpoints web-svc -o jsonpath='{.subsets[*].addresses[*].ip}' 2>/dev/null | wc -w | tr -d ' ')
-if [ "${EP_COUNT:-0}" -lt 1 ]; then
-  echo "Service 'web-svc' chua co Endpoints nao (khong Pod nao dang duoc chon)."
-  echo "Kiem tra lai selector cua Service co khop label cua Deployment 'web' khong,"
-  echo "va Pod da Ready chua: kubectl get pod -l app=web"
-  exit 1
+ready=$(jq -r '.status.conditions[]? | select(.type == "Ready") | .status' <<<"$pod")
+if [ "$ready" = "True" ]; then
+  pass "Pod web đã Ready"
+else
+  fail "Pod web đã Ready (hiện: $(jq -r '.status.phase' <<<"$pod"))"
 fi
-
-echo "Dat — Service 'web-svc:80' co $EP_COUNT dia chi Pod dang duoc chon (Endpoints khong rong)."
