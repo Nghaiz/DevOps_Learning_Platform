@@ -26,6 +26,7 @@
 
 import type { ReactElement } from 'react';
 import { cn } from '@devops-platform/ui';
+import { t } from '@devops-platform/copy';
 
 import { CICD_SCENE_TESTIDS } from '../scene-props';
 import { formatNumber, formatPercent, formatSeconds, type CicdRunOutcome } from '../cicd-run';
@@ -44,20 +45,20 @@ interface AxisCell {
 
 /** Câu một dòng nói vì sao chưa có số, theo ĐÚNG nhánh outcome. */
 function statusLine(outcome: CicdRunOutcome | null): string | null {
-  if (outcome === null) return 'Chưa chạy lượt nào.';
+  if (outcome === null) return t('games.cicd.axes.none');
   switch (outcome.kind) {
     case 'scored':
       return null;
     case 'parse-error':
-      return 'YAML chưa quét được — chưa có gì để chấm.';
+      return t('games.cicd.axes.parse');
     case 'empty':
-      return 'Chưa có job nào để chạy.';
+      return t('games.cicd.axes.empty');
     case 'shape-error':
-      return 'Job không khớp màn — chưa chấm.';
+      return t('games.cicd.axes.shape');
     case 'engine-error':
-      return 'Đồ thị không chạy được — chưa có lượt nào để chiếu ra ba trục.';
+      return t('games.cicd.axes.engine');
     case 'cd-error':
-      return 'Chính sách CD không hợp lệ.';
+      return t('games.cicd.axes.cd');
   }
 }
 
@@ -68,28 +69,28 @@ export function CicdAxesPanel({ outcome, className }: CicdAxesPanelProps): React
   const cells: readonly AxisCell[] = [
     {
       mark: '①',
-      label: 'Lead time',
+      label: t('games.cicd.axes.lead'),
       value: scored === null ? '—' : formatSeconds(scored.axes.leadTimeSeconds),
-      unit: 'p50 một commit',
+      unit: t('games.cicd.axes.lead-unit'),
     },
     {
       mark: '②',
-      label: 'Thông lượng',
+      label: t('games.cicd.axes.throughput'),
       value: scored === null ? '—' : formatNumber(scored.axes.throughputPerHour),
-      unit: 'commit mỗi giờ',
+      unit: t('games.cicd.axes.throughput-unit'),
     },
     {
       mark: '③',
-      label: 'Runner-phút',
+      label: t('games.cicd.axes.runner'),
       value: scored === null ? '—' : formatNumber(scored.axes.runnerMinutes),
-      unit: 'mỗi lượt mô phỏng',
+      unit: t('games.cicd.axes.runner-unit'),
     },
   ];
 
   return (
     <section
       data-testid={CICD_SCENE_TESTIDS.axesPanel}
-      aria-label="Ba trục điểm"
+      aria-label={t('games.cicd.axes.aria')}
       className={cn(
         'pointer-events-auto border border-border bg-card px-3 py-2 shadow-float',
         className,
@@ -118,7 +119,7 @@ export function CicdAxesPanel({ outcome, className }: CicdAxesPanelProps): React
         <p className="mt-1 text-[0.65rem] text-muted-foreground">{note}</p>
       ) : (
         <p className="mt-1 text-[0.65rem] text-muted-foreground">
-          Tỷ lệ lượt xanh: {formatPercent(scored.axes.greenRate)}
+          {t('games.cicd.axes.green-rate', { rate: formatPercent(scored.axes.greenRate) })}
         </p>
       )}
     </section>

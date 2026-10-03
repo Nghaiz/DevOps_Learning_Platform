@@ -1,3 +1,4 @@
+import { t } from '@devops-platform/copy';
 /**
  * Từ kết quả một lượt chấm ⇒ cảnh để vẽ (19.D.4.1).
  *
@@ -126,14 +127,14 @@ export function buildCicdScene(input: BuildSceneInput): CicdSceneModel {
   if (input.workflow.stages.length === 0) {
     return {
       ok: false,
-      note: 'Chưa có job nào trong workflow. Thêm một job vào ô soạn để thấy đồ thị hiện ra ở đây.',
+      note: t('games.cicd.scene.no-jobs'),
     };
   }
 
   if (hasDependencyCycle(input.workflow)) {
     return {
       ok: false,
-      note: 'Phụ thuộc vòng tròn: có một nhóm job đang đợi lẫn nhau, nên không job nào chạy được và đồ thị không xếp được thứ tự. Gỡ một "needs" trong vòng đó là đồ thị hiện lại.',
+      note: t('games.cicd.scene.cycle'),
     };
   }
 
@@ -150,7 +151,7 @@ export function buildCicdScene(input: BuildSceneInput): CicdSceneModel {
   } catch {
     return {
       ok: false,
-      note: 'Chưa dựng được đồ thị từ workflow này. Bấm “Chạy thử” để xem engine báo lỗi cụ thể.',
+      note: t('games.cicd.scene.build-failed'),
     };
   }
 }

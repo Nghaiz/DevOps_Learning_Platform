@@ -25,6 +25,7 @@
 import type { ReactElement } from 'react';
 import { MarkdownView, cn } from '@devops-platform/ui';
 import type { CicdObjective } from '@devops-platform/games';
+import { t } from '@devops-platform/copy';
 
 import type { CicdRunOutcome } from '../cicd-run';
 
@@ -67,9 +68,9 @@ const MARK_CLASS: Readonly<Record<ObjectiveState, string>> = {
  * mục tiêu không dài gấp đôi vì một từ lặp lại ở mọi dòng.
  */
 const STATE_LABEL: Readonly<Record<ObjectiveState, string>> = {
-  unscored: 'chưa chấm',
-  met: 'đã đạt',
-  failing: 'còn trượt',
+  unscored: t('games.cicd.mission.state.unscored'),
+  met: t('games.cicd.mission.state.met'),
+  failing: t('games.cicd.mission.state.failing'),
 };
 
 export function CicdMissionCard({
@@ -86,7 +87,7 @@ export function CicdMissionCard({
         <MarkdownView markdown={brief} resolveAssetUrl={() => null} />
       </div>
 
-      <ul className="flex flex-col gap-1" aria-label="Mục tiêu">
+      <ul className="flex flex-col gap-1" aria-label={t('games.cicd.mission.objectives')}>
         {objectives.map((objective) => {
           const state = objectiveState(objective, outcome);
           return (
@@ -99,7 +100,7 @@ export function CicdMissionCard({
                */}
               <span
                 role="img"
-                aria-label={`${objective.required ? 'Bắt buộc' : 'Thưởng'}, ${STATE_LABEL[state]}`}
+                aria-label={`${objective.required ? t('games.cicd.mission.required') : t('games.cicd.mission.optional')}, ${STATE_LABEL[state]}`}
                 className={cn('font-mono leading-5', MARK_CLASS[state])}
               >
                 {MARK[state]}
@@ -107,7 +108,7 @@ export function CicdMissionCard({
               <span className="text-muted-foreground">
                 {objective.label}
                 {objective.required ? null : (
-                  <span className="ml-1 text-[0.65rem] text-muted-foreground">(thưởng)</span>
+                  <span className="ml-1 text-[0.65rem] text-muted-foreground">{t('games.cicd.mission.bonus')}</span>
                 )}
               </span>
             </li>

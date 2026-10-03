@@ -616,6 +616,163 @@ export const games = {
   'games.cicd.sandbox.yaml-label': 'Workflow YAML của bàn thử tự do',
   'games.cicd.sandbox.run-first': 'Bấm Chạy thử để mô phỏng và xem ba trục.',
   'games.cicd.sandbox.seed-step': 'Tải mã',
+
+  // ── CI/CD: bảng ba trục thường trực ────────────────────────────────────────
+  'games.cicd.axes.aria': 'Ba trục điểm',
+  'games.cicd.axes.none': 'Chưa chạy lượt nào.',
+  'games.cicd.axes.parse': 'YAML chưa quét được nên chưa có gì để chấm.',
+  'games.cicd.axes.empty': 'Chưa có job nào để chạy.',
+  'games.cicd.axes.shape': 'Job không khớp màn nên chưa chấm.',
+  'games.cicd.axes.engine': 'Đồ thị không chạy được nên chưa có lượt nào để chiếu ra ba trục.',
+  'games.cicd.axes.cd': 'Chính sách CD không hợp lệ.',
+  'games.cicd.axes.lead': 'Lead time',
+  'games.cicd.axes.lead-unit': 'p50 một commit',
+  'games.cicd.axes.throughput': 'Thông lượng',
+  'games.cicd.axes.throughput-unit': 'commit mỗi giờ',
+  'games.cicd.axes.runner': 'Runner-phút',
+  'games.cicd.axes.runner-unit': 'mỗi lượt mô phỏng',
+  'games.cicd.axes.green-rate': (p: { rate: string }) => `Tỷ lệ lượt xanh: ${p.rate}`,
+
+  // ── CI/CD: màn giới thiệu trục và phím tắt ─────────────────────────────────
+  'games.cicd.intro.figure-cd': 'Hình: trục dọc chia thành ba dải môi trường, dải trên cùng là prod',
+  'games.cicd.intro.figure-ci': 'Hình: trục dọc là thời gian chờ hàng đợi, job càng cao thì chờ càng lâu',
+  'games.cicd.intro.figure-slow': 'chờ lâu',
+  'games.cicd.intro.figure-fast': 'chạy ngay',
+  'games.cicd.intro.title-cd': 'Chiều dọc vừa đổi nghĩa: từ thời gian chờ sang môi trường',
+  'games.cicd.intro.title-ci': 'Cách đọc sân chơi ở chương CI',
+  'games.cicd.intro.cd-p1-before': 'Suốt chương CI, job nằm càng cao nghĩa là nó',
+  'games.cicd.intro.cd-p1-strong': 'chờ hàng đợi',
+  'games.cicd.intro.cd-p1-after': 'càng lâu. Sang chương CD, chiều dọc không còn nói về thời gian nữa.',
+  'games.cicd.intro.cd-p2-before': 'Giờ nó là',
+  'games.cicd.intro.cd-p2-strong': 'dải môi trường',
+  'games.cicd.intro.cd-p2-after':
+    ': dưới cùng là dev, giữa là staging, trên cùng là prod. Job đi lên nghĩa là bản build được thăng hạng lên môi trường cao hơn, không phải nó chạy chậm hơn.',
+  'games.cicd.intro.cd-p3':
+    'Chiều ngang giữ nguyên ở cả hai chương: càng sang phải thì càng phụ thuộc vào nhiều thứ phía trước.',
+  'games.cicd.intro.ci-p1': 'Chiều ngang là thứ tự phụ thuộc: càng sang phải, job càng phải đợi nhiều thứ phía trước.',
+  'games.cicd.intro.ci-p2-before': 'Chiều dọc là',
+  'games.cicd.intro.ci-p2-strong': 'thời gian chờ hàng đợi',
+  'games.cicd.intro.ci-p2-after':
+    ': job nằm càng cao thì đã sẵn sàng từ lâu mà vẫn chưa có máy để chạy. Thêm máy cứu được chỗ đó, và cũng đốt thêm runner-phút ở chính chỗ đó.',
+  'games.cicd.intro.keys-title': 'Phím tắt',
+  'games.cicd.intro.keys-note': 'Thao tác nào cũng có nút bấm, đi tới bằng phím Tab được. Phím tắt chỉ là đường ngắn hơn.',
+  'games.cicd.intro.start': 'Đã hiểu, vào màn',
+  'games.cicd.intro.skip': 'Bỏ qua',
+  'games.cicd.intro.reopen': 'Muốn xem lại thì bấm nút Trợ giúp trên thanh trên cùng.',
+
+  // ── CI/CD: phím tắt (mô tả hiện trên màn trợ giúp) ─────────────────────────
+  'games.cicd.keys.run': 'Chạy thử workflow đang soạn',
+  'games.cicd.keys.deselect': 'Bỏ chọn job đang chọn',
+  'games.cicd.keys.editor': 'Ô soạn workflow',
+  'games.cicd.keys.mission': 'Đề bài và mục tiêu',
+  'games.cicd.keys.inspector': 'Thông số job đang chọn',
+  'games.cicd.keys.result': 'Kết quả lượt chạy',
+  'games.cicd.keys.tools': 'Bảng núm',
+  'games.cicd.keys.learn': 'Bài học và cẩm nang',
+  'games.cicd.keys.minimap': 'Bản đồ thu nhỏ',
+  'games.cicd.keys.close-all': 'Thu hết lớp phủ, để sân trống',
+  'games.cicd.keys.mode-2d': 'Chuyển sang cảnh 2D',
+  'games.cicd.keys.mode-3d': 'Chuyển sang cảnh 3D',
+  'games.cicd.keys.help': 'Mở màn trợ giúp này',
+
+  // ── CI/CD: bảng thông số một job ───────────────────────────────────────────
+  'games.cicd.inspector.blocked-none': 'Chạy ngay khi sẵn sàng, không phải chờ gì.',
+  'games.cicd.inspector.blocked-dep': (p: { instance: string }) =>
+    `Chờ "${p.instance}" xong (phụ thuộc xong muộn nhất).`,
+  'games.cicd.inspector.blocked-runner': (p: { runner: string; instance: string }) =>
+    `Chờ runner hạng "${p.runner}" vì "${p.instance}" đang giữ chỗ.`,
+  'games.cicd.inspector.cause-flake': (p: { nature: string }) =>
+    `Đỏ giả (${p.nature}). Chạy lại có thể xanh, nhưng lần chạy lại nào cũng đốt runner-phút.`,
+  'games.cicd.inspector.cause-missing-output': (p: { step: string; output: string }) =>
+    `Bước "${p.step}" cần artifact "${p.output}", mà job này không phụ thuộc (kể cả gián tiếp) vào job tạo ra nó.`,
+  'games.cicd.inspector.cause-stale-cache': (p: { cache: string; step: string }) =>
+    `Trúng khoá cache "${p.cache}" nhưng nội dung đã ôi: bước "${p.step}" chạy trên bản cũ. Khoá đang quá hẹp, không phải quá rộng.`,
+  'games.cicd.inspector.cause-upstream': (p: { stage: string }) =>
+    `Job phía trên "${p.stage}" đỏ và chặn đường, nên job này không chạy.`,
+  'games.cicd.inspector.cause-approval': 'Cổng phê duyệt bị từ chối. Chạy lại không cứu được.',
+  'games.cicd.inspector.empty':
+    'Chưa chọn job nào. Bấm một node trên sân, hoặc chọn một chấm trên bản đồ thu nhỏ (đi được bằng phím Tab).',
+  'games.cicd.inspector.no-data': 'Chưa có số liệu cho job này. Bấm Chạy thử để engine mô phỏng một lượt.',
+  'games.cicd.inspector.duration': 'Thời lượng',
+  'games.cicd.inspector.wait': 'Chờ máy',
+  'games.cicd.inspector.runner': 'Runner-phút',
+  'games.cicd.inspector.attempts': 'Số lần thử',
+  'games.cicd.inspector.retried': '(có thử lại)',
+  'games.cicd.inspector.cache': 'Cache',
+  'games.cicd.inspector.cache-none': 'job này không khai cache',
+  'games.cicd.inspector.cache-hit': 'trúng ở mọi bước có khai',
+  'games.cicd.inspector.cache-miss': 'trượt ở ít nhất một bước',
+  'games.cicd.inspector.env': 'Môi trường',
+  'games.cicd.inspector.failed-step': (p: { step: string }) => `Bước gãy: ${p.step}.`,
+  'games.cicd.inspector.steps': (p: { n: number }) => `Các bước đã chạy (${String(p.n)})`,
+  'games.cicd.inspector.step-hit': 'cache trúng',
+  'games.cicd.inspector.step-miss': 'cache trượt',
+
+  // ── CI/CD: bản đồ thu nhỏ, đề bài, đồ thị trống ────────────────────────────
+  'games.cicd.minimap.count': (p: { n: number }) => `${String(p.n)} thực thể`,
+  'games.cicd.minimap.axis.env': 'dọc là dải môi trường',
+  'games.cicd.minimap.axis.lanes': 'dọc là làn job song song',
+  'games.cicd.mission.objectives': 'Mục tiêu',
+  'games.cicd.mission.required': 'Bắt buộc',
+  'games.cicd.mission.optional': 'Thưởng',
+  'games.cicd.mission.bonus': '(thưởng)',
+  'games.cicd.mission.state.unscored': 'chưa chấm',
+  'games.cicd.mission.state.met': 'đã đạt',
+  'games.cicd.mission.state.failing': 'còn trượt',
+  'games.cicd.scene.no-jobs': 'Workflow chưa có job nào. Thêm một job vào ô soạn để đồ thị hiện ra ở đây.',
+  'games.cicd.scene.cycle':
+    'Phụ thuộc vòng tròn: một nhóm job đang đợi lẫn nhau nên không job nào chạy được và đồ thị không xếp được thứ tự. Gỡ một "needs" trong vòng đó là đồ thị hiện lại.',
+  'games.cicd.scene.build-failed': 'Chưa dựng được đồ thị từ workflow này. Bấm Chạy thử để xem engine báo lỗi cụ thể.',
+
+  // ── CI/CD: cảnh 2D ─────────────────────────────────────────────────────────
+  'games.cicd.scene.edge-dependency': 'phụ thuộc',
+  'games.cicd.scene.edge-machine': 'chờ máy chạy',
+  'games.cicd.scene.seconds': (p: { s: number }) => `${String(p.s)} giây`,
+  'games.cicd.scene.minutes': (p: { m: number; s: number }) => `${String(p.m)} phút ${String(p.s)} giây`,
+  'games.cicd.scene.unreleased': 'chưa phát hành',
+  'games.cicd.scene.attempt': (p: { n: number }) => `lần ${String(p.n)}`,
+  'games.cicd.scene.wait': (p: { n: number }) => `chờ máy ${String(p.n)} tick`,
+  'games.cicd.scene.label': 'Đồ thị đường ống CI/CD',
+  'games.cicd.scene.desc-count': (p: { nodes: number; edges: number }) =>
+    `Đồ thị có ${String(p.nodes)} job và ${String(p.edges)} liên kết.`,
+  'games.cicd.scene.desc-critical': (p: { n: number }) => `Đường găng gồm ${String(p.n)} đoạn.`,
+  'games.cicd.scene.desc-critical-time': (p: { n: number; time: string }) =>
+    `Đường găng gồm ${String(p.n)} đoạn, lượt chạy hết ${p.time}.`,
+  'games.cicd.scene.desc-no-critical': 'Lượt chạy chưa tính được đường găng nào.',
+  'games.cicd.scene.desc-machine':
+    'Đường găng đi qua một đoạn chờ máy chạy: muốn nhanh hơn thì thêm máy, sửa đồ thị không đổi được gì.',
+  'games.cicd.scene.layer': (p: { n: number }) => `tầng ${String(p.n)}`,
+  'games.cicd.scene.critical': (p: { n: number }) => `Đường găng · ${String(p.n)} đoạn`,
+  'games.cicd.scene.critical-time': (p: { n: number; time: string }) =>
+    `Đường găng · ${String(p.n)} đoạn · lượt chạy hết ${p.time}`,
+  'games.cicd.scene.critical-machine':
+    'Có đoạn CHỜ MÁY trên đường găng. Thêm máy chạy thì nhanh hơn, sửa đồ thị thì không.',
+  'games.cicd.scene.keys':
+    'Tab: đi giữa các job · ←→: theo phụ thuộc · ↑↓: sang làn kề · Enter: chọn · I: xem chi tiết · + − 0: thu phóng · Esc: thoát',
+  'games.cicd.scene.detail-title': (p: { name: string }) => `Bên trong ${p.name}`,
+  'games.cicd.scene.detail-ready': (p: { v: string }) => `sẵn sàng: ${p.v}`,
+  'games.cicd.scene.detail-start': (p: { v: string }) => `bắt đầu: ${p.v}`,
+  'games.cicd.scene.detail-end': (p: { v: string }) => `kết thúc: ${p.v}`,
+  'games.cicd.scene.detail-attempt': (p: { n: number }) => `lần thử: ${String(p.n)}`,
+  'games.cicd.scene.detail-no-env': 'không phát hành',
+  'games.cicd.scene.detail-env': (p: { env: string }) => `môi trường: ${p.env}`,
+
+  // ── CI/CD: cảnh 3D ─────────────────────────────────────────────────────────
+  'games.cicd.scene.label-3d': 'Đồ thị đường ống CI/CD, chế độ 3D',
+  'games.cicd.scene.group-3d': (p: { label: string }) =>
+    `${p.label}. Dùng phím mũi tên để đi giữa các job, Enter để chọn, Escape để bỏ chọn.`,
+  'games.cicd.scene.desc-3d': (p: { nodes: number; edges: number }) =>
+    `Đồ thị có ${String(p.nodes)} job và ${String(p.edges)} quan hệ phụ thuộc.`,
+  'games.cicd.scene.colors-fallback': 'Không đọc được một số màu chủ đề nên cảnh đang dùng màu dự phòng.',
+  'games.cicd.scene.rotate-left': (p: { angle: string }) => `Xoay cảnh sang trái. ${p.angle}`,
+  'games.cicd.scene.rotate-right': (p: { angle: string }) => `Xoay cảnh sang phải. ${p.angle}`,
+  'games.cicd.scene.angle.ne': 'Góc nhìn 1 trên 4, từ hướng đông bắc',
+  'games.cicd.scene.angle.se': 'Góc nhìn 2 trên 4, từ hướng đông nam',
+  'games.cicd.scene.angle.sw': 'Góc nhìn 3 trên 4, từ hướng tây nam',
+  'games.cicd.scene.angle.nw': 'Góc nhìn 4 trên 4, từ hướng tây bắc',
 } as const;
 
-export const gamesIntentionalThree: IntentionalThree = {};
+export const gamesIntentionalThree: IntentionalThree = {
+  'games.cicd.mission.state':
+    '2026-10-03: ba trạng thái của một mục tiêu là đúng ba giá trị của ObjectiveState (chưa chấm, đạt, trượt), không phải liệt kê theo thói quen.',
+};

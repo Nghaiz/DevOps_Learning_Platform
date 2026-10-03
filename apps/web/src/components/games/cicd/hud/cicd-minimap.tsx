@@ -21,6 +21,7 @@
 
 import type { ReactElement } from 'react';
 import { cn } from '@devops-platform/ui';
+import { t } from '@devops-platform/copy';
 
 import { cicdSceneNodes, project2d, sceneAxes, type CicdSceneProps } from '../scene-props';
 
@@ -102,8 +103,8 @@ export function CicdMinimap({ scene, className }: CicdMinimapProps): ReactElemen
         })}
       </div>
       <p className="mt-1 text-[0.65rem] text-muted-foreground">
-        {nodes.length} thực thể · dọc là{' '}
-        {axes.vertical === 'y' ? 'dải môi trường' : 'làn job song song'}
+        {t('games.cicd.minimap.count', { n: nodes.length })} ·{' '}
+        {axes.vertical === 'y' ? t('games.cicd.minimap.axis.env') : t('games.cicd.minimap.axis.lanes')}
       </p>
     </div>
   );

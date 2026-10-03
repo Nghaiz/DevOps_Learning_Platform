@@ -56,6 +56,7 @@ import {
   type ReactElement,
 } from 'react';
 import { useReducedMotion } from '@devops-platform/motion/react';
+import { t } from '@devops-platform/copy';
 import {
   CICD_EDGE_COUNT_ATTR,
   CICD_NODE_COUNT_ATTR,
@@ -225,15 +226,15 @@ export function CicdSvgScene(props: CicdSceneProps): ReactElement {
     [viewport, interaction],
   );
 
-  const graphLabel = label ?? 'Đồ thị đường ống CI/CD';
+  const graphLabel = label ?? t('games.cicd.scene.label');
   const description = [
-    `Đồ thị có ${nodes.length} job và ${edges.length} liên kết.`,
+    t('games.cicd.scene.desc-count', { nodes: nodes.length, edges: edges.length }),
     criticalEdgeCount > 0
-      ? `Đường găng gồm ${criticalEdgeCount} đoạn${totalTicks === null ? '' : `, lượt chạy hết ${formatRunTime(totalTicks)}`}.`
-      : 'Lượt chạy chưa có đường găng nào được tính.',
-    criticalWaitsOnMachine
-      ? 'Đường găng đi qua một đoạn chờ máy chạy: muốn nhanh hơn thì thêm máy, sửa đồ thị không đổi được gì.'
-      : '',
+      ? totalTicks === null
+        ? t('games.cicd.scene.desc-critical', { n: criticalEdgeCount })
+        : t('games.cicd.scene.desc-critical-time', { n: criticalEdgeCount, time: formatRunTime(totalTicks) })
+      : t('games.cicd.scene.desc-no-critical'),
+    criticalWaitsOnMachine ? t('games.cicd.scene.desc-machine') : '',
   ]
     .filter((s) => s.length > 0)
     .join(' ');
@@ -328,7 +329,7 @@ export function CicdSvgScene(props: CicdSceneProps): ReactElement {
               fontSize={12}
               fill={cssVar(SURFACE_LINE_TOKEN)}
             >
-              tầng {layer + 1}
+              {t('games.cicd.scene.layer', { n: layer + 1 })}
             </text>
           ))}
         </g>
@@ -425,12 +426,13 @@ function CriticalBadge(props: {
         fill={cssVar(CRITICAL_TOKEN)}
       />
       <text x={x + 16} y={y + 30} fontSize={16} fontWeight={700} fill={cssVar(CRITICAL_TEXT_TOKEN)}>
-        Đường găng · {props.segments} đoạn
-        {props.totalTicks === null ? '' : ` · lượt chạy hết ${formatRunTime(props.totalTicks)}`}
+        {props.totalTicks === null
+          ? t('games.cicd.scene.critical', { n: props.segments })
+          : t('games.cicd.scene.critical-time', { n: props.segments, time: formatRunTime(props.totalTicks) })}
       </text>
       {props.machineWait && (
         <text x={x + 16} y={y + 56} fontSize={12.5} fill={cssVar(CRITICAL_TEXT_TOKEN)}>
-          Có đoạn CHỜ MÁY trên đường găng — thêm máy chạy, sửa đồ thị không đổi được gì.
+          {t('games.cicd.scene.critical-machine')}
         </text>
       )}
     </g>
@@ -449,8 +451,7 @@ function KeyLegend(props: {
       fill={cssVar(SURFACE_LINE_TOKEN)}
       aria-hidden="true"
     >
-      Tab: đi giữa các job · ←→: theo phụ thuộc · ↑↓: sang làn kề · Enter: chọn · I: xem chi
-      tiết · + − 0: thu phóng · Esc: thoát
+      {t('games.cicd.scene.keys')}
     </text>
   );
 }
@@ -478,11 +479,13 @@ function JobDetail(props: {
   const y = cy - NODE_H / 2;
 
   const moc: readonly string[] = [
-    `sẵn sàng: ${node.readyTick ?? '—'}`,
-    `bắt đầu: ${node.startedTick ?? '—'}`,
-    `kết thúc: ${node.finishedTick ?? '—'}`,
-    `lần thử: ${node.attempt + 1}`,
-    node.environment === null ? 'không phát hành' : `môi trường: ${node.environment}`,
+    t('games.cicd.scene.detail-ready', { v: String(node.readyTick ?? '—') }),
+    t('games.cicd.scene.detail-start', { v: String(node.startedTick ?? '—') }),
+    t('games.cicd.scene.detail-end', { v: String(node.finishedTick ?? '—') }),
+    t('games.cicd.scene.detail-attempt', { n: node.attempt + 1 }),
+    node.environment === null
+      ? t('games.cicd.scene.detail-no-env')
+      : t('games.cicd.scene.detail-env', { env: node.environment }),
   ];
 
   /*
@@ -512,7 +515,7 @@ function JobDetail(props: {
         strokeWidth={1.5}
       />
       <text x={x + 14} y={y + 22} fontSize={13} fontWeight={700} fill={cssVar(CARD_TEXT_TOKEN)}>
-        Bên trong {node.name}
+        {t('games.cicd.scene.detail-title', { name: node.name })}
       </text>
       {rows.map((row, i) => (
         <text

@@ -25,6 +25,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react';
 import { Button } from '@devops-platform/ui';
+import { t } from '@devops-platform/copy';
 
 import { readHudValue, writeHudValue } from './hud-storage';
 import { CICD_HOTKEYS } from './cicd-keymap';
@@ -89,8 +90,8 @@ function AxisFigure({ chapter }: { readonly chapter: CicdChapter }): ReactElemen
       role="img"
       aria-label={
         chapter === 'cd'
-          ? 'Hình: trục dọc chia thành ba dải môi trường, dải trên cùng là prod'
-          : 'Hình: trục dọc là thời gian chờ hàng đợi, job càng cao càng chờ lâu'
+          ? t('games.cicd.intro.figure-cd')
+          : t('games.cicd.intro.figure-ci')
       }
     >
       {/* Trục */}
@@ -119,8 +120,8 @@ function AxisFigure({ chapter }: { readonly chapter: CicdChapter }): ReactElemen
       ) : (
         <>
           <g className="text-muted-foreground" fill="currentColor" fontSize="9">
-            <text x="46" y="22">chờ lâu</text>
-            <text x="46" y="99">chạy ngay</text>
+            <text x="46" y="22">{t('games.cicd.intro.figure-slow')}</text>
+            <text x="46" y="99">{t('games.cicd.intro.figure-fast')}</text>
           </g>
           <g className="text-primary" fill="currentColor">
             <rect x="120" y="82" width="34" height="14" rx="3" />
@@ -170,36 +171,28 @@ export function CicdAxisIntro({ chapter, onDismiss }: CicdAxisIntroProps): React
       >
         <h2 id="cicd-axis-intro-title" className="text-lg font-semibold text-foreground">
           {chapter === 'cd'
-            ? 'Chiều dọc vừa đổi nghĩa: từ thời gian chờ sang môi trường'
-            : 'Cách đọc không gian ở chương CI'}
+            ? t('games.cicd.intro.title-cd')
+            : t('games.cicd.intro.title-ci')}
         </h2>
 
         {chapter === 'cd' ? (
           <div className="flex flex-col gap-2 text-sm text-muted-foreground">
             <p>
-              Suốt chương CI, một job nằm càng cao nghĩa là nó <strong>chờ hàng đợi</strong> càng
-              lâu. Từ chương CD, chiều dọc không còn nói về thời gian nữa.
+              {t('games.cicd.intro.cd-p1-before')} <strong>{t('games.cicd.intro.cd-p1-strong')}</strong>{' '}
+              {t('games.cicd.intro.cd-p1-after')}
             </p>
             <p>
-              Giờ nó là <strong>dải môi trường</strong>: dưới cùng là dev, giữa là staging, trên
-              cùng là prod. Một job đi lên nghĩa là bản dựng được thăng hạng lên môi trường cao
-              hơn — không phải là nó chậm hơn.
+              {t('games.cicd.intro.cd-p2-before')} <strong>{t('games.cicd.intro.cd-p2-strong')}</strong>
+              {t('games.cicd.intro.cd-p2-after')}
             </p>
-            <p>
-              Chiều ngang thì giữ nguyên ở cả hai chương: càng sang phải, càng phụ thuộc vào nhiều
-              thứ phía trước.
-            </p>
+            <p>{t('games.cicd.intro.cd-p3')}</p>
           </div>
         ) : (
           <div className="flex flex-col gap-2 text-sm text-muted-foreground">
+            <p>{t('games.cicd.intro.ci-p1')}</p>
             <p>
-              Chiều ngang là thứ tự phụ thuộc: càng sang phải, job càng phải đợi nhiều thứ phía
-              trước.
-            </p>
-            <p>
-              Chiều dọc là <strong>thời gian chờ hàng đợi</strong> — job nằm càng cao thì nó sẵn
-              sàng từ lâu mà vẫn chưa có máy để chạy. Đó là chỗ thêm máy sẽ cứu được, và cũng là
-              chỗ thêm máy sẽ đốt runner-phút.
+              {t('games.cicd.intro.ci-p2-before')} <strong>{t('games.cicd.intro.ci-p2-strong')}</strong>
+              {t('games.cicd.intro.ci-p2-after')}
             </p>
           </div>
         )}
@@ -208,7 +201,7 @@ export function CicdAxisIntro({ chapter, onDismiss }: CicdAxisIntroProps): React
 
         <section className="flex flex-col gap-2">
           <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-            Phím tắt
+            {t('games.cicd.intro.keys-title')}
           </h3>
           <ul className="grid gap-x-4 gap-y-1 sm:grid-cols-2">
             {CICD_HOTKEYS.map((hotkey) => (
@@ -220,19 +213,15 @@ export function CicdAxisIntro({ chapter, onDismiss }: CicdAxisIntroProps): React
               </li>
             ))}
           </ul>
-          <p className="text-xs text-muted-foreground">
-            Mọi thao tác đều có nút bấm đi được bằng phím Tab — phím tắt chỉ là đường đi ngắn hơn.
-          </p>
+          <p className="text-xs text-muted-foreground">{t('games.cicd.intro.keys-note')}</p>
         </section>
 
         <div className="flex flex-wrap gap-2">
-          <Button onClick={onDismiss}>Đã hiểu, vào màn</Button>
+          <Button onClick={onDismiss}>{t('games.cicd.intro.start')}</Button>
           <Button variant="ghost" onClick={onDismiss}>
-            Bỏ qua
+            {t('games.cicd.intro.skip')}
           </Button>
-          <p className="basis-full text-xs text-muted-foreground">
-            Mở lại bất cứ lúc nào bằng nút “Trợ giúp” trên thanh trên cùng.
-          </p>
+          <p className="basis-full text-xs text-muted-foreground">{t('games.cicd.intro.reopen')}</p>
         </div>
       </div>
     </div>
