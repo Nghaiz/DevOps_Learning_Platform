@@ -7,6 +7,7 @@ import { t } from '@devops-platform/copy';
 import { useViewer } from '../../shell/viewer-context';
 import { SECTION_IDS } from '../content';
 import { COUNT_KINDS, hasAnyCount, type LandingCatalog } from '../data/catalog-shape';
+import { BandWipe } from '../fx/band-wipe';
 import { KineticText } from '../fx/kinetic-text';
 import { Magnetic } from '../fx/magnetic';
 import { Odometer } from '../fx/odometer';
@@ -93,6 +94,7 @@ export function Closing({ catalog }: { readonly catalog: Promise<LandingCatalog>
       data-testid="landing-closing"
       className={`${base.section} ${styles.closing}`}
     >
+      <BandWipe lines={['observe', 'iac', 'k8s', 'docker', 'prod', 'obs', 'linux']} />
       <div className={`${base.container} ${styles.inner}`}>
         <p className={styles.loop} aria-hidden="true">
           {loop.map((word) => (

@@ -154,3 +154,31 @@
   background: var(--l-red);
   transform: rotate(45deg);
 }
+
+/* ---------- Dải màu quét chuyển cảnh ---------- */
+.wipe {
+  position: absolute;
+  inset: -18vh 0 auto;
+  z-index: 3;
+  display: none;
+  height: 36vh;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+:global([data-motion='full']) .wipe {
+  display: grid;
+  grid-auto-rows: 1fr;
+  gap: 3px;
+}
+
+.band {
+  display: block;
+  width: 130%;
+  margin-left: -15%;
+  background: linear-gradient(90deg, transparent, var(--line) 22%, var(--line) 78%, transparent);
+  /* Chỉ skew ở đây; dịch ngang do GSAP (xPercent). Đặt sẵn translateX trong CSS thì GSAP đọc nó
+     thành `x` rồi cộng thêm xPercent, dải lệch gấp đôi (cùng bẫy với đồng hồ số). */
+  transform: skewX(-28deg);
+  will-change: transform;
+}

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { ArrowUpRight } from 'lucide-react';
 import { t } from '@devops-platform/copy';
 import { lineVar, MODES, SECTION_IDS, type ModeId } from '../content';
+import { BandWipe } from '../fx/band-wipe';
 import { EASE_OUT, gsap, ScrollTrigger } from '../motion/gsap';
 import { useLandingGSAP } from '../motion/use-landing-gsap';
 import base from '../landing.module.css';
@@ -101,6 +102,7 @@ export function Modes() {
       data-testid="landing-modes"
       className={`${base.section} ${base.solid} ${styles.section}`}
     >
+      <BandWipe lines={['red', 'linux', 'git', 'docker', 'k8s', 'cicd', 'prod']} />
       <div className={base.container}>
         <header className={styles.header}>
           <div>
