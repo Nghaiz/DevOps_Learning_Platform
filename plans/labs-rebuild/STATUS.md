@@ -26,7 +26,9 @@ giáo trình: [`curriculum.md`](curriculum.md).
 
 **Image sandbox**: CI dựng image CÓ Theia (`INCLUDE_IDE=1`), Theia chỉ chạy khi profile `ide` đặt `DLP_IDE=1`; thêm nano, vim, iproute2, tree, netcat, dig, docker compose; zsh nhận chú thích và shebang khi gõ script; `dlp-k8s-wait` chờ cả coredns.
 
-**Nội dung**: `dlp-sandbox-basics` viết lại từ đầu, smoke xanh (0 độ lệch) trên image `labs-b1`.
+**Nội dung** (viết lại từ đầu, smoke xanh 0 độ lệch trên cụm thật): `dlp-sandbox-basics` (4 bước, sơ đồ đường đi của phím gõ) và `dlp-k8s-basics` (6 bước, sơ đồ cụm k3s nằm trong sandbox).
+
+**Image trên node**: `ghcr.io/nghaiz/dlp-sandbox-base:labs-b2` (`sha256:20c80356…`) dựng từ nhánh này, có Theia + mọi công cụ mới. Đo RAM: pod có `DLP_IDE=1` 244Mi, pod thường 45Mi (bằng image cũ). Trivy 0 CRITICAL (3 cảnh báo handlebars là báo nhầm, có cổng canh).
 
 **Tài liệu**: `docs/content-style.md` (cách viết + dấu vết AI tiếng Việt cần tránh), `docs/lab-format.md`, `docs/scenario-format.md`, `docs/ws-terminal-protocol.md`, `docs/diagrams.md`.
 
@@ -35,7 +37,7 @@ giáo trình: [`curriculum.md`](curriculum.md).
 | Ở đâu | Gì | Còn thiếu |
 |---|---|---|
 | `D:/NCKH/dlp-labs-w1` | `content/scenarios/dlp-linux-files/` | bước 4–5, `finish.md`, sơ đồ `fhs-tree.tex`; chưa shellcheck/smoke |
-| `D:/NCKH/dlp-labs-w4` | `dlp-k8s-basics` (đang smoke lúc chốt), `dlp-k8s-deployments` một phần | xem báo cáo smoke trong worktree; deployments chưa xong |
+| `D:/NCKH/dlp-labs-w4` | `content/scenarios/dlp-k8s-deployments/` | đã có intro + bước 1–3; thiếu bước 4–6 (set image / undo / maxSurge), `finish.md`, sơ đồ rolling update; chưa smoke |
 | `D:/NCKH/dlp-labs-w5` | `content/scenarios/dlp-k8s-storage/` đủ 6 bước | SVG cũ hơn `.tex` (dựng lại), chưa test/shellcheck/smoke |
 
 Tiếp tục: `cd` vào worktree, làm cho xong theo `plans/labs-rebuild/content-agent-brief.md`, commit, rồi `git merge` nhánh đó vào `feat/labs-rebuild`.
@@ -46,7 +48,7 @@ Tiếp tục: `cd` vào worktree, làm cho xong theo `plans/labs-rebuild/content
 
 **Khi thay nội dung** phải sửa kèm: danh sách id ghim trong `packages/scenario/src/source.test.ts` (phân trang đang giả định đúng 9 bài), khẳng định theo id trong `content-scenarios.test.ts`/`content-labs.test.ts`, test ratchet T7 trong `packages/copy` (đỏ khi `dlp-docker-basics/finish.md` được viết lại — đảo ngược theo đúng chú thích của nó), và `scripts/seed-content.mjs` (lộ trình/quiz bị bỏ vẫn `published` trong DB cũ).
 
-**Deploy**: cụm vẫn chạy sandbox `sha-6f19cbe` (không có Theia ⇒ `/ide` 503). Image `labs-b1` (có Theia, thiếu tuỳ chọn zsh + chờ coredns) đã nằm trên node; `labs-b2` chỉ có ở máy dev. Thứ tự đúng: dựng image từ nhánh này (CI hoặc `docker build --build-arg INCLUDE_IDE=1`), side-load lên node, đặt `sandboxImage` trong `values-selfhost.yaml`, rồi `helm upgrade --reset-then-reuse-values` cùng lúc cho orchestrator + gateway + web (proto mới, cookie mới phải đi cùng nhau). Phiên 00 đang deploy riêng web của nhánh FE.
+**Deploy**: cụm vẫn chạy sandbox `sha-6f19cbe` (không có Theia ⇒ `/ide` 503). Image `labs-b2` đã nằm sẵn trên node nhưng chưa được dùng. Thứ tự đúng: đặt `sandboxImage` = `labs-b2` (hoặc tag CI sau khi merge) trong `values-selfhost.yaml`, rồi `helm upgrade --reset-then-reuse-values` cùng lúc cho orchestrator + gateway + web (proto mới, cookie mới phải đi cùng nhau). Phiên 00 đang deploy riêng web của nhánh FE.
 
 **Tính năng đã thiết kế, chưa làm**
 - Tải lại trang thì nối lại pod cũ thay vì tạo pod mới: bài học nhớ phiên qua cột mới `progress.session_id`; lab nối lại lần thử chưa nộp; `runSetup` đánh dấu phase đã chạy bằng file sentinel trong pod để không chạy lại setup đè lên bài làm dở. Kiểm orchestrator: đúng chủ, CLAUDE/RUNNING, đúng profile, còn ≥2 phút. ⚠ Phiên 00 đã dùng số migration 0018 trên nhánh FE.
@@ -58,8 +60,19 @@ Tiếp tục: `cd` vào worktree, làm cho xong theo `plans/labs-rebuild/content
 - Gateway giới hạn stdin 256 KiB/s (burst 512 KiB): dán một lần >512 KiB vẫn có thể bị đóng 4429.
 - Lab `dlp-k8s-scheduling-lab` trong giáo trình tự mâu thuẫn (taint node 1 rồi drain node 2 thì `web` không còn chỗ). Đề xuất: drain node control-plane thay vì node 2.
 
+**Kiểm tra lúc chốt** (trên `feat/labs-rebuild`): test `packages/scenario` 317/317, `shared-types` 55/55, `pnpm diagrams:check` xanh, typecheck web sạch (cần `npx next typegen` trước trên worktree mới), test web 3028/3029 (ca đỏ `admin-authz › audit.list` xanh 23/23 khi chạy riêng hai lần, nhánh không đụng file admin; do DB cục bộ dùng chung với test khác chạy cùng lúc), `helm template` xanh cả ba bộ values theo đúng cách CI chạy. Go của gateway/orchestrator: 246 + 359 test xanh (mạch C, cùng mã). Các cổng CI mới của image chưa chạy trên runner GitHub (đĩa, timeout 30/45 phút, cache GHA ~356MB).
+
+**Nhánh phụ không gộp**: `feat/labs-x-oj-exam` có `problems.list` lọc `gameId` (b16be776) trùng từng byte với 39c9a309 của phiên 00, nên để bản của phiên 00.
+
 **Sự thật đo được cho người viết tiếp**
 - Trong zsh của người học `ls` là `eza --icons` (không có cột link/group), `cat` là `bat --plain`: bài về quyền dùng `command ls -l` hoặc `stat`.
 - Image không có `lsof`/`fuser`; truy file đang mở qua `/proc/*/fd`.
 - Cụm k3s: coredns Available muộn hơn node Ready ~55 giây; ConfigMap mount cập nhật tới pod mất ~80 giây (chỉ minh hoạ, đừng chấm); NodePort trả lời từ shell sandbox ở `172.17.0.2`; tên node là ID container ngẫu nhiên, chọn node bằng nhãn `node-role.kubernetes.io/control-plane`.
-- Mỗi `kubectl exec` từ máy Windows tốn ~1 giây; một lượt smoke bài k8s mất vài phút.
+- Mỗi `kubectl exec` từ máy Windows tốn ~1 giây; một lượt smoke bài k8s mất ~4 phút.
+- Bộ smoke chạy hết các khối `{{exec}}` của bước RỒI mới chạy `stepN/solution.sh`: bước "sửa trong IDE" và bước "chạy/commit" phải tách riêng.
+- Git trong terminal mở trình soạn thảo (`EDITOR=vi`): mọi commit trong khối exec cần `-m`, merge/revert sau xung đột cần `--no-edit`.
+- Build Go trong sandbox lúc node bận mất 200+ giây (cache mount: 151 giây lần đầu, 19 giây lần sau); kéo `golang:1.23-alpine` 41–87 giây. Bài multi-stage phải làm ấm cache trong setup chạy nền.
+- `docker run --memory 64m --cpus 0.5` chạy được trong Sysbox và kiểm được bằng `docker inspect`.
+- Compose: nginx chỉ phân giải `app` lúc khởi động; sau `--scale app=3` phải `nginx -s reload`.
+- `alias k=kubectl` chỉ có ở shell tương tác: verify/solution viết `kubectl`.
+- Bản nháp thiết kế chi tiết cho các bài Bash/Git (W2) và Docker (W3) chỉ nằm trong báo cáo của agent, chưa ghi ra đĩa.
