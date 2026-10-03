@@ -42,7 +42,7 @@ export const home = {
 
   'home.stat.lessons': 'bài học',
   'home.stat.labs': 'phòng lab',
-  'home.stat.playgrounds': 'playground',
+  'home.stat.playgrounds': 'sân chơi',
   'home.stat.quizzes': 'bộ quiz',
   'home.stat.paths': 'lộ trình',
   'home.stat.games': 'trò chơi',
@@ -140,7 +140,7 @@ export const home = {
   'home.modes.kicker': 'Cách học',
   'home.modes.title': 'Bốn cửa vào, một cỗ máy phía sau',
   'home.modes.lede':
-    'Bài học, lab, playground hay trò chơi đều chạy trên cùng hệ thống sandbox. Hôm nay muốn được dắt tay hay muốn tự bơi, cứ chọn cửa tương ứng.',
+    'Bài học, lab, sân chơi hay trò chơi đều chạy trên cùng hệ thống sandbox. Hôm nay muốn được dắt tay hay muốn tự bơi, cứ chọn cửa tương ứng.',
   'home.modes.engine': 'Mỗi phiên là một pod riêng trên Kubernetes, cách ly bằng Sysbox',
   'home.mode.lesson.tag': 'Bài học',
   'home.mode.lesson.title': 'Có người dẫn đường',
@@ -152,11 +152,11 @@ export const home = {
   'home.mode.lab.body':
     'Không gợi ý, không lệnh mẫu. Làm xong bấm chấm, máy tự kiểm từng yêu cầu. Bài nào cần sửa nhiều file thì có sẵn IDE Theia.',
   'home.mode.lab.cta': 'Xem phòng lab',
-  'home.mode.playground.tag': 'Playground',
+  'home.mode.playground.tag': 'Sân chơi',
   'home.mode.playground.title': 'Một máy trống trơn',
   'home.mode.playground.body':
     'Linux hoặc Docker dựng sẵn, không đề, không đồng hồ. Gõ thử lệnh lạ mà không sợ làm hỏng máy ai.',
-  'home.mode.playground.cta': 'Mở playground',
+  'home.mode.playground.cta': 'Mở sân chơi',
   'home.mode.game.tag': 'Trò chơi',
   'home.mode.game.title': 'Nghỉ tay thì chơi',
   'home.mode.game.body':
