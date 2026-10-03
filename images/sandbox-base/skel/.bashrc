@@ -53,6 +53,15 @@ if command -v bat >/dev/null 2>&1; then
   alias cat='bat --plain --paging=never'
 fi
 
+# ── kubectl: alias `k` (ngang .zshrc) ────────────────────────────────────────
+# Chỉ alias, KHÔNG completion: completion bash của kubectl cần gói
+# `bash-completion` (`_get_comp_words_by_ref`), mà image không cài gói đó —
+# zsh là shell mặc định và completion nằm ở đó. Cùng cảnh báo với .zshrc: `k`
+# không tồn tại trong verify.sh hay lời giải, nội dung bài phải viết `kubectl`.
+if command -v kubectl >/dev/null 2>&1; then
+  alias k=kubectl
+fi
+
 export EDITOR=vi
 
 # ── Màn chào một lần mỗi phiên tmux (§C4 / dlp-motd) ─────────────────────────
