@@ -86,7 +86,6 @@ export const catalog = {
   'catalog.title.playgrounds': 'Sân chơi',
   'catalog.title.paths': 'Lộ trình',
   'catalog.title.quiz': 'Trắc nghiệm',
-  'catalog.title.games': 'Games',
 
   /**
    * Tiêu đề tài liệu của các trang danh mục: chữ trên tab trình duyệt và trong
@@ -122,8 +121,6 @@ export const catalog = {
     'Bài học, lab và trắc nghiệm xếp sẵn theo thứ tự. Đi hết một tuyến là nắm được một mảng.',
   'catalog.lead.quiz':
     'Vài câu hỏi ngắn để tự kiểm lại phần vừa học. Nộp bài xong mới thấy đáp án và giải thích.',
-  'catalog.lead.games':
-    'Game chạy hoàn toàn trong trình duyệt: không tốn sandbox, không cần đăng nhập, tiến độ lưu ngay trên máy bạn. Độ khó ghi trên thẻ là mức lúc BẮT ĐẦU, mỗi game còn tăng dần qua nhiều level.',
 
   // ── Thanh công cụ ─────────────────────────────────────────────────────
   'catalog.toolbar.all': 'Tất cả',

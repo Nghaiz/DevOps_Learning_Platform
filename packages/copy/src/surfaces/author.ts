@@ -160,7 +160,6 @@ export const author = {
     one: 'Còn 1 ô cần sửa',
     many: (n: number) => `Còn ${String(n)} ô cần sửa`,
   },
-  'author.issues.row': (p: { message: string }) => `: ${p.message}`,
 
   // ── Trang sửa bài ─────────────────────────────────────────────────────────
   'author.edit.load-error.title': 'Không tải được bài',

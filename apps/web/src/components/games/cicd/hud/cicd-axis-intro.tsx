@@ -112,9 +112,9 @@ function AxisFigure({ chapter }: { readonly chapter: CicdChapter }): ReactElemen
             <text x="46" y="95">dev</text>
           </g>
           <g className="text-primary" fill="currentColor">
-            <rect x="120" y="82" width="34" height="14" rx="3" />
-            <rect x="190" y="47" width="34" height="14" rx="3" />
-            <rect x="260" y="12" width="34" height="14" rx="3" />
+            <rect x="120" y="82" width="34" height="14" />
+            <rect x="190" y="47" width="34" height="14" />
+            <rect x="260" y="12" width="34" height="14" />
           </g>
         </>
       ) : (
@@ -124,9 +124,9 @@ function AxisFigure({ chapter }: { readonly chapter: CicdChapter }): ReactElemen
             <text x="46" y="99">{t('games.cicd.intro.figure-fast')}</text>
           </g>
           <g className="text-primary" fill="currentColor">
-            <rect x="120" y="82" width="34" height="14" rx="3" />
-            <rect x="190" y="60" width="34" height="14" rx="3" />
-            <rect x="260" y="20" width="34" height="14" rx="3" />
+            <rect x="120" y="82" width="34" height="14" />
+            <rect x="190" y="60" width="34" height="14" />
+            <rect x="260" y="20" width="34" height="14" />
           </g>
         </>
       )}

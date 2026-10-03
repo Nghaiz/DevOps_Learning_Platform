@@ -433,7 +433,6 @@ export function GitSvgScene(props: GitSvgSceneProps): ReactElement {
               y={region.top - 80}
               width={width}
               height={regionHeight(region.layout) + 96}
-              rx={20}
               fill={'url(#' + baseId + '-lane)'}
             />
             {Array.from({ length: Math.max(1, region.layout.laneCount) }, (_, lane) => (
@@ -861,7 +860,6 @@ function RefBadge({
           y={y - 3}
           width={width + 6}
           height={BADGE_H + 6}
-          rx={5}
           fill="none"
           stroke={cssVar(style.fill)}
           strokeWidth={1.5}
@@ -873,7 +871,6 @@ function RefBadge({
           y={y}
           width={width}
           height={BADGE_H}
-          rx={4}
           fill={cssVar(style.fill)}
           {...(style.shape === 'dashed'
             ? { stroke: cssVar(style.text), strokeWidth: 1, strokeDasharray: '3 3' }

@@ -422,7 +422,6 @@ function CriticalBadge(props: {
         y={y}
         width={width}
         height={props.machineWait ? 74 : 48}
-        rx={12}
         fill={cssVar(CRITICAL_TOKEN)}
       />
       <text x={x + 16} y={y + 30} fontSize={16} fontWeight={700} fill={cssVar(CRITICAL_TEXT_TOKEN)}>
@@ -509,7 +508,6 @@ function JobDetail(props: {
         y={y}
         width={244}
         height={26 + rows.length * 20}
-        rx={12}
         fill={cssVar(CARD_TOKEN)}
         stroke={cssVar(FOREGROUND_TOKEN)}
         strokeWidth={1.5}

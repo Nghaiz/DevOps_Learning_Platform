@@ -382,7 +382,6 @@ export function CicdSceneNode(props: CicdSceneNodeProps): ReactElement {
               y={NODE_H + sink + DEPTH + 4}
               width={104}
               height={22}
-              rx={11}
               fill={cssVar('--warning')}
             />
             <text

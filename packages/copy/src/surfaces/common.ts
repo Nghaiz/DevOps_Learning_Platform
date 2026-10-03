@@ -54,7 +54,6 @@ export const common = {
   'common.action.edit': 'Sửa',
   'common.action.retry': 'Thử lại',
   'common.action.back': 'Quay lại',
-  'common.action.next': 'Tiếp',
   'common.action.prev': 'Trước',
   'common.action.copy': 'Sao chép',
   'common.action.copied': 'Đã sao chép',
@@ -62,7 +61,6 @@ export const common = {
   'common.action.search': 'Tìm',
   'common.action.clear-filter': 'Bỏ lọc',
   'common.action.reload': 'Tải lại trang',
-  'common.action.open': 'Mở',
   'common.action.more': 'Xem thêm',
   'common.action.dismiss': 'Bỏ qua',
 
