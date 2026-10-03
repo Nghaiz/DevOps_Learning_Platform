@@ -362,7 +362,9 @@ test('landing 3D — a failed stage chunk leaves the page content intact', async
 test('landing 3D — axe finds no serious or critical violation at the top and the end', async ({
   page,
 }, info) => {
-  test.setTimeout(90_000);
+  // Hai lượt axe trên trang đang vẽ WebGL mỗi tick đo được 59 s và 108 s (2026-10-03, RTX 4060):
+  // 90 s sẽ đỏ vì hết giờ chứ không vì vi phạm.
+  test.setTimeout(180_000);
   await openFull(page);
   await settleStage(page);
   const audit = async (where: string) => {
