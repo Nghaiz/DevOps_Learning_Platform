@@ -99,7 +99,7 @@ describe('describeItem — nhãn nói đúng thứ ta biết', () => {
   it('playground KHÔNG được đọc thành "0 bước"', () => {
     const ref = describeItem(item({ kind: 'playground', stepCount: 0 }));
     const text = say(ref);
-    expect(text).toBe('Playground · không có bước');
+    expect(text).toBe('Sân chơi · không có bước');
     expect(text).not.toContain('0 bước');
     // Nhánh playground không được mang `n` sang bản đồ: một tham số thừa ở đây
     // là một con số chờ ai đó quyết định hiện nó ra.
