@@ -6,7 +6,7 @@
 
 <!-- updated 260913 -->
 
-Cập nhật 2026-09-13: landing dùng hành trình 3D nhiều màu xuyên suốt luồng DOM tự nhiên: bốn chương và năm điểm neo ở nội dung phía dưới, với mô hình lớn luân phiên vị trí. Một canvas trong suốt theo viewport dùng camera `viewOffset` để bám điểm neo; không ghim nội dung, dùng vòng trắng trang trí hoặc lưới thẻ. Bảng màu RGB `--journey-*` trong `globals.css` dành riêng cho cảnh và vùng kể chuyện; token giao diện chung không đổi. Xem [quy tắc giao diện hiện hành](design-guidelines.md#landing) cho cuộn xuôi/ngược, terminal minh hoạ và chế độ giảm chuyển động dùng hình tĩnh không GPU. Kết quả nghiệm thu nằm trong báo cáo runtime; primitive tiến độ dùng chung và K8s Arena vẫn có phạm vi riêng.
+Cập nhật 2026-10-03: landing là một tuyến metro 3D cuộn-điều-khiển (GSAP + ScrollTrigger + Lenis + React Three Fiber, chung một vòng `gsap.ticker`), có ghim cảnh, terminal tua theo cuộn và motion graphics 2D. Màu tuyến khớp token `--line-*` của app; chữ dùng bản pha sáng trên nền tối. Xem [quy tắc giao diện hiện hành](design-guidelines.md#landing) và [kế hoạch landing 3D](../plans/devops-learning-platform/landing-3d/plan.md); chế độ giảm chuyển động không chạy vòng lặp nào và dùng bản đồ tuyến SVG tĩnh.
 
 ## 0. Nguyên tắc
 

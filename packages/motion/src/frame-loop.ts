@@ -1,9 +1,12 @@
 /**
- * §8.4 ngoại lệ — vòng `requestAnimationFrame` DUY NHẤT được phép, và cổng của nó.
+ * Cổng reduced-motion cho một vòng `requestAnimationFrame` tự viết.
  *
- * Cung tiến độ chạy bằng CSS transition nên không dùng file này. Chỗ dùng là
- * cảnh 3D trang chủ, nơi rAF là bắt buộc: ở đó "tuân thủ reduced-motion" nghĩa
- * là **không có vòng lặp nào cả**, mỗi chặng chỉ một khung tĩnh (design §7.3).
+ * Cập nhật 2026-10-03: câu "vòng rAF DUY NHẤT được phép" của bản cũ đã lạc hậu. Landing
+ * mới chạy một vòng `gsap.ticker` riêng (Lenis + ScrollTrigger + `advance()` của R3F) và
+ * tự tắt hẳn dưới reduced-motion; app được dùng GSAP/Lenis. Điều KHÔNG đổi là nghĩa của
+ * "tuân thủ": dưới reduced-motion thì **không có vòng lặp nào cả**, chứ không phải một
+ * vòng chạy ở tốc độ 0 (design §7.3). Cung tiến độ chạy bằng CSS transition nên không
+ * dùng file này.
  *
  * ⚠ Đây là chỗ mà một cổng dễ nói dối nhất. Một cài đặt kiểu
  *
