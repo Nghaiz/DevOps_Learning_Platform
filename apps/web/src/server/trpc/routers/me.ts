@@ -9,6 +9,7 @@ import type { Database } from '../../db/client';
 import { accounts, labAttempts, progress, quizAnswers, quizAttempts, users } from '../../db/schema';
 import { DEFAULT_PREFERENCES, readUserPreferences, writeUserPreferences } from '../../me/preferences';
 import { endSessionAs, listSessionsPage } from '../../sessions/list';
+import { resolveSessionContents } from '../../sessions/origins';
 import { loadResults, scoreAndStatus } from './labs';
 import { loadQuizFull, type QuizVisibility } from '../../quiz/repository';
 import { toAnswerInputs } from './quiz';
@@ -181,9 +182,28 @@ export const meRouter = createTRPCRouter({
     return next;
   }),
 
-  /** `ListSessions(user_id = tôi)` — KHÔNG được truyền rỗng (đó là quyền của `admin.sessions.list`). */
+  /**
+   * `ListSessions(user_id = tôi)` — KHÔNG được truyền rỗng (đó là quyền của `admin.sessions.list`).
+   *
+   * Mỗi phiên mang thêm `content: { kind, id, title } | null` — nội dung đã mở
+   * nó, để "Làm tiếp" dẫn về đúng trang. `null` khi không tra ra (phiên mở trước
+   * migration 0018, hoặc nội dung đã biến mất). Xem `sessions/origins.ts`.
+   */
   activeSessions: protectedProcedure.input(listInputSchema).query(async ({ ctx, input }) => {
-    return listSessionsPage(ctx, { userId: ctx.user.id, limit: input.limit, cursor: input.cursor });
+    const page = await listSessionsPage(ctx, {
+      userId: ctx.user.id,
+      limit: input.limit,
+      cursor: input.cursor,
+    });
+    const contents = await resolveSessionContents(
+      ctx.db,
+      ctx.user.id,
+      page.items.map((session) => session.id),
+    );
+    return {
+      items: page.items.map((session) => ({ ...session, content: contents.get(session.id) ?? null })),
+      nextCursor: page.nextCursor,
+    };
   }),
 
   /** Kết thúc SỚM một phiên của chính mình — orchestrator tự kiểm chủ sở hữu (luật 1). */
