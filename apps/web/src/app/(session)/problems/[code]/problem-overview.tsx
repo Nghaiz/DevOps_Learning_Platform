@@ -64,7 +64,7 @@ export function ProblemOverview(props: {
           {line === 'ink' ? problem.gameId.toUpperCase() : LINE_CODE[line]}
         </span>
         <span className="min-w-0">
-          <span className="block type-label opacity-80">{t('problem.oj.detail.fact-game')}</span>
+          <span className="block type-label">{t('problem.oj.detail.fact-game')}</span>
           <span className="block type-title">{gameName(problem.gameId)}</span>
         </span>
       </div>

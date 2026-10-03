@@ -54,7 +54,7 @@ export function RouteLine({
 }) {
   if (orientation === 'horizontal') {
     return (
-      <ol aria-label={label} className="flex items-start overflow-x-auto pb-2">
+      <ol aria-label={label} className="relative flex items-start overflow-x-auto pb-2">
         {stations.map((station, index) => {
           const next = stations[index + 1];
           const inner = (

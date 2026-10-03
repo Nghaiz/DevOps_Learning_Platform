@@ -5,10 +5,16 @@ import { t } from '@devops-platform/copy';
 import { SplitPane } from '@devops-platform/ui';
 import { resolveSplitShape } from './split-shape';
 
-/** Dưới mức này (bề rộng KHUNG CHỨA, không phải cửa sổ) thì xếp chồng. */
-export const STACK_BELOW_PX = 900;
+/**
+ * Dưới mức này (bề rộng KHUNG CHỨA, không phải cửa sổ) thì xếp chồng.
+ *
+ * 1024 chứ không còn 900: trang bài học và lab giờ là trang toàn màn (không
+ * sidebar), nên khung chứa rộng gần bằng cửa sổ. Ở 900, một cửa sổ 1023px vẫn
+ * chia đôi và mỗi khoang chỉ còn ~510px (e2e responsive "1023px — xếp chồng").
+ */
+export const STACK_BELOW_PX = 1024;
 /** Đã xếp chồng thì phải rộng tới mức này mới chia đôi lại (trễ 80px). */
-export const UNSTACK_FROM_PX = 980;
+export const UNSTACK_FROM_PX = 1104;
 
 /**
  * Bước quyết định có trễ (hysteresis). Không có khoảng trễ, một cửa sổ đứng

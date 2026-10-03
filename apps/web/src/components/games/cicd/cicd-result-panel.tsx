@@ -326,12 +326,17 @@ function AxisCard({
   return (
     <div className="flex flex-col gap-1 border border-border bg-muted px-4 py-3">
       <span className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">{label}</span>
-      <span
-        data-testid={testId}
-        className={
-          over ? 'text-xl font-semibold text-destructive' : good ? 'text-xl font-semibold text-success' : 'text-xl font-semibold text-foreground'
-        }
-      >
+      {/*
+        Chữ luôn `text-foreground`: chữ màu xanh/đỏ trực tiếp trên nền `bg-muted`
+        không đạt 4.5:1 ở theme sáng (axe, e2e games-cicd AC-6). Màu trạng thái
+        nằm ở biểu tượng cạnh con số, như các ô kết quả khác.
+      */}
+      <span data-testid={testId} className="inline-flex items-center gap-2 text-xl font-semibold text-foreground">
+        {over ? (
+          <CircleAlert aria-hidden className="size-5 shrink-0 text-destructive" />
+        ) : good ? (
+          <CircleCheck aria-hidden className="size-5 shrink-0 text-success" />
+        ) : null}
         {value}
       </span>
       <span className="text-xs text-muted-foreground">{hint}</span>

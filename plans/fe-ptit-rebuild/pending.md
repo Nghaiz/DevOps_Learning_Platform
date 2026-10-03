@@ -17,6 +17,8 @@ hoặc đang làm dở lúc dừng, kèm chỗ bắt đầu lại. Xếp theo m�
   (commit 5309adb1).
 - `e2e:ci` chưa chạy ở máy, mới chỉ dựa vào CI.
 
+- axe báo một lỗi color-contrast ở `/author/problems/:code` (bộ chọn `.px-2.5`). CI không chạy ô này vì tài khoản CI không có vai trò tác giả; chạy tại chỗ với tài khoản admin thì thấy.
+
 ## 2. Trang thống kê và thành tựu game (phần UI hoãn từ phase 14)
 
 Đặc tả: `plans/devops-learning-platform/phase-14-exec.md` §8.3, §8.4, §8.6. Chưa có dòng mã nào.
