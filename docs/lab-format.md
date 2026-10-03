@@ -37,21 +37,26 @@ nguyên văn — nên chỉ có **một** file: `content/labs/<id>/lab.json`. N�
   "title": "…",
   "description": "…",                    // tuỳ chọn, vắng ⇒ null
   "difficulty": "intermediate",          // bắt buộc, không default
+  "topic": "linux",                      // bắt buộc — CONTENT_TOPICS
   "estimatedMinutes": 30,                // bắt buộc (nullable), không default
   "source": null,                        // bắt buộc (nullable), không default
   "backend": { "imageid": "ubuntu" },    // bắt buộc — cùng hình dạng index.json
   "interface": { "layout": "ide" },      // tuỳ chọn — cùng hình dạng index.json
   "tasks": [
-    { "id": "find-kill-runaway", "title": "…", "weight": 2, "hint": "…" }
+    { "id": "find-kill-runaway", "title": "…", "weight": 2 }
   ],
   "setup": {                             // tuỳ chọn
-    "foreground": "setup/foreground.sh",
     "background": "setup/background.sh"
   },
   "passThresholdPercent": 80,            // tuỳ chọn, default 100
   "leaderboard": true                    // tuỳ chọn, default false
 }
 ```
+
+⛔ **Không có `hint`, không có `setup.foreground`** (gỡ 2026-10-03, schema strict
+từ chối). Lab là phần tự thực hành kiểu KodeKloud: đề nêu trạng thái cần đạt, người
+học tự tìm lệnh; phần cầm tay nằm ở bài học. `foreground` từng được nạp nhưng không
+đường nào chạy nó (lab chạy setup nền rồi FE hỏi `labs.setupStatus`).
 
 `tier`/`capabilities` suy trọn vẹn từ `backend.imageid` qua CHÍNH bảng
 `BACKEND_IMAGE_MAPPING` mà scenario dùng (`packages/scenario/src/backend.ts`)
@@ -98,7 +103,7 @@ no-op (`/bin/true`, `true`, `exit 0` trần trụi) — cùng bài học `prolug
 | Field | File (`lab.json`) | DTO (`Lab`/`LabTask`) |
 |---|---|---|
 | `tasks[].weight` | tuỳ chọn, default **1** | bắt buộc |
-| `tasks[].hint` | tuỳ chọn, default **null** | bắt buộc (nullable) |
+| `tasks[].hint` | **không còn** (schema từ chối) | `null` với lab trên đĩa; chỉ bài soạn trong DB còn giá trị, và cây người học không mang nó |
 | `passThresholdPercent` | tuỳ chọn, default **100** | bắt buộc |
 | `leaderboard` | tuỳ chọn, default **false** | bắt buộc |
 
@@ -291,6 +296,25 @@ không REJECT — thiếu trần thời gian là treo tới hết 30s rồi tr�
 "Timeout" ở trên); **KHÔNG** làm việc nặng (`docker build`, `docker pull`)
 trong verify — việc đó thuộc terminal của người học, không thuộc lượt chấm.
 
+### 4.3b Prelude verify và dòng tiêu chí (2026-10-03)
+
+Server ghép `withVerifyPrelude` (`packages/scenario/src/verify-prelude.ts`) vào
+ĐẦU mọi verify trước khi gửi xuống gateway. Trong script có sẵn `pass`, `fail`,
+`check`; một `fail` bất kỳ ép exit ≠ 0 kể cả khi tác giả quên `exit 1` (trap
+EXIT). Dòng bắt đầu `✓ ` / `✗ ` là tiêu chí; FE tách bằng `parseCheckCriteria`
+cho cả kết quả vừa chấm lẫn `results[].output` đã lưu, nên không có cột
+`criteria` nào phải lưu. Hợp đồng đầy đủ: `plans/labs-rebuild/contracts.md` §C1.
+
+Với lab, mỗi task in ít nhất một tiêu chí; nhãn nói ĐIỀU KIỆN cần đạt (có thể kèm
+trạng thái quan sát được), không bao giờ nói lệnh hay cách sửa.
+
+### 4.3c Trình duyệt không thấy script chấm
+
+`labs.get` trả `LabForLearner`: task chỉ có `{id, title, markdown, weight}`, không
+`verifyScript`, không `hint`, không `setup`. Script chấm của lab không gợi ý chính là
+đáp án. Rào compile ở `learner-dto-leak.test.ts` (shared-types), rào runtime ở
+`labs-authz.test.ts` (dò chuỗi đánh dấu trên toàn JSON).
+
 ### 4.4 `verify.sh` không dùng `set -e`
 
 Mọi `verify.sh` trong `content/labs/**` dùng `set -uo pipefail`, KHÔNG
@@ -355,7 +379,11 @@ pnpm --filter @devops-platform/scenario test -- content-labs lab-loader lab-scor
    xong: trạng thái CHƯA LÀM (script thoát khác 0) và trạng thái ĐÃ LÀM (script
    thoát 0) — một grader không chứng minh được cả hai là một grader không
    chứng minh được gì (§1.3, bài học `prolug`).
-4. `pnpm --filter @devops-platform/scenario test`.
+4. Mỗi task có `task-<taskId>/solution.sh`: lời giải ẩn cho bộ kiểm thử (không
+   loader nào đọc, không route nào phục vụ).
+5. `pnpm --filter @devops-platform/scenario test`, rồi chứng minh bước 3 tự động trên
+   cụm thật: `node scripts/content-smoke/smoke.mjs lab <id>`
+   (`scripts/content-smoke/README.md`). Cách viết đề: `docs/content-style.md` §4.
 
 ### 7.1 Thêm một playground mới
 

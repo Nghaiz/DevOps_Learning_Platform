@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { setupFailureDetail, setupScriptPlan, type SetupStepKind } from './setup-plan';
+import { DOCKERD_WAIT_PREFIX, setupFailureDetail, setupScriptPlan, type SetupStepKind } from './setup-plan';
 
 /**
  * Thứ tự setup: **công cụ → asset → background**.
@@ -160,5 +160,24 @@ describe('setupFailureDetail', () => {
     expect(detail).not.toBeNull();
     expect(detail).not.toContain('�');
     expect(Buffer.byteLength(detail!, 'utf8')).toBeLessThan(500);
+  });
+});
+
+describe('chờ dockerd trước background', () => {
+  it('script background mang đoạn chờ dockerd ở ĐẦU, thân bài giữ nguyên ở cuối', () => {
+    const plan = setupScriptPlan({ tools: null, assets: null, background: '#!/bin/bash\necho dung\n' });
+    const step = plan.find((s) => s.kind === 'background');
+    expect(step?.script.startsWith(DOCKERD_WAIT_PREFIX)).toBe(true);
+    expect(step?.script.endsWith('#!/bin/bash\necho dung\n')).toBe(true);
+  });
+
+  it('công cụ và asset KHÔNG bị chờ — chúng không dùng Docker', () => {
+    const plan = setupScriptPlan({ tools: 't', assets: 'a', background: null });
+    expect(plan.map((s) => s.script)).toEqual(['t', 'a']);
+  });
+
+  it('đoạn chờ không bao giờ làm hỏng setup: hết giờ vẫn đi tiếp (không exit ≠ 0)', () => {
+    expect(DOCKERD_WAIT_PREFIX).not.toMatch(/\bexit\b/);
+    expect(DOCKERD_WAIT_PREFIX).toMatch(/seq 1 45/);
   });
 });

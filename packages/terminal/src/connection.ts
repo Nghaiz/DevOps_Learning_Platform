@@ -27,12 +27,22 @@ export interface ConnectionOptions extends ConnectionHandlers {
   readonly url: string;
   /** Kích thước ĐO ĐƯỢC lúc mở — dùng cho frame `init` bắt buộc (contract §3 bước 4). */
   readonly initialSize: TerminalDimensions;
+  /**
+   * H1 — gọi ĐÚNG một lần khi socket mở, với kích thước mà `init` vừa mang đi
+   * (đã clamp). Đó là con số pod đang có, nên người gọi dùng nó làm mốc dedup
+   * `resize` cho kết nối này (`TerminalCore.syncResizeBaseline`).
+   */
+  readonly onOpen?: (sentSize: TerminalDimensions) => void;
   /** Cho test tiêm WebSocket giả. Mặc định dùng `globalThis.WebSocket`. */
   readonly socketFactory?: (url: string, protocols: string) => WebSocket;
 }
 
 export interface Connection {
-  /** Gửi stdin. No-op khi socket chưa mở — byte gõ lúc đang nối lại không được xếp hàng. */
+  /**
+   * Gửi stdin. Lúc CONNECTING thì XẾP HÀNG (trần `MAX_PENDING_INPUT_BYTES`) và
+   * xả ngay sau `init` khi mở (H5); sau khi đóng thì no-op. Mỗi lượt được chia
+   * theo byte dưới `maxFrameBytes` (C2).
+   */
   sendInput(data: string): void;
   sendResize(size: TerminalDimensions): void;
   close(): void;
@@ -42,6 +52,83 @@ const encoder = new TextEncoder();
 
 /** Trần cho lượt HANDSHAKE — lý do đầy đủ ở `handshakeTimer` trong `openConnection`. */
 export const HANDSHAKE_TIMEOUT_MS = 10_000;
+
+/**
+ * C2 — trần MỘT frame stdin khi `ready` chưa tới để báo con số thật.
+ *
+ * Bằng đúng `MaxFrameBytes` của gateway (`services/terminal-gateway/internal/
+ * podexec/bridge.go`, `SetReadLimit(32 KiB)`) và ví dụ `ready` ở contract §5.
+ * Cần một giá trị trước `ready` vì stdin được phép đi ngay sau `init` — gateway
+ * đệm nó qua `pendingStdin` trong lúc dial exec.
+ */
+export const DEFAULT_MAX_FRAME_BYTES = 32 * 1024;
+
+/**
+ * Khoảng chừa dưới trần. Contract §6 đo được `1009 "read limited at 1025 bytes"`
+ * với limit 1024, tức trần là bao gồm — chừa 1 KiB không vì phép tính sai, mà vì
+ * vượt trần ở đây là ĐÓNG PHIÊN (1009 không retry), còn chừa thừa chỉ tốn thêm
+ * một frame mỗi 31 KiB.
+ */
+export const FRAME_MARGIN_BYTES = 1024;
+
+/**
+ * H5 — trần hàng đợi stdin trong lúc CONNECTING. Đủ cho một cú dán cỡ manifest
+ * cộng vài lượt `{{exec}}`; vượt trần là dấu hiệu có gì đó bơm stdin vào một
+ * socket không mở được, và đệm vô hạn thì một lần nối treo 10s sẽ dồn cả đống
+ * lệnh chạy cùng lúc khi nó mở.
+ */
+export const MAX_PENDING_INPUT_BYTES = 64 * 1024;
+
+/** Một ký tự UTF-8 dài tối đa 4 byte — mảnh nhỏ hơn thì không chứa nổi một ký tự. */
+const MIN_CHUNK_BYTES = 4;
+
+/** Số byte tối đa cho MỘT frame stdin khi gateway báo trần `maxFrameBytes`. */
+export function inputChunkBytes(maxFrameBytes: number): number {
+  if (maxFrameBytes > 2 * FRAME_MARGIN_BYTES) {
+    return maxFrameBytes - FRAME_MARGIN_BYTES;
+  }
+  // Trần nhỏ bất thường: chừa 1 KiB sẽ ăn mất gần hết frame, nên chừa một nửa.
+  return Math.max(MIN_CHUNK_BYTES, Math.floor(maxFrameBytes / 2));
+}
+
+/**
+ * Cắt byte UTF-8 thành các mảnh ≤ `maxChunkBytes`, KHÔNG BAO GIỜ cắt giữa một ký
+ * tự: ranh giới lùi lại tới khi byte đầu mảnh sau không phải byte nối tiếp
+ * (`10xxxxxx`).
+ *
+ * Vì sao quan trọng dù PTY nhận một DÒNG byte: gateway và mọi tầng log/metric ở
+ * giữa đọc từng frame như một đơn vị; một frame mở đầu bằng nửa ký tự là một
+ * frame không hợp lệ UTF-8 đứng riêng. Không có lý do gì để tạo ra nó.
+ *
+ * Trả về view (`subarray`) chứ không copy — `WebSocket.send` gửi đúng phần view.
+ */
+export function splitUtf8(
+  bytes: Uint8Array<ArrayBuffer>,
+  maxChunkBytes: number,
+): Uint8Array<ArrayBuffer>[] {
+  const limit = Math.max(MIN_CHUNK_BYTES, Math.floor(maxChunkBytes));
+  if (bytes.byteLength <= limit) {
+    return [bytes];
+  }
+  const pieces: Uint8Array<ArrayBuffer>[] = [];
+  let start = 0;
+  while (start < bytes.byteLength) {
+    let end = Math.min(start + limit, bytes.byteLength);
+    if (end < bytes.byteLength) {
+      while (end > start && ((bytes[end] ?? 0) & 0xc0) === 0x80) {
+        end -= 1;
+      }
+      // Không có byte mở đầu nào trong cửa sổ ⇒ đầu vào không phải UTF-8 hợp lệ.
+      // `TextEncoder` không bao giờ sinh ra nó; nếu có thì cắt cứng còn hơn lặp vô hạn.
+      if (end === start) {
+        end = Math.min(start + limit, bytes.byteLength);
+      }
+    }
+    pieces.push(bytes.subarray(start, end));
+    start = end;
+  }
+  return pieces;
+}
 
 export function openConnection(options: ConnectionOptions): Connection {
   const factory =
@@ -56,6 +143,38 @@ export function openConnection(options: ConnectionOptions): Connection {
 
   let closed = false;
   let opened = false;
+  /**
+   * H1 — `resize` gửi lúc CONNECTING. Chỉ giữ cái MỚI NHẤT (kích thước là trạng
+   * thái, không phải chuỗi sự kiện) và gộp vào `init` lúc mở, nên không có frame
+   * `resize` nào đi trước `init` và không tốn thêm một lượt control.
+   */
+  let pendingSize: TerminalDimensions | null = null;
+  /** C2 — trần frame hiện hành; `ready` thay nó bằng con số gateway báo. */
+  let chunkBytes = inputChunkBytes(DEFAULT_MAX_FRAME_BYTES);
+
+  function sendStdin(bytes: Uint8Array<ArrayBuffer>): void {
+    for (const piece of splitUtf8(bytes, chunkBytes)) {
+      socket.send(piece);
+    }
+  }
+
+  /**
+   * H5 — stdin gửi lúc CONNECTING. Giữ theo lượt gọi (không gộp) để xả đúng thứ
+   * tự; mỗi lượt vẫn đi qua `sendStdin` nên vẫn được chia theo C2.
+   */
+  const pendingInput: Uint8Array<ArrayBuffer>[] = [];
+  let pendingInputBytes = 0;
+
+  function discardPendingInput(reason: string): void {
+    if (pendingInput.length === 0) {
+      return;
+    }
+    console.warn(
+      `[dlp-terminal] bỏ ${String(pendingInputBytes)} byte stdin đang chờ (${String(pendingInput.length)} lượt gửi) vì ${reason} — lệnh đó KHÔNG tới shell.`,
+    );
+    pendingInput.length = 0;
+    pendingInputBytes = 0;
+  }
 
   /**
    * Trần thời gian cho HANDSHAKE — không phải cho phiên.
@@ -82,6 +201,7 @@ export function openConnection(options: ConnectionOptions): Connection {
       return;
     }
     closed = true;
+    discardPendingInput('handshake quá trần');
     // Báo CLOSE_ABNORMAL chứ không phải một mã riêng: đó ĐÚNG là thứ đã xảy ra
     // dưới góc nhìn của client (không có close code từ server), và nó chảy vào
     // đúng nhánh mà `session-machine` đã có sẵn cho ca "1006 khi chưa từng
@@ -95,13 +215,24 @@ export function openConnection(options: ConnectionOptions): Connection {
     clearTimeout(handshakeTimer);
     // Contract §3 bước 4 — `init` là frame ĐẦU TIÊN, trước mọi stdin. Server chờ
     // nó (3s) trước khi dial exec, nên gửi muộn là prompt vẽ ở 80×24 rồi nhảy.
-    socket.send(
-      encodeClientControl({
-        type: 'init',
-        cols: clampDimension(options.initialSize.cols),
-        rows: clampDimension(options.initialSize.rows),
-      }),
-    );
+    //
+    // H1 — `initialSize` là ảnh chụp lúc `openConnection`, trước khi font tải
+    // xong; mọi `resize` tới trong lúc CONNECTING thay nó bằng số mới hơn.
+    const size = pendingSize ?? options.initialSize;
+    pendingSize = null;
+    const sent: TerminalDimensions = {
+      cols: clampDimension(size.cols),
+      rows: clampDimension(size.rows),
+    };
+    socket.send(encodeClientControl({ type: 'init', cols: sent.cols, rows: sent.rows }));
+    options.onOpen?.(sent);
+    // H5 — xả SAU `init`: stdin trước `init` thì gateway đệm được (`pendingStdin`)
+    // nhưng `init` phải là frame đầu tiên theo contract §3.
+    for (const bytes of pendingInput) {
+      sendStdin(bytes);
+    }
+    pendingInput.length = 0;
+    pendingInputBytes = 0;
   });
 
   socket.addEventListener('message', (event: MessageEvent<unknown>) => {
@@ -123,6 +254,16 @@ export function openConnection(options: ConnectionOptions): Connection {
         );
         return;
       }
+      if (control.type === 'ready') {
+        if (Number.isFinite(control.maxFrameBytes) && control.maxFrameBytes >= MIN_CHUNK_BYTES) {
+          chunkBytes = inputChunkBytes(control.maxFrameBytes);
+        } else {
+          console.warn(
+            '[dlp-terminal] `ready.maxFrameBytes` không dùng được, giữ trần mặc định:',
+            control.maxFrameBytes,
+          );
+        }
+      }
       options.onControl(control);
       return;
     }
@@ -137,6 +278,7 @@ export function openConnection(options: ConnectionOptions): Connection {
       return;
     }
     closed = true;
+    discardPendingInput(`kết nối đóng (mã ${String(event.code)}) trước khi mở xong`);
     options.onClose(event.code);
   });
 
@@ -148,15 +290,39 @@ export function openConnection(options: ConnectionOptions): Connection {
 
   return {
     sendInput(data: string): void {
+      if (closed) {
+        // Handle cũ sau khi nối lại: KHÔNG được ghi sang phiên mới, nên no-op.
+        return;
+      }
+      if (!opened) {
+        const bytes = encoder.encode(data);
+        if (pendingInputBytes + bytes.byteLength > MAX_PENDING_INPUT_BYTES) {
+          console.warn(
+            `[dlp-terminal] hàng đợi stdin lúc đang nối đã đầy (${String(MAX_PENDING_INPUT_BYTES)} byte) — bỏ lượt gửi ${String(bytes.byteLength)} byte này.`,
+          );
+          return;
+        }
+        pendingInput.push(bytes);
+        pendingInputBytes += bytes.byteLength;
+        return;
+      }
       if (socket.readyState !== WebSocket.OPEN) {
         return;
       }
       // Contract §1 bẫy 1 — `onData` trả STRING; gửi thẳng thành text frame và
       // server đọc nó như control JSON hỏng rồi đóng 4400. Phải encode ra binary.
-      socket.send(encoder.encode(data));
+      // C2 — và chia theo byte: một frame vượt `maxFrameBytes` là `1009`, đóng hẳn.
+      sendStdin(encoder.encode(data));
     },
 
     sendResize(size: TerminalDimensions): void {
+      if (closed) {
+        return;
+      }
+      if (!opened) {
+        pendingSize = size;
+        return;
+      }
       if (socket.readyState !== WebSocket.OPEN) {
         return;
       }
@@ -175,6 +341,7 @@ export function openConnection(options: ConnectionOptions): Connection {
         return;
       }
       closed = true;
+      discardPendingInput('kết nối bị đóng chủ động (unmount / đổi phiên)');
       // Đóng chủ động (unmount / đổi phiên) KHÔNG được gọi onClose: máy trạng
       // thái sẽ hiểu là mất kết nối và hẹn giờ nối lại vào một component đã
       // unmount — đúng ca rò WebSocket ở StrictMode dev.

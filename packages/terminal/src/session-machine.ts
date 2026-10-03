@@ -373,7 +373,10 @@ export function reduce(state: SessionState, event: SessionEvent): SessionState {
       return applyClosed(state, event.code, event.nowMs);
 
     case 'RETRY_NOW':
-      return { ...state, phase: 'connecting', retryDelayMs: null };
+      // `message: null` — câu của pha cũ ("Shell đã thoát…", "Mất kết nối…") thôi
+      // đúng ngay khi ta bắt đầu nối lại. Đường backoff vốn đã `null` ở đây; đường
+      // `reconnect()` thủ công từ `exited`/`error` thì không (C1).
+      return { ...state, phase: 'connecting', retryDelayMs: null, message: null };
 
     case 'EXTENDED':
       // KHÔNG đổi `phase`: gia hạn không phải một chuyển trạng thái, nó chỉ đẩy

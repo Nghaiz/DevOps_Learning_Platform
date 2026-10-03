@@ -1,0 +1,18 @@
+% Mô tả: Cây thư mục của một dự án Node.js, tô sáng Dockerfile và .dockerignore, hai file quyết định image chứa gì
+\begin{tikzpicture}
+  \dlpfile{0}{shop-api/}
+  \dlpfile{1}{src/}
+  \dlpfile{2}{server.js}
+  \dlpfile{2}{routes/}
+  \dlpfile{3}{orders.js}
+  \dlpfile{1}{test/}
+  \dlpfile[hl]{1}{Dockerfile}
+  \dlpfile[hl]{1}{.dockerignore}
+  \dlpfile{1}{package.json}
+  \dlpfile{1}{node\_modules/}
+
+  \node[note, right=14mm of file-6, align=left] (n1) {mỗi lệnh là một lớp,\\đọc từ trên xuống};
+  \node[note, right=14mm of file-9, align=left] (n2) {có tên trong .dockerignore\\nên không vào image};
+  \draw[faint, ->] (n1) -- (file-6);
+  \draw[faint, ->] (n2) -- (file-9);
+\end{tikzpicture}

@@ -1,4 +1,4 @@
-import { act, useRef } from 'react';
+import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TerminalSurface } from './terminal-surface.tsx';
@@ -45,7 +45,18 @@ class RecordingSocket {
 
   constructor(readonly url: string) {}
 
-  addEventListener(): void {}
+  /**
+   * Phát `open` NGAY khi `openConnection` đăng ký listener — đồng bộ, vì các test
+   * dưới bấm phím ngay sau `act()` mà không nhường lượt cho microtask. Từ H5,
+   * `connection.ts` mở cổng stdin theo sự kiện `open` chứ không theo
+   * `readyState`: một fake chỉ đặt `readyState = OPEN` mà không phát `open` sẽ
+   * khiến mọi byte nằm im trong hàng đợi, và vế (a) đỏ vì fake chứ không vì mã.
+   */
+  addEventListener(type: string, handler: (event: unknown) => void): void {
+    if (type === 'open') {
+      handler({});
+    }
+  }
   removeEventListener(): void {}
   send(data: unknown): void {
     if (data instanceof Uint8Array) {
@@ -59,36 +70,44 @@ class RecordingSocket {
 
 const realWebSocket = globalThis.WebSocket;
 
-function Harness({ onEscapeFocus }: { onEscapeFocus: () => void }): React.ReactElement {
-  const ref = useRef(null);
-  void ref;
+function Harness({
+  onEscapeFocus,
+}: {
+  onEscapeFocus?: (direction: 'forward' | 'backward') => void;
+}): React.ReactElement {
   return (
     <TerminalSurface
       wsUrl="ws://localhost/ws/session/test"
       connectionKey={1}
       theme="dlp-dark"
       ariaLabel="Terminal sandbox"
-      onEscapeFocus={onEscapeFocus}
+      {...(onEscapeFocus === undefined ? {} : { onEscapeFocus })}
       onControl={() => {}}
       onClose={() => {}}
     />
   );
 }
 
-function pressEscape(target: HTMLElement): void {
-  target.dispatchEvent(
-    new KeyboardEvent('keydown', {
-      key: 'Escape',
-      code: 'Escape',
-      keyCode: 27,
-      which: 27,
-      bubbles: true,
-      cancelable: true,
-    }),
-  );
+/** Sự kiện tổng hợp + `keyCode` gán đè: xterm đọc `keyCode` để ra `	`/``. */
+function pressKey(
+  target: HTMLElement,
+  init: KeyboardEventInit & { key: string; keyCode: number },
+): KeyboardEvent {
+  const event = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init });
+  Object.defineProperty(event, 'keyCode', { value: init.keyCode });
+  target.dispatchEvent(event);
+  return event;
 }
 
-describe('D10 — Esc-Esc rời terminal, Esc đơn vẫn tới PTY', () => {
+function pressEscape(target: HTMLElement): void {
+  pressKey(target, { key: 'Escape', code: 'Escape', keyCode: 27 });
+}
+
+function pressTab(target: HTMLElement, shiftKey = false): KeyboardEvent {
+  return pressKey(target, { key: 'Tab', code: 'Tab', keyCode: 9, shiftKey });
+}
+
+describe('D10/M1 — Esc rồi Tab rời terminal, Esc đơn và Esc Esc vẫn tới PTY', () => {
   let mountPoint: HTMLDivElement;
   let root: Root;
 
@@ -112,9 +131,12 @@ describe('D10 — Esc-Esc rời terminal, Esc đơn vẫn tới PTY', () => {
     mountPoint.remove();
   });
 
-  function mount(onEscapeFocus: () => void): { container: HTMLElement; textarea: HTMLElement } {
+  function mount(onEscapeFocus?: (direction: 'forward' | 'backward') => void): {
+    container: HTMLElement;
+    textarea: HTMLElement;
+  } {
     act(() => {
-      root.render(<Harness onEscapeFocus={onEscapeFocus} />);
+      root.render(<Harness {...(onEscapeFocus === undefined ? {} : { onEscapeFocus })} />);
     });
     const container = mountPoint.querySelector<HTMLElement>('[data-testid="dlp-terminal"]');
     expect(container).not.toBeNull();
@@ -125,10 +147,10 @@ describe('D10 — Esc-Esc rời terminal, Esc đơn vẫn tới PTY', () => {
     return { container: container!, textarea: textarea! };
   }
 
-  it('container có role/tabIndex/aria-label của D10', () => {
+  it('container có role/aria-label của D10, và KHÔNG là điểm dừng Tab (M8)', () => {
     const { container } = mount(() => {});
     expect(container.getAttribute('role')).toBe('application');
-    expect(container.getAttribute('tabindex')).toBe('0');
+    expect(container.hasAttribute('tabindex')).toBe(false);
     expect(container.getAttribute('aria-label')).toBe('Terminal sandbox');
   });
 
@@ -142,10 +164,10 @@ describe('D10 — Esc-Esc rời terminal, Esc đơn vẫn tới PTY', () => {
     expect(onEscapeFocus).not.toHaveBeenCalled();
     // Vế (a). Đây là bằng chứng duy nhất không thể giả: nếu detector nuốt phím,
     // xterm không chạy `_keyDown`, `onData` không bắn, và chuỗi này rỗng.
-    expect(RecordingSocket.sentText).toBe('\x1b');
+    expect(RecordingSocket.sentText).toBe('');
   });
 
-  it('Esc Esc nhanh: gọi onEscapeFocus ĐÚNG một lần — và CẢ HAI byte vẫn qua', () => {
+  it('M1 — Esc Esc nhanh KHÔNG rời focus (thói quen vim), và cả hai byte vẫn qua', () => {
     const onEscapeFocus = vi.fn();
     const { textarea } = mount(onEscapeFocus);
     RecordingSocket.reset();
@@ -153,18 +175,53 @@ describe('D10 — Esc-Esc rời terminal, Esc đơn vẫn tới PTY', () => {
     pressEscape(textarea);
     pressEscape(textarea);
 
-    expect(onEscapeFocus).toHaveBeenCalledTimes(1);
-    expect(RecordingSocket.sentText).toBe('\x1b\x1b');
+    expect(onEscapeFocus).not.toHaveBeenCalled();
+    expect(RecordingSocket.sentText).toBe('');
   });
 
-  it('phím thường KHÔNG gọi onEscapeFocus', () => {
+  it('M1 — Esc rồi Tab: gọi onEscapeFocus("forward") ĐÚNG một lần; Esc tới PTY, Tab thì KHÔNG', () => {
+    const onEscapeFocus = vi.fn();
+    const { textarea } = mount(onEscapeFocus);
+    RecordingSocket.reset();
+
+    pressEscape(textarea);
+    const tab = pressTab(textarea);
+
+    expect(onEscapeFocus).toHaveBeenCalledExactlyOnceWith('forward');
+    expect(RecordingSocket.sentText).toBe('');
+    // Có người nhận cử chỉ ⇒ chặn Tab gốc, nếu không focus bị dời HAI lần.
+    expect(tab.defaultPrevented).toBe(true);
+  });
+
+  it('M1 — Esc rồi Shift+Tab ⇒ onEscapeFocus("backward")', () => {
     const onEscapeFocus = vi.fn();
     const { textarea } = mount(onEscapeFocus);
 
-    textarea.dispatchEvent(
-      new KeyboardEvent('keydown', { key: 'a', code: 'KeyA', bubbles: true, cancelable: true }),
-    );
+    pressEscape(textarea);
+    pressTab(textarea, true);
+
+    expect(onEscapeFocus).toHaveBeenCalledExactlyOnceWith('backward');
+  });
+
+  it('M1 — KHÔNG có onEscapeFocus ⇒ Tab gốc của trình duyệt được giữ (không preventDefault), và \t không tới PTY', () => {
+    const { textarea } = mount();
+    RecordingSocket.reset();
+
+    pressEscape(textarea);
+    const tab = pressTab(textarea);
+
+    expect(tab.defaultPrevented).toBe(false);
+    expect(RecordingSocket.sentText).toBe('');
+  });
+
+  it('ĐỐI CHỨNG: Tab KHÔNG có Esc trước ⇒ là \t của shell, không rời focus', () => {
+    const onEscapeFocus = vi.fn();
+    const { textarea } = mount(onEscapeFocus);
+    RecordingSocket.reset();
+
+    pressTab(textarea);
 
     expect(onEscapeFocus).not.toHaveBeenCalled();
+    expect(RecordingSocket.sentText).toBe('	');
   });
 });

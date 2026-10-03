@@ -38,6 +38,7 @@ async function makeScenario(fixture: Fixture = {}): Promise<string> {
   const sidecar = {
     id,
     difficulty: 'beginner',
+    topic: 'linux',
     estimatedMinutes: 10,
     source: SOURCE,
     ...fixture.sidecar,

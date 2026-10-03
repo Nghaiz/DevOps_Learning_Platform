@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import {
   contentBaseSchema,
+  diagramMapSchema,
   phaseScriptsSchema,
   scenarioIdSchema,
   SCENARIO_DIFFICULTIES,
@@ -87,6 +88,8 @@ export const labSchema = contentBaseSchema
      * từ chối ngay, không cần lọc.
      */
     leaderboard: z.boolean(),
+    /** Sơ đồ mà markdown của các task tham chiếu — cùng nghĩa `scenarioSchema.diagrams`. */
+    diagrams: diagramMapSchema.optional(),
   })
   .strict();
 export type Lab = z.infer<typeof labSchema>;
@@ -103,6 +106,7 @@ export const labSummarySchema = labSchema
     capabilities: true,
     passThresholdPercent: true,
     leaderboard: true,
+    topic: true,
   })
   .extend({ taskCount: z.number().int().positive() })
   .strict();
@@ -119,7 +123,73 @@ export function toLabSummary(lab: Lab): LabSummary {
     capabilities: lab.capabilities,
     passThresholdPercent: lab.passThresholdPercent,
     leaderboard: lab.leaderboard,
+    ...(lab.topic === undefined ? {} : { topic: lab.topic }),
     taskCount: lab.tasks.length,
+  };
+}
+
+// ─────────────────────────────────────────── cây NGƯỜI HỌC (rời server được)
+//
+// Lab kiểu KodeKloud: đề không gợi ý, không lệnh sẵn. `labs.get` từng trả nguyên
+// `Lab`, tức `verifyScript` của mọi task (đáp án: script chấm nói chính xác trạng
+// thái cần đạt) + `hint` + script setup (nói luôn lỗi được gieo ở đâu) đi thẳng
+// xuống trình duyệt. Cây dưới đây chỉ mang thứ người làm bài được phép thấy.
+
+export const labTaskForLearnerSchema = z
+  .object({
+    id: labTaskIdSchema,
+    title: z.string().min(1),
+    markdown: z.string(),
+    weight: z.number().int().positive(),
+  })
+  .strict();
+
+/** `?: never` là rào COMPILE — xem `lab-dto-leak.test.ts`. */
+export type LabTaskForLearner = z.infer<typeof labTaskForLearnerSchema> & {
+  readonly verifyScript?: never;
+  readonly hint?: never;
+};
+
+export const labForLearnerSchema = contentBaseSchema
+  .extend({
+    tasks: z.array(labTaskForLearnerSchema).min(1),
+    passThresholdPercent: z.number().int().min(1).max(100),
+    leaderboard: z.boolean(),
+    diagrams: diagramMapSchema,
+  })
+  .strict();
+
+export type LabForLearner = Omit<z.infer<typeof labForLearnerSchema>, 'tasks'> & {
+  readonly tasks: readonly LabTaskForLearner[];
+  readonly setup?: never;
+};
+
+/** Chép TƯỜNG MINH từng field — cùng lý do `toScenarioForLearner`. */
+export function toLabForLearner(lab: Lab): LabForLearner {
+  return {
+    id: lab.id,
+    title: lab.title,
+    description: lab.description,
+    difficulty: lab.difficulty,
+    estimatedMinutes: lab.estimatedMinutes,
+    ...(lab.topic === undefined ? {} : { topic: lab.topic }),
+    tier: lab.tier,
+    capabilities: lab.capabilities,
+    requiresCapabilities: lab.requiresCapabilities,
+    backendImageId: lab.backendImageId,
+    interfaceLayout: lab.interfaceLayout,
+    toolset: lab.toolset,
+    assets: lab.assets,
+    source: lab.source,
+    tasks: lab.tasks.map((task) => ({
+      id: task.id,
+      title: task.title,
+      markdown: task.markdown,
+      weight: task.weight,
+    })),
+    passThresholdPercent: lab.passThresholdPercent,
+    leaderboard: lab.leaderboard,
+    diagrams: lab.diagrams ?? {},
   };
 }
 

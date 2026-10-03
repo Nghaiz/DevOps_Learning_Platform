@@ -6,16 +6,19 @@ import {
   computeLabScore,
   computeLabStatus,
   CONTENT_ORDER_KEYS,
+  withVerifyPrelude,
 } from '@devops-platform/scenario';
 import {
   labTaskIdSchema,
   scenarioIdSchema,
+  toLabForLearner,
   type Lab,
   type LabAttempt,
   type LabLeaderboardRow,
   type LabTaskResult,
 } from '@devops-platform/shared-types/lab';
 import {
+  CONTENT_TOPICS,
   effectiveCapabilities,
   SANDBOX_TIER_NAMES,
   SCENARIO_CAPABILITIES,
@@ -273,6 +276,7 @@ const listLabsInput = listInputSchema
     difficulty: z.enum(SCENARIO_DIFFICULTIES).optional(),
     tier: z.enum(SANDBOX_TIER_NAMES).optional(),
     capability: z.enum(SCENARIO_CAPABILITIES).optional(),
+    topic: z.enum(CONTENT_TOPICS).optional(),
     orderBy: z.enum(CONTENT_ORDER_KEYS).optional(),
   })
   .strict();
@@ -312,6 +316,7 @@ export const labsRouter = createTRPCRouter({
           difficulty: input.difficulty,
           tier: input.tier,
           capability: input.capability,
+          topic: input.topic,
         },
       });
       return { items: result.items, limit: input.limit, nextCursor: result.nextCursor };
@@ -323,11 +328,17 @@ export const labsRouter = createTRPCRouter({
     }
   }),
 
-  /** Nội dung đầy đủ một lab. */
+  /**
+   * Một lab, ở dạng NGƯỜI HỌC (`LabForLearner`): không `verifyScript`, không
+   * `hint`, không script setup. Lab kiểu KodeKloud không gợi ý — script chấm
+   * nói chính xác trạng thái cần đạt, script setup nói lỗi được gieo ở đâu, nên
+   * gửi chúng xuống trình duyệt là gửi đáp án. Rào ở `learner-dto-leak.test.ts`
+   * (shared-types) và `labs-get-learner-dto.test.ts` (router).
+   */
   get: protectedProcedure.input(getInput).query(async ({ input }) => {
     const lab = await requireLab(input.labId);
     return {
-      lab,
+      lab: toLabForLearner(lab),
       // Profile tài nguyên của CHÍNH lab này — cùng nguồn với `startAttempt`
       // (xem `sandboxCapabilities`). Thiếu field này, trang lab đếm theo profile
       // mặc định: một lab Kubernetes (1024Mi, trần 5) hiện con số của bài thường
@@ -610,7 +621,11 @@ export const labsRouter = createTRPCRouter({
       sessionId: attempt.sessionId,
       userId: ctx.user.id,
       expiresAtSeconds,
-      script: task.verifyScript,
+      // Prelude cấp `pass`/`fail`/`check` + trap ép exit ≠ 0 khi có `fail`
+      // (plans/labs-rebuild/contracts.md §C1). FE tách dòng ✓/✗ của `output`
+      // bằng `parseCheckCriteria` — cùng một hàm cho lượt chấm vừa xong lẫn
+      // kết quả đã lưu, nên không có field `criteria` nào phải lưu hay đồng bộ.
+      script: withVerifyPrelude(task.verifyScript),
     });
 
     const output = truncateLabOutput(outcome.output);

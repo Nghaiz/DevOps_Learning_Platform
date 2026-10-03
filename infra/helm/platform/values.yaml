@@ -973,10 +973,11 @@ sandbox:
   # CẢ, mất 14 khe để phục vụ một nhóm bài nhỏ. Điều kiện "tụt quá nửa ⇒ tách
   # profile" của 6.E task 17 đã kích hoạt bằng số thật, không phải phỏng đoán.
   #
-  # ⚠ CHƯA ĐƯỢC NỐI DÂY. Orchestrator hiện dựng MỌI pod bằng LimitRange mặc
-  # định; nó chưa đọc `interfaceLayout` của scenario để chọn profile. Cho tới khi
-  # nối, khối này là một CON SỐ ĐÃ ĐO chứ chưa phải một hành vi — đừng đọc sự
-  # tồn tại của nó là "đã tách profile".
+  # ✅ ĐÃ NỐI (dòng "CHƯA ĐƯỢC NỐI DÂY" từng nằm đây là văn bản cũ hơn mã, gỡ
+  # 2026-10-03): BFF chọn profile `ide` khi bài khai `interface.layout: ide`
+  # (`apps/web/src/server/lessons/catalog.ts`, hàm chọn profile), orchestrator
+  # dựng pod theo `sandbox.profiles.ide` bên dưới — cả resources LẪN env
+  # `DLP_IDE=1` bật Theia trong pod đó.
   #
   # ── Số đến từ đâu (harness 2026-09-04-6e-ide-plus-lesson) ─────────────────
   # Đo một pod chạy ĐỒNG THỜI Theia (client là trình duyệt thật qua Playwright)
@@ -1181,14 +1182,38 @@ sandbox:
     # Trần: 5500Mi ÷ 768Mi = 7.16 ⇒ **7 pod có IDE** nếu toàn bộ quota dùng cho
     # bài IDE. Thực tế quota là ngân sách chung: N_ide×768 + N_thường×256 ≤ 5500.
     #
-    # ⛔ KHÔNG có `env:` ở đây. IDE bật bằng `INCLUDE_IDE` lúc DỰNG IMAGE, không
-    # bằng biến môi trường lúc chạy — đặt một env `DLP_IDE=1` ở đây sẽ là một
-    # công tắc không nối vào đâu cả, đúng thứ khối này vừa được sinh ra để sửa.
+    # ── IDE bật bằng ENV LÚC CHẠY, không bằng build-arg (labs rebuild D6) ────
+    #
+    # Dòng cũ ở đây nói ngược lại ("KHÔNG có `env:` — IDE bật bằng
+    # `INCLUDE_IDE` lúc dựng image"). Điều đó đúng khi mỗi image hoặc có hoặc
+    # không có Theia. Nó hết đúng từ 2026-10-03: CI dựng MỘT image
+    # `sandbox-base` với `INCLUDE_IDE=1` cho mọi pod, nên "có Theia trong
+    # image" không còn phân biệt được pod nào cần IDE. Công tắc chuyển sang
+    # đây: `start_theia` của entrypoint chỉ khởi động Theia khi `DLP_IDE=1`,
+    # và chỉ profile này đặt nó. Pod mặc định (warm pool, bài Linux/Docker) và
+    # pod `k8s`/`k8s-multinode` KHÔNG mang biến này ⇒ không gánh 200–450Mi
+    # của Theia — đúng giả định mà các phép tính trần ở trên đã dùng.
+    #
+    # ⚠ Hai chỗ phải đi cùng nhau: image KHÔNG có Theia (build tay với
+    # `INCLUDE_IDE=0`) + profile này ⇒ entrypoint in CẢNH BÁO và `/ide` trả 503.
+    # Đó là cái lỗi đã sống trên cụm trước D6 — giờ nó có một dòng log nói tên.
+    #
+    # ⚠ Tổ hợp ide + k8s KHÔNG tồn tại: BFF xét `kubernetes` TRƯỚC `ide`, nên
+    # bài vừa có IDE vừa có cluster con sẽ nhận profile `k8s` — tức KHÔNG có
+    # `DLP_IDE` và KHÔNG có Theia. `TestNoContentIsBothIdeAndK8s` chặn nội dung
+    # như vậy; khi gỡ chặn thì phải đo số rồi thêm profile riêng, không phải
+    # thêm `DLP_IDE` vào `k8s`.
     ide:
       requestsCpu: '250m'
       requestsMemory: '768Mi'
       limitsCpu: '2'
       limitsMemory: '1Gi'
+      env:
+        # Đọc bởi `start_theia` (images/sandbox-base/entrypoint.sh). PHẢI có
+        # nháy: `1` trần là số nguyên YAML ⇒ `toJson` ra `"DLP_IDE":1` ⇒
+        # `parseSandboxProfiles` (Env là map[string]string) từ chối lúc khởi
+        # động ⇒ orchestrator không lên. Cùng lý do với `DLP_K8S: '1'`.
+        DLP_IDE: '1'
 
     k8s-multinode:
       requestsCpu: '500m'

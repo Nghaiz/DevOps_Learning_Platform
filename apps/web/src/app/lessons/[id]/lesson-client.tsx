@@ -130,7 +130,7 @@ export function LessonClient({ scenarioId }: { readonly scenarioId: string }): R
       // Bỏ qua phase chẳng có gì để chuẩn bị — trừ phase đầu, nơi asset được đẩy
       // (việc đó là logic phía server, client không thấy trong DTO).
       const isFirst = target.key === first?.key;
-      if (!isFirst && target.phase.setup.background === null) {
+      if (!isFirst && !target.phase.hasSetup) {
         continue;
       }
 
@@ -290,6 +290,7 @@ export function LessonClient({ scenarioId }: { readonly scenarioId: string }): R
     <div className="flex h-full flex-col bg-background">
       <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
         <ContentView
+          diagrams={scenario.diagrams}
           blocks={blocks}
           resolveAssetUrl={resolveAssetUrl}
           onExec={onExec}

@@ -1,19 +1,12 @@
-# Kubernetes căn bản
+# Cụm đầu tiên
 
-Đây **không phải** một cụm demo dùng chung. Ngay khi phiên của bạn khởi động,
-nền tảng tự dựng một cụm **k3s một-node, chạy thật ngay bên trong sandbox của
-bạn** — không ai khác thấy được nó, và nó biến mất hoàn toàn khi phiên kết
-thúc.
+Ticket đầu tiên trong ca trực của bạn chỉ có một dòng: "`kubectl get pods -n shop`
+báo `CrashLoopBackOff`, xem giúp". Người viết coi như bạn đã biết Pod là gì, `-n`
+để làm gì và đọc output ấy ra sao. Bài này lấp đúng khoảng trống đó, trên một cụm
+thật chứ không phải ảnh chụp màn hình.
 
-Sáu bước tới sẽ đi qua:
-
-1. Làm quen với cụm: `kubectl get nodes`, api-resources
-2. **Pod** — đơn vị chạy nhỏ nhất, và vì sao bạn hiếm khi tạo nó trực tiếp
-3. **Deployment** — thứ đứng sau Pod và tự phục hồi khi Pod chết
-4. **ConfigMap** — tách cấu hình khỏi image
-5. **Service** — địa chỉ ổn định đứng trước Pod hay đổi
-6. Vì sao cụm này chỉ có **một** node
-
-`kubectl` đã được cài sẵn và cấu hình trỏ vào cụm này — bạn không cần tự nối
-gì cả. Việc duy nhất còn lại là **chờ cụm dựng xong**, thường mất chưa tới một
-phút.
+Cụm là của riêng bạn: k3s một node, dựng trong sandbox lúc bạn mở bài và biến mất
+khi phiên kết thúc, nên cứ phá thoải mái. Xong bài, bạn đọc được trạng thái của node
+và Pod, chui vào một Pod để xem nó đang làm gì, và viết được file YAML đầu tiên thay
+vì phải nhớ cờ của từng lệnh. Terminal bên cạnh đang chờ cụm khởi động; khi nó báo
+sẵn sàng thì bắt đầu.

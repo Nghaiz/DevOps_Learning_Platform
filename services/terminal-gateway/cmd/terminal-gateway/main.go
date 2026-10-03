@@ -180,7 +180,10 @@ func run() error {
 		AllowedOrigins: cfg.AllowedOrigins,
 		Port:           cfg.IDEPort,
 		MaxPerSession:  cfg.IDEMaxPerSession,
-		Timeout:        cfg.ExecTimeout,
+		// Cùng extender với cầu terminal: dùng IDE gia hạn phiên như gõ terminal.
+		Extender: extender,
+		// Timeout để trống ⇒ trần chờ header mặc định của ideroute. KHÔNG dùng
+		// cfg.ExecTimeout: đó là trần của một lượt CHẤM, không phải của Theia.
 	})
 
 	// NewStreamingServer, không phải NewServer: phiên terminal sống hàng giờ và im

@@ -995,7 +995,7 @@ func TestChamQuotaTraResourceExhausted(t *testing.T) {
 // 56 năm trước" — hoặc tệ hơn, một vòng reconnect không bao giờ dừng.
 func TestExpiresAtChuaClaimThiRongChuKhongPhai1970(t *testing.T) {
 	s := &Session{ID: "s1", UserID: "u1", Status: "PENDING", Tier: "SANDBOX_TIER_SYSBOX"}
-	p := s.ToProto()
+	p := s.ToProto(2 * time.Hour)
 	if p.GetExpiresAt() != nil {
 		t.Errorf("expires_at = %v, cần nil khi chưa claim", p.GetExpiresAt())
 	}
@@ -1004,6 +1004,47 @@ func TestExpiresAtChuaClaimThiRongChuKhongPhai1970(t *testing.T) {
 	}
 	if p.GetStatus() != orchestratorv1.SessionStatus_SESSION_STATUS_PENDING {
 		t.Errorf("status = %v — ánh xạ chuỗi NGẮN của Redis sang enum proto hỏng", p.GetStatus())
+	}
+}
+
+// TestHardCapAtLaCreatedAtCongHardCap — D7.1 (labs rebuild).
+//
+// BFF dùng `hard_cap_at` làm `exp` của sandbox token: HARD_CAP chỉ có ở đây, và
+// `extend.lua` không bao giờ đẩy `expires_at` quá `createdAt + HARD_CAP`. Lệch
+// mốc này là token chết trước phiên (401 khi nối lại) hoặc sống thừa.
+func TestHardCapAtLaCreatedAtCongHardCap(t *testing.T) {
+	const created = int64(1_790_000_000)
+	s := &Session{ID: "s1", UserID: "u1", Status: "RUNNING", CreatedAt: created, ExpiresAt: created + 3600}
+
+	got := s.ToProto(2 * time.Hour).GetHardCapAt()
+	if got == nil || got.GetSeconds() != created+7200 {
+		t.Fatalf("hard_cap_at = %v, cần %d (createdAt + HARD_CAP)", got, created+7200)
+	}
+	// Chưa có createdAt thì không có mốc nào để cộng — rỗng, không phải 1970+2h.
+	if p := (&Session{ID: "s2"}).ToProto(2 * time.Hour); p.GetHardCapAt() != nil {
+		t.Fatalf("hard_cap_at = %v, cần nil khi chưa có createdAt", p.GetHardCapAt())
+	}
+}
+
+// TestGetTraHardCapAtTheoCauHinh — đi qua RPC thật của Service, để chứng minh mọi
+// đường trả Session đều mang `s.cfg.HardCap` chứ không phải chỉ hàm chuyển đổi.
+func TestGetTraHardCapAtTheoCauHinh(t *testing.T) {
+	h := newHarness(t)
+	sess, err := h.svc.Create(context.Background(), createReq("u1", "k-hardcap"))
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	got, err := h.svc.Get(context.Background(), &orchestratorv1.GetSessionRequest{SessionId: sess.GetId(), UserId: "u1"})
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	for name, p := range map[string]*orchestratorv1.Session{"Create": sess, "Get": got} {
+		if p.GetHardCapAt() == nil || p.GetCreatedAt() == nil {
+			t.Fatalf("%s: thiếu hard_cap_at/created_at: %v", name, p)
+		}
+		if d := p.GetHardCapAt().AsTime().Sub(p.GetCreatedAt().AsTime()); d != 2*time.Hour {
+			t.Fatalf("%s: hard_cap_at − created_at = %s, cần 2h (HARD_CAP của harness)", name, d)
+		}
 	}
 }
 

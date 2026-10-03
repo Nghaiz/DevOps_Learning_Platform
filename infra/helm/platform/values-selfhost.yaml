@@ -209,14 +209,23 @@ orchestrator:
     # Image pod lab: mặc định của template là `image.registry`+`image.tag`, tức
     # nó SẼ trỏ sang sha-2b79fd3 nếu không ghim ⇒ mọi pod sandbox MỚI chết bằng
     # ErrImageNeverPull trong khi web/gateway vẫn xanh. Ghim khớp bản side-load.
-    # p13ide (2026-09-07): CÙNG nội dung `p10a` nhưng build với `INCLUDE_IDE=1`.
     #
-    # Ảnh `p10a` build mặc định `INCLUDE_IDE=0`, nên trong pod KHÔNG có
-    # `/opt/theia` và không ai nghe cổng 4000. Đo trên cụm: gateway định tuyến
-    # `/ide` đúng và đủ ba header an ninh, nhưng upstream trả
-    # `connect: connection refused` ⇒ mọi request `/ide` là 503. Tức đường IDE
-    # chưa từng phục vụ được gì trên cụm này, và ô AC 6 (layout `ide`) lẫn phép
-    # đo CSP cho `/ide` đều bị chặn ở đó chứ không ở mã.
+    # ⚠ TAG ĐANG GHIM (`sha-6f19cbe`) KHÔNG CÓ THEIA — `/ide` trên cụm trả 503.
+    # Mọi tag `sha-*` mà CI publish TỚI labs rebuild đều dựng với mặc định
+    # `INCLUDE_IDE=0` (job `images` không truyền build-arg nào), nên pod không có
+    # `/opt/theia`, không ai nghe cổng 4000, gateway nhận `connection refused`.
+    # Các tag tay `p13ide`/`p14a` từng lấp chỗ đó bằng một lượt build riêng.
+    #
+    # Từ labs rebuild (D6, 2026-10-03) CI dựng `sandbox-base` với
+    # `INCLUDE_IDE=1` ở CẢ job PR lẫn job `images` ⇒ tag `sha-*` đầu tiên sau
+    # lượt merge đó là tag CI đầu tiên có IDE. Có Theia trong image KHÔNG có
+    # nghĩa mọi pod chạy nó: entrypoint chỉ khởi động Theia khi `DLP_IDE=1`, và
+    # chỉ `sandbox.profiles.ide` (values.yaml) đặt biến đó. Nên đổi tag dưới đây
+    # sang một tag có IDE KHÔNG làm pod mặc định nặng thêm — nhưng PHẢI đi cùng
+    # chart có `profiles.ide.env.DLP_IDE`, nếu không thì pod profile `ide` vẫn
+    # không có Theia và `/ide` vẫn 503 (`kubectl logs` của pod có dòng
+    # "Theia: image có IDE nhưng DLP_IDE=… — KHÔNG khởi động").
+    # Đổi tag do lượt deploy điều phối, không đổi lẻ ở đây.
     sandboxImage: ghcr.io/nghaiz/dlp-sandbox-base:sha-6f19cbe
     # 3 pod ấm, không 1 — đóng nợ của 3.I mắt 3–5 và 2026-08-16-concurrent-build-load.
     #

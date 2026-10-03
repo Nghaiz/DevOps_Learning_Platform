@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import {
   SCENARIO_CAPABILITIES,
+  CONTENT_TOPICS,
   SCENARIO_DIFFICULTIES,
   scenarioIdSchema,
   scenarioSourceSchema,
@@ -35,6 +36,11 @@ export const scenarioSidecarSchema = z
      */
     id: scenarioIdSchema,
     difficulty: z.enum(SCENARIO_DIFFICULTIES),
+    /**
+     * Chủ đề (`CONTENT_TOPICS`). Như `difficulty`: bắt buộc, không default —
+     * Killercoda `index.json` không có khái niệm này, nên chỉ sidecar trả lời được.
+     */
+    topic: z.enum(CONTENT_TOPICS),
     /** Ước lượng của ta, không phải của upstream. `null` = chưa ước lượng. */
     estimatedMinutes: z.number().int().positive().nullable(),
     /** `null` = bài first-party (soạn tại repo này), không có upstream để ghim. */

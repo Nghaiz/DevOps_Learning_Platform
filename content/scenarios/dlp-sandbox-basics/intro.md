@@ -1,20 +1,3 @@
-# Làm quen sandbox
+Ngày đầu đi làm, trưởng nhóm đưa bạn một dòng `ssh ops@10.0.4.17` kèm câu "máy chạy API đặt lịch đấy, xem sao nó chậm". Không giao diện, không chuột, chỉ một con trỏ nhấp nháy. Người có nghề làm ba việc trước khi động vào bất cứ thứ gì: hỏi máy mình đang là ai, đang ở máy nào, máy chạy hệ điều hành gì.
 
-Bạn đang có một máy Linux thật, chạy trong container cô lập. Mọi thứ bạn gõ ở
-terminal bên phải đều chạy trong đó — không phải mô phỏng.
-
-Bốn bước tới sẽ đi qua:
-
-1. Tạo và kiểm tra tệp
-2. Đọc/ghi JSON bằng `jq`
-3. Dựng một image Docker **không cần mạng**
-4. Vì sao sandbox không ra được Internet — và cách tự kiểm chứng
-
-Thư mục làm việc là `/root/lab`, đã được tạo sẵn. Kiểm tra nhanh:
-
-```
-ls -la /root/lab
-```{{exec}}
-
-Bạn sẽ thấy `seed.json` trong đó. Tệp này được nền tảng đẩy vào pod trước khi
-bài bắt đầu — không phải bạn tạo ra.
+Terminal bên cạnh là một máy Linux của riêng bạn. Nó được dựng khi bạn mở bài và bị xoá sạch khi phiên kết thúc, sau một giờ (gia hạn được tới hai giờ). Làm hỏng gì cũng chẳng sao, cứ thử. Hết bài này bạn biết mình đang đứng ở đâu, gõ lệnh nhanh hơn nhờ Tab và lịch sử, dừng được một lệnh chạy mãi, và có tệp đầu tiên do chính tay bạn tạo, được máy chấm đạt.

@@ -126,7 +126,7 @@ func (s *Service) ListSessions(
 			}
 			return nil, status.Errorf(codes.Unavailable, "đọc session %s: %v", id, loadErr)
 		}
-		sessions = append(sessions, sess.ToProto())
+		sessions = append(sessions, sess.ToProto(s.cfg.HardCap))
 	}
 
 	return &orchestratorv1.ListSessionsResponse{

@@ -92,6 +92,7 @@ export async function loadPlayground(filePath: string): Promise<Playground> {
     // mặt người học lúc setup phiên.
     toolset: [...sanitizeToolset(data.toolset).toolset],
     ttlSeconds: data.ttlSeconds,
+    topic: data.topic,
   };
 
   // Kiểm lại DTO bằng chính schema mà router sẽ tin — bắt lỗi của HÀM NÀY.

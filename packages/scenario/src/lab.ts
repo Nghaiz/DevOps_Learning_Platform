@@ -1,5 +1,10 @@
 import { z } from 'zod';
-import { scenarioIdSchema, scenarioSourceSchema, SCENARIO_DIFFICULTIES } from '@devops-platform/shared-types/scenario';
+import {
+  CONTENT_TOPICS,
+  scenarioIdSchema,
+  scenarioSourceSchema,
+  SCENARIO_DIFFICULTIES,
+} from '@devops-platform/shared-types/scenario';
 import { labTaskIdSchema } from '@devops-platform/shared-types/lab';
 
 /**
@@ -38,18 +43,21 @@ export type ContentInterfaceRef = z.infer<typeof contentInterfaceRefSchema>;
  * như `index.json` của scenario. Ít một field khai báo nghĩa là ít một chỗ hai
  * nguồn có thể lệch nhau (id trong `tasks[]` và tên file vật lý).
  *
- * `weight`/`hint` là OPTIONAL ở đây — loader áp default (`weight` → 1, `hint` →
- * `null`). DTO (`labTaskSchema`) đòi cả hai là field BẮT BUỘC: một default ngầm
- * ở tầng DTO sẽ làm mọi task trông nặng như nhau mà không ai biết vì sao, đúng
- * lý do `difficulty` của scenario không có default (`docs/scenario-format.md`
- * §2.2).
+ * `weight` là OPTIONAL ở đây — loader áp default 1. DTO (`labTaskSchema`) đòi
+ * nó là field BẮT BUỘC: một default ngầm ở tầng DTO sẽ làm mọi task trông nặng
+ * như nhau mà không ai biết vì sao, đúng lý do `difficulty` của scenario không
+ * có default (`docs/scenario-format.md` §2.2).
+ *
+ * ⛔ KHÔNG có `hint` (gỡ 2026-10-03). Lab là phần TỰ THỰC HÀNH kiểu KodeKloud:
+ * đề nêu trạng thái cần đạt, người học tự tìm lệnh. Phần có dẫn dắt nằm ở bài
+ * học (scenario). `.strict()` làm một `hint` còn sót trong `lab.json` đỏ ngay
+ * lúc nạp thay vì nằm im chờ ai đó nối lại vào giao diện.
  */
 export const labTaskFileSchema = z
   .object({
     id: labTaskIdSchema,
     title: z.string().min(1),
     weight: z.number().int().positive().optional(),
-    hint: z.string().min(1).optional(),
   })
   .strict();
 export type LabTaskFile = z.infer<typeof labTaskFileSchema>;
@@ -59,10 +67,14 @@ export type LabTaskFile = z.infer<typeof labTaskFileSchema>;
  * `intro.foreground`/`intro.background` của scenario, nhưng lab chỉ có ĐÚNG MỘT
  * lượt setup (không phải một lượt cho mỗi step) — xem lý do ở `labSchema.setup`
  * trong `packages/shared-types/src/lab.ts`.
+ *
+ * ⛔ Chỉ `background`. `foreground` từng được khai và nạp nhưng KHÔNG đường nào
+ * chạy nó (lab chạy setup nền rồi FE hỏi `labs.setupStatus`; không gõ gì vào
+ * terminal), tức một field có mặt mà không nối dây. Gỡ hẳn thay vì để người soạn
+ * viết một script không bao giờ chạy.
  */
 export const labSetupFileSchema = z
   .object({
-    foreground: z.string().min(1).optional(),
     background: z.string().min(1).optional(),
   })
   .strict();
@@ -91,6 +103,8 @@ export const labFileSchema = z
     title: z.string().min(1),
     description: z.string().min(1).optional(),
     difficulty: z.enum(SCENARIO_DIFFICULTIES),
+    /** Bắt buộc ở file (DTO cho vắng chỉ vì bài soạn trong DB chưa có cột này). */
+    topic: z.enum(CONTENT_TOPICS),
     estimatedMinutes: z.number().int().positive().nullable(),
     source: scenarioSourceSchema.nullable(),
     backend: contentBackendRefSchema,

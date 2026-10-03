@@ -158,7 +158,6 @@ export const session = {
   'session.lab.leaderboard-tab': 'Bảng xếp hạng',
   'session.lab.checklist-legend': 'Nhiệm vụ của lab',
   'session.lab.check-one': 'Chấm nhiệm vụ này',
-  'session.lab.hint': 'Gợi ý',
   'session.lab.last-exit': (p: { code: number }) =>
     `Lần chấm gần nhất kết thúc với exit ${p.code}.`,
   'session.lab.submit': 'Nộp bài',

@@ -1,0 +1,17 @@
+% Mô tả: Mạng bridge của Docker: hai container nối vào docker0 qua cặp veth, cổng 8080 của host chuyển vào cổng 80 của container web
+\begin{tikzpicture}
+  \node[box=blue] (web) {container \dlpcode{web}\\\dlpcode{172.17.0.2}};
+  \node[box=blue, right=10mm of web] (db) {container \dlpcode{db}\\\dlpcode{172.17.0.3}};
+  \coordinate (mid) at ($(web.south)!0.5!(db.south)$);
+  \node[net, below=14mm of mid, minimum width=7cm] (br) {docker0 · 172.17.0.1/16};
+  \node[net, below=13mm of br] (eth) {eth0 · 192.168.94.130};
+  \node[port=amber, anchor=east] (hp) at (eth.west) {:8080};
+  \node[port=blue, anchor=east] (cp) at (web.west) {:80};
+
+  \draw[link=teal] (web.south) -- node[iface, left] {veth9c1e} (web.south |- br.north);
+  \draw[link=teal] (db.south) -- node[iface, right] {veth4b7a} (db.south |- br.north);
+  \draw[both=teal] (br) -- node[lbl, right=3pt] {iptables NAT} (eth);
+  \draw[flow=amber] (hp.west) -- ++(-1.1,0) coordinate (k) -- (k |- cp.west) -- (cp.west);
+  \node[lbl, font=\ttfamily\small] at ($(k)!0.5!(k |- cp.west)$) {-p 8080:80};
+  \node[host=máy chủ Docker, fit=(k)(cp)(web)(db)(br)(eth), inner sep=12pt] {};
+\end{tikzpicture}
