@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState, type ReactElement } from 'react';
 import { Button } from '@devops-platform/ui';
+import { t } from '@devops-platform/copy';
 import { CI_LEVELS, readWorkflowYaml, type CicdPlayerOverrides, type WorkflowSpec } from '@devops-platform/games';
 
 import { YamlEditor } from '../shared/yaml-editor';
@@ -58,7 +59,7 @@ const YAML_KHOI_DIEM = [
   '  clone:',
   `    runs-on: ${SAN_DO?.workload.runners[0]?.id ?? 'linux'}`,
   '    steps:',
-  '      - name: Tải mã',
+  `      - name: ${t('games.cicd.sandbox.seed-step')}`,
   '        run: git fetch --depth 1',
   '',
 ].join('\n');
@@ -94,11 +95,9 @@ export function CicdSandbox({ onExit }: CicdSandboxProps): ReactElement {
     return (
       <div className="flex flex-col gap-3">
         <Button variant="ghost" size="sm" onClick={onExit}>
-          ← Danh sách màn
+          {`← ${t('games.cicd.hud.exit')}`}
         </Button>
-        <p className="text-sm text-muted-foreground">
-          Chưa có dữ liệu màn nào, nên bàn thử không có sân đo để chạy.
-        </p>
+        <p className="text-sm text-muted-foreground">{t('games.cicd.sandbox.no-data')}</p>
       </div>
     );
   }
@@ -138,18 +137,15 @@ export function CicdSandbox({ onExit }: CicdSandboxProps): ReactElement {
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm" onClick={onExit}>
-              ← Danh sách màn
+              {`← ${t('games.cicd.hud.exit')}`}
             </Button>
           </div>
-          <h1 className="text-xl font-semibold text-foreground">Bàn thử tự do</h1>
-          <p className="text-sm text-muted-foreground">
-            Không mục tiêu, không giới hạn số lượt. Kho máy và lịch commit mượn của màn đầu để có
-            một sân đo ổn định; mọi job chạy với thời lượng mặc định.
-          </p>
+          <h1 className="text-xl font-semibold text-foreground">{t('games.cicd.sandbox.title')}</h1>
+          <p className="text-sm text-muted-foreground">{t('games.cicd.sandbox.lead')}</p>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-xs text-muted-foreground">Đã chạy {runs} lượt</span>
-          <Button onClick={chay}>Chạy thử</Button>
+          <span className="text-xs text-muted-foreground">{t('games.cicd.sandbox.runs', { n: runs })}</span>
+          <Button onClick={chay}>{t('games.cicd.hud.run')}</Button>
         </div>
       </header>
 
@@ -159,7 +155,7 @@ export function CicdSandbox({ onExit }: CicdSandboxProps): ReactElement {
             <YamlEditor
               value={yaml}
               onChange={setYaml}
-              ariaLabel="Workflow YAML của bàn thử tự do"
+              ariaLabel={t('games.cicd.sandbox.yaml-label')}
               errorLines={errorLines}
               showLineNumbers
               textareaRef={editorRef}
@@ -183,8 +179,8 @@ export function CicdSandbox({ onExit }: CicdSandboxProps): ReactElement {
 
         <div className="flex flex-col gap-4">
           {outcome === null ? (
-            <p className="rounded-lg border border-border bg-muted px-4 py-3 text-sm text-muted-foreground">
-              Bấm “Chạy thử” để mô phỏng và xem ba trục.
+            <p className="border border-border bg-muted px-4 py-3 text-sm text-muted-foreground">
+              {t('games.cicd.sandbox.run-first')}
             </p>
           ) : (
             <CicdResultPanel

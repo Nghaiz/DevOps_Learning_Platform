@@ -1,50 +1,57 @@
 'use client';
 
-import { t } from '@devops-platform/copy';
 import type { ReactElement } from 'react';
-import { Button, Label, Switch } from '@devops-platform/ui';
-import { TextAreaField, TextField, issueFor } from '../../../components/author/field';
+import { Trash2 } from 'lucide-react';
+import { t } from '@devops-platform/copy';
+import { Button, Switch } from '@devops-platform/ui';
+import { Field, TextAreaField, TextField, issueFor } from '../../../components/author/field';
+import type { TopicLine } from '../../../components/kit';
 import type { FieldIssue, NodeFormState } from './cluster-form';
+import { ItemBlock } from './item-block';
 
 /**
  * Một node trong cụm ban đầu.
  *
- * CPU tính bằng milli-core và bộ nhớ bằng MiB — đúng đơn vị của `NodeSpec`, và
- * nhãn ô nói ra đơn vị thay vì để người soạn đoán. Khai `4` thay vì `4000` là
- * một node 4 milli-core: không lịch nổi pod nào, và triệu chứng sẽ đọc ra như
- * "bộ lập lịch hỏng" chứ không như "gõ thiếu ba số 0".
+ * CPU tính bằng milli-core và bộ nhớ bằng MiB, đúng đơn vị của `NodeSpec`, và
+ * nhãn ô nói ra đơn vị. Khai `4` thay vì `4000` là một node 4 milli-core: không
+ * lịch nổi pod nào, và triệu chứng đọc ra như "bộ lập lịch hỏng" chứ không như
+ * "gõ thiếu ba số 0".
  */
 export function NodeFields(props: {
   readonly node: NodeFormState;
   readonly index: number;
+  readonly line: TopicLine;
   readonly issues: readonly FieldIssue[];
   readonly onChange: (patch: Partial<NodeFormState>) => void;
   readonly onRemove: () => void;
   readonly canRemove: boolean;
 }): ReactElement {
   const base = `nodes.${String(props.index)}`;
-  const switchId = `node-ready-${props.node.key}`;
+  const { node } = props;
 
   return (
-    <div className="flex flex-col gap-3 rounded-md border border-border p-4">
-      <div className="flex items-start justify-between gap-3">
-        <h4 className="text-sm font-medium text-foreground">
-          {t('problem.cluster-fields-node')} {String(props.index + 1)}
-        </h4>
+    <ItemBlock
+      index={props.index}
+      line={props.line}
+      path={base}
+      title={node.name.trim() === '' ? `${t('problem.cluster-fields-node')} ${String(props.index + 1)}` : node.name}
+      actions={
         <Button
           type="button"
           variant="ghost"
           size="sm"
           disabled={!props.canRemove}
+          iconLeft={<Trash2 aria-hidden className="size-4" />}
           onClick={props.onRemove}
         >
           {t('common.action.delete')}
         </Button>
-      </div>
-
+      }
+    >
       <TextField
         label={t('problem.node-fields-ten-node')}
-        value={props.node.name}
+        value={node.name}
+        path={`${base}.name`}
         onChange={(name) => {
           props.onChange({ name });
         }}
@@ -52,10 +59,11 @@ export function NodeFields(props: {
         placeholder={t('problem.node-fields-node-1')}
       />
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-5 sm:grid-cols-2">
         <TextField
           label={t('problem.node-fields-cpu-milli-core-1-core-1000')}
-          value={props.node.cpu}
+          value={node.cpu}
+          path={`${base}.cpu`}
           onChange={(cpu) => {
             props.onChange({ cpu });
           }}
@@ -64,7 +72,8 @@ export function NodeFields(props: {
         />
         <TextField
           label={t('problem.cluster-to-spec-bo-nho-mib')}
-          value={props.node.memory}
+          value={node.memory}
+          path={`${base}.memory`}
           onChange={(memory) => {
             props.onChange({ memory });
           }}
@@ -73,21 +82,22 @@ export function NodeFields(props: {
         />
       </div>
 
-      <div className="flex items-center gap-3">
-        <Switch
-          id={switchId}
-          checked={props.node.ready}
-          onCheckedChange={(ready) => {
-            props.onChange({ ready });
-          }}
-        />
-        <Label htmlFor={switchId}>{t('problem.node-fields-node-o-trang-thai-ready')}</Label>
-      </div>
+      <Field label={t('problem.node-fields-node-o-trang-thai-ready')}>
+        {({ id }) => (
+          <Switch
+            id={id}
+            checked={node.ready}
+            onCheckedChange={(ready) => {
+              props.onChange({ ready });
+            }}
+          />
+        )}
+      </Field>
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-5 sm:grid-cols-2">
         <TextAreaField
           label={t('problem.node-fields-nhan')}
-          value={props.node.labels}
+          value={node.labels}
           onChange={(labels) => {
             props.onChange({ labels });
           }}
@@ -98,7 +108,7 @@ export function NodeFields(props: {
         />
         <TextAreaField
           label={t('problem.node-fields-taint')}
-          value={props.node.taints}
+          value={node.taints}
           onChange={(taints) => {
             props.onChange({ taints });
           }}
@@ -108,6 +118,6 @@ export function NodeFields(props: {
           hint={t('problem.node-fields-moi-dong-mot-taint')}
         />
       </div>
-    </div>
+    </ItemBlock>
   );
 }

@@ -35,7 +35,7 @@
 
 ## 2. Transport của token — cookie httpOnly
 
-**Cookie `dlp_sandbox`**, thuộc tính `Secure; HttpOnly; SameSite=Strict; Path=/ws; Max-Age=<còn lại của session>`, không `Domain` (host-only).
+**Cookie `dlp_sandbox`**, thuộc tính `Secure; HttpOnly; SameSite=Strict; Path=/ws/session/<id>` (và một bản `Path=/ide/session/<id>`), `Max-Age=<tới trần cứng của session>`, không `Domain` (host-only). Từ 2026-10-03: đường dẫn theo TỪNG phiên để phiên thứ hai ở tab khác không ghi đè cookie của phiên thứ nhất, và `exp` của token = `Session.hard_cap_at` (không phải `expiresAt` lúc mint) để gia hạn không làm token hết hạn giữa chừng; Redis vẫn là cổng thật ở mọi bước authz. Gateway chọn cookie theo `sid` khi trình duyệt gửi nhiều bản.
 
 Lý do chọn cookie thay vì subprotocol:
 

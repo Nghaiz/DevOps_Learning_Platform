@@ -1,41 +1,37 @@
 'use client';
 
-import { useCallback, useRef, useState, type ReactElement } from 'react';
-import Link from 'next/link';
+import { useCallback, useMemo, useRef, useState, type ReactElement } from 'react';
 import { useRouter } from 'next/navigation';
-import { Alert, AlertDescription, AlertTitle, Button, useToast } from '@devops-platform/ui';
 import { count, t } from '@devops-platform/copy';
+import { useToast } from '@devops-platform/ui';
+import { RailSection, saveStatusOf } from '../../../../components/author/studio';
 import { api } from '../../../../lib/trpc-react';
 import { describeTrpcError } from '../../../../lib/trpc';
 import type { FieldIssue } from '../cluster-form';
 import { emptyForm, type ProblemFormState } from '../problem-form';
 import { toProblemDraft } from '../problem-draft';
 import { ProblemEditor } from '../problem-editor';
+import { publishIssues } from '../problem-validate';
+import { SaveToolbar } from '../save-toolbar';
 
 /**
- * `/author/problems/new` — soạn một bài mới. Luôn ra một bản **nháp**.
+ * `/author/problems/new`: soạn một bài mới. Luôn ra một bản NHÁP.
  *
- * ## Vì sao trang này KHÔNG có cổng xuất bản
+ * ## Vì sao trang này KHÔNG có chế độ Xuất bản
  *
  * Bài chưa tồn tại thì chưa có mã, mà `problems.publish` định vị bài bằng mã.
- * Nên đường duy nhất là: tạo nháp → máy chủ cấp mã → sang trang sửa → xuất bản.
- * Dựng một nút "tạo và xuất bản luôn" ở đây là ghép hai lời gọi API vào một nút
- * và bỏ mất trạng thái giữa chừng khi lời gọi thứ hai đỏ.
+ * Đường duy nhất: tạo nháp, máy chủ cấp mã, sang trang sửa, xuất bản. Một nút
+ * "tạo và xuất bản luôn" ghép hai lời gọi vào một nút và mất trạng thái giữa
+ * chừng khi lời gọi thứ hai đỏ.
  *
- * ## Lưu nháp chỉ đòi bài CHUYỂN ĐƯỢC sang payload, không đòi bài đủ điều kiện
+ * ## Lưu nháp chỉ đòi bài CHUYỂN ĐƯỢC sang payload
  *
  * `toProblemDraft` chỉ đỏ khi giá trị không serialise nổi (JSON hỏng, ô số không
- * phải số). "Chưa có mục tiêu bắt buộc", "đề bài quá dài" thì để dành cho cổng
- * xuất bản — bắt hoàn thiện bài trước khi được lưu lần đầu là mất hết công của
- * người đang viết dở.
+ * phải số). Điều kiện xuất bản (mục tiêu, trần 150 từ) để dành cho trang sửa:
+ * bắt hoàn thiện bài trước lần lưu đầu là mất công người đang viết dở. Cột kiểm
+ * vẫn đếm trước số chỗ chặn xuất bản để người soạn biết đường còn bao xa.
  *
- * ⛔ Không dựng `<main>` (C6bis) — vỏ ứng dụng sở hữu landmark đó.
- *
- * ## ⚠ `issue.message` KHÔNG đi qua bản đồ, và đó là chủ ý
- *
- * Câu lỗi trong `FieldIssue` do `toProblemDraft` và Zod sinh ra lúc chạy, nên
- * chúng là DỮ LIỆU chứ không phải mục bản đồ. Thứ đi qua `packages/copy` ở đây
- * là câu BAO quanh chúng: tiêu đề hộp lỗi và phép đếm.
+ * ⛔ Không dựng `<main>` (C6bis): vỏ ứng dụng sở hữu landmark đó.
  */
 export function ProblemNewClient(): ReactElement {
   const router = useRouter();
@@ -50,7 +46,7 @@ export function ProblemNewClient(): ReactElement {
 
   const [form, setForm] = useState<ProblemFormState>(() => emptyForm(nextKey));
   const [issues, setIssues] = useState<readonly FieldIssue[]>([]);
-  const [serverError, setServerError] = useState<string | null>(null);
+  const gateCount = useMemo(() => publishIssues(form).length, [form]);
 
   const create = api.problems.create.useMutation({
     onSuccess: (problem) => {
@@ -58,16 +54,20 @@ export function ProblemNewClient(): ReactElement {
       toast({
         title: t('author.problem.new.created-title', { code: problem.code }),
         description: t('author.problem.new.created-body'),
+        variant: 'success',
       });
       router.push(`/author/problems/${encodeURIComponent(problem.code)}`);
     },
-    onError: (error) => {
-      setServerError(describeTrpcError(error));
-    },
+  });
+
+  const status = saveStatusOf({
+    persisted: false,
+    dirty: true,
+    saving: create.isPending,
+    failed: create.error !== null,
   });
 
   const submit = (): void => {
-    setServerError(null);
     const draft = toProblemDraft(form);
     if (!draft.ok) {
       setIssues(draft.issues);
@@ -78,52 +78,35 @@ export function ProblemNewClient(): ReactElement {
   };
 
   return (
-    <div className="practice-catalog">
-      <header className="flex flex-col gap-1">
-        <Link href="/author/problems" className="text-sm text-muted-foreground underline-offset-4 hover:underline">
-          ← {t('author.problem.nav.back')}
-        </Link>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">{t('author.problem.new.title')}</h1>
-        <p className="text-sm text-muted-foreground">{t('author.problem.new.lead')}</p>
-      </header>
-
-      {serverError !== null && (
-        <Alert variant="destructive">
-          <AlertTitle>{t('author.problem.server-error-title')}</AlertTitle>
-          <AlertDescription>{serverError}</AlertDescription>
-        </Alert>
+    <ProblemEditor
+      form={form}
+      onChange={setForm}
+      nextKey={nextKey}
+      code={null}
+      state="draft"
+      title={form.title.trim() === '' ? t('author.problem.new.title') : form.title}
+      issues={issues}
+      saveStatus={status}
+      toolbar={(nav) => (
+        <SaveToolbar
+          status={status}
+          label={t('author.studio.action.save-draft')}
+          onSave={submit}
+          pending={create.isPending}
+          disabled={false}
+          serverError={create.error === null ? null : describeTrpcError(create.error)}
+          localIssues={issues}
+          onJump={nav.jump}
+        />
       )}
-
-      {issues.length > 0 && (
-        <Alert variant="destructive">
-          <AlertTitle>{count('author.problem.new.issues-title', issues.length)}</AlertTitle>
-          <AlertDescription>
-            <ul className="mt-2 flex list-disc flex-col gap-1 pl-5">
-              {issues.map((issue) => (
-                <li key={`${issue.path}:${issue.message}`}>{issue.message}</li>
-              ))}
-            </ul>
-          </AlertDescription>
-        </Alert>
+      readiness={() => (
+        <RailSection title={t('author.studio.rail.readiness')} tone={gateCount > 0 ? 'warn' : 'accent'}>
+          <p>{t('author.problem.new.submit-hint')}</p>
+          {gateCount > 0 && (
+            <p className="text-muted-foreground">{count('author.problem.publish.blocked-title', gateCount)}</p>
+          )}
+        </RailSection>
       )}
-
-      <ProblemEditor
-        form={form}
-        onChange={setForm}
-        issues={issues}
-        code={null}
-        state="draft"
-        nextKey={nextKey}
-        hasUnsavedChanges
-        actions={
-          <>
-            <Button type="button" onClick={submit} loading={create.isPending}>
-              {t('author.problem.new.submit')}
-            </Button>
-            <span className="text-sm text-muted-foreground">{t('author.problem.new.submit-hint')}</span>
-          </>
-        }
-      />
-    </div>
+    />
   );
 }

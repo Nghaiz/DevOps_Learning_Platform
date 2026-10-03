@@ -1,0 +1,23 @@
+% Mô tả: Dòng thời gian rolling update: pod mới chỉ nhận traffic khi readinessProbe đạt, pod cũ dừng lần lượt
+\begin{tikzpicture}
+  \dlprow{0}{\dlpcode{web-v1-a}}
+  \dlprow{1}{\dlpcode{web-v1-b}}
+  \dlprow{2}{\dlpcode{web-v2-a}}
+  \dlprow{3}{\dlpcode{web-v2-b}}
+
+  \dlpspan[blue]{0}{0}{3.4}{v1 phục vụ}
+  \dlpspan[red]{0}{3.4}{4.5}{dừng}
+  \dlpspan[blue]{1}{0}{7.0}{v1 phục vụ}
+  \dlpspan[red]{1}{7.0}{8.1}{dừng}
+  \dlpspan[amber]{2}{1}{3.2}{chưa Ready}
+  \dlpspan[green]{2}{3.2}{10}{v2 phục vụ}
+  \dlpspan[amber]{3}{4.2}{6.8}{chưa Ready}
+  \dlpspan[green]{3}{6.8}{10}{v2 phục vụ}
+
+  \dlpevent[red]{2}{1.8} \dlpevent[red]{2}{2.6} \dlpevent[green]{2}{3.2}
+  \dlpevent[red]{3}{5.2} \dlpevent[red]{3}{6.0} \dlpevent[green]{3}{6.8}
+
+  \dlpaxis{4}{10.5}{giây}
+  \dlptick{0}{0} \dlptick{2}{10} \dlptick{4}{20} \dlptick{6}{30} \dlptick{8}{40} \dlptick{10}{50}
+  \node[note, anchor=north west] at (0,-3.95) {chấm: một lượt readinessProbe, xanh lá là đạt, đỏ là trượt};
+\end{tikzpicture}

@@ -40,13 +40,13 @@ export function Kbd({ className, ...props }: HTMLAttributes<HTMLElement>) {
       data-slot="kbd"
       className={cn(
         /*
-         * `rounded-sm`, KHÔNG phải `rounded` trần. Tiện ích `rounded` của
-         * Tailwind v4 phát ra `border-radius: 0.25rem` CỨNG — nó không đọc
-         * `--radius`, nên phím này sẽ đứng yên ở 4px trong khi cả hệ dịch sang
-         * thang mới. Hợp đồng §5 xếp chip/phím vào bậc `sm`
-         * (`calc(var(--radius) - 6px)` = 6px).
+         * `rounded-control`, KHÔNG phải `rounded` trần. Tiện ích `rounded` của
+         * Tailwind v4 phát ra `border-radius: 0.25rem` CỨNG; `rounded-control`
+         * đọc `--radius-control`, bằng 0 trong app (vuông) và chỉ bo bên trong
+         * `.arena-root` của game K8s (hợp đồng ui-kit §B).
          */
-        'inline-flex h-5 min-w-5 items-center justify-center rounded-sm border border-border bg-muted px-1',
+        // Phím vuông, đáy dày 2px để đọc ra một phím bấm chứ không phải một ô chữ.
+        'inline-flex h-5 min-w-5 items-center justify-center rounded-control border border-b-2 border-border bg-card px-1',
         'font-mono text-xs text-muted-foreground',
         className,
       )}

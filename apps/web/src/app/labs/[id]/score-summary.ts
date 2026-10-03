@@ -3,7 +3,7 @@
 // `next build` đổ với "the chunking context does not support external modules".
 import { t } from '@devops-platform/copy';
 import { computeLabScore, computeLabStatus } from '@devops-platform/scenario/lab-score';
-import type { Lab, LabAttemptStatus, LabScore } from '@devops-platform/shared-types/lab';
+import type { LabAttemptStatus, LabForLearner, LabScore } from '@devops-platform/shared-types/lab';
 import {
   buildTaskDisplays,
   uncheckedTaskCount,
@@ -84,7 +84,8 @@ export interface LabScoreSummary {
 }
 
 export interface LabScoreInput {
-  readonly lab: Lab;
+  /** Đủ để tính điểm (id + trọng số + mốc) VÀ vẽ task (tiêu đề + đề) — không hơn. */
+  readonly lab: Pick<LabForLearner, 'tasks' | 'passThresholdPercent'>;
   readonly results: readonly WireLabTaskResult[];
   /**
    * `attempt.submittedAt` — chuỗi ISO 8601 qua dây tRPC, `null` khi lần thử còn

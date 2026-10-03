@@ -1,44 +1,16 @@
 import { t, type CopyRef, type StaticTextKey } from '@devops-platform/copy';
-import type { BadgeVariant } from '@devops-platform/ui';
-import type { SandboxTierName, ScenarioDifficulty } from '@devops-platform/shared-types/scenario';
+import type { ContentTopic, SandboxTierName, ScenarioDifficulty } from '@devops-platform/shared-types/scenario';
 
 /**
  * Quyết định BIÊN TẬP của trang danh mục: nói câu nào, mở lối nào.
  *
- * ## Chữ không còn ở đây, chỉ còn nhánh
+ * Chữ nằm ở `packages/copy/src/surfaces/catalog.ts`. Thứ ở lại đây là các hàm
+ * CHỌN, và chúng trả về `CopyRef` (`{ key, params }`) chứ không trả về câu đã
+ * ghép: mọi nhánh là một khoá tĩnh trong bản đồ, nên cổng chữ quét được toàn bộ
+ * thay vì chỉ nhánh mà test gọi tới.
  *
- * Mọi chuỗi hiển thị đã chuyển sang `packages/copy/src/surfaces/catalog.ts`.
- * Thứ ở lại là các hàm CHỌN, và chúng trả về `CopyRef` (`{ key, params }`) chứ
- * không trả về câu đã ghép, theo §1.6 của `contracts/p16-copy.md`:
- *
- *     // SAI: bộ dò chỉ nhìn thấy nhánh mà probe đi vào.
- *     export function describeCatalogEmpty(args): string;
- *
- *     // ĐÚNG: mọi nhánh là một khoá tĩnh, bộ dò quét được toàn bộ.
- *     export function describeCatalogEmpty(args): { key, params };
- *
- * Đây không phải chuyện phong cách. Một hàm ghép câu tại chỗ thì cổng gạch
- * ngang dài và cổng mất dấu chỉ soi được nhánh mà test gọi tới, còn nhánh kia
- * đi thẳng ra người dùng không qua cổng nào.
- *
- * ## Vì sao các hàm này KHÔNG nằm trong `packages/copy`
- *
- * Hợp đồng §1.6 nói chúng đi cùng sang đó. Chúng không sang được, nhưng KHÔNG
- * vì lý do từng ghi ở đây ("`package.json` khai đúng bốn lối vào"). Lý do thật
- * nằm ở KIỂU: các hàm này nhận kiểu MIỀN của `apps/web` (`SandboxTierName`,
- * `ScenarioDifficulty`, `ProblemRow`), nên kéo chúng sang là kéo cả cây kiểu của
- * ứng dụng vào một gói khai "không có khối `dependencies`" như một hợp đồng.
- *
- * Thứ §1.6 thật sự mua là "mọi nhánh là một mục tĩnh trong bản đồ", và điều đó
- * đạt đủ khi bản đồ ở bên kia còn nhánh ở bên này: bộ dò đọc bản đồ, không đọc
- * bộ chọn.
- *
- * ⚠ `CopyRef` và `renderCopy` thì ĐÃ sang, ngày 2026-09-11, và chúng là phản ví
- * dụ cho lý lẽ cũ: cả hai chỉ cần `StaticTextKey` và `Params`, hai kiểu vốn đã sống
- * trong `t.ts`, nên không đòi lối vào mới nào. Trước đó bốn cây khác
- * (`components/author`, `app/author/problems`, `app/(session)/problems`,
- * `app/quiz`) phải import ngược vào file của lane 16.C chỉ để lấy chúng. Lý do
- * đầy đủ nằm ở `packages/copy/src/t.ts`.
+ * Các hàm nhận kiểu MIỀN của ứng dụng (`SandboxTierName`, `ScenarioDifficulty`),
+ * nên chúng ở `apps/web` chứ không ở `packages/copy`.
  */
 
 /** Loại danh mục. Tập cố định, đúng 5 giá trị. */
@@ -100,12 +72,8 @@ const DIFFICULTY_KEY = {
 } as const satisfies Record<ScenarioDifficulty, StaticTextKey>;
 
 /**
- * Ba mức độ khó đọc từ `common.`, KHÔNG từ `catalog.`.
- *
- * Chúng xuất hiện ở nhiều surface (danh mục, khoang lab, trang soạn bài), và
- * §1.7 đặt chuỗi dùng từ hai surface trở lên vào `common.` với L0 là người
- * thêm. Chép một bản `catalog.difficulty.*` sang đây là dựng nguồn sự thật thứ
- * hai cho một hợp đồng dữ liệu.
+ * Ba mức độ khó đọc từ `common.`, KHÔNG từ `catalog.`: chúng xuất hiện ở nhiều
+ * surface, và chép một bản sang đây là dựng nguồn sự thật thứ hai.
  */
 export function difficultyLabel(level: ScenarioDifficulty): string {
   return t(DIFFICULTY_KEY[level]);
@@ -121,6 +89,20 @@ export function tierLabel(tier: SandboxTierName): string {
   return t(TIER_KEY[tier]);
 }
 
+const TOPIC_KEY = {
+  linux: 'catalog.topic.linux',
+  bash: 'catalog.topic.bash',
+  git: 'catalog.topic.git',
+  docker: 'catalog.topic.docker',
+  kubernetes: 'catalog.topic.kubernetes',
+  observability: 'catalog.topic.observability',
+  networking: 'catalog.topic.networking',
+} as const satisfies Record<ContentTopic, StaticTextKey>;
+
+export function topicLabel(topic: ContentTopic): string {
+  return t(TOPIC_KEY[topic]);
+}
+
 export const PROGRESS_STATUS_KEY: Readonly<Record<string, StaticTextKey>> = {
   'not-started': 'catalog.status.not-started',
   'in-progress': 'catalog.status.in-progress',
@@ -128,9 +110,9 @@ export const PROGRESS_STATUS_KEY: Readonly<Record<string, StaticTextKey>> = {
 };
 
 /**
- * Nhãn trạng thái tiến độ. `null` khi miền dữ liệu trả về một giá trị bản đồ
- * chưa biết, và nơi gọi hiện GIÁ TRỊ THÔ thay vì bỏ trống: một trạng thái lạ là
- * dấu hiệu server đã thêm giá trị mới, và giấu nó đi làm mất luôn dấu hiệu đó.
+ * Nhãn trạng thái tiến độ. `null` khi miền dữ liệu trả về một giá trị chưa
+ * biết, và nơi gọi hiện GIÁ TRỊ THÔ thay vì bỏ trống: một trạng thái lạ là dấu
+ * hiệu server đã thêm giá trị mới, và giấu nó đi làm mất luôn dấu hiệu đó.
  */
 export function progressStatusLabel(status: string): string | null {
   const key = PROGRESS_STATUS_KEY[status];
@@ -139,128 +121,61 @@ export function progressStatusLabel(status: string): string | null {
 
 // ─── Hình thức: ánh xạ miền dữ liệu → hệ thiết kế ───────────────────────────
 //
-// Ở đây KHÔNG có chuỗi class Tailwind nào và KHÔNG có chữ hiển thị nào. Thứ
-// còn lại đúng bằng phần `packages/ui` CỐ Ý không làm: nối tên miền dữ liệu vào
-// tên token.
+// Không có class Tailwind nào và không có chữ hiển thị nào ở đây. Thứ còn lại
+// đúng bằng phần `packages/ui` CỐ Ý không làm: nối tên miền vào tên primitive.
 
 /**
- * `beginner` (miền) → `basic` (token). Hai từ vựng lệch nhau, và cả hai bên đều
- * cố ý không đổi tên: `ScenarioDifficulty` là hợp đồng dữ liệu chạy từ P2,
- * `--difficulty-basic` là hợp đồng token. `badge.tsx` ghi rõ việc nối hai tên
- * đó thuộc về NƠI GỌI, tức là đây, đúng một chỗ.
- *
- * ⚠ Tên là `ACCENT`, KHÔNG phải `STRIPE`. "Dải màu" dịch tự nhiên ra "stripe",
- * nhưng `scripts/check-no-commerce.mjs` bắt chuỗi đó như tên một hãng thanh
- * toán và cổng cấm thương mại đỏ ngay (đã dính, 3 vi phạm). Cổng cố ý không có
- * lối thoát inline, nên đổi định danh của mình chứ không nới mẫu của cổng.
- *
- * ⚠ `satisfies` chứ không phải `Record<ScenarioDifficulty, CardAccent>`:
- * `CardAccent` KHÔNG được `packages/ui/src/index.ts` export. Dạng này giữ được
- * kiểu chữ nghĩa đen, nên nếu lane primitive đổi tên một mức thì lỗi vẫn nổ ở
- * chỗ gọi `accent={...}`, không phải im lặng.
+ * `beginner` (miền) → `basic` (primitive `Difficulty`). Hai từ vựng lệch nhau,
+ * và cả hai bên cố ý không đổi tên: `ScenarioDifficulty` là hợp đồng dữ liệu,
+ * `DifficultyLevel` là hợp đồng hình. Việc nối thuộc về NƠI GỌI, tức là đây.
  */
-export const DIFFICULTY_ACCENT = {
+export const DIFFICULTY_LEVEL = {
   beginner: 'basic',
   intermediate: 'intermediate',
   advanced: 'advanced',
-} as const satisfies Record<ScenarioDifficulty, string>;
-
-/** `beginner` → biến thể badge `difficulty-basic`. Cùng chỗ lệch tên như trên. */
-export const DIFFICULTY_BADGE: Record<ScenarioDifficulty, BadgeVariant> = {
-  beginner: 'difficulty-basic',
-  intermediate: 'difficulty-intermediate',
-  advanced: 'difficulty-advanced',
-};
+} as const satisfies Record<ScenarioDifficulty, 'basic' | 'intermediate' | 'advanced' | 'expert'>;
 
 /**
- * Trạng thái tiến độ → biến thể badge.
+ * Trạng thái tiến độ → trạng thái ga trên dấu tuyến của dòng.
  *
- * `Badge` đã gắn sẵn icon riêng cho từng biến thể, nên bảng này KHÔNG chọn
- * icon: yêu cầu "phân biệt bằng cả màu lẫn hình" được bảo đảm ở tầng primitive,
- * mặc định chứ không opt-in.
- *
- * ⚠ `not-started` → `status-todo`, KHÔNG phải `status-locked`. Dán `locked` lên
- * "chưa bắt đầu" là nói với người học rằng họ không được vào: sai nghĩa, và sai
- * theo hướng chặn người ta lại.
+ * ⚠ `not-started` → `todo`, KHÔNG phải `locked`. Ga khoá nói với người học rằng
+ * họ không được vào: sai nghĩa, và sai theo hướng chặn người ta lại.
  */
-export const PROGRESS_STATUS_BADGE: Record<string, BadgeVariant> = {
-  'not-started': 'status-todo',
-  'in-progress': 'status-progress',
-  completed: 'status-done',
-};
+export const PROGRESS_STATUS_MARKER = {
+  'not-started': 'todo',
+  'in-progress': 'current',
+  completed: 'done',
+} as const satisfies Record<string, 'todo' | 'current' | 'done' | 'locked'>;
+
+export function progressMarker(status: string): 'todo' | 'current' | 'done' {
+  return (PROGRESS_STATUS_MARKER as Readonly<Record<string, 'todo' | 'current' | 'done'>>)[status] ?? 'todo';
+}
 
 // ─── Bộ chọn biên tập ───────────────────────────────────────────────────────
 
 /**
- * Câu nói ra rằng danh sách CÒN TIẾP.
+ * Câu nhắc phạm vi đứng dưới ô tìm, đúng MỘT câu.
  *
- * ⚠ Câu này KHÔNG được khẳng định tổng số mục trong kho. Server trả `nextCursor`
- * (còn hay hết) chứ không trả tổng; một dòng kiểu "5/42 bài" sẽ là con số bịa,
- * đúng hạng lỗi nhãn khẳng định quá dữ liệu mà P2 đã trả giá.
+ * Máy chủ không nhận từ khoá lẫn thứ tự tự chọn, nên ô tìm và ô sắp xếp chỉ
+ * chạy trên phần đã tải. Câu này chỉ hiện khi nó mang tin: đang tìm hoặc đang
+ * sắp xếp, VÀ danh sách còn phần chưa tải. Tải hết rồi thì phần đã tải CHÍNH LÀ
+ * toàn bộ kết quả, không có gì để đính chính; luôn hiện thì nó thành nhiễu.
  *
- * Trang 1 mà không còn trang sau ⇒ `null`: danh sách trước mắt CHÍNH LÀ toàn bộ
- * kết quả, không có gì để đính chính.
+ * ⚠ `loaded` là số mục TRƯỚC khi lọc theo từ khoá. Câu này nói về PHẠM VI, và
+ * phạm vi là mọi thứ đã tải; dùng số kết quả ở đây sẽ in ra "trong 0 mục" đúng
+ * lúc người đọc cần biết ô tìm đã soi 40 mục và không thấy gì.
  */
-export function describePageScope(args: {
+export function describeLoadedScope(args: {
   readonly kind: CatalogKind;
-  readonly page: number;
-  readonly shown: number;
-  readonly hasNext: boolean;
-}): CopyRef | null {
-  const params = { page: args.page, shown: args.shown, noun: catalogNoun(args.kind) };
-  if (args.hasNext) {
-    return { key: 'catalog.scope.page-more', params };
-  }
-  if (args.page > 1) {
-    return { key: 'catalog.scope.page-last', params };
-  }
-  return null;
-}
-
-/**
- * Cảnh báo phạm vi của SẮP XẾP.
- *
- * Server phân trang keyset theo `id` và KHÔNG nhận tham số sắp xếp, nên mọi thứ
- * tự người dùng chọn chỉ xếp lại những mục đã tải về trang này. Khi còn trang
- * sau, im lặng về điều đó sẽ để người dùng tin rằng "bài ngắn nhất" đang nằm ở
- * đầu danh sách trong khi nó có thể ở trang 3.
- *
- * Còn đúng một trang thì sắp xếp trang = sắp xếp toàn bộ kết quả ⇒ `null`.
- */
-export function describeSortScope(args: {
-  readonly sortKey: string;
-  readonly shown: number;
-  readonly hasNext: boolean;
-}): CopyRef | null {
-  if (args.sortKey === 'default' || !args.hasNext) {
-    return null;
-  }
-  return { key: 'catalog.scope.sort', params: { shown: args.shown } };
-}
-
-/**
- * Cảnh báo phạm vi của Ô TÌM (16.C).
- *
- * Cùng ràng buộc như sắp xếp và mạnh hơn một bậc: không procedure danh mục nào
- * nhận tham số tìm kiếm (`listInputSchema` là `.strict()`), nên ô tìm soi đúng
- * những mục server đã trả về trang này.
- *
- * ⚠ `loaded` là số mục TRƯỚC khi lọc theo từ khoá, không phải số kết quả. Câu
- * này nói về PHẠM VI SOI, và phạm vi đó là cả trang; dùng số kết quả ở đây sẽ
- * cho ra "Ô tìm chỉ soi 0 mục" đúng lúc người đọc cần biết nó đã soi 20 mục.
- *
- * `null` khi không tìm gì, hoặc khi đây là trang cuối và không còn trang sau,
- * vì lúc đó trang đang xem CHÍNH LÀ toàn bộ kết quả và ô tìm không hụt gì.
- */
-export function describeSearchScope(args: {
-  readonly query: string;
   readonly loaded: number;
   readonly hasNext: boolean;
+  readonly searching: boolean;
+  readonly sorting: boolean;
 }): CopyRef | null {
-  if (args.query === '' || !args.hasNext) {
+  if (!args.hasNext || (!args.searching && !args.sorting)) {
     return null;
   }
-  return { key: 'catalog.scope.search', params: { loaded: args.loaded } };
+  return { key: 'catalog.toolbar.scope', params: { loaded: args.loaded, noun: catalogNoun(args.kind) } };
 }
 
 export type CatalogEmptyAction =
@@ -277,35 +192,30 @@ export interface CatalogEmpty {
 }
 
 /**
- * Trạng thái rỗng CÓ ÍCH: "một ô trắng là lỗi, không phải một trạng thái".
+ * Trạng thái rỗng CÓ ÍCH: một ô trắng là lỗi, không phải một trạng thái.
  *
  * Năm ca, và chúng KHÁC NHAU ở việc người đọc phải làm gì tiếp:
  *
- * 1. **Ô tìm đang bật mà trang có mục** ⇒ không phải kho rỗng, cũng không phải
- *    trang hết mục: server đã trả về `loaded` mục và chính ô tìm lọc sạch
- *    chúng. Ca này là ca MỚI của 16.C và nó phải đứng TRƯỚC mọi ca khác, vì bốn
- *    ca kia đều giả định server trả về 0 mục.
- * 2. **Đang ở trang > 1** ⇒ kho không rỗng, chỉ là trang này vừa hết mục (nội
- *    dung đổi giữa hai lượt tải). Bảo họ về đầu, đừng bảo họ đi soạn bài.
- * 3. **Có bộ lọc bật** ⇒ cũng không kết luận được kho rỗng, vì ta chỉ hỏi server
- *    về phần đã lọc. Bảo họ bỏ lọc.
- * 4. **Không lọc + soạn được bài** ⇒ kho THẬT SỰ rỗng và người này có quyền sửa
- *    điều đó.
- * 5. **Không lọc + người học** ⇒ kho rỗng và họ không làm gì được ở đây; đưa một
- *    đường đi tiếp thay vì một lời xin lỗi.
+ * 1. **Ô tìm đang bật mà đã tải được mục** ⇒ không phải kho rỗng: máy chủ đã trả
+ *    `loaded` mục và chính ô tìm lọc sạch chúng. Ca này đứng TRƯỚC mọi ca khác,
+ *    vì bốn ca kia đều giả định máy chủ trả về 0 mục.
+ * 2. **Đã tải hơn một lượt** ⇒ kho không rỗng, chỉ là nội dung đổi giữa hai
+ *    lượt tải. Bảo họ tải lại từ đầu, đừng bảo họ đi soạn bài.
+ * 3. **Có bộ lọc bật** ⇒ cũng không kết luận được kho rỗng. Bảo họ bỏ lọc.
+ * 4. **Không lọc + soạn được bài** ⇒ kho THẬT SỰ rỗng và người này sửa được.
+ * 5. **Không lọc + người học** ⇒ kho rỗng; đưa một đường đi tiếp.
  *
- * Thứ tự kiểm là một phần của hợp đồng: đảo ca 2 xuống dưới ca 4 sẽ khiến một
- * author ở trang 2 bị mời đi tạo bài mới trong khi kho đầy bài; đảo ca 1 xuống
- * dưới ca 3 sẽ nói "không khớp bộ lọc" khi thứ không khớp là từ khoá.
+ * Thứ tự kiểm là một phần của hợp đồng.
  */
 export function describeCatalogEmpty(args: {
   readonly kind: CatalogKind;
+  /** Số lượt tải đã yêu cầu, đếm từ 1. */
   readonly page: number;
   readonly hasActiveFilter: boolean;
   readonly canAuthor: boolean;
   /** Từ khoá ĐÃ CHUẨN HOÁ. `''` = ô tìm rỗng. */
   readonly query: string;
-  /** Số mục server trả về trang này, TRƯỚC khi lọc theo từ khoá. */
+  /** Số mục máy chủ đã trả, TRƯỚC khi lọc theo từ khoá. */
   readonly loaded: number;
   readonly hasNext: boolean;
 }): CatalogEmpty {
@@ -327,7 +237,7 @@ export function describeCatalogEmpty(args: {
 
   if (args.page > 1) {
     return {
-      title: { key: 'catalog.empty.page.title', params: { page: args.page, noun } },
+      title: { key: 'catalog.empty.page.title' },
       description: { key: 'catalog.empty.page.body' },
       action: { kind: 'first-page' },
     };
@@ -387,23 +297,29 @@ const LEARNER_SUGGESTION: Record<
 };
 
 /**
- * Dòng đếm kết quả.
+ * Dòng đếm cạnh nút Xem thêm.
  *
- * Bốn tổ hợp là bốn KHOÁ, không phải một câu ghép từ bốn mảnh. Ghép tại chỗ thì
- * ba trong bốn nhánh không đi qua cổng chữ nào.
+ * Năm tổ hợp là năm KHOÁ, không phải một câu ghép từ mảnh. Câu KHÔNG khẳng định
+ * tổng số mục trong kho: máy chủ trả `nextCursor` (còn hay hết) chứ không trả
+ * tổng, nên khi còn nữa câu nói đúng "còn nữa" thay vì in một con số bịa.
  */
 export function describeResultCount(args: {
   readonly kind: CatalogKind;
+  /** Số mục đang hiện, SAU ô tìm. */
   readonly shown: number;
+  /** Số mục đã tải, TRƯỚC ô tìm. */
+  readonly loaded: number;
   readonly hasNext: boolean;
   readonly hasActiveFilter: boolean;
+  readonly searching: boolean;
 }): CopyRef {
-  const params = { shown: args.shown, noun: catalogNoun(args.kind) };
-  if (args.hasActiveFilter) {
-    return {
-      key: args.hasNext ? 'catalog.count.filtered-in-page' : 'catalog.count.filtered',
-      params,
-    };
+  const noun = catalogNoun(args.kind);
+  if (args.searching) {
+    return { key: 'catalog.count.searched', params: { shown: args.shown, loaded: args.loaded, noun } };
   }
-  return { key: args.hasNext ? 'catalog.count.in-page' : 'catalog.count.plain', params };
+  const params = { shown: args.shown, noun };
+  if (args.hasActiveFilter) {
+    return { key: args.hasNext ? 'catalog.count.filtered-more' : 'catalog.count.filtered', params };
+  }
+  return { key: args.hasNext ? 'catalog.count.more' : 'catalog.count.plain', params };
 }

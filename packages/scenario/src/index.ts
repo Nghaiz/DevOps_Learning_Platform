@@ -113,3 +113,16 @@ export {
   loadPlayground,
   loadPlaygrounds,
 } from './playground-loader.ts';
+
+// Prelude verify + tách dòng tiêu chí (plans/labs-rebuild/contracts.md §C1).
+// Cũng có subpath `./verify-prelude` an toàn cho trình duyệt.
+export {
+  VERIFY_PRELUDE,
+  parseCheckCriteria,
+  withVerifyPrelude,
+  type CheckCriterion,
+  type ParsedCheckResult,
+} from './verify-prelude.ts';
+
+// Sơ đồ TikZ đã dựng (plans/labs-rebuild/contracts.md §C4) — Node-only (đọc đĩa).
+export { DiagramError, diagramRefs, loadDiagramMap, parseDiagramFile } from './diagrams.ts';

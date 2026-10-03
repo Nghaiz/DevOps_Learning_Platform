@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { scenarioIdSchema } from '@devops-platform/shared-types/scenario';
+import { CONTENT_TOPICS, scenarioIdSchema } from '@devops-platform/shared-types/scenario';
 import { contentBackendRefSchema, contentInterfaceRefSchema } from './lab.ts';
 
 /**
@@ -27,6 +27,7 @@ export const playgroundFileSchema = z
     backend: contentBackendRefSchema,
     interface: contentInterfaceRefSchema.optional(),
     ttlSeconds: z.number().int().min(300).max(7200),
+    topic: z.enum(CONTENT_TOPICS),
     /** Hợp đồng §C4 — xem `labFileSchema.toolset`, cùng hình dạng, cùng lý do. */
     toolset: z.array(z.string()).default([]),
   })

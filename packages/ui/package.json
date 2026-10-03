@@ -6,6 +6,8 @@
   "exports": {
     ".": "./src/index.ts"
   },
+  "//sideEffects": "Không file nào dưới src/ chạy gì ở tầng module, trừ đúng một dòng: search-tabs.tsx import 'gooey-search-tabs/styles.css'. File CSS đó thuộc gói gooey-search-tabs nên cờ này không chạm tới nó. Lời khai cho phép bundler bỏ export không ai dùng khỏi barrel; thiếu nó thì mọi route cõng cả ContentView + react-markdown + micromark vào nền chung (đo 2026-10-03: nền chung vượt trần 900 KB của bundle:check). Thêm lời gọi nào ở tầng module mà không sửa dòng này là biến nó thành lời nói dối.",
+  "sideEffects": false,
   "scripts": {
     "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit",

@@ -20,19 +20,16 @@ export function TooltipContent({
         sideOffset={sideOffset}
         className={cn(
           /*
-           * `border border-border` KHÔNG phải trang trí: hợp đồng §6 cấm dùng
-           * bóng làm cơ chế tương phản duy nhất, vì Windows High Contrast bỏ
-           * hẳn `box-shadow` — một mặt nổi chỉ tách khỏi nền bằng bóng thì biến
-           * mất với người bật chế độ đó. Tooltip này còn tách bằng MÀU (mặt đảo
-           * `bg-foreground` trên `bg-background` = 10.83:1), nên viền là lớp
-           * bảo hiểm thứ hai chứ không phải lớp duy nhất.
+           * Khối mực đảo màu (design-brief §2.1). Viền `border-ink` không phải
+           * trang trí: Windows High Contrast bỏ hẳn `box-shadow`, nên một lớp nổi
+           * chỉ tách khỏi trang bằng bóng sẽ biến mất với người bật chế độ đó.
            *
-           * `rounded-md` chứ không `rounded-lg`: tooltip cao 28px, một bo góc
-           * 12px trên một hộp cao 28px đọc ra gần như viên thuốc. Thang §5 xếp
-           * nó cùng bậc với nút/ô nhập.
+           * Bo góc `control` chứ không `surface`: trong `.arena-root` của game
+           * K8s hai biến này ra bo cũ, và tooltip cao 28px đeo bo 12px thì đọc
+           * ra viên thuốc. Trong app cả hai là 0.
            */
-          'z-50 rounded-md border border-border bg-foreground px-3 py-1.5 text-xs text-background',
-          'shadow-elevation-3',
+          'z-50 max-w-xs rounded-control border border-ink bg-ink px-3 py-1.5 text-xs text-ink-foreground',
+          'shadow-float animate-rise [animation-duration:var(--motion-fast)]',
           className,
         )}
         {...props}

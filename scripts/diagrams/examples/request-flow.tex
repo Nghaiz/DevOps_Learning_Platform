@@ -1,0 +1,13 @@
+% Mô tả: Hộp, thẻ, mũi tên có nhãn: yêu cầu HTTPS đi từ trình duyệt qua Ingress và Service tới pod
+\begin{tikzpicture}
+  \node[box] (browser) {Trình duyệt};
+  \node[card=violet, right=15mm of browser] (ing) {\dlptitle{Ingress}nginx\\\dlpmuted{\small TLS kết thúc ở đây}};
+  \node[card=blue, right=13mm of ing] (svc) {\dlptitle{Service \dlpcode{web}}\dlpcode{10.96.0.12:80}};
+  \node[box=green, below=12mm of ing] (new) {Pod \dlpcode{web-7d9f}\\\small Ready};
+  \node[box=red, below=12mm of svc] (old) {Pod \dlpcode{web-5c2a}\\\small Terminating};
+
+  \draw[flow] (browser) -- node[lbl, above=3pt] {:443} (ing);
+  \draw[flow] (ing) -- node[lbl, above=3pt] {:80} (svc);
+  \draw[flow=green] (svc.south west) -- node[lbl] {khớp selector} (new.north east);
+  \draw[faint] (svc) -- node[note, right=2pt] {đã rời Endpoints} (old);
+\end{tikzpicture}

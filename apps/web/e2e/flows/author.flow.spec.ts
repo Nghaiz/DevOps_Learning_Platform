@@ -15,10 +15,13 @@
  * vận hành nhận ra ngay thứ gì do harness sinh.
  *
  * ── Xuất bản chạy sandbox THẬT ──────────────────────────────────────────────
- * `publish-panel.tsx` nói với người soạn rằng riêng dựng sandbox cho bài
- * Kubernetes đã ~49 giây và cả lượt "mất vài phút". Nên test này có ngân sách
- * riêng, và nó chờ theo TRẠNG THÁI kết thúc chứ không theo đồng hồ.
+ * Mục "Chạy thử rồi xuất bản" của `publish-panel.tsx` nói với người soạn rằng
+ * cả lượt "có thể mất vài phút" (riêng dựng sandbox cho bài Kubernetes đo được
+ * ~49 giây trên cụm lab). Nên test này có ngân sách riêng, và nó chờ theo
+ * TRẠNG THÁI kết thúc chứ không theo đồng hồ.
  */
+
+import { t } from '@devops-platform/copy';
 
 import { expect, requireRole, test } from './flow-kit';
 import { openScreen } from '../fixtures/nav';
@@ -35,18 +38,19 @@ test.describe('luồng 5 — soạn bài', { tag: '@flow' }, () => {
 
     // ── 1. Danh sách bài của người soạn ─────────────────────────────────────
     await openScreen(page, '/author', 'author');
-    await expect(page.getByRole('heading', { name: 'Soạn bài', level: 1 })).toBeVisible();
+    await expect(page.getByRole('heading', { name: t('author.list.title'), level: 1 })).toBeVisible();
 
-    await page.getByRole('link', { name: 'Tạo bài mới' }).first().click();
+    await page.getByRole('link', { name: t('author.list.new-cta'), exact: true }).first().click();
     await page.waitForURL('**/author/new');
 
     // ── 2. Tạo bản nháp ─────────────────────────────────────────────────────
     // Chỉ hai ô là bắt buộc phía client (`toDraftInput`: title + backendImageId),
     // và `emptyDraft()` đã đặt sẵn `backendImageId: 'ubuntu'` + `tier: 'sysbox'`
     // — đúng hai mặc định mà cụm lab chạy được (P12). Không đụng vào chúng.
-    await page.getByLabel('Id', { exact: true }).fill(draftId);
-    await page.getByLabel('Tiêu đề').fill('E2E luồng soạn bài');
-    await page.getByRole('button', { name: 'Tạo bản nháp' }).click();
+    // `exact`: khi bật phần mở đầu/kết thúc, trang còn ô "Tiêu đề phần".
+    await page.getByLabel(t('author.new.id.label'), { exact: true }).fill(draftId);
+    await page.getByLabel(t('author.draft-meta-fields-tieu-de'), { exact: true }).fill('E2E luồng soạn bài');
+    await page.getByRole('button', { name: t('author.new.submit'), exact: true }).click();
 
     // `author-new-client` đẩy sang trang sửa của bản vừa tạo.
     await page.waitForURL(`**/author/${draftId}`, { timeout: 60_000 });
@@ -68,51 +72,58 @@ test.describe('luồng 5 — soạn bài', { tag: '@flow' }, () => {
     // và nút "Xuất bản" bị khoá, nên luồng dừng ở giữa — đo được 2026-09-07.
     // Đây KHÔNG phải lỗi sản phẩm: một bản nháp mới chưa đủ điều kiện xuất bản
     // là đúng định nghĩa của bản nháp.
-    await page.getByLabel('Độ khó').click();
-    await page.getByRole('option', { name: 'Cơ bản' }).click();
+    await page.getByLabel(t('author.draft-meta-fields-do-kho'), { exact: true }).click();
+    await page.getByRole('option', { name: t('common.difficulty.beginner'), exact: true }).click();
 
-    await page.getByRole('button', { name: /^Thêm bước$/ }).click();
+    await page.getByRole('button', { name: t('author.step-list-fields-them-buoc'), exact: true }).click();
 
-    // ⚠ Thẻ bước là một `Card`, và chữ "Bước 1" nằm trong một `<h3>` — KHÔNG
-    // phải một `<div>` có text đúng bằng "Bước 1". Bản đầu dùng
-    // `locator('div').filter({ hasText: /^Bước 1$/ })` và khớp 0 phần tử trên
-    // cụm 2026-09-07: `hasText` đối chiếu với TOÀN BỘ text của phần tử, mà div
-    // bọc gần nhất còn chứa ba nút "Lên"/"Xuống"/"Xoá" nên text của nó là
-    // "Bước 1LênXuốngXoá". Triệu chứng đọc ra rất lạc hướng — một
-    // `locator.fill: Timeout` ở dòng NGAY SAU, tức trông như ô nhập không nhận
-    // chữ chứ không như thẻ bước không tồn tại.
-    //
-    // Neo bằng chính heading rồi lấy `Card` chứa nó: `data-slot="card"` là hook
-    // ổn định `packages/ui/src/card.tsx` cố ý phát ra, còn `h3` là cấu trúc
-    // ngữ nghĩa thật của thẻ bước.
-    const stepCard = page
-      .locator('[data-slot="card"]')
-      .filter({ has: page.getByRole('heading', { name: 'Bước 1', exact: true }) });
-    await stepCard.getByLabel('Tiêu đề').fill('Bước kiểm thử tự động');
-    await stepCard.getByLabel('Nội dung (Markdown)').fill(
+    // Mỗi bước là một `<section aria-labelledby>` có heading "Bước N" (bản dựng
+    // lại PTIT 2026-10-03 bỏ `Card`), nên nó là một landmark `region` mang đúng
+    // tên đó. Neo bằng vai trò + tên chứ không bằng `data-slot="card"`: bản cũ
+    // neo vào hook của `Card` và sẽ khớp 0 phần tử khi thẻ thôi là `Card`.
+    // `exact` vì "Bước 1" là tiền tố của "Bước 10".
+    // Tên ghép y như `components/author/step-station.tsx` ghép.
+    const stepCard = page.getByRole('region', {
+      name: `${t('author.step-list-fields-buoc')} 1`,
+      exact: true,
+    });
+    await stepCard
+      .getByLabel(t('author.draft-meta-fields-tieu-de'), { exact: true })
+      .fill('Bước kiểm thử tự động');
+    await stepCard.getByLabel(t('author.phase-fields-noi-dung-markdown'), { exact: true }).fill(
       'Bước này do harness e2e sinh ra để đi hết luồng soạn bài. Không có gì phải làm.',
     );
-    await stepCard.getByLabel('Script chấm').fill('true\n');
+    await stepCard.getByLabel(t('author.phase-fields-script-cham'), { exact: true }).fill('true\n');
 
-    await page.getByRole('button', { name: 'Lưu', exact: true }).click();
+    await page.getByRole('button', { name: t('common.action.save'), exact: true }).click();
+    // ⚠ Chờ ô trạng thái LƯU về `saved`, không chờ "Không lưu được" biến mất.
+    // Phép cũ (`toBeHidden`) xanh NGAY sau cú bấm, trước khi máy chủ trả lời, vì
+    // chữ lỗi chưa từng hiện. Bản dựng lại còn KHOÁ cả "Kiểm tra" lẫn "Xuất bản"
+    // khi màn hình lệch bản đã lưu (`mustSaveBeforePublish`,
+    // `components/author/studio/save-status.ts`), nên đi tiếp trước khi lưu xong
+    // là đo trên một trang đang khoá. `data-save-status` là hook `SaveState` cố ý
+    // phát ra; giá trị `error` của nó chính là ô "Không lưu được" của bản trước.
     await expect(
-      page.getByText('Không lưu được'),
+      page.locator('[data-save-status]'),
       'Bản nháp không lưu được. Xem thông báo lỗi trên trang — luồng dừng ở đây ' +
         'vì mọi bước sau sẽ đo trên một bản nháp cũ.',
-    ).toBeHidden({ timeout: 60_000 });
+    ).toHaveAttribute('data-save-status', 'saved', { timeout: 60_000 });
 
     // ── 4. Kiểm tra trước ───────────────────────────────────────────────────
-    await page.getByRole('tab', { name: 'Xuất bản' }).click();
-    await page.getByRole('button', { name: 'Kiểm tra', exact: true }).click();
+    await page.getByRole('tab', { name: t('author.edit.tab.publish'), exact: true }).click();
+    await page.getByRole('button', { name: t('author.publish-panel-kiem-tra'), exact: true }).click();
 
+    // Tiêu đề alert của `CheckReport`; dải bên còn một dòng "Kiểm tra định dạng:
+    // sạch", nên neo heading chứ không neo chuỗi trần.
     await expect(
-      page.getByText('Định dạng hợp lệ'),
+      page.getByRole('heading', { name: t('author.publish-panel-dinh-dang-hop-le'), exact: true }),
       'Lượt kiểm tra báo bản nháp chưa qua schema. Nút "Xuất bản" sẽ bị khoá, nên ' +
         'luồng không đi tiếp được — đọc danh sách lỗi trên trang để biết ô nào.',
     ).toBeVisible({ timeout: 60_000 });
 
     // ── 5. Xuất bản ─────────────────────────────────────────────────────────
-    const publish = page.getByRole('button', { name: 'Xuất bản', exact: true });
+    // `exact`: dải bên có nút "Mở chế độ Xuất bản", và tab cùng tên là `tab`.
+    const publish = page.getByRole('button', { name: t('author.studio.action.publish'), exact: true });
     await expect(
       publish,
       'Nút Xuất bản đang khoá dù lượt kiểm tra đã sạch — hai chỉ báo mâu thuẫn nhau.',
@@ -120,10 +131,14 @@ test.describe('luồng 5 — soạn bài', { tag: '@flow' }, () => {
     await publish.click();
 
     // ── 6. Thấy kết quả ─────────────────────────────────────────────────────
-    // Chờ một trong hai TRẠNG THÁI KẾT THÚC, không chờ một khoảng thời gian.
-    // "Đang chạy thử trong sandbox" là pha giữa và nó có thể kéo dài vài phút.
+    // Chờ một TRẠNG THÁI KẾT THÚC, không chờ một khoảng thời gian. "Đang chạy
+    // thử trong sandbox" là pha giữa và nó có thể kéo dài vài phút. `PhaseReport`
+    // (`components/author/publish-reports.tsx`) có BA kết thúc: đạt, trượt, và
+    // mất dấu (`lost`, bài quay về Nháp mà máy chủ không ghi lý do). Bỏ sót vế
+    // thứ ba thì một lượt `lost` đỏ sau ~10 phút với câu "chưa tới trạng thái
+    // kết thúc nào", nói sai nguyên nhân.
     // ⚠ Neo vào TIÊU ĐỀ ALERT, không phải chuỗi trần. "Đã xuất bản" có ở HAI
-    // chỗ trên trang này: badge trạng thái ở đầu trang (`<span data-slot="badge">`)
+    // chỗ trên trang này: ô trạng thái ở đầu trang (`StateChip`, một `<span>`)
     // và tiêu đề của alert kết quả (`<h5 data-slot="alert-title">`). Bản trước
     // dùng `getByText` nên đỏ với `strict mode violation … resolved to 2 elements`
     // — đo 2026-09-07, và chỉ lộ ra SAU khi bản vá polling làm trang thật sự tới
@@ -132,15 +147,31 @@ test.describe('luồng 5 — soạn bài', { tag: '@flow' }, () => {
     //
     // Alert là thứ ta đang đo (kết quả của lượt chạy thử); badge chỉ nói trạng
     // thái hàng. Lấy nhầm badge sẽ xanh cả khi lượt chạy thử chưa báo gì.
-    const published = page.getByRole('heading', { name: 'Đã xuất bản', exact: true });
-    const failed = page.getByText('Lượt chạy thử trượt — bài quay về Nháp');
+    const published = page.getByRole('heading', { name: t('author.publish.passed'), exact: true });
+    // Đọc qua `t()` chứ không gõ lại: bản gõ tay trước đây còn mang gạch ngang
+    // dài trong khi bản đồ chữ đã bỏ nó, nên `failed` không bao giờ khớp và ô
+    // "không trượt" dưới đây xanh trong mọi trường hợp.
+    const failed = page.getByRole('heading', {
+      name: t('author.publish-panel-luot-chay-thu-truot-bai-quay-ve-nhap'),
+      exact: true,
+    });
+    const lost = page.getByRole('heading', {
+      name: t('author.publish-panel-khong-con-dau-vet-cua-luot-chay-thu'),
+      exact: true,
+    });
 
     await expect(async () => {
       expect(
-        (await published.count()) + (await failed.count()),
+        (await published.count()) + (await failed.count()) + (await lost.count()),
         'Lượt xuất bản chưa tới trạng thái kết thúc nào.',
       ).toBeGreaterThan(0);
     }).toPass({ timeout: PUBLISH_TIMEOUT_MS - 120_000, intervals: [2_000, 5_000, 10_000] });
+
+    await expect(
+      lost,
+      'Lượt chạy thử MẤT DẤU: bài quay về Nháp mà máy chủ không ghi lý do (thường ' +
+        'là pod web khởi động lại giữa lượt). Không phải lỗi nội dung.',
+    ).toHaveCount(0);
 
     // Bản nháp này chỉ có một bước với script `true`, nên một lượt trượt KHÔNG
     // phải "nội dung sai" — nó là đường xuất bản hỏng, và đó là lỗi thật.
@@ -156,30 +187,33 @@ test.describe('luồng 5 — soạn bài', { tag: '@flow' }, () => {
     // Không có đường xoá nội dung; lưu trữ là cách duy nhất để nó biến khỏi
     // danh mục người học. Bỏ bước này thì mỗi lượt e2e để lại một bài rác mà
     // người học nhìn thấy.
-    await page.getByRole('button', { name: 'Lưu trữ', exact: true }).first().click();
-    await page.getByRole('button', { name: 'Lưu trữ', exact: true }).last().click();
+    // Nút "Lưu trữ" của mục 04 mở `ConfirmDialog`, mà nút xác nhận cũng mang
+    // đúng chữ đó. Bấm nút thứ hai TRONG hộp thoại (tên hộp = tiêu đề của nó),
+    // thay cho cặp `.first()` / `.last()` của bản trước: cặp đó phụ thuộc thứ tự
+    // DOM và không nói nút nào là nút nào.
+    const archiveLabel = t('author.studio.action.archive');
+    await page.getByRole('button', { name: archiveLabel, exact: true }).click();
+    const archiveDialog = page.getByRole('dialog', { name: t('author.publish-panel-luu-tru-bai-nay') });
+    await archiveDialog.getByRole('button', { name: archiveLabel, exact: true }).click();
 
-    // ⚠ Neo vào TOAST, không phải chuỗi trần — cùng bẫy đã sửa cho "Đã xuất bản"
-    // ở dòng 125, và nó cắn lại ở đây (đo 2026-09-07, `EXIT_author=1`):
+    // ⚠ Neo vào TOAST, không phải chuỗi trần — cùng họ bẫy với "Đã xuất bản" ở
+    // trên. Đo 2026-09-07 (`EXIT_author=1`), khi toast còn là Radix:
     //
     //   strict mode violation: getByText('Đã lưu trữ') resolved to 2 elements:
     //     1) <div class="text-sm font-medium">Đã lưu trữ</div>        ← tiêu đề toast
     //     2) <span role="status" aria-live="assertive">Notification Đã lưu trữBài…
     //
-    // Phần tử thứ hai là vùng PHÁT LẠI của Radix Toast: nó đọc lại nội dung toast
-    // cho trình đọc màn hình, nên mọi chuỗi trong toast tồn tại ĐÚNG HAI LẦN
-    // trong cây a11y. Đây là hành vi đúng của thư viện, không phải lỗi — spec
-    // phải nói rõ nó muốn cái nào.
-    //
-    // Radix dựng toast theo mẫu WAI-ARIA: viewport là một `list`, mỗi toast là
-    // một `listitem`, còn vùng phát lại nằm NGOÀI list đó. Nên `listitem` tách
-    // được hai thứ. Dùng `.first()` thì cũng hết đỏ, nhưng nó GIẤU sự mơ hồ:
-    // lượt sau khớp nhầm phần tử nào cũng vẫn xanh.
+    // Phần tử thứ hai là vùng PHÁT LẠI của Radix Toast. Nay `packages/ui/src/toast.tsx`
+    // chạy trên `sonner` và không còn vùng phát lại, nhưng neo theo chuỗi trần vẫn
+    // là đặt cược rằng chữ đó chỉ có một chỗ trên trang. `data-slot="toast"` là hook
+    // `ToastCard` cố ý phát ra, nên phép kiểm nói thẳng nó muốn CÁI TOAST.
+    // Dùng `.first()` thì cũng hết đỏ, nhưng nó GIẤU sự mơ hồ: lượt sau khớp
+    // nhầm phần tử nào cũng vẫn xanh.
     //
     // Sản phẩm lúc đó KHÔNG sai — đối chứng bằng DB cho thấy mục đã `archived`.
     // Một phép kiểm đỏ trên một thao tác đã thành công là phép kiểm nói dối.
     await expect(
-      page.getByRole('listitem').filter({ hasText: 'Đã lưu trữ' }),
+      page.locator('[data-slot="toast"]').filter({ hasText: t('author.edit.archived.title') }),
     ).toBeVisible({ timeout: 60_000 });
   });
 });

@@ -114,7 +114,7 @@ export const SCREENS: Screen[] = [
   { path: '/admin/users', auth: 'admin' },
   /*
    * §18.F. Lane dựng lớp học tự báo rằng hai màn này CHƯA nằm trong cổng axe —
-   * chúng dùng lại `AdminSection`/`Table`/`EmptyState`/`ErrorState`/`CursorPager`
+   * chúng dùng lại `AdminPage` (`components/admin/admin-page.tsx`)/`Table`/`EmptyState`/`ErrorState`/`CursorPager`
    * của các màn `/admin` đang qua cổng, nhưng dùng lại thành phần đã đạt KHÔNG
    * phải một phép đo. AC-8 của chặng đòi 0 vi phạm axe trên bảng điểm, nên
    * chúng vào đây để cổng tự nói.

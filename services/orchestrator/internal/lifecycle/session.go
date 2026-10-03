@@ -145,7 +145,12 @@ func (s *Session) OwnedBy(userID string) (*Session, error) {
 }
 
 // ToProto chuyển sang message của contract.
-func (s *Session) ToProto() *orchestratorv1.Session {
+//
+// `hardCap` là HARD_CAP của server — tham số BẮT BUỘC để mọi call-site phải
+// truyền nó: `hard_cap_at` TÍNH LÚC ĐỌC (createdAt + hardCap), không lưu trong
+// hash, và một call-site quên điền là một đường trả Session mà BFF mint token
+// chết sớm (D7.1).
+func (s *Session) ToProto(hardCap time.Duration) *orchestratorv1.Session {
 	out := &orchestratorv1.Session{
 		Id:        s.ID,
 		UserId:    s.UserID,
@@ -158,6 +163,9 @@ func (s *Session) ToProto() *orchestratorv1.Session {
 	}
 	if s.CreatedAt > 0 {
 		out.CreatedAt = timestamppb.New(time.Unix(s.CreatedAt, 0))
+		if hardCap > 0 {
+			out.HardCapAt = timestamppb.New(time.Unix(s.CreatedAt, 0).Add(hardCap))
+		}
 	}
 	// expires_at RỖNG cho tới khi session được claim (comment trong proto). Giữ
 	// nil thay vì Unix(0) — 1970 đi ra FE là "phiên đã hết hạn 56 năm trước".

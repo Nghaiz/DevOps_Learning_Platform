@@ -1,5 +1,5 @@
 import { t } from '@devops-platform/copy';
-import type { Scenario, ScenarioPhase } from '@devops-platform/shared-types/scenario';
+import type { PhaseForLearner, ScenarioForLearner } from '@devops-platform/shared-types/scenario';
 import type { PhaseRef } from '../../../server/lessons/phase';
 
 /**
@@ -20,14 +20,14 @@ export interface LessonPhase {
   /** `intro` | `step0` | `step1` | … | `finish`. */
   readonly key: string;
   readonly label: string;
-  readonly phase: ScenarioPhase;
+  readonly phase: PhaseForLearner;
   /** Tham chiếu gửi lên tRPC (`checkStep`, `runSetup`). */
   readonly ref: PhaseRef;
   /** Chỉ số trong `scenario.steps`, hoặc `null` với intro/finish. */
   readonly stepIndex: number | null;
 }
 
-export function buildPhases(scenario: Scenario): LessonPhase[] {
+export function buildPhases(scenario: ScenarioForLearner): LessonPhase[] {
   const out: LessonPhase[] = [];
 
   if (scenario.intro !== null) {
@@ -87,5 +87,5 @@ export function phaseKeyForStepIndex(phases: readonly LessonPhase[], stepIndex: 
  * phase nào, nên một nút hiện vô điều kiện sẽ là một nút chỉ biết báo lỗi.
  */
 export function canCheck(phase: LessonPhase): boolean {
-  return phase.phase.verifyScript !== null;
+  return phase.phase.hasVerify;
 }

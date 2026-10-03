@@ -572,7 +572,9 @@ describe('17.B.6 · nút 2D/3D ở thanh trên', () => {
         onChange={() => {}}
       />,
     );
-    const three = screen.getByRole('button', { name: /Cảnh 3D — sắp có/ });
+    // Tên nút phải nói CẢ chế độ lẫn "sắp có"; dấu nối giữa hai vế là dấu phẩy
+    // vì bản đồ chữ cấm gạch ngang dài.
+    const three = screen.getByRole('button', { name: /^Cảnh 3D, sắp có$/ });
     expect(three.hasAttribute('disabled')).toBe(false);
     expect(three.getAttribute('aria-disabled')).toBe('true');
     expect(three.getAttribute('title')).toContain('sắp có');

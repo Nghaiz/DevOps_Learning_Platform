@@ -1,49 +1,33 @@
 'use client';
 
 import dynamic from 'next/dynamic';
+import { useCallback, useEffect, useState, type ReactElement, type ReactNode } from 'react';
+import { ExternalLink, Hourglass, LoaderCircle, Terminal, Unplug } from 'lucide-react';
 import { t } from '@devops-platform/copy';
-import type { ReactElement, ReactNode } from 'react';
-import { LoaderCircle, Terminal } from 'lucide-react';
 import type { ThemeName } from '@devops-platform/terminal/themes';
-import { Kbd } from '@devops-platform/ui';
-// Import THẲNG từng file, không qua barrel '../shell': barrel đó kéo theo
-// 'use-capacity' (tRPC) và 'viewer-context', thứ khoang terminal không cần —
-// cùng lý do 'app/layout.tsx' đã ghi trong chú thích của barrel.
-import { TERMINAL_MIN_WIDTH_PX } from '../shell/breakpoints';
-import { NarrowScreenNotice } from '../shell/narrow-screen-notice';
-import { useMinWidth } from '../shell/use-min-width';
+import { Button, Kbd, cn } from '@devops-platform/ui';
 import type { SandboxSession } from '../../lib/use-sandbox-session';
-import { PaneHeader } from './pane-header';
-import { SessionStatusPill } from './session-status';
+import type { TerminalHandoff } from './terminal-handoff';
+import {
+  overlayActionLabel,
+  resolveTerminalOverlay,
+  type OverlayAction,
+  type TerminalOverlay,
+} from './terminal-overlay';
 import { useResolvedTerminalTheme } from './use-resolved-terminal-theme';
 import { useFitOnLayoutChange, useWorkspaceLayout } from './workspace-layout';
 
-/**
- * Khung chờ trong lúc bundle xterm được nạp động.
- *
- * Bản trước là `animate-pulse bg-card` trần — một ô xám nhấp nháy không nói gì.
- * Nạp xterm lần đầu là một chunk thật, và trên mạng chậm nó đủ lâu để đọc ra
- * là "trang hỏng". Ba dòng giả lập dấu nhắc shell cho thấy CÁI GÌ sắp hiện ra,
- * còn dòng chữ nói ta đang chờ ai.
- *
- * `aria-hidden` trên phần trang trí + `role="status"` trên đúng câu chữ: trình
- * đọc màn hình cần một thông báo, không cần ba thanh xám.
- */
+/** Khung chờ trong lúc chunk xterm đang nạp: ba dòng giả dấu nhắc + câu nói đang chờ gì. */
 function TerminalBootFrame(): ReactElement {
   return (
-    <div className="flex h-full w-full flex-col justify-center gap-4 bg-card px-6">
-      <div aria-hidden="true" className="flex flex-col gap-2 font-mono text-xs text-muted-foreground">
-        <span className="h-3 w-2/5 animate-pulse rounded bg-muted" />
-        <span className="h-3 w-3/5 animate-pulse rounded bg-muted" />
-        <span className="h-3 w-1/4 animate-pulse rounded bg-muted" />
+    <div className="flex h-full w-full flex-col justify-center gap-4 bg-background px-6">
+      <div aria-hidden="true" className="flex flex-col gap-2">
+        <span className="h-3 w-2/5 animate-pulse bg-muted" />
+        <span className="h-3 w-3/5 animate-pulse bg-muted" />
+        <span className="h-3 w-1/4 animate-pulse bg-muted" />
       </div>
-      {/*
-        `LoaderCircle` trần chứ không `<Spinner>` của C2: Spinner tự mang
-        `role="status"` + `aria-label`, nên đặt nó trong `<p role="status">` là
-        vùng sống LỒNG vùng sống — đúng lỗi mà `session-controls.tsx` đã ghi
-        chú và tránh. Ở đây cần đúng MỘT thông báo, và nó là câu chữ.
-      */}
-      <p role="status" className="flex items-center gap-2 text-xs text-muted-foreground">
+      {/* `LoaderCircle` trần chứ không `Spinner`: Spinner tự mang role=status, lồng vào đây là vùng sống lồng vùng sống. */}
+      <p role="status" className="flex items-center gap-2 font-mono text-xs text-muted-foreground">
         <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />
         {t('session.terminal.booting')}
       </p>
@@ -51,159 +35,182 @@ function TerminalBootFrame(): ReactElement {
   );
 }
 
-/**
- * ⛔ `ssr: false` PHẢI nằm trong một Client Component — Next 16 ném khi thấy nó
- * trong Server Component. Ba lớp giữ nguyên: `page.tsx` (server) → client của
- * trang → file này → `terminal-surface-lazy` (nạp động).
- */
+/** ⛔ `ssr: false` phải nằm trong một Client Component (Next 16 ném nếu ở Server Component). */
 const TerminalSurfaceLazy = dynamic(() => import('./terminal-surface-lazy'), {
   ssr: false,
   loading: () => <TerminalBootFrame />,
 });
 
-/**
- * Nhãn a11y của terminal. Nêu luôn đường thoát: `role="application"` tắt chế độ
- * duyệt của trình đọc màn hình, nên câu đầu tiên người dùng nghe phải nói được
- * cách ra.
- */
+/** Nhãn a11y nêu luôn đường thoát: `role="application"` tắt chế độ duyệt của trình đọc màn hình. */
 const TERMINAL_ARIA_LABEL = t('session.terminal.aria-label');
 
 export interface TerminalPaneProps {
   readonly session: SandboxSession;
-  /** Bỏ trống ⇒ đi theo `useTheme()` của C1 (xem `useResolvedTerminalTheme`). */
+  /** Bỏ trống ⇒ theme đêm mặc định (xem `resolveTerminalTheme`). */
   readonly theme?: ThemeName;
   /** Hiện khi chưa có phiên. */
   readonly placeholder?: ReactNode;
+  /** Bàn giao với cửa sổ terminal riêng. Vắng ⇒ terminal luôn ở trang này. */
+  readonly handoff?: TerminalHandoff;
 }
 
-export function TerminalPane({ session, theme, placeholder }: TerminalPaneProps): ReactElement {
-  // Hook luôn được gọi (không rẽ nhánh): `theme` truyền vào chỉ ghi đè kết quả.
+const TONE_ICON = {
+  wait: LoaderCircle,
+  down: Unplug,
+  elsewhere: ExternalLink,
+} as const;
+
+function OverlayCard({
+  overlay,
+  busy,
+  onAction,
+}: {
+  readonly overlay: TerminalOverlay;
+  readonly busy: boolean;
+  readonly onAction: (action: OverlayAction) => void;
+}): ReactElement {
+  const Icon = overlay.tone === 'down' && overlay.action === 'new-session' ? Hourglass : TONE_ICON[overlay.tone];
+  return (
+    <div
+      data-overlay={overlay.tone}
+      className="absolute inset-0 z-10 flex items-center justify-center bg-background/90 p-6 animate-rise"
+    >
+      <div className="flex max-w-md flex-col items-start gap-3 border border-border bg-card p-5">
+        <span
+          aria-hidden="true"
+          className={cn(
+            'grid size-10 place-items-center',
+            overlay.tone === 'down' ? 'bg-destructive/15 text-destructive' : 'bg-muted text-foreground',
+          )}
+        >
+          <Icon className={cn('size-5', overlay.tone === 'wait' && 'animate-spin')} />
+        </span>
+        <p className="type-title text-foreground">{overlay.title}</p>
+        {overlay.detail !== null && <p className="text-sm text-muted-foreground">{overlay.detail}</p>}
+        {overlay.action !== null && (
+          <Button
+            size="sm"
+            variant={overlay.action === 'new-session' ? 'primary' : 'ink'}
+            loading={busy}
+            onClick={() => {
+              if (overlay.action !== null) onAction(overlay.action);
+            }}
+          >
+            {overlayActionLabel(overlay.action)}
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Khoang terminal của ba trình học. Luôn tối (theme đêm) dù ứng dụng sáng hay tối:
+ * `WorkspacePanel` đặt phạm vi `.dark` quanh nó.
+ *
+ * ## Bất biến
+ *
+ * - Node terminal mount một lần cho mỗi phiên và KHÔNG bị gỡ khi đổi bề rộng
+ *   cửa sổ. Bản trước gỡ nó dưới 1024px (thay bằng một câu "cần màn hình rộng
+ *   hơn"), nên kéo cửa sổ qua ngưỡng là đóng WebSocket. Nay màn hẹp xếp chồng
+ *   khoang bằng CSS (`WorkspaceSplit`), terminal vẫn ở đó.
+ * - Pha khác `ready` ⇒ lớp phủ có lý do + một việc làm được, và phím gõ bị khoá
+ *   (`setInputEnabled(false)`).
+ * - Terminal ở cửa sổ riêng ⇒ trang thả kết nối (`connectionKey = null`), vì
+ *   gateway chỉ cho một WebSocket mỗi phiên.
+ */
+export function TerminalPane({ session, theme, placeholder, handoff }: TerminalPaneProps): ReactElement {
   const followedTheme = useResolvedTerminalTheme(undefined);
   const resolvedTheme = theme ?? followedTheme;
 
-  /**
-   * §C3/§Y1 — fit lại khi HÌNH HỌC của khoang chứa đổi.
-   *
-   * Khoang này có thể nằm ở hàng 2 của `WorkspacePanel`. Từ SỬA ĐỔI 3
-   * (2026-09-13) hai tab loại trừ nhau: ở tab Terminal hàng 2 chiếm trọn
-   * khoang, ở tab Editor nó mang `hidden` và đo ra 0×0. Không gọi lại `fit()`
-   * thì xterm giữ số cột/hàng của bố cục cũ và dòng bị gãy cho tới lần resize
-   * sau.
-   *
-   * ⚠ File này nghe CHUỖI `layout` chứ không nghe một cờ ẩn/hiện, và đó là lý
-   * do hành vi ở đây không phải sửa gì khi mô hình đổi. Bản trước từng thử một
-   * cờ boolean "vùng đang hiện": dưới mô hình SỬA ĐỔI 2 (terminal có mặt ở cả
-   * hai tab) cờ đó đứng yên `true` mãi mãi nên effect không bao giờ chạy lại,
-   * một đường dây trông vẫn nguyên mà không dẫn điện. Chuỗi thì đổi ở mọi lượt
-   * chuyển tab, dù lượt đó là đổi chiều cao (mô hình cũ) hay ẩn/hiện thật (mô
-   * hình nay). Chú thích cũ ở đây viết "đây KHÔNG còn là chuyện ẩn/hiện"; câu
-   * đó đã hết đúng, còn kết luận thì không đổi.
-   *
-   * Lượt fit rơi vào đúng lúc hàng đang ẩn là một no-op THẬT, không phải một
-   * lượt may mắn: `fit()` trong `terminal-core.ts` đo cái hộp trước và `return`
-   * khi container còn 0×0 (`p16-workspace.md` §1.7).
-   *
-   * Ngoài panel (nhánh hẹp của `WorkspaceSplit`, hoặc một trang dựng thẳng nó)
-   * giá trị mặc định là một hằng, nên hook này chỉ chạy một lần lúc mount.
-   *
-   * ⚠ Cả hai hook gọi VÔ ĐIỀU KIỆN, trước mọi nhánh `return` bên dưới.
-   */
+  // Fit lại khi hình học khoang đổi (đổi tab, đổi bố cục). Gọi vô điều kiện, trước mọi `return`.
   const layout = useWorkspaceLayout();
   useFitOnLayoutChange(session.terminal, layout);
 
-  /**
-   * 13.B mục 8 — dưới `TERMINAL_MIN_WIDTH_PX` thì KHÔNG mở terminal.
-   *
-   * Đây là chỗ DUY NHẤT quyết định điều đó, nên ba trang có terminal (lesson,
-   * lab, playground) không thể lệch nhau. `NarrowScreenNotice` đã tồn tại từ
-   * đợt 2 nhưng **không có một call-site nào** cho tới bản này (đo 2026-09-07:
-   * `grep -rn NarrowScreenNotice` chỉ ra `index.ts` và chính nó) — tức nửa
-   * "terminal hiện cảnh báo thay vì vỡ" của ô AC 13 là mã chết. Đúng lớp lỗi
-   * `check-call-site-before-declaring-done`: component có thật, test của nó
-   * xanh, và không ai từng thấy nó.
-   *
-   * `null` = chưa đo được (SSR + frame đầu). Ở đây `null` KHÔNG rơi vào nhánh
-   * hẹp: nhánh hẹp là khẳng định "máy bạn quá nhỏ", và khẳng định đó khi chưa
-   * đo là nói dối một nửa số lượt mở. Nó rơi xuống nhánh dưới, nơi
-   * `TerminalSurfaceLazy` vẫn đang nạp chunk — tức khung chờ vốn đã hiện.
-   */
-  const wideEnough = useMinWidth(TERMINAL_MIN_WIDTH_PX);
+  const handoffState = handoff?.state ?? 'here';
+  const phase = session.state.phase;
+  const inputEnabled = phase === 'ready' && handoffState === 'here';
+  const terminal = session.terminal;
+  // Khoá gõ/dán ngoài pha `ready` (sendInput của nút chạy lệnh vẫn đi). Sống qua các lần nối lại.
+  useEffect(() => {
+    terminal?.setInputEnabled(inputEnabled);
+  }, [terminal, inputEnabled]);
 
-  const header = (
-    <PaneHeader icon={<Terminal />} title={t('session.terminal.title')}>
-      <SessionStatusPill phase={session.state.phase} />
-    </PaneHeader>
+  // Mã đóng gần nhất: máy trạng thái chỉ giữ câu chung, lớp phủ cần biết ca 4429 để nói đúng nguyên nhân.
+  const [closeCode, setCloseCode] = useState<number | null>(null);
+  const sessionOnClose = session.onClose;
+  const onClose = useCallback(
+    (code: number) => {
+      setCloseCode(code);
+      sessionOnClose(code);
+    },
+    [sessionOnClose],
   );
+  useEffect(() => {
+    if (phase === 'ready') setCloseCode(null);
+  }, [phase]);
 
-  if (wideEnough === false) {
-    // Xét TRƯỚC nhánh "chưa có phiên": trên máy hẹp, câu đúng không phải "bấm
-    // Bắt đầu để mở terminal" — bấm xong vẫn không có terminal. Nói thẳng lý do
-    // còn hơn mời người ta làm một việc vô ích rồi im lặng.
-    return (
-      <div className="flex h-full w-full flex-col bg-card">
-        {header}
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          <NarrowScreenNotice />
-        </div>
-      </div>
-    );
-  }
+  const overlay = resolveTerminalOverlay({
+    phase,
+    message: session.state.message,
+    handoff: handoffState,
+    canReconnect: true,
+    closeCode,
+  });
 
   if (session.state.sessionId === null) {
     return (
-      <div className="flex h-full w-full flex-col bg-card">
-        {header}
-        {/*
-          Trạng thái RỖNG, không phải trạng thái lỗi: chưa có phiên là điểm khởi
-          đầu bình thường của mọi bài. Icon trong đĩa `bg-muted` cho khoang một
-          trọng tâm thị giác thay vì một dòng chữ trôi giữa khoảng trắng — thứ
-          đọc ra là "đang tải mãi không xong".
-        */}
-        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
-          <span
-            aria-hidden="true"
-            className="flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground"
-          >
-            <Terminal className="size-6" />
-          </span>
-          <div className="max-w-sm text-sm text-muted-foreground">
-            {placeholder ?? <span>{t('session.terminal.empty')}</span>}
-          </div>
+      <div className="flex h-full w-full flex-col items-center justify-center gap-4 bg-background px-6 text-center">
+        <span aria-hidden="true" className="grid size-14 place-items-center border-2 border-border text-muted-foreground">
+          <Terminal className="size-7" />
+        </span>
+        <div className="max-w-sm text-sm text-muted-foreground">
+          {placeholder ?? <span>{t('session.terminal.empty')}</span>}
         </div>
       </div>
     );
   }
 
+  const onAction = (action: OverlayAction): void => {
+    switch (action) {
+      case 'reclaim':
+        handoff?.reclaim();
+        return;
+      case 'reconnect':
+        session.reconnect();
+        return;
+      case 'new-session':
+        session.start();
+        return;
+    }
+  };
+
   return (
-    // `group` + `group-focus-within:` — gợi ý Esc-Esc ĐẬM LÊN khi terminal có
-    // focus, KHÔNG xuất hiện/biến mất. Một dòng chữ nhảy ra lúc focus sẽ đổi
-    // chiều cao khoang, `ResizeObserver` của xterm bắn, và terminal fit lại
-    // ngay giây người dùng vừa bấm vào nó.
-    //
-    // Thanh nhãn ở trên thì AN TOÀN với cùng lo ngại đó: nó cao cố định và có
-    // mặt ở CẢ hai nhánh, nên nó không bao giờ xuất hiện/biến mất trong lúc
-    // terminal đang sống.
-    <div className="group flex h-full w-full flex-col bg-card">
-      {header}
-      <div className="min-h-0 flex-1">
+    // `group-focus-within:` làm gợi ý Esc rồi Tab đậm lên khi terminal có focus, không xuất hiện/biến mất:
+    // một dòng nhảy ra lúc focus đổi chiều cao khoang và làm xterm fit lại đúng giây người dùng bấm vào.
+    <div className="group flex h-full w-full flex-col bg-background">
+      <div className="relative min-h-0 flex-1">
         <TerminalSurfaceLazy
           wsUrl={session.wsUrl}
-          connectionKey={session.connectionKey}
+          connectionKey={handoffState === 'here' ? session.connectionKey : null}
           theme={resolvedTheme}
           ariaLabel={TERMINAL_ARIA_LABEL}
           onControl={session.onControl}
-          onClose={session.onClose}
+          onClose={onClose}
           onReady={session.onTerminalReady}
+          /* Surface chỉ mount khi đã có phiên, tức ngay sau cú bấm Bắt đầu (hoặc Mở phiên mới):
+             đưa focus vào terminal lúc đó là đúng ý người học, không phải giật focus lúc tải trang. */
+          autoFocus
         />
+        {overlay !== null && <OverlayCard overlay={overlay} busy={session.starting} onAction={onAction} />}
       </div>
       <p
-        className={
-          'flex shrink-0 items-center gap-1.5 border-t border-border bg-card px-3 py-1 text-[11px] ' +
-          'text-muted-foreground transition-colors duration-[var(--motion-fast)] ease-out ' +
-          'group-focus-within:border-status-progress group-focus-within:text-foreground'
-        }
+        className={cn(
+          'flex shrink-0 items-center gap-1.5 border-t border-border px-3 py-1 font-mono text-[11px] text-muted-foreground',
+          'transition-colors duration-[var(--motion-fast)] ease-out group-focus-within:text-foreground',
+        )}
       >
-        {t('session.terminal.escape-hint-prefix')} <Kbd>Esc</Kbd> <Kbd>Esc</Kbd>{' '}
+        {t('session.terminal.escape-hint-prefix')} <Kbd>Esc</Kbd> {t('session.terminal.escape-hint-then')} <Kbd>Tab</Kbd>{' '}
         {t('session.terminal.escape-hint-suffix')}
       </p>
     </div>

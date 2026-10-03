@@ -1,6 +1,7 @@
 {
   "id": "loxilb-tcp-load-balancing",
   "difficulty": "advanced",
+"topic": "networking",
   "estimatedMinutes": 30,
   "source": {
     "repo": "https://github.com/loxilb-io/killercoda-examples",

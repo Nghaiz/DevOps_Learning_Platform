@@ -73,12 +73,10 @@ export const sessionRouter = createTRPCRouter({
    * đúng một `sid` và dùng lại được suốt TTL (contract §2), nên reconnect không
    * cần token mới và mint thêm chỗ nữa chỉ là thêm đường để lệch.
    *
-   * Đánh đổi đã biết: tạo session THỨ HAI sẽ ghi đè cookie của session thứ nhất
-   * (cùng tên `dlp_sandbox`, cùng `Path=/ws`), nên tab cũ mất quyền mở WS. Đó là
-   * hệ quả trực tiếp của "một cookie ⇒ một sid", và nó khớp D17 (một session chỉ
-   * cho một WS sống): P1 cố ý KHÔNG hỗ trợ hai phiên lab song song trên một
-   * trình duyệt. Ngày cần, đường đúng là đặt tên cookie theo sid — không phải
-   * nới trần D17.
+   * Hai phiên song song trên một trình duyệt: từ 2026-10-03 cookie mang đường dẫn
+   * RIÊNG của phiên (`/ws/session/<id>`, `/ide/session/<id>` — xem
+   * `auth/sandbox-cookie.ts`), nên phiên thứ hai không còn ghi đè cookie của phiên
+   * thứ nhất. Trần D17 (một WS sống cho một phiên) không đổi.
    */
   create: protectedProcedure.input(createInput).mutation(async ({ ctx, input }) => {
     assertOwnerOrAdmin(ctx, input.userId);

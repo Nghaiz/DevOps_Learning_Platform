@@ -1,6 +1,7 @@
 {
   "id": "prolug-linux-system-checking",
   "difficulty": "beginner",
+"topic": "linux",
   "estimatedMinutes": 20,
   "source": {
     "repo": "https://github.com/het-tanis/prolug-labs",

@@ -33,6 +33,7 @@ const CHUA_MO: SandboxSession = {
   remainingMs: null,
   start: () => undefined,
   end: () => undefined,
+  reconnect: () => undefined,
   extend: () => undefined,
   onControl: () => undefined,
   onClose: () => undefined,
@@ -84,8 +85,8 @@ describe('SessionControls — nhãn sức chứa nói về ĐÚNG bài đang m�
     render(<SessionControls session={CHUA_MO} actions={KHONG_LAM_GI} capacity={SU_CO_20260907} />);
 
     // Profile mặc định: 2 chỗ, và câu đầy đủ tự thu hẹp về "bài thường".
-    expect(screen.getByText('Chỉ còn 2 chỗ')).toBeDefined();
-    expect(screen.getByText('Chỉ còn 2 chỗ').getAttribute('title')).toContain('cho bài thường');
+    expect(screen.getByText(/còn 2 chỗ/i)).toBeDefined();
+    expect(screen.getByText(/còn 2 chỗ/i).getAttribute('title')).toContain('cho bài thường');
     expect(screen.queryByText('Hết chỗ')).toBeNull();
   });
 

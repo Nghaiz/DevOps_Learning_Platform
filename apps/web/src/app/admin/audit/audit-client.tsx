@@ -8,8 +8,6 @@ import {
   AlertTitle,
   CursorPager,
   EmptyState,
-  ErrorState,
-  Skeleton,
   Table,
   TableBody,
   TableCaption,
@@ -20,13 +18,20 @@ import {
 } from '@devops-platform/ui';
 import { api } from '../../../lib/trpc-react';
 import { describeTrpcError } from '../../../lib/trpc';
-import { AdminNote, AdminSection } from '../../../components/admin/admin-section';
+import {
+  AdminNote,
+  AdminPage,
+  FirstPageButton,
+  LedgerError,
+  LedgerSkeleton,
+} from '../../../components/admin/admin-page';
 import {
   describeAuditAction,
   describeAuditActor,
   describeAuditDetail,
   describeAuditTarget,
 } from '../../../components/admin/audit-row';
+import { AuditActor } from '../../../components/admin/audit-actor';
 import { formatMoment } from '../../../lib/format-moment';
 import {
   FIRST_PAGE,
@@ -37,7 +42,7 @@ import {
 } from '../../../lib/cursor-stack';
 
 /**
- * `/admin/audit` (13.G mục 24) — nhật ký hành động quản trị, mới nhất trước.
+ * `/admin/audit`: nhật ký hành động quản trị, mới nhất trước.
  *
  * ## Bảng này chỉ ghi thêm, không sửa, không xoá
  *
@@ -50,9 +55,8 @@ import {
  * ## Đây KHÔNG phải toàn bộ nhật ký của hệ thống
  *
  * `sessions_audit` (orchestrator ghi) là bảng thứ hai, và hai bảng biết hai
- * chuyện khác nhau: `sessions_audit` không biết tới vai trò, còn `admin_audit`
- * không biết phiên đó có thật sự chết hay không. Dải cảnh báo dưới đây nói ra
- * điều đó, để không ai đọc trang này rồi kết luận về những gì nó không thấy.
+ * chuyện khác nhau. Dải cảnh báo dưới đây nói ra điều đó, để không ai đọc
+ * trang này rồi kết luận về những gì nó không thấy.
  */
 export function AdminAuditClient(): ReactElement {
   const [stack, setStack] = useState<CursorStack>(FIRST_PAGE);
@@ -60,32 +64,37 @@ export function AdminAuditClient(): ReactElement {
   const query = api.admin.audit.list.useQuery(cursor === undefined ? {} : { cursor });
 
   return (
-    <AdminSection title={t('admin.audit.title')} description={t('admin.audit.description')}>
-      <Alert>
-        <AlertTitle as="h2">{t('admin.audit.alert-title')}</AlertTitle>
-        <AlertDescription>{t('admin.audit.alert-body')}</AlertDescription>
-      </Alert>
+    <AdminPage
+      kicker={t('admin.audit.kicker')}
+      title={t('admin.audit.title')}
+      lead={t('admin.audit.lead')}
+    >
+      <div className="flex flex-col gap-6 pt-10">
+        <Alert>
+          <AlertTitle as="h2">{t('admin.audit.alert-title')}</AlertTitle>
+          <AlertDescription>{t('admin.audit.alert-body')}</AlertDescription>
+        </Alert>
 
-      {query.isPending ? (
-        <Skeleton className="h-64 w-full" />
-      ) : query.isError ? (
-        <AuditError
-          reason={describeTrpcError(query.error)}
-          onRetry={() => void query.refetch()}
-          retrying={query.isFetching}
-        />
-      ) : query.data.items.length === 0 ? (
-        <EmptyState
-          title={t('admin.audit.empty-title')}
-          description={t('admin.audit.empty-body')}
-        />
-      ) : (
-        <div className="flex flex-col gap-3">
-          {/*
-            Năm cột id dài trên một màn 390px: cuộn ngang cục bộ giữ bảng đọc
-            được mà không để cả trang trôi ngang (ô nghiệm thu §7 mục 1).
-          */}
-          <div className="w-full overflow-x-auto">
+        {query.isPending ? (
+          <LedgerSkeleton />
+        ) : query.isError ? (
+          <LedgerError
+            failure={err('admin.error.audit-list', { reason: describeTrpcError(query.error) })}
+            onRetry={() => void query.refetch()}
+            retrying={query.isFetching}
+            page={pageNumber(stack)}
+            onFirst={() => setStack(FIRST_PAGE)}
+          />
+        ) : query.data.items.length === 0 ? (
+          <EmptyState
+            title={t('admin.audit.empty-title')}
+            description={t('admin.audit.empty-body')}
+            {...(pageNumber(stack) > 1
+              ? { action: <FirstPageButton page={pageNumber(stack)} onFirst={() => setStack(FIRST_PAGE)} /> }
+              : {})}
+          />
+        ) : (
+          <div className="flex flex-col gap-4">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -101,17 +110,17 @@ export function AdminAuditClient(): ReactElement {
                   const actor = describeAuditActor(row.actorId);
                   return (
                     <TableRow key={row.id}>
-                      <TableCell className="text-sm whitespace-nowrap text-muted-foreground">
+                      <TableCell className="font-mono text-xs whitespace-nowrap text-muted-foreground">
                         {formatMoment(row.occurredAt)}
                       </TableCell>
-                      <TableCell className="font-mono text-xs" title={actor.note}>
-                        {actor.text}
+                      <TableCell className="font-mono text-xs">
+                        <AuditActor actor={actor} />
                       </TableCell>
-                      <TableCell className="text-sm">{describeAuditAction(row.action)}</TableCell>
+                      <TableCell className="font-medium">{describeAuditAction(row.action)}</TableCell>
                       <TableCell className="font-mono text-xs">
                         {describeAuditTarget(row.targetType, row.targetId)}
                       </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
+                      <TableCell className="max-w-md text-sm break-words text-muted-foreground">
                         {describeAuditDetail(row.action, row.detail)}
                       </TableCell>
                     </TableRow>
@@ -120,49 +129,27 @@ export function AdminAuditClient(): ReactElement {
               </TableBody>
               <TableCaption>{t('admin.audit.caption')}</TableCaption>
             </Table>
+
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <AdminNote>
+                {t('admin.audit.note', {
+                  count: query.data.items.length,
+                  page: pageNumber(stack),
+                })}
+                {query.data.nextCursor != null ? t('admin.audit.note-more') : t('admin.audit.note-last')}
+              </AdminNote>
+              <CursorPager
+                hasNext={query.data.nextCursor != null}
+                onNext={() => setStack((prev) => pushCursor(prev, query.data.nextCursor))}
+                onReset={() => setStack(FIRST_PAGE)}
+                page={pageNumber(stack)}
+                loading={query.isFetching}
+              />
+            </div>
           </div>
-
-          <AdminNote>
-            {t('admin.audit.note', {
-              count: query.data.items.length,
-              page: pageNumber(stack),
-            })}
-            {query.data.nextCursor != null
-              ? t('admin.audit.note-more')
-              : t('admin.audit.note-last')}
-          </AdminNote>
-
-          <CursorPager
-            hasNext={query.data.nextCursor != null}
-            onNext={() => setStack((prev) => pushCursor(prev, query.data.nextCursor))}
-            onReset={() => setStack(FIRST_PAGE)}
-            page={pageNumber(stack)}
-            loading={query.isFetching}
-          />
-        </div>
-      )}
-    </AdminSection>
+        )}
+      </div>
+    </AdminPage>
   );
 }
 
-/**
- * Hai nửa của `ErrorEntry` vào hai khe của `ErrorState`.
- *
- * Tách thành component riêng chứ không gọi `err()` giữa một biểu thức ba ngôi
- * ba tầng: một lời gọi hàm nhét vào giữa nhánh `isError` sẽ chạy ở MỌI lượt
- * render, kể cả lượt `isPending`, và `query.error` lúc đó là `null`.
- */
-function AuditError({
-  reason,
-  onRetry,
-  retrying,
-}: {
-  readonly reason: string;
-  readonly onRetry: () => void;
-  readonly retrying: boolean;
-}): ReactElement {
-  const failure = err('admin.error.audit-list', { reason });
-  return (
-    <ErrorState title={failure.what} message={failure.next} onRetry={onRetry} retrying={retrying} />
-  );
-}

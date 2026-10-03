@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
-import { redirect } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
+import { withReturnPath } from '../../../login/return-path';
+import { isUuid } from '../../../../components/admin/route-params';
 import { t } from '@devops-platform/copy';
 
 import { readViewerSession } from '../../../../components/catalog/viewer-role.server';
@@ -30,9 +32,15 @@ export default async function ExamSittingPage({
 }: {
   readonly params: Promise<{ readonly examId: string }>;
 }) {
-  if ((await readViewerSession()) === null) {
-    redirect('/login');
-  }
   const { examId } = await params;
+  if ((await readViewerSession()) === null) {
+    // Mang đường về theo: đăng nhập xong thì quay lại đúng kỳ thi này.
+    redirect(withReturnPath('/login', `/exams/${encodeURIComponent(examId)}`));
+  }
+  // `/exams/abc` không phải "kỳ thi không tồn tại" mà là "không phải một id":
+  // 404 thật, không để client gọi `examSitting.get` rồi nhận 400 của Zod.
+  if (!isUuid(examId)) {
+    notFound();
+  }
   return <ExamSittingClient examId={examId} />;
 }

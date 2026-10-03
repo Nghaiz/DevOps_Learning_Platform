@@ -1,23 +1,29 @@
 import type { Metadata } from 'next';
 import { t } from '@devops-platform/copy';
-import { GamesClient } from './games-client';
+import { CICD_LEVELS, GIT_LEVELS, LEVELS } from '@devops-platform/games';
+import { factsOf } from '../../components/games/hub/game-facts';
+import { GamesHub } from '../../components/games/hub/games-hub';
 
 export const metadata: Metadata = {
-  title: t('catalog.meta-title.games'),
-  description: t('catalog.games.meta-description'),
+  title: t('games.meta-title'),
+  description: t('games.meta-description'),
 };
 
 /**
- * Chỉ mục `/games` — trụ cột ③ (P14).
+ * Chỉ mục `/games`.
  *
- * Server Component thuần: không `getSession`, không `redirect('/login')`, khác
- * `quiz/page.tsx` và bốn trang danh mục kia. Đó là hợp đồng §4.2 — game không
- * yêu cầu đăng nhập, nên gác ở đây sẽ là một rào không có lý do.
+ * Server Component thuần: không `getSession`, không `redirect('/login')`. Game
+ * không yêu cầu đăng nhập (hợp đồng §4.2 của P14), nên gác ở đây là dựng một
+ * cánh cổng không gác gì.
  *
- * KHÔNG render `main` của riêng nó: vỏ ứng dụng (`components/shell/app-shell.tsx`)
- * sở hữu landmark đó cho mọi trang, và `components/session/landmark-contract.test.ts`
- * gác việc này bằng một phép quét tĩnh trên toàn bộ `.tsx` của `apps/web/src`.
+ * Số màn, số chương và dải độ khó TÍNH Ở ĐÂY từ dữ liệu màn thật, rồi chỉ mảng id
+ * và vài con số đi xuống client: dữ liệu màn của ba game không vào bundle của
+ * trang danh mục.
+ *
+ * KHÔNG render `main` của riêng nó: vỏ ứng dụng sở hữu landmark đó cho mọi trang
+ * (`components/session/landmark-contract.test.ts` quét tĩnh việc này).
  */
 export default function GamesIndexPage() {
-  return <GamesClient />;
+  const facts = [factsOf('k8s', LEVELS), factsOf('git', GIT_LEVELS), factsOf('cicd', CICD_LEVELS)];
+  return <GamesHub facts={facts} />;
 }

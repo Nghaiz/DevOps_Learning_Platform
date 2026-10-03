@@ -1,8 +1,10 @@
 import { sql } from 'drizzle-orm';
 
 import type { Database } from '../db/client';
+import { examAttempts, exams } from '../db/schema';
 import { effectiveSubmittedAt, wasAutoSubmitted } from './clock';
 import { getExam, listAttemptRows } from './crud';
+import { inScoringWindow } from './scoring-window';
 
 /**
  * Bảng điểm của MỘT kỳ thi (§18.G.6).
@@ -17,13 +19,12 @@ import { getExam, listAttemptRows } from './crud';
  * Một sinh viên có thể đã giải `K8S-0001` từ tuần trước. Nếu phép gộp chỉ lọc
  * theo `problem_code` thì bài làm tuần trước đó rơi thẳng vào bảng điểm kỳ thi
  * — không lỗi, không cảnh báo, và điểm trông hoàn toàn hợp lý. Nên mọi lượt
- * nộp phải nằm trong `[started_at, hạn]` của CHÍNH lượt thi đó.
+ * nộp phải nằm trong cửa sổ chấm của CHÍNH lượt thi đó:
+ * `[started_at, least(submitted_at, hạn)]`.
  *
- * Hạn là một phép TÍNH, không phải một cột (xem `schema.ts` § `exam_attempts`),
- * nên SQL phải dựng lại nó: `least(started_at + duration, coalesce(closes_at,
- * 'infinity'))`. `'infinity'` chứ không phải một ngày xa trong tương lai —
- * timestamptz của Postgres có giá trị vô cực thật, và một hằng "năm 9999" là
- * một quả bom hẹn giờ có thật.
+ * Định nghĩa cửa sổ sống ở MỘT chỗ — `scoring-window.ts` — và dấu `solved` của
+ * màn làm bài (`exam-problems.ts`) đọc cùng mảnh SQL đó. CSV dựng từ chính bảng
+ * điểm này nên không có định nghĩa riêng.
  *
  * ## Một lượt thi, nhiều lần nộp: lấy lần TỐT NHẤT của từng bài
  *
@@ -87,6 +88,8 @@ export async function examScoreboard(
   const exam = await getExam(db, examId);
   const attempts = await listAttemptRows(db, examId);
 
+  // `exam_attempts` và `exams` join KHÔNG bí danh, có chủ ý: `inScoringWindow`
+  // tham chiếu hai bảng đó bằng tên bảng (`scoring-window.ts`).
   const raw = await db.execute(sql`
     select distinct on (ps.user_id, ps.problem_code)
       ps.user_id                            as user_id,
@@ -96,16 +99,12 @@ export async function examScoreboard(
       ps.solved                             as solved,
       ps.fail_code                          as fail_code
     from problem_submissions ps
-    join exam_attempts a
-      on a.user_id = ps.user_id
-     and a.exam_id = ${examId}
-    join exams e on e.id = a.exam_id
-    where ps.problem_code = any(e.problem_codes)
-      and ps.submitted_at >= a.started_at
-      and ps.submitted_at <= least(
-        a.started_at + make_interval(mins => a.duration_minutes),
-        coalesce(e.closes_at, 'infinity'::timestamptz)
-      )
+    join ${examAttempts}
+      on ${examAttempts.userId} = ps.user_id
+     and ${examAttempts.examId} = ${examId}
+    join ${exams} on ${exams.id} = ${examAttempts.examId}
+    where ps.problem_code = any(${exams.problemCodes})
+      and ${inScoringWindow(sql`ps.submitted_at`)}
     order by
       ps.user_id,
       ps.problem_code,

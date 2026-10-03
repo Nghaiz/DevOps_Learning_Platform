@@ -3,6 +3,7 @@
 import { errText, t } from '@devops-platform/copy';
 import { useState, type ReactElement } from 'react';
 import { Alert, AlertDescription, AlertTitle, Button, Textarea } from '@devops-platform/ui';
+import { Field } from '../../../components/author/field';
 import type { ClusterSpec } from '@devops-platform/games';
 import { clusterFromSpec, type ClusterFormState } from './cluster-form';
 import { clusterToSpec } from './cluster-to-spec';
@@ -43,51 +44,53 @@ export function ClusterJsonFields(props: {
           'problem.cluster-json-fields-bieu-mau-dang-co-o-sai-nen-chua-doc-ra-json-duoc-sua-o-tab-bieu-mau-hoac-da',
         ));
 
+  const apply = (): void => {
+    const parsed = readClusterJson(draft ?? '');
+    if (!parsed.ok) {
+      setError(parsed.message);
+      return;
+    }
+    const form = clusterFromSpec(parsed.value, props.nextKey);
+    const recheck = clusterToSpec(form);
+    if (!recheck.ok) {
+      setError(
+        t('problem.cluster-json-fields-cum-doc-duoc-nhung-chua-hop-le', {
+          value1: recheck.issues.map((issue) => issue.message).join(' '),
+        }),
+      );
+      return;
+    }
+    setDraft(null);
+    setError(null);
+    props.onApply(form);
+  };
+
   return (
-    <div className="flex flex-col gap-3 pt-2">
-      <Textarea
-        aria-label={t('problem.cluster-json-fields-trang-thai-cum-dang-json')}
-        className="font-mono text-xs"
-        rows={18}
-        value={text}
-        onChange={(event) => {
-          setDraft(event.target.value);
-          setError(null);
-        }}
-      />
+    <div className="flex flex-col gap-4">
+      <Field label={t('problem.cluster-json-fields-trang-thai-cum-dang-json')}>
+        {({ id }) => (
+          <Textarea
+            id={id}
+            className="font-mono text-xs"
+            rows={18}
+            value={text}
+            onChange={(event) => {
+              setDraft(event.target.value);
+              setError(null);
+            }}
+          />
+        )}
+      </Field>
 
       {error !== null && (
-        <Alert variant="destructive">
+        <Alert variant="destructive" className="animate-rise">
           <AlertTitle>{t('problem.cluster-json-fields-khong-ap-dung-duoc')}</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
 
       <div className="flex flex-wrap gap-2">
-        <Button
-          type="button"
-          disabled={draft === null}
-          onClick={() => {
-            const parsed = readClusterJson(draft ?? '');
-            if (!parsed.ok) {
-              setError(parsed.message);
-              return;
-            }
-            const form = clusterFromSpec(parsed.value, props.nextKey);
-            const recheck = clusterToSpec(form);
-            if (!recheck.ok) {
-              setError(
-                t('problem.cluster-json-fields-cum-doc-duoc-nhung-chua-hop-le', {
-                  value1: String(recheck.issues.map((issue) => issue.message).join(' ')),
-                }),
-              );
-              return;
-            }
-            setDraft(null);
-            setError(null);
-            props.onApply(form);
-          }}
-        >
+        <Button type="button" variant="ink" disabled={draft === null} onClick={apply}>
           {t('problem.cluster-json-fields-ap-dung-vao-bieu-mau')}
         </Button>
         {draft !== null && (

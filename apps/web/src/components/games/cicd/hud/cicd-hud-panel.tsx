@@ -19,6 +19,7 @@
 
 import type { ReactElement, ReactNode } from 'react';
 import { X } from 'lucide-react';
+import { t } from '@devops-platform/copy';
 import { cn } from '@devops-platform/ui';
 
 export interface CicdHudPanelProps {
@@ -50,22 +51,22 @@ export function CicdHudPanel({
   return (
     <section
       className={cn(
-        'pointer-events-auto flex flex-col overflow-hidden rounded-xl border border-border bg-card/95 shadow-lg backdrop-blur-sm',
+        'pointer-events-auto flex animate-rise flex-col overflow-hidden border border-foreground bg-card text-card-foreground shadow-float',
         className,
       )}
       aria-label={title}
       {...(testId === undefined ? {} : { 'data-testid': testId })}
     >
-      <header className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-2">
-        <h2 className="min-w-0 flex-1 truncate text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+      <header className="flex shrink-0 items-center gap-2 bg-ink py-1 pr-1 pl-3 text-ink-foreground">
+        <h2 className="min-w-0 flex-1 truncate type-label">
           {title}
         </h2>
         {actions}
         <button
           type="button"
           onClick={onClose}
-          aria-label={`Đóng bảng ${title}`}
-          className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+          aria-label={t('games.cicd.hud.close-panel', { title })}
+          className="grid size-8 place-items-center text-ink-foreground/80 transition-colors hover:bg-ink-foreground/10 hover:text-ink-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
         >
           <X className="size-4" aria-hidden="true" />
         </button>

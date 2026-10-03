@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { t } from '@devops-platform/copy';
 import { redirect } from 'next/navigation';
 import { readCanAuthor, readViewerSession } from '../../components/catalog/viewer-role.server';
+import { readCatalogCounts } from '../../components/catalog/catalog-counts.server';
 import { LabsClient } from './labs-client';
 
 export const metadata: Metadata = {
@@ -9,12 +10,12 @@ export const metadata: Metadata = {
 };
 
 /**
- * Server Component — kiểm auth THẬT (đụng DB), cùng khuôn `/playgrounds` và
- * `/paths`: `proxy.ts` chỉ kiểm SỰ TỒN TẠI của cookie, page này là nguồn sự
- * thật, chặn cả ca cookie còn nhưng session đã bị revoke ở DB.
+ * Server Component, kiểm auth THẬT (đụng DB): `proxy.ts` chỉ kiểm SỰ TỒN TẠI của
+ * cookie, page này chặn cả ca cookie còn mà session đã bị thu hồi ở DB.
  *
- * Hai lời gọi bên dưới đi qua cùng một `readViewerSession` memo hoá bằng
- * `cache()` ⇒ MỘT lượt đụng DB, không phải hai.
+ * `readViewerSession` và `readCanAuthor` đi qua cùng một hàm memo hoá bằng
+ * `cache()` ⇒ MỘT lượt đụng DB. `readCatalogCounts` cấp tổng số lab đã xuất bản
+ * cho nhãn đầu trang (`null` khi không đọc được kho).
  */
 export default async function LabsPage() {
   const session = await readViewerSession();
@@ -23,5 +24,6 @@ export default async function LabsPage() {
     redirect('/login');
   }
 
-  return <LabsClient canAuthor={await readCanAuthor()} />;
+  const [canAuthor, counts] = await Promise.all([readCanAuthor(), readCatalogCounts()]);
+  return <LabsClient canAuthor={canAuthor} total={counts.labs} />;
 }

@@ -1,5 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
-import { HANDSHAKE_TIMEOUT_MS, buildSessionWsUrl, openConnection } from './connection.ts';
+import {
+  DEFAULT_MAX_FRAME_BYTES,
+  HANDSHAKE_TIMEOUT_MS,
+  MAX_PENDING_INPUT_BYTES,
+  buildSessionWsUrl,
+  openConnection,
+  splitUtf8,
+} from './connection.ts';
 import { SUBPROTOCOL } from './protocol.ts';
 
 /**
@@ -159,6 +166,48 @@ describe('handshake', () => {
   });
 });
 
+describe('H1 — resize lúc CONNECTING không được rơi mất', () => {
+  /**
+   * `initialSize` là ảnh chụp lúc `openConnection` — TRƯỚC khi font tải xong
+   * (font-display:block). Lượt refit sau font bắn `resize` khi socket còn
+   * CONNECTING; bản cũ bỏ nó, trong khi `terminal-core` đã ghi `lastNotified`
+   * nên sẽ không bao giờ gửi lại. Pod sống trọn phiên ở kích thước sai.
+   */
+  it('resize trước `open` ⇒ `init` mang kích thước MỚI NHẤT, không có frame resize thừa', () => {
+    const { connection, socket } = setup({ cols: 81, rows: 18 });
+    connection.sendResize({ cols: 90, rows: 20 });
+    connection.sendResize({ cols: 76, rows: 20 });
+    expect(socket.sent).toHaveLength(0);
+
+    socket.open();
+    expect(socket.sent).toEqual([JSON.stringify({ type: 'init', cols: 76, rows: 20 })]);
+  });
+
+  it('`onOpen` báo đúng kích thước `init` đã mang đi (đã clamp) — mốc dedup cho kết nối này', () => {
+    FakeSocket.instances = [];
+    const onOpen = vi.fn();
+    const connection = openConnection({
+      url: 'wss://lab.example/ws/session/s1',
+      initialSize: { cols: 80, rows: 24 },
+      onControl: () => undefined,
+      onBinary: () => undefined,
+      onClose: () => undefined,
+      onOpen,
+      socketFactory: (url, protocols) => new FakeSocket(url, protocols) as unknown as WebSocket,
+    });
+    connection.sendResize({ cols: 5000, rows: 30 });
+    FakeSocket.instances[0]?.open();
+    expect(onOpen).toHaveBeenCalledExactlyOnceWith({ cols: 1000, rows: 30 });
+  });
+
+  it('ĐỐI CHỨNG: resize SAU `open` vẫn đi thành frame `resize` riêng', () => {
+    const { connection, socket } = setup();
+    socket.open();
+    connection.sendResize({ cols: 100, rows: 30 });
+    expect(socket.sent[1]).toBe(JSON.stringify({ type: 'resize', cols: 100, rows: 30 }));
+  });
+});
+
 describe('stdin — contract §1 bẫy 1', () => {
   it('gửi stdin dưới dạng BINARY, không phải text frame', () => {
     // `term.onData` trả string; gửi thẳng thành text frame và server đọc nó như
@@ -179,10 +228,166 @@ describe('stdin — contract §1 bẫy 1', () => {
     expect(new TextDecoder().decode(socket.sent[1] as Uint8Array)).toBe('echo "phiên"');
   });
 
-  it('gõ khi socket CHƯA mở thì bỏ qua, không ném và không xếp hàng', () => {
+});
+
+describe('H5 — stdin gửi lúc CONNECTING được xếp hàng, không biến mất', () => {
+  /**
+   * `TerminalSurface` phát handle NGAY sau `openConnection`, tức lúc socket còn
+   * CONNECTING. Bản cũ bỏ im lặng mọi `sendInput` trước `open`, nên một cú bấm
+   * `{{exec}}` (hay lệnh setup) rơi vào khe đó biến mất: nút bấm được, terminal
+   * không hiện gì, và đó lại đúng là lúc vừa nối lại nên trông như treo.
+   */
+  function stdinText(socket: FakeSocket): string {
+    return socket.sent
+      .filter((frame): frame is Uint8Array => frame instanceof Uint8Array)
+      .map((frame) => new TextDecoder().decode(frame))
+      .join('');
+  }
+
+  it('gõ trước `open` ⇒ chưa gửi gì; sau `open` gửi `init` TRƯỚC rồi tới stdin, đúng thứ tự', () => {
     const { connection, socket } = setup();
-    connection.sendInput('x');
+    connection.sendInput('echo mot\r');
+    connection.sendInput('echo hai\r');
     expect(socket.sent).toHaveLength(0);
+
+    socket.open();
+    expect(socket.sent[0]).toBe(JSON.stringify({ type: 'init', cols: 120, rows: 34 }));
+    expect(stdinText(socket)).toBe('echo mot\recho hai\r');
+  });
+
+  it('hàng đợi vẫn chia theo maxFrameBytes khi xả (C2 không bị đường vòng)', () => {
+    const { connection, socket } = setup();
+    connection.sendInput('y'.repeat(40 * 1024));
+    socket.open();
+    const frames = socket.sent.filter((frame): frame is Uint8Array => frame instanceof Uint8Array);
+    expect(frames.length).toBeGreaterThan(1);
+    for (const frame of frames) {
+      expect(frame.byteLength).toBeLessThanOrEqual(DEFAULT_MAX_FRAME_BYTES);
+    }
+  });
+
+  it('tràn trần hàng đợi ⇒ bỏ ĐÚNG lượt tràn, kêu console.warn, phần đã xếp vẫn đi', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      const { connection, socket } = setup();
+      connection.sendInput('dau\r');
+      connection.sendInput('z'.repeat(MAX_PENDING_INPUT_BYTES));
+      expect(warn).toHaveBeenCalledTimes(1);
+
+      socket.open();
+      expect(stdinText(socket)).toBe('dau\r');
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('đóng trước khi `open` ⇒ không gửi gì, và kêu lên vì có lệnh bị bỏ', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      const { connection, socket } = setup();
+      connection.sendInput('ls\r');
+      socket.emit('close', { code: 1006 });
+      expect(socket.sent).toHaveLength(0);
+      expect(warn).toHaveBeenCalledTimes(1);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('sau khi đã đóng thì no-op — handle cũ không ghi vào đâu cả', () => {
+    const { connection, socket } = setup();
+    socket.open();
+    connection.close();
+    const before = socket.sent.length;
+    connection.sendInput('x');
+    expect(socket.sent).toHaveLength(before);
+  });
+});
+
+describe('C2 — paste lớn bị chia theo BYTE UTF-8, không frame nào vượt maxFrameBytes', () => {
+  /**
+   * Gateway đặt `SetReadLimit(MaxFrameBytes = 32 KiB)`; vượt trần là thư viện tự
+   * đóng `1009`, mã KHÔNG retry ⇒ phiên rơi vào `error` cụt đường. Bản cũ gửi
+   * nguyên chuỗi `onData` thành MỘT frame, nên dán một file log 40 KiB là giết
+   * phiên. Đo kích thước bằng BYTE đã encode, không bằng `string.length`: một
+   * ký tự tiếng Việt là 3 byte, emoji là 4.
+   */
+  const decodeStrict = (chunk: string | Uint8Array): string =>
+    new TextDecoder('utf-8', { fatal: true }).decode(chunk as Uint8Array);
+
+  function binaryFrames(socket: FakeSocket): Uint8Array[] {
+    return socket.sent.filter((frame): frame is Uint8Array => frame instanceof Uint8Array);
+  }
+
+  function readyFrame(maxFrameBytes: number): string {
+    return JSON.stringify({
+      type: 'ready',
+      sessionId: 's1',
+      podName: 'p1',
+      expiresAt: '2026-10-03T10:00:00Z',
+      maxFrameBytes,
+    });
+  }
+
+  it('dán 100 KiB ASCII trước `ready` ⇒ nhiều frame, mỗi frame ≤ 32 KiB, ghép lại đúng nguyên văn', () => {
+    const { connection, socket } = setup();
+    socket.open();
+    const paste = 'a'.repeat(100 * 1024);
+    connection.sendInput(paste);
+
+    const frames = binaryFrames(socket);
+    expect(frames.length).toBeGreaterThan(3);
+    for (const frame of frames) {
+      expect(frame.byteLength).toBeLessThanOrEqual(DEFAULT_MAX_FRAME_BYTES);
+    }
+    expect(frames.map(decodeStrict).join('')).toBe(paste);
+  });
+
+  it('KHÔNG cắt giữa một ký tự đa-byte — mỗi frame tự decode được ở chế độ fatal', () => {
+    const { connection, socket } = setup();
+    socket.open();
+    // 3 byte/ký tự và 4 byte/emoji, xen kẽ để ranh giới 31 KiB rơi vào GIỮA
+    // một ký tự ở nhiều frame chứ không tình cờ trùng ranh giới.
+    const paste = 'phiên🐳ệ'.repeat(12_000);
+    connection.sendInput(paste);
+
+    const frames = binaryFrames(socket);
+    expect(frames.length).toBeGreaterThan(1);
+    for (const frame of frames) {
+      expect(frame.byteLength).toBeLessThanOrEqual(DEFAULT_MAX_FRAME_BYTES);
+      expect(() => decodeStrict(frame)).not.toThrow();
+    }
+    expect(frames.map(decodeStrict).join('')).toBe(paste);
+  });
+
+  it('dùng `maxFrameBytes` mà `ready` báo, không dùng hằng số mặc định', () => {
+    const { connection, socket } = setup();
+    socket.open();
+    socket.emit('message', { data: readyFrame(4096) });
+    connection.sendInput('x'.repeat(20_000));
+
+    const frames = binaryFrames(socket);
+    expect(frames.length).toBeGreaterThanOrEqual(5);
+    for (const frame of frames) {
+      expect(frame.byteLength).toBeLessThanOrEqual(4096);
+    }
+  });
+
+  it('ĐỐI CHỨNG: chuỗi gõ thường vẫn đi ĐÚNG một frame', () => {
+    const { connection, socket } = setup();
+    socket.open();
+    connection.sendInput('kubectl get pods\r');
+    expect(binaryFrames(socket)).toHaveLength(1);
+  });
+
+  it('splitUtf8 — đơn vị: không mảnh nào vượt trần, không mảnh nào bắt đầu bằng byte nối tiếp', () => {
+    const bytes = new TextEncoder().encode('ệ'.repeat(1000));
+    const pieces = splitUtf8(bytes, 10);
+    for (const piece of pieces) {
+      expect(piece.byteLength).toBeLessThanOrEqual(10);
+      expect((piece[0]! & 0xc0) === 0x80).toBe(false);
+    }
+    expect(pieces.reduce((sum, piece) => sum + piece.byteLength, 0)).toBe(bytes.byteLength);
   });
 });
 

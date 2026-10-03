@@ -7,7 +7,7 @@
  * |---|---|
  * | `DESKTOP_TARGET_MIN_PX` | Mục tiêu chính. Bố cục đầy đủ được thiết kế cho mức này. |
  * | `NAV_COLLAPSE_MAX_PX`   | ≤ mức này thì điều hướng chính thu vào ngăn kéo. |
- * | `TERMINAL_MIN_WIDTH_PX` | < mức này thì KHÔNG mở terminal — hiện `NarrowScreenNotice` thay thế. |
+ * | `TERMINAL_MIN_WIDTH_PX` | < mức này thì xếp terminal xuống dưới bài thay vì đặt cạnh (workspace-split). |
  *
  * ⚠ `NAV_COLLAPSE_MAX_PX` (768) và `TERMINAL_MIN_WIDTH_PX` (1024) **cố ý khác
  * nhau**: khoảng 769–1023px vẫn có nav ngang đầy đủ nhưng vẫn quá hẹp cho một

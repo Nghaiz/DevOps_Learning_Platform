@@ -1,3 +1,4 @@
+import { t } from '@devops-platform/copy';
 import {
   CICD_UNSEEDED_REPLAY_SEED,
   EDITABLE_PARTS,
@@ -80,7 +81,7 @@ export interface CicdOjProblem {
  * dòng trống đọc ra như một lỗi render. Nói thẳng rằng nó tồn tại và chưa có tên
  * là cách duy nhất giữ mẫu số `n/m` trung thực mà không nói dối về nội dung.
  */
-const NHAN_TESTCASE_AN = 'Testcase ẩn chưa hiện tên';
+const NHAN_TESTCASE_AN = t('games.cicd.oj.hidden-case');
 
 
 /**
@@ -147,7 +148,7 @@ export function cicdOjSpecThieu(problem: CicdOjProblem): string | null {
     typeof problem.initialState === 'object' && problem.initialState !== null
       ? (problem.initialState as Partial<CicdProblemSpec>)
       : null;
-  if (spec === null) return 'toàn bộ đề (initialState không phải một object)';
+  if (spec === null) return t('games.cicd.oj.spec-not-object');
   if (spec.workflow === undefined) return 'workflow';
   if (spec.workload === undefined) return 'workload';
   if (spec.evaluation === undefined) return 'evaluation';
@@ -321,7 +322,7 @@ export function cicdOjLevel(problem: CicdOjProblem): CicdLevel {
      * Đề bài đầy đủ nằm ở `brief`, nên ở đây nói vai trò của màn chứ không cắt
      * `statement` — một câu bị cắt giữa chừng đọc ra như dữ liệu hỏng.
      */
-    mission: `Bài ${problem.code}: sửa đường ống cho qua hết tiêu chí chấm.`,
+    mission: t('games.cicd.oj.mission', { code: problem.code }),
     brief: problem.statement,
     difficulty: problemDifficultyToLevelDifficultyLossy(problem.difficulty),
     initialWorkflow: spec.workflow,

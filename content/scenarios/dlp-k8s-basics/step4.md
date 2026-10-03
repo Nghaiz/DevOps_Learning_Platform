@@ -1,40 +1,19 @@
-# ConfigMap — tách cấu hình khỏi image
+# Xoá Pod, và không ai dựng lại
 
-Tạo một ConfigMap chứa một cặp key/value:
+`kubectl delete pod web`{{exec}}
 
-```
-kubectl create configmap web-config --from-literal=GREETING="Xin chao tu ConfigMap"
-```{{exec}}
+Lệnh chờ vài giây: Kubernetes gửi SIGTERM để nginx đóng kết nối cho tử tế, rồi mới
+dọn Pod. Giờ nhìn lại:
 
-Xem nó:
+`kubectl get pods`{{exec}}
 
-```
-kubectl get configmap web-config -o yaml
-```{{exec}}
+`No resources found`. Trang "xin chào" bạn viết ở bước trước mất theo, vì nó nằm
+trong hệ thống tệp của container, và container đi cùng Pod.
 
-Gắn nó vào Deployment `web` dưới dạng biến môi trường — không sửa Dockerfile,
-không dựng lại image:
-
-```
-kubectl set env deployment/web --from=configmap/web-config
-```{{exec}}
-
-Lệnh này khởi động một **rollout mới** (Pod cũ bị thay bằng Pod mang biến môi
-trường mới). Chờ nó xong:
-
-```
-kubectl rollout status deployment/web --timeout=60s
-```{{exec}}
-
-Xác nhận biến môi trường đã thật sự vào tới container:
-
-```
-kubectl exec deploy/web -- printenv GREETING
-```{{exec}}
-
-> **Vì sao không sửa image?** Image `nginx:1.29.0` là thứ dùng chung, bất
-> biến — nó không thuộc về bạn. ConfigMap là cấu hình RIÊNG của bạn, sống
-> ngoài image, gắn vào lúc chạy — đổi ConfigMap không cần dựng lại image,
-> không cần đẩy image mới lên đâu cả.
+Điều đáng nhớ hơn: không có gì dựng Pod lại. Một Pod tạo trần bằng `kubectl run`
+giống một tiến trình chạy tay không có ai trông. Node khởi động lại, Pod bị xoá
+nhầm, image hỏng: nó mất luôn. Ngoài đời gần như không ai tạo Pod trần cho dịch vụ
+thật. Người ta tạo **Deployment**, thứ luôn giữ đủ số Pod mong muốn. Đó là bài tiếp
+theo.
 
 Bấm **Kiểm tra**.

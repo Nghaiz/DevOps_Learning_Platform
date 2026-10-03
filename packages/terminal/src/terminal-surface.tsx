@@ -46,6 +46,20 @@ export interface TerminalHandle {
    * đã bị huỷ (component unmount) ⇒ no-op im lặng. Không ném ở ca nào.
    */
   fit(): void;
+  /**
+   * H2 — `false` chặn người dùng GÕ và DÁN vào PTY; `true` mở lại. FE gọi theo
+   * pha: chỉ `ready` mới nên gõ được (lúc đang nối, byte gõ vào sẽ xếp hàng H5
+   * rồi bắn ra hàng loạt khi mở — lệnh tự chạy mà người học không nhớ đã gõ).
+   *
+   * KHÔNG chặn `sendInput` ở trên: đó là đường `{{exec}}`, và quyết định khi nào
+   * cho bấm nó là của FE (`terminal === null` ⇒ disable nút). Chọn + copy chữ vẫn
+   * chạy khi đang tắt.
+   *
+   * Trạng thái thuộc về TERMINAL (sống qua mọi lần nối lại), không thuộc về kết
+   * nối: gọi qua một handle cũ vẫn có tác dụng, giống `fit`/`focus`. Mặc định là
+   * bật. Terminal đã huỷ ⇒ no-op.
+   */
+  setInputEnabled(enabled: boolean): void;
 }
 
 export interface TerminalSurfaceProps {
@@ -60,10 +74,13 @@ export interface TerminalSurfaceProps {
    *
    * Vế `null` là phần quan trọng, không phải phần dọn dẹp cho gọn: không có nó
    * thì nút "Chạy lệnh này" vẫn sáng trong lúc PTY đã chết, người dùng bấm, và
-   * `Connection.sendInput` NO-OP im lặng (có chủ ý — xem connection.ts, byte gõ
-   * lúc đang nối lại cố tình không được xếp hàng). Người dùng thấy một nút bấm
-   * được mà không có gì xảy ra, mà đây lại đúng là lúc terminal đang nối lại
-   * nên trông như nền tảng bị treo.
+   * handle cũ ghi vào một `Connection` đã đóng — no-op. Người dùng thấy một nút
+   * bấm được mà không có gì xảy ra, mà đây lại đúng là lúc terminal đang nối
+   * lại nên trông như nền tảng bị treo.
+   *
+   * Handle phát ngay lúc socket còn CONNECTING là CỐ Ý (H5): `sendInput` lúc đó
+   * được xếp hàng và xả sau `init`, nên một cú bấm `{{exec}}` trong khe nối lại
+   * không biến mất.
    *
    * Callback chứ không phải `ref`: handle gắn với ĐÚNG một `Connection`, nên
    * nối lại là một handle mới. Một ref bền vững sẽ che mất chuyển tiếp đó.
@@ -76,20 +93,39 @@ export interface TerminalSurfaceProps {
    */
   readonly ariaLabel?: string;
   /**
-   * D10 — gọi khi người dùng nhấn `Esc` **hai lần trong 500ms**.
+   * D10/M1 — gọi khi người dùng nhấn **`Esc` rồi `Tab`** (`direction: 'forward'`)
+   * hoặc **`Esc` rồi `Shift+Tab`** (`'backward'`) trong ≤500ms. `Esc Esc` KHÔNG
+   * còn kích hoạt — lý do ở `escape-focus.ts`.
+   *
+   * Có callback ⇒ Tab gốc bị chặn (`preventDefault`) và trang tự dời focus.
+   * KHÔNG truyền ⇒ Tab gốc của trình duyệt chạy, tức focus đi tới/lùi đúng thứ
+   * tự tài liệu mà không cần mã nào. Cả hai đường đều giữ Tab đó khỏi PTY.
    *
    * `TerminalSurface` chỉ PHÁT HIỆN, không tự chuyển focus: "rời đi đâu" là
    * quyết định của trang (khoang kế tiếp, thanh công cụ, …), còn "khi nào là
    * cử chỉ rời đi" là quyết định của terminal. Người tiêu thụ mặc định
    * (`components/session/TerminalPane` ở apps/web) dùng `focusNextAfter`.
    */
-  readonly onEscapeFocus?: () => void;
+  readonly onEscapeFocus?: (direction: 'forward' | 'backward') => void;
+  /**
+   * M9 — `true` ⇒ focus vào terminal sau khi font tải xong, ĐÚNG một lần lúc
+   * mount. Mặc định `false`: terminal không tự giật focus. Chỉ có tác dụng lúc
+   * mount (đổi giá trị sau đó bị bỏ qua) — muốn focus về sau thì gọi
+   * `TerminalHandle.focus()`.
+   *
+   * Đặt khi terminal là thứ người dùng vừa CHỦ ĐỘNG mở (bấm "Bắt đầu", mở cửa
+   * sổ terminal riêng); KHÔNG đặt khi nó tự mount lại vì đổi bố cục.
+   */
+  readonly autoFocus?: boolean;
 }
 
 export function TerminalSurface(props: TerminalSurfaceProps): React.ReactElement {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const coreRef = useRef<TerminalCore | null>(null);
   const connectionRef = useRef<Connection | null>(null);
+  // M9 — đọc MỘT lần lúc mount, như thuộc tính `autofocus` của HTML: đổi prop
+  // sau đó không được giật focus giữa chừng.
+  const autoFocusOnMountRef = useRef(props.autoFocus === true);
 
   // Callback mới nhất trong ref: effect kết nối KHÔNG được phụ thuộc vào danh
   // tính hàm của props, nếu không mỗi lần trang re-render (đồng hồ đếm ngược
@@ -145,7 +181,12 @@ export function TerminalSurface(props: TerminalSurfaceProps): React.ReactElement
       // không bao giờ chạy. `refitAfterFontLoad()` ép đo lại metric TRƯỚC rồi
       // mới fit, và chỉ phát `resize` khi số cột/hàng thật sự đổi.
       core.refitAfterFontLoad();
-      core.focus();
+      // M9 — chỉ giật focus khi trang XIN (`autoFocus`). Bản cũ gọi vô điều kiện,
+      // nên mỗi lần mount (đổi bố cục hẹp↔rộng, mở lại trang có phiên sống) kéo
+      // focus khỏi chỗ người dùng đang gõ.
+      if (autoFocusOnMountRef.current) {
+        core.focus();
+      }
     });
 
     return () => {
@@ -169,7 +210,7 @@ export function TerminalSurface(props: TerminalSurfaceProps): React.ReactElement
     coreRef.current?.setTheme(props.theme);
   }, [props.theme]);
 
-  // ── D10: Esc-Esc rời focus ─────────────────────────────────────────────────
+  // ── D10/M1: Esc rồi Tab rời focus ──────────────────────────────────────────
   //
   // ⛔ Vị trí của listener này là phần ĐÚNG-SAI, không phải phần phong cách.
   //
@@ -178,18 +219,17 @@ export function TerminalSurface(props: TerminalSurfaceProps): React.ReactElement
   // `e.preventDefault(), e.stopPropagation()`. Nghĩa là **Escape bị chặn ngay
   // tại `<textarea>` nội bộ của xterm** — một `onKeyDown` React trên container
   // (pha bubble) sẽ KHÔNG BAO GIỜ thấy nó, và tính năng sẽ "im lặng không chạy"
-  // đúng theo kiểu khó chẩn đoán nhất: không lỗi, không cảnh báo, chỉ là Esc-Esc
+  // đúng theo kiểu khó chẩn đoán nhất: không lỗi, không cảnh báo, chỉ là cử chỉ
   // không làm gì cả.
   //
   // Nên: listener NATIVE ở pha CAPTURE trên container. Pha capture đi từ
   // window xuống, nên nó chạy TRƯỚC listener của xterm ở textarea.
   //
-  // Và vì nó chạy trước, nó tuyệt đối KHÔNG được gọi `preventDefault()` hay
-  // `stopPropagation()`: làm vậy là nuốt mất phím Esc ĐƠN mà vim đang cần. Đó
-  // là lý do `createEscapeFocusDetector` chỉ nhận `(key, atMs)` chứ không nhận
-  // `Event` — nó không cầm cái để nuốt. Kể cả lần Esc thứ hai cũng được thả cho
-  // xterm: một `\x1b` thừa vào PTY là vô hại ở mọi TUI (vim normal mode bỏ qua),
-  // còn một nhánh code có quyền huỷ sự kiện thì sớm muộn sẽ huỷ nhầm.
+  // Và vì nó chạy trước, nó KHÔNG BAO GIỜ được huỷ phím Esc: làm vậy là nuốt
+  // mất phím Esc mà vim đang cần. `createEscapeFocusDetector` chỉ nhận
+  // `(key, atMs)` chứ không nhận `Event` — nó không cầm cái để nuốt. Thứ DUY
+  // NHẤT effect này được nuốt là phím Tab khép lại `Esc → Tab` (M1): Tab đó là
+  // cử chỉ rời đi, không phải phím của shell, nên `\t` không được tới PTY.
   useEffect(() => {
     const container = containerRef.current;
     if (container === null) {
@@ -199,9 +239,19 @@ export function TerminalSurface(props: TerminalSurfaceProps): React.ReactElement
     const handleKeyDown = (event: KeyboardEvent): void => {
       // `event.timeStamp` chứ không `Date.now()`: một nguồn thời gian duy nhất
       // (xem chú thích `press`), và nó là mốc của chính lần nhấn phím.
-      if (detector.press(event.key, event.timeStamp)) {
-        handlersRef.current.onEscapeFocus?.();
+      if (!detector.press(event.key, event.timeStamp)) {
+        return;
       }
+      // M1 — đây là Tab khép lại `Esc → Tab`. Chặn nó tới textarea của xterm
+      // (không thì `	` đi vào PTY và shell hoàn tất lệnh ngay lúc người dùng
+      // rời đi). Đây là phím DUY NHẤT effect này được nuốt; Esc thì không bao giờ.
+      event.stopPropagation();
+      const onEscapeFocus = handlersRef.current.onEscapeFocus;
+      if (onEscapeFocus !== undefined) {
+        event.preventDefault();
+        onEscapeFocus(event.shiftKey ? 'backward' : 'forward');
+      }
+      // Không có callback ⇒ để Tab gốc của trình duyệt dời focus.
     };
     // Rời khỏi terminal bằng chuột/Tab thì quên lần Esc đang treo — nếu không,
     // một Esc từ mười phút trước còn treo và lần Esc đầu tiên khi quay lại sẽ
@@ -236,6 +286,8 @@ export function TerminalSurface(props: TerminalSurfaceProps): React.ReactElement
       onControl: (message) => handlersRef.current.onControl(message),
       onBinary: (chunk) => core.write(chunk),
       onClose: (code) => handlersRef.current.onClose(code),
+      // H1 — mốc dedup `resize` thuộc về TỪNG kết nối: là số `init` vừa mang đi.
+      onOpen: (sentSize) => coreRef.current?.syncResizeBaseline(sentSize),
     });
     connectionRef.current = connection;
 
@@ -256,6 +308,7 @@ export function TerminalSurface(props: TerminalSurfaceProps): React.ReactElement
       sendInput: (data) => connection.sendInput(data),
       focus: () => coreRef.current?.focus(),
       fit: () => coreRef.current?.fit(),
+      setInputEnabled: (enabled) => coreRef.current?.setInputEnabled(enabled),
     });
 
     return () => {
@@ -278,11 +331,14 @@ export function TerminalSurface(props: TerminalSurfaceProps): React.ReactElement
         effect trên. Thiếu đường thoát thì `role="application"` biến terminal
         thành bẫy focus, tức đổi một lỗi a11y lấy một lỗi a11y nặng hơn.
 
-        `tabIndex={0}` để Tab tới được container ngay cả trước khi xterm dựng
-        xong textarea nội bộ của nó.
+        ⛔ M8 — KHÔNG `tabIndex` ở đây. xterm tự đặt `tabIndex=0` cho textarea
+        nội bộ (dựng ĐỒNG BỘ trong `terminal.open()`, tức ngay effect mount),
+        nên container mà cũng nhận Tab là HAI điểm dừng, điểm đầu chết: focus
+        nằm ở một `<div>`, gõ không đi đâu cả. Không có tabindex thì Tab rơi
+        thẳng vào textarea, và trình đọc màn hình vẫn đọc `role` + `aria-label`
+        của container vì textarea nằm bên trong nó.
       */
       role="application"
-      tabIndex={0}
       aria-label={props.ariaLabel}
       className="h-full w-full"
       data-testid="dlp-terminal"

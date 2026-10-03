@@ -19,6 +19,7 @@
  */
 
 import type { ProblemFailureCode, ProblemTopicId } from '../core/problem.ts';
+import type { GameId } from '../core/types.ts';
 import type { ClusterSpec, Objective, ResourceKind } from './contract.ts';
 import { t } from '@devops-platform/copy';
 
@@ -268,6 +269,15 @@ export interface ProblemFilter {
   readonly query?: string;
   /** Lọc theo quan hệ với người đang xem. Bỏ qua khi chưa đăng nhập. */
   readonly viewerStatus?: readonly ProblemViewerStatus[];
+  /**
+   * Chỉ bài của MỘT game (cột `problems.game_id`). Vắng = mọi game — đúng hành vi
+   * trước khi trường này có.
+   *
+   * Một giá trị chứ không phải mảng, khác mọi trường khác ở đây: bộ chọn game của
+   * kho bài là một-game-một-lúc (`app/(session)/problems/problem-game.ts` nói vì
+   * sao), và một mảng sẽ mở ra trạng thái "hai game" mà không màn nào vẽ được.
+   */
+  readonly gameId?: GameId;
 }
 
 /**

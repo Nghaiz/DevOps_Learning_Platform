@@ -117,7 +117,21 @@ type harness struct {
 // upstream gia tu phat header — can cho doi chung "khong nhan doi header".
 type harnessOpt func(*harnessCfg)
 
-type harnessCfg struct{ upstreamHeaders map[string]string }
+type harnessCfg struct {
+	upstreamHeaders map[string]string
+	// upstream thay handler mặc định của pod giả (vd. một Theia treo không trả
+	// header). nil ⇒ handler ghi lại path/cookie như cũ.
+	upstream http.Handler
+	timeout  time.Duration
+}
+
+func withUpstream(h http.Handler) harnessOpt {
+	return func(c *harnessCfg) { c.upstream = h }
+}
+
+func withTimeout(d time.Duration) harnessOpt {
+	return func(c *harnessCfg) { c.timeout = d }
+}
 
 // withUpstreamHeaders bat upstream gia phat dung bo header ma ta cung dat, de
 // chung minh client chi nhan MOT gia tri chu khong phai hai.
@@ -128,13 +142,13 @@ func withUpstreamHeaders(m map[string]string) harnessOpt {
 func newHarness(t *testing.T, sessions *spySessions, maxPerSession int, opts ...harnessOpt) *harness {
 	t.Helper()
 
-	cfg := &harnessCfg{}
+	cfg := &harnessCfg{timeout: 2 * time.Second}
 	for _, o := range opts {
 		o(cfg)
 	}
 
 	rec := &upstreamRecord{}
-	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	var upHandler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		rec.hits.Add(1)
 		rec.path = r.URL.Path
 		rec.cookie = r.Header.Get("Cookie")
@@ -143,7 +157,11 @@ func newHarness(t *testing.T, sessions *spySessions, maxPerSession int, opts ...
 		}
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("theia-index"))
-	}))
+	})
+	if cfg.upstream != nil {
+		upHandler = cfg.upstream
+	}
+	up := httptest.NewServer(upHandler)
 	t.Cleanup(up.Close)
 
 	u, err := url.Parse(up.URL)
@@ -170,7 +188,7 @@ func newHarness(t *testing.T, sessions *spySessions, maxPerSession int, opts ...
 		AllowedOrigins: []string{testOrigin},
 		Port:           port,
 		MaxPerSession:  maxPerSession,
-		Timeout:        2 * time.Second,
+		Timeout:        cfg.timeout,
 	})
 
 	srv := httptest.NewServer(mux)

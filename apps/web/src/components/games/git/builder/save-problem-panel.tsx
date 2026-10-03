@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Panel lưu bản nháp thành một bài tập — §18.E.5, đường xuất THỨ HAI của Builder.
+ * Panel lưu bản nháp thành một bài tập, §18.E.5, đường xuất THỨ HAI của Builder.
  *
  * ## ⛔ Đây là lời gọi mạng DUY NHẤT của cả trụ cột game, và nó phải ở lại như vậy
  *
@@ -11,42 +11,37 @@
  * lúc chơi"). Panel này không phá ô đó, và nó không phá bằng cách may mắn:
  *
  *  1. **Không dùng React Query.** Client tRPC ở `lib/trpc.ts` là bản THUẦN
- *     (`createTRPCClient` + `httpBatchLink`), không cần provider nào. Tiền lệ là
- *     trang `/session`, và `lib/trpc.ts` đã ghi rõ vì sao nó không kèm TanStack.
+ *     (`createTRPCClient` + `httpBatchLink`), không cần provider nào.
  *  2. **Nhập ĐỘNG, trong chính hàm xử lý bấm nút.** `import()` nằm trong
- *     `onSave` nên `@trpc/client` không có một byte nào trong bundle đầu của
+ *     `save` nên `@trpc/client` không có một byte nào trong bundle đầu của
  *     `/games/git`, và tầng mạng theo nghĩa đen KHÔNG TỒN TẠI cho tới lúc người
  *     soạn bấm Lưu. Nhập tĩnh ở đầu file vẫn giữ được ô e2e (nó không bấm nút
- *     nào ở đây), nhưng nó biến "không gọi mạng" từ một tính chất CẤU TRÚC thành
- *     một tính chất tình cờ, và tình cờ thì lần sau ai đó phá mà không ai thấy.
+ *     này), nhưng nó biến "không gọi mạng" từ tính chất CẤU TRÚC thành tính chất
+ *     tình cờ. Ô gác: `save-problem-promises.test.ts`.
  *
  * ## Màn game KHÔNG bắt đăng nhập, mà `problems.create` thì đòi tài khoản soạn bài
  *
- * `/games` không nằm trong `PROTECTED_PATHS` của `proxy.ts` (cùng khối chú thích
- * ở `games/layout.tsx`), nên một khách vãng lai mở được Builder. `problems.create`
- * là `authorProcedure`, nên cú bấm của họ nhận `UNAUTHORIZED`. Đó là hành vi
- * ĐÚNG, và việc của panel là nói ra bằng tiếng Việt thay vì ném một mã lỗi lên
- * màn. Câu đó cũng nằm sẵn ở `author.builder.save.scope`, TRƯỚC khi họ soạn xong
- * ba ô, chứ không đợi tới lúc bấm.
+ * `/games` không nằm trong `PROTECTED_PATHS` của `proxy.ts`, nên một khách vãng
+ * lai mở được Builder và cú bấm của họ nhận `UNAUTHORIZED`. Đó là hành vi ĐÚNG;
+ * việc của panel là nói ra bằng tiếng Việt thay vì ném một mã lỗi lên màn. Câu
+ * đó cũng nằm sẵn ở `author.builder.save.scope`, TRƯỚC khi họ soạn xong.
  *
  * ## Hai mảng song song không bao giờ lệch, vì chúng được DỰNG từ bản nháp
  *
  * `ProblemExtras.hintPenalties` và `.objectiveVisible` phải song song theo chỉ số
- * với `draft.hints` / `draft.objectives`. Panel không giữ chúng thành hai mảng
- * độc lập rồi hy vọng đồng bộ: nó giữ một bảng tra và DỰNG mảng theo đúng độ dài
- * của bản nháp ở mỗi lần vẽ. Nên hai mã lỗi `*-lech-so-luong` của
- * `problemSaveIssues` KHÔNG với tới được từ giao diện này, và đó là chủ ý: chúng
- * gác hợp đồng của hàm thuần cho mọi chỗ gọi khác, không gác cái panel này.
- *
- * `visible` mặc định `true` và điểm trừ mặc định `0`. Cả hai là hướng AN TOÀN:
- * không giấu gì, không tính tiền gì. Mặc định ngược lại sẽ âm thầm biến mọi
- * testcase thành testcase ẩn và mọi gợi ý thành gợi ý có giá.
+ * với `draft.hints` / `draft.objectives`. Panel giữ một bảng tra và DỰNG mảng
+ * theo đúng độ dài của bản nháp ở mỗi lần vẽ, nên hai mã `*-lech-so-luong` của
+ * `problemSaveIssues` không với tới được từ giao diện này; chúng gác hợp đồng
+ * của hàm thuần cho mọi chỗ gọi khác. `visible` mặc định `true`, điểm trừ mặc
+ * định `0`: không giấu gì, không tính tiền gì.
  */
 
 import { useCallback, useMemo, useState, type ReactElement } from 'react';
+import { CircleCheck, Save, TriangleAlert } from 'lucide-react';
 
 import { t } from '@devops-platform/copy';
 import { problemTopicLabels, type LevelDraft } from '@devops-platform/games';
+import { Button } from '@devops-platform/ui';
 
 import { parseTags } from '../../../../app/author/problems/text-tools';
 import { SAVE_ISSUE_TEXT, SAVE_LOSS_TEXT } from './builder-copy';
@@ -57,9 +52,13 @@ import {
   slugFromTitle,
   type ProblemExtras,
 } from './draft-to-problem';
-
-/** Trần của `problemBodyShape.topics`. Ô chọn khoá luôn, không đợi Zod nói. */
-const MAX_TOPICS = 3;
+import {
+  MAX_TOPICS,
+  PenaltyLedger,
+  TagField,
+  TopicPicker,
+  VisibilityList,
+} from './save-problem-fields';
 
 type SaveStatus =
   | { readonly kind: 'idle' }
@@ -67,25 +66,21 @@ type SaveStatus =
   | { readonly kind: 'done'; readonly code: string }
   | { readonly kind: 'error'; readonly message: string };
 
-const INPUT_CLASS =
-  'rounded-md border border-input bg-card px-3 py-2 text-xs text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none';
+const IDLE: SaveStatus = { kind: 'idle' };
 
 export function SaveProblemPanel({ draft }: { readonly draft: LevelDraft }): ReactElement {
   const [topics, setTopics] = useState<readonly string[]>([]);
   const [tagText, setTagText] = useState('');
   /**
-   * Điểm trừ theo CHỈ SỐ gợi ý, không theo id.
-   *
-   * `GitLevel.hints` là mảng chuỗi trần và không có id nào để bám, nên chỉ số là
-   * khoá duy nhất có sẵn — cùng khoá mà `draftToProblemBody` dùng để sinh
-   * `goi-y-N`. Hệ quả phải nói ra: chèn một gợi ý vào GIỮA danh sách sẽ đẩy giá
-   * của mọi gợi ý sau nó lệch đi một ô. Bản nháp không chở id thì không có cách
-   * nào tránh; người soạn kiểm lại cột giá sau khi chèn.
+   * Điểm trừ theo CHỈ SỐ gợi ý, cùng khoá mà `draftToProblemBody` dùng để sinh
+   * `goi-y-N`. Hệ quả phải nói ra: chèn một gợi ý vào GIỮA danh sách đẩy giá của
+   * mọi gợi ý sau nó lệch một ô. Bản nháp không chở id gợi ý nên không tránh
+   * được; người soạn kiểm lại cột giá sau khi chèn.
    */
   const [penalties, setPenalties] = useState<Readonly<Record<number, number>>>({});
   /** Id mục tiêu bị ẩn. Theo ID chứ không theo chỉ số: id ổn định khi sắp lại. */
   const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
-  const [status, setStatus] = useState<SaveStatus>({ kind: 'idle' });
+  const [status, setStatus] = useState<SaveStatus>(IDLE);
 
   const topicOptions = useMemo(() => Object.entries(problemTopicLabels('git')), []);
 
@@ -102,19 +97,19 @@ export function SaveProblemPanel({ draft }: { readonly draft: LevelDraft }): Rea
   const issues = useMemo(() => problemSaveIssues(draft, extras), [draft, extras]);
   /*
    * KHÔNG đưa vào `disabled` của nút Lưu. Mất mát là thứ để ĐỌC, không phải thứ
-   * để sửa — khoá nút vì nó sẽ đóng đường xuất thứ hai của Builder cho một bản
+   * để sửa: khoá nút vì nó sẽ đóng đường xuất thứ hai của Builder cho một bản
    * nháp hoàn toàn hợp lệ. Xem `draft-to-problem.ts` § `ProblemSaveLossCode`.
    */
   const losses = useMemo(() => problemSaveLosses(draft), [draft]);
   const slug = slugFromTitle(draft.title);
 
   const toggleTopic = useCallback((id: string) => {
-    setStatus({ kind: 'idle' });
+    setStatus(IDLE);
     setTopics((current) =>
       current.includes(id)
         ? current.filter((topic) => topic !== id)
-        : // Bỏ qua khi đã đủ ba thay vì cho chọn rồi báo lỗi: ô đánh dấu thứ tư
-          // đã `disabled`, nên nhánh này chỉ với tới được từ bàn phím.
+        : // Bỏ qua khi đã đủ ba thay vì cho chọn rồi báo lỗi: chip thứ tư đã
+          // `disabled`, nên nhánh này chỉ với tới được nếu ai đó gỡ cờ đó.
           current.length >= MAX_TOPICS
           ? current
           : [...current, id],
@@ -128,10 +123,8 @@ export function SaveProblemPanel({ draft }: { readonly draft: LevelDraft }): Rea
       return;
     }
     setStatus({ kind: 'saving' });
-    /*
-     * Nhập ĐỘNG — xem khối đầu file. `lib/trpc` kéo `@trpc/client` theo, và
-     * `/games/git` không được mang nó trong bundle đầu.
-     */
+    // Nhập ĐỘNG, xem khối đầu file: `/games/git` không được mang `@trpc/client`
+    // trong bundle đầu.
     const { trpc, describeTrpcError, trpcErrorCode } = await import('../../../../lib/trpc');
     try {
       const saved = await trpc.problems.create.mutate(body);
@@ -148,198 +141,137 @@ export function SaveProblemPanel({ draft }: { readonly draft: LevelDraft }): Rea
   }, [draft, extras]);
 
   return (
-    <section aria-labelledby="builder-luu-bai" className="git-builder-publish flex flex-col gap-3">
-      <h3 id="builder-luu-bai" className="text-sm font-semibold text-foreground">
-        Lưu thành bài tập
-      </h3>
-      <p className="text-xs text-muted-foreground" data-testid="git-builder-save-scope">
+    <div className="flex flex-col gap-4">
+      <p className="text-sm leading-relaxed text-foreground" data-testid="git-builder-save-scope">
         {t('author.builder.save.scope')}
       </p>
 
-      {/* ── Chủ đề ───────────────────────────────────────────────────────── */}
-      <fieldset className="flex flex-col gap-2 rounded-md border border-input p-3">
-        <legend className="px-1 text-xs font-medium text-foreground">
-          Chủ đề (chọn một tới ba)
-        </legend>
-        <div className="flex flex-wrap gap-x-4 gap-y-2">
-          {topicOptions.map(([id, label]) => {
-            const checked = topics.includes(id);
-            return (
-              <div key={id} className="flex items-center gap-2">
-                <input
-                  id={`builder-topic-${id}`}
-                  type="checkbox"
-                  checked={checked}
-                  disabled={!checked && topics.length >= MAX_TOPICS}
-                  onChange={() => {
-                    toggleTopic(id);
-                  }}
-                  className="size-4 rounded border-input focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:opacity-50"
-                />
-                <label htmlFor={`builder-topic-${id}`} className="text-xs text-foreground">
-                  {label}
-                </label>
-              </div>
-            );
-          })}
-        </div>
-      </fieldset>
+      <TopicPicker options={topicOptions} selected={topics} onToggle={toggleTopic} />
+      <TagField
+        value={tagText}
+        onChange={(next) => {
+          setStatus(IDLE);
+          setTagText(next);
+        }}
+      />
+      <PenaltyLedger
+        hints={draft.hints}
+        penalties={penalties}
+        onChange={(index, value) => {
+          setStatus(IDLE);
+          setPenalties((current) => ({ ...current, [index]: value }));
+        }}
+      />
+      <VisibilityList
+        objectives={draft.objectives}
+        hidden={hidden}
+        onChange={(id, visible) => {
+          setStatus(IDLE);
+          setHidden((current) => {
+            const next = new Set(current);
+            if (visible) next.delete(id);
+            else next.add(id);
+            return next;
+          });
+        }}
+      />
 
-      {/* ── Tag ──────────────────────────────────────────────────────────── */}
-      <div className="flex flex-col gap-1">
-        <label htmlFor="builder-tags" className="text-xs font-medium text-foreground">
-          Tag
-        </label>
-        <p className="text-[10px] text-muted-foreground">
-          Phân loại tự do, ngăn bằng dấu phẩy. Bỏ dấu và chuyển thành gạch nối tự động.
-        </p>
-        <input
-          id="builder-tags"
-          value={tagText}
-          autoComplete="off"
-          onChange={(e) => {
-            setStatus({ kind: 'idle' });
-            setTagText(e.target.value);
-          }}
-          className={`w-full ${INPUT_CLASS}`}
-        />
+      <div
+        className="flex items-baseline justify-between gap-3 border-y border-border py-2.5"
+        data-testid="git-builder-save-slug"
+      >
+        <span className="type-label shrink-0 text-muted-foreground">
+          {t('author.builder.save.slug')}
+        </span>
+        {slug === '' ? (
+          <span className="text-sm text-muted-foreground">
+            {t('author.builder.save.slug-empty')}
+          </span>
+        ) : (
+          <code className="min-w-0 truncate font-mono text-sm text-foreground">{slug}</code>
+        )}
       </div>
 
-      {/* ── Giá gợi ý ────────────────────────────────────────────────────── */}
-      {draft.hints.length > 0 && (
-        <fieldset className="flex flex-col gap-2 rounded-md border border-input p-3">
-          <legend className="px-1 text-xs font-medium text-foreground">Điểm trừ mỗi gợi ý</legend>
-          <p className="text-[10px] text-muted-foreground">
-            Gợi ý của level thì miễn phí vì level DẠY. Gợi ý của bài tập có giá vì bài tập THỬ. Để 0
-            nếu muốn miễn phí.
-          </p>
-          {draft.hints.map((hint, index) => (
-            <div key={`penalty-${String(index)}`} className="flex items-center gap-2">
-              <label
-                htmlFor={`builder-penalty-${String(index)}`}
-                className="flex-1 truncate text-xs text-foreground"
-              >
-                {hint}
-              </label>
-              <input
-                id={`builder-penalty-${String(index)}`}
-                type="number"
-                min={0}
-                max={1000}
-                step={1}
-                value={penalties[index] ?? 0}
-                onChange={(e) => {
-                  setStatus({ kind: 'idle' });
-                  const next = Number(e.target.value);
-                  setPenalties((current) => ({ ...current, [index]: next }));
-                }}
-                className={`w-24 ${INPUT_CLASS}`}
-              />
-            </div>
-          ))}
-        </fieldset>
-      )}
-
-      {/* ── Testcase ẩn ──────────────────────────────────────────────────── */}
-      <fieldset className="flex flex-col gap-2 rounded-md border border-input p-3">
-        <legend className="px-1 text-xs font-medium text-foreground">
-          Mục tiêu nào hiện trước khi nộp
-        </legend>
-        <p className="text-[10px] text-muted-foreground">
-          Bỏ đánh dấu để giấu một mục tiêu cho tới khi người làm nộp. Đây KHÔNG phải cờ &quot;bắt
-          buộc&quot; của level: mọi testcase đều chặn, ẩn hay hiện cũng vậy.
-        </p>
-        {draft.objectives.length === 0 ? (
-          <p className="text-[10px] text-muted-foreground">Bản nháp chưa có mục tiêu nào.</p>
-        ) : (
-          draft.objectives.map((objective) => (
-            <div key={objective.id} className="flex items-center gap-2">
-              <input
-                id={`builder-visible-${objective.id}`}
-                type="checkbox"
-                checked={!hidden.has(objective.id)}
-                onChange={(e) => {
-                  setStatus({ kind: 'idle' });
-                  setHidden((current) => {
-                    const next = new Set(current);
-                    if (e.target.checked) next.delete(objective.id);
-                    else next.add(objective.id);
-                    return next;
-                  });
-                }}
-                className="size-4 rounded border-input focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-              />
-              <label
-                htmlFor={`builder-visible-${objective.id}`}
-                className="text-xs text-foreground"
-              >
-                {objective.label === '' ? objective.id : objective.label}
-              </label>
-            </div>
-          ))
-        )}
-      </fieldset>
-
-      <p className="text-[10px] text-muted-foreground" data-testid="git-builder-save-slug">
-        Đường dẫn sinh từ tiêu đề: <code>{slug === '' ? '(chưa có)' : slug}</code>
-      </p>
-
       {issues.length > 0 && (
-        <ul className="flex list-disc flex-col gap-1 pl-5" data-testid="git-builder-save-issues">
+        <ul className="flex flex-col gap-1.5" data-testid="git-builder-save-issues">
           {issues.map((issue) => (
-            <li key={`${issue.code}-${issue.detail ?? ''}`} className="text-xs text-destructive">
-              {t(SAVE_ISSUE_TEXT[issue.code])}
-              {issue.detail !== undefined && (
-                <>
-                  {' '}
-                  <code>{issue.detail}</code>
-                </>
-              )}
+            <li
+              key={`${issue.code}-${issue.detail ?? ''}`}
+              className="flex animate-rise gap-2.5 text-sm leading-relaxed text-destructive"
+            >
+              <span aria-hidden className="mt-2 size-2 shrink-0 bg-destructive" />
+              <span>
+                {t(SAVE_ISSUE_TEXT[issue.code])}
+                {issue.detail !== undefined && (
+                  <>
+                    {' '}
+                    <code className="bg-muted px-1 font-mono text-xs">{issue.detail}</code>
+                  </>
+                )}
+              </span>
             </li>
           ))}
         </ul>
       )}
 
       {losses.length > 0 && (
-        <ul className="flex list-disc flex-col gap-1 pl-5" data-testid="git-builder-save-losses">
+        <ul className="flex flex-col gap-1.5 bg-muted p-3" data-testid="git-builder-save-losses">
           {losses.map((loss) => (
-            <li key={loss.code} className="text-xs text-warning">
-              {t(SAVE_LOSS_TEXT[loss.code])}
-              {loss.detail !== undefined && (
-                <>
-                  {' '}
-                  <code>{loss.detail}</code>
-                </>
-              )}
+            <li key={loss.code} className="flex gap-2.5 text-sm leading-relaxed text-warning">
+              <TriangleAlert aria-hidden className="mt-0.5 size-4 shrink-0" />
+              <span>
+                {t(SAVE_LOSS_TEXT[loss.code])}
+                {loss.detail !== undefined && (
+                  <>
+                    {' '}
+                    <code className="font-mono text-xs">{loss.detail}</code>
+                  </>
+                )}
+              </span>
             </li>
           ))}
         </ul>
       )}
 
       <div>
-        <button
-          type="button"
+        <Button
           data-testid="git-builder-save-problem"
-          disabled={issues.length > 0 || status.kind === 'saving'}
+          iconLeft={<Save aria-hidden />}
+          loading={status.kind === 'saving'}
+          disabled={issues.length > 0}
           onClick={() => {
             void save();
           }}
-          className="rounded-md border border-input px-3 py-1.5 text-xs text-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {status.kind === 'saving' ? 'Đang lưu...' : t('author.builder.save.run')}
-        </button>
+          {t('author.builder.save.run')}
+        </Button>
       </div>
 
+      {status.kind === 'saving' && (
+        <p role="status" className="sr-only">
+          {t('author.builder.save.saving')}
+        </p>
+      )}
       {status.kind === 'done' && (
-        <p role="status" data-testid="git-builder-save-done" className="text-xs text-foreground">
-          {t('author.builder.save.done', { code: status.code })}
+        <p
+          role="status"
+          data-testid="git-builder-save-done"
+          className="flex animate-rise gap-2 text-sm leading-relaxed text-success"
+        >
+          <CircleCheck aria-hidden className="mt-0.5 size-4 shrink-0" />
+          <span>{t('author.builder.save.done', { code: status.code })}</span>
         </p>
       )}
       {status.kind === 'error' && (
-        <p role="alert" data-testid="git-builder-save-error" className="text-xs text-destructive">
-          {status.message}
+        <p
+          role="alert"
+          data-testid="git-builder-save-error"
+          className="flex animate-rise gap-2 text-sm leading-relaxed text-destructive"
+        >
+          <TriangleAlert aria-hidden className="mt-0.5 size-4 shrink-0" />
+          <span>{status.message}</span>
         </p>
       )}
-    </section>
+    </div>
   );
 }

@@ -1,6 +1,6 @@
 # Quy tắc thiết kế hiện hành
 
-<!-- updated 260913 -->
+<!-- updated 261003 -->
 
 Cập nhật 2026-09-13. Nguồn giá trị màu là [globals.css](../apps/web/src/app/globals.css); nguồn đo tương phản là [token contract tests](../packages/ui/src/theme/tokens.contract.test.ts). [Hệ thiết kế](design-system.md) mô tả component và cơ chế theme.
 
@@ -23,17 +23,21 @@ Cập nhật 2026-10-03, thay toàn bộ quyết định ngày 2026-09-13. Chủ
 
 ## Chữ, màu và bố cục
 
-Mỗi trang có tiêu đề h1 và các khối tiếp theo dùng h2/h3 theo quan hệ nội dung. CardTitle và AlertTitle nhận prop `as` để chọn thẻ h1..h6 mà không đổi hình thức; mặc định h3/h5 được giữ để tương thích. Không dùng cấp heading như một cách chọn cỡ chữ. Cổng axe bắt cả `heading-order` và `page-has-heading-one` dù axe xếp chúng mức moderate.
+Bản dựng lại PTIT (2026-10-03) theo [design brief](../plans/fe-ptit-rebuild/design-brief.md): ngôn ngữ "bảng tuyến", mỗi chủ đề là một tuyến tàu có màu riêng, header trên cùng thay cho thanh bên. Tên class và API component chốt ở [ui-kit](../plans/fe-ptit-rebuild/contracts/ui-kit.md).
 
-Control được làm mờ bằng opacity vẫn có thể nhận Tab. Vỏ SearchTabs đồng bộ `inert` và `aria-hidden` với trạng thái mở, đồng thời trả focus về nút mở khi đóng; không dùng màu focus để chữa một nút vốn đang ẩn. Thanh tab dài trên các trang tác giả được phép xuống dòng và giữ vùng bấm 44 px.
+Bốn luật chủ dự án chốt: không thẻ bo góc (bo góc bằng 0 ở mọi bề mặt), không thanh điều hướng bên trái, không dùng viền trái làm dấu "đang mở", không hàng ô số liệu ở trang tổng quan. Số liệu nằm trong câu (`Num`), trong bảng, hoặc trên thước đo (`Meter`).
 
-Giữ Be Vietnam Pro với bộ ký tự Vietnamese và Latin, cùng system monospace cho lệnh. Không thêm font chỉ để trang trí. Tất cả chữ giao diện, nhãn accessibility và ví dụ terminal đi qua packages/copy.
+Ba họ chữ, mỗi họ một vai: Archivo cho tiêu đề kiểu biển ga (kéo rộng bằng `font-stretch`), Be Vietnam Pro cho chữ đọc, JetBrains Mono cho lệnh và nhãn in hoa. Cả ba có bộ ký tự Vietnamese và tự host qua next/font. Dấu tiếng Việt chồng tầng nên line-height của tiêu đề không dưới 1.02. Tất cả chữ giao diện đi qua packages/copy.
 
-Màu giao diện dùng semantic tokens; không khai raw color trong component. Primary tối hiện là `oklch(0.68 0.19 26.7)`. Dùng primary-foreground cho chữ trên nút; trắng tinh không đủ tỷ lệ 4.5:1 trên primary tối. Primary và destructive cùng họ đỏ nên phân biệt bằng nền đặc/rỗng, viền và icon.
+Màu dùng semantic tokens, không khai màu cứng trong component. `primary` (đỏ PTIT) chỉ làm nền đặc: nút chính, khối section đang mở. Đỏ làm chữ là `brand`. `signal` (vàng sao PTIT) chỉ làm nền dưới chữ ink. Màu chủ đề lấy qua `lineForTopic` và token `line-*`. Độ khó không dùng màu sắc mà dùng thanh bốn vạch, để màu chỉ mang nghĩa "chủ đề".
 
-Thiết kế bắt đầu từ 320 px, kiểm tra tối thiểu 390 px, 768 px và desktop. Nội dung phải tự co và xuống dòng; code không làm tràn cả trang. Touch target tối thiểu 44×44 px. Heading dùng rem-aware clamp; body có line-height đủ đọc dấu tiếng Việt. Focus có offset trên bề mặt primary.
+Mỗi trang có đúng một h1 (PosterHeader hoặc ToolHeader render nó), các khối tiếp theo dùng h2/h3 theo quan hệ nội dung. Có đúng một `<main>`, ở app-shell. Focus luôn hiện vòng `ring` xanh. Cổng axe bắt cả `heading-order` và `page-has-heading-one`.
 
-Chuyển động cần có mục đích, gắn với cuộn hoặc thao tác và tuân thủ prefers-reduced-motion. Không nới CSP hoặc giới hạn bundle để chữa thư viện hay hiệu ứng. Độ mượt và chất lượng mô hình phải được kiểm tra trên cảnh WebGL thực tế; kết quả DOM không thay thế bằng chứng hình ảnh và phép đo khung hình.
+Kiểm tra ở 375, 768, 1024 và 1440 px, không cuộn ngang ở 375 px. Mọi danh sách có đủ trạng thái đang tải (khung chờ hình dòng thật), rỗng, lỗi và một trang.
+
+Chuyển động phục vụ thao tác: rê vào dòng thì màu tuyến quét từ trái sang, menu mở bằng clip-path, danh sách vào trang lần lượt. Tất cả tắt khi bật prefers-reduced-motion. Không nới CSP hoặc ngân sách bundle để đổi lấy hiệu ứng.
+
+Game K8s (`components/k8s-arena`) giữ nguyên hình theo yêu cầu của chủ dự án: khối `.arena-root.dark` cuối globals.css đóng băng token của nó.
 
 ## Bản đồ chữ
 

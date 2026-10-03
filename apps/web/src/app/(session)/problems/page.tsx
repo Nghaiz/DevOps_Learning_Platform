@@ -2,36 +2,37 @@ import { Suspense } from 'react';
 import type { Metadata } from 'next';
 import { t } from '@devops-platform/copy';
 import { redirect } from 'next/navigation';
+import { withReturnPath } from '../../login/return-path';
 import { readViewerSession } from '../../../components/catalog/viewer-role.server';
 import { ProblemsClient } from './problems-client';
+import { ProblemsPoster, ProblemsSkeleton } from './problems-poster';
 
 export const metadata: Metadata = {
-  title: t('catalog.meta-title.problems'),
-  description: t('catalog.problems.meta-description'),
+  title: t('problem.oj.meta-title'),
+  description: t('problem.oj.meta-description'),
 };
 
 /**
- * Server Component — kiểm auth THẬT (đụng DB), cùng khuôn `/labs` và `/paths`:
+ * Server Component, kiểm auth THẬT (đụng DB), cùng khuôn `/labs` và `/paths`:
  * `proxy.ts` chỉ kiểm SỰ TỒN TẠI của cookie, còn trang này là nguồn sự thật nên
  * nó chặn được cả ca cookie còn nhưng phiên đã bị thu hồi ở DB.
  *
- * ⚠ `/problems` CHƯA có trong `PROTECTED_PATHS` của `proxy.ts` — file đó ngoài
- * vùng sở hữu của lane này. Thiếu nó chỉ làm mất lượt chuyển hướng SỚM (người
- * chưa đăng nhập tải trang rồi mới bị đẩy về `/login`), không mở ra lỗ nào: cổng
- * thật là dòng `redirect` dưới đây cộng `protectedProcedure` ở tầng tRPC.
- *
- * `<Suspense>` là bắt buộc chứ không phải cẩn thận thừa: `ProblemsClient` đọc
- * `useSearchParams`, và Next từ chối dựng một cây có hook đó mà không có ranh
- * giới suspense bao ngoài.
+ * `<Suspense>` là bắt buộc: `ProblemsClient` đọc `useSearchParams`, và Next từ
+ * chối dựng một cây có hook đó mà không có ranh giới suspense bao ngoài. Ranh
+ * giới bọc ĐÚNG phần client; biển ga ở ngoài nên không chờ gì cả.
  */
 export default async function ProblemsPage() {
   if ((await readViewerSession()) === null) {
-    redirect('/login');
+    // Mang đường về theo: đăng nhập xong thì quay lại đúng trang này.
+    redirect(withReturnPath('/login', '/problems'));
   }
 
   return (
-    <Suspense fallback={null}>
-      <ProblemsClient />
-    </Suspense>
+    <>
+      <ProblemsPoster />
+      <Suspense fallback={<ProblemsSkeleton />}>
+        <ProblemsClient />
+      </Suspense>
+    </>
   );
 }

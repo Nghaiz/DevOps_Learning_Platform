@@ -104,3 +104,23 @@ export function describePasswordChangeError(code: string | null, message: string
   }
   return joinError(err('me.error.password-unknown'));
 }
+
+/** Trạng thái lưu của MỘT khối trên `/settings`; mỗi khối lưu riêng. */
+export type SaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'failed';
+
+/**
+ * Thứ tự ưu tiên là thứ tự người dùng cần biết: đang gửi thì nói đang gửi; gửi
+ * hỏng thì nói hỏng dù ô còn nháp; còn nháp thì "Chưa lưu" thắng một "Đã lưu"
+ * cũ, vì cái cũ không còn mô tả thứ đang hiện trên màn hình.
+ */
+export function saveStateOf(input: {
+  readonly dirty: boolean;
+  readonly pending: boolean;
+  readonly saved: boolean;
+  readonly failed: boolean;
+}): SaveState {
+  if (input.pending) return 'saving';
+  if (input.failed) return 'failed';
+  if (input.dirty) return 'dirty';
+  return input.saved ? 'saved' : 'idle';
+}

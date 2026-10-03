@@ -10,7 +10,8 @@ export function Checkbox({ className, ...props }: ComponentProps<typeof RadixChe
     <RadixCheckbox.Root
       data-slot="checkbox"
       className={cn(
-        'peer flex size-4 shrink-0 items-center justify-center rounded-sm border border-input bg-background',
+        // Ô vuông, nét mực 1.5px; tích = khối mực đảo màu.
+        'peer flex size-4 shrink-0 items-center justify-center rounded-control border-[1.5px] border-ink bg-card',
         'transition-colors duration-[var(--motion-fast)] ease-out outline-none',
         /*
          * Lúc TÍCH, ô là `bg-primary` — mà `--ring` = `--primary`, nên vòng
@@ -21,13 +22,14 @@ export function Checkbox({ className, ...props }: ComponentProps<typeof RadixChe
          */
         'focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
         'disabled:cursor-not-allowed disabled:opacity-50',
-        'data-[state=checked]:border-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground',
+        'data-[state=checked]:bg-ink data-[state=checked]:text-ink-foreground',
+        'data-[state=indeterminate]:bg-ink data-[state=indeterminate]:text-ink-foreground',
         className,
       )}
       {...props}
     >
       <RadixCheckbox.Indicator className="flex items-center justify-center text-current">
-        <Check className="size-3.5" />
+        <Check aria-hidden="true" className="size-3.5" strokeWidth={3} />
       </RadixCheckbox.Indicator>
     </RadixCheckbox.Root>
   );

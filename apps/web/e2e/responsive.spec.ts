@@ -1,61 +1,25 @@
-/**
- * 13.B mục 8 / ô AC 13 — **responsive ≤768px**.
- *
- * Hợp đồng có BA con số khác nhau (`components/shell/breakpoints.ts`), và spec
- * này đo cả ba chứ không gộp:
- *
- * | hằng | ý nghĩa | đo ở đây |
- * |---|---|---|
- * | `NAV_COLLAPSE_MAX_PX` = 768 | ≤ đây thì nav ngang thu vào ngăn kéo | 375 · 768 · 769 |
- * | `TERMINAL_MIN_WIDTH_PX` = 1024 | < đây thì KHÔNG mở terminal | 1023 · 1024 |
- * | `DESKTOP_TARGET_MIN_PX` = 1280 | mục tiêu chính, bố cục đầy đủ | 1280 (đối chứng âm) |
- *
- * ══ Vì sao mỗi ô đều có ĐỐI CHỨNG ÂM ═════════════════════════════════════════
- *
- * "Ở 768px có cảnh báo màn-hình-hẹp" một mình KHÔNG chứng minh gì: nếu cảnh báo
- * hiện ở MỌI bề rộng thì ô vẫn xanh, và cái ta thật sự dựng lại là một trang
- * không bao giờ có terminal. Nên mỗi khẳng định-hẹp đi kèm một khẳng định-rộng
- * ở cùng route, cùng lượt chạy (`zero-violation-needs-negative-control`).
- *
- * ══ Vì sao đo ĐÚNG ở 768/769 và 1023/1024 ════════════════════════════════════
- *
- * `breakpoints.ts` ghi rõ vì sao không dùng `md:` (= `min-width:768px`, tức ở
- * đúng 768 nav vẫn mở — lệch một pixel so với câu "≤768px thu vào"). Một cặp đo
- * 375 và 1280 sẽ xanh cả với `md:`, tức không gác được chính điều mà chú thích
- * kia dựng ra để tránh. Biên là chỗ duy nhất phân biệt được hai cách cài đặt.
- *
- * ══ Cái spec này KHÔNG kiểm ══════════════════════════════════════════════════
- *
- * "Đọc nội dung được" ở đây chỉ là hai thứ đo được bằng máy: không tràn ngang,
- * và có đủ chữ. Chữ có bị đè, ảnh có vỡ, thao tác có với tới được bằng ngón tay
- * — không. Đó vẫn là mắt người.
- */
-
 import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures/api';
 import { openScreen, resolvePath } from './fixtures/nav';
 import { MIN_SCREENS, SCREENS, roleSatisfies, type Screen } from './routes';
 
-const NAV_COLLAPSE_MAX_PX = 768;
-const TERMINAL_MIN_WIDTH_PX = 1024;
-const DESKTOP_TARGET_MIN_PX = 1280;
-
 /**
- * ⛔ Ba hằng trên là BẢN CHÉP của `src/components/shell/breakpoints.ts`, chép
- * có chủ ý: `e2e/` có tsconfig riêng và không import mã `src/`, còn một spec
- * đọc chính hằng mà nó đang gác thì gác được đúng số 0.
+ * Bố cục đáp ứng của bản dựng lại PTIT.
  *
- * Nhưng bản chép sẽ mục nếu nguồn đổi mà không ai đổi ở đây, nên ô dưới neo
- * chúng bằng GIÁ TRỊ. Đổi hằng ở `breakpoints.ts` ⇒ ô này đỏ ⇒ phải đọc lại
- * spec này và quyết định cả hai đầu, thay vì để harness lặng lẽ đo một hợp
- * đồng cũ.
+ * Hai hợp đồng, đo riêng:
+ *
+ * 1. **Header** (vỏ ứng dụng): dưới 1024px (Tailwind `lg`) điều hướng thu vào
+ *    nút "Mở điều hướng"; từ 1024px nav ngang hiện trong header.
+ * 2. **Màn thực hành** (`/lessons/:id`, immersive, không header): KHÔNG còn ngõ
+ *    cụt "cần màn hình rộng hơn". Bản trước gỡ cả terminal lẫn IDE khi cửa sổ
+ *    qua ngưỡng 1024px (đóng WebSocket); nay hai khoang luôn mount, màn hẹp chỉ
+ *    xếp chồng chúng bằng CSS (`WorkspaceSplit`, `data-split-shape`).
+ *
+ * Và một lượt quét 390px không tràn ngang cho MỌI màn trong `SCREENS`.
  */
-test('ba điểm ngắt vẫn đúng giá trị mà spec này giả định', () => {
-  expect(NAV_COLLAPSE_MAX_PX).toBe(768);
-  expect(TERMINAL_MIN_WIDTH_PX).toBe(1024);
-  expect(DESKTOP_TARGET_MIN_PX).toBe(1280);
-  expect(NAV_COLLAPSE_MAX_PX).toBeLessThan(TERMINAL_MIN_WIDTH_PX);
-});
+
+const NAV_COLLAPSE_BELOW_PX = 1024;
+const DESKTOP_TARGET_MIN_PX = 1280;
 
 const CATALOG: Screen = { path: '/lessons', auth: 'user' };
 const LESSON: Screen = SCREENS.find((s) => s.path === '/lessons/:id') ?? {
@@ -64,71 +28,36 @@ const LESSON: Screen = SCREENS.find((s) => s.path === '/lessons/:id') ?? {
   idFrom: 'lessons.list',
 };
 
-/** Thanh nav ngang đầy đủ (chỉ có khi rộng). */
-const desktopNav = (page: Page) =>
-  page.getByRole('navigation', { name: 'Điều hướng chính', exact: true });
+const desktopNav = (page: Page) => page.getByRole('navigation', { name: 'Điều hướng chính', exact: true });
+const drawerTrigger = (page: Page) => page.getByRole('button', { name: 'Mở điều hướng' });
+/** Câu ngõ cụt của bản cũ. Nó KHÔNG được quay lại ở bất kỳ bề rộng nào. */
+const deadEndNotice = (page: Page) => page.getByText(/Cần màn hình rộng hơn/);
+const stepRoute = (page: Page) => page.getByRole('list', { name: 'Các bước của bài' });
+const splitShape = (page: Page) => page.locator('[data-split-shape]');
+const terminalSurface = (page: Page) => page.getByRole('application', { name: /Terminal sandbox/ });
 
-/** Nút mở ngăn kéo (chỉ có khi hẹp). */
-const drawerTrigger = (page: Page) =>
-  page.getByRole('button', { name: 'Mở điều hướng' });
-
-/** Tiêu đề của `NarrowScreenNotice` — thứ thay chỗ terminal khi hẹp. */
-const narrowNotice = (page: Page) =>
-  page.getByText(`Cần màn hình rộng hơn (≥${String(TERMINAL_MIN_WIDTH_PX)}px) để mở terminal`);
-
-/** Bề mặt terminal thật (xterm dựng một `role="application"` có nhãn). */
-const terminalSurface = (page: Page) =>
-  page.getByRole('application', { name: /Terminal sandbox/ });
-
-/**
- * Trang có tràn ngang không.
- *
- * So `documentElement.scrollWidth` với `innerWidth` — không so `body`, vì một
- * phần tử `position: fixed` rộng quá khổ vẫn đẩy `documentElement` mà không
- * đụng `body`. Dung sai 1px cho làm tròn thiết bị.
- */
 async function horizontalOverflowPx(page: Page): Promise<number> {
-  return page.evaluate(
-    () => document.documentElement.scrollWidth - window.innerWidth,
-  );
+  return page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
 }
 
 async function visibleTextLength(page: Page): Promise<number> {
   return page.evaluate(() => document.body.innerText.trim().length);
 }
 
-// ───────────────────────────────────────────────── nav: thu gọn ở ≤768, mở ở ≥769
+// ── Header: thu gọn dưới 1024px ─────────────────────────────────────────────
 
-for (const width of [375, NAV_COLLAPSE_MAX_PX]) {
-  test(`${String(width)}px — nav thu vào ngăn kéo, không tràn ngang @responsive`, async ({
-    api,
-    page,
-  }) => {
+for (const width of [375, 768, NAV_COLLAPSE_BELOW_PX - 1]) {
+  test(`${String(width)}px — nav thu vào ngăn kéo, không tràn ngang @responsive`, async ({ api, page }) => {
     await page.setViewportSize({ width, height: 800 });
-    const path = await resolvePath(api, CATALOG);
-    await openScreen(page, path, CATALOG.auth);
+    await openScreen(page, await resolvePath(api, CATALOG), CATALOG.auth);
 
-    await expect(
-      drawerTrigger(page),
-      `Ở ${String(width)}px phải có nút mở ngăn kéo — hợp đồng C6 nói ≤768px nav ` +
-        `thu gọn. Không thấy nút nghĩa là điểm ngắt sai hoặc vỏ chưa dựng ngăn kéo.`,
-    ).toBeVisible();
-
+    await expect(drawerTrigger(page), `Ở ${String(width)}px phải có nút mở ngăn kéo.`).toBeVisible();
     await expect(
       desktopNav(page),
-      `Ở ${String(width)}px thanh nav ngang phải ẨN. Nó còn hiện nghĩa là hai bộ ` +
-        `điều hướng cùng tồn tại — người dùng bàn phím Tab qua cả hai.`,
+      `Ở ${String(width)}px thanh nav ngang phải ẨN, nếu không hai bộ điều hướng cùng nằm trong vòng Tab.`,
     ).toBeHidden();
+    expect(await horizontalOverflowPx(page), `tràn ngang ở ${String(width)}px`).toBeLessThanOrEqual(1);
 
-    const overflow = await horizontalOverflowPx(page);
-    expect(
-      overflow,
-      `Trang tràn ngang ${String(overflow)}px ở khung ${String(width)}px. ` +
-        `"Hạ cấp có chủ ý" của 13.B mục 8 là đọc được, không phải cuộn ngang.`,
-    ).toBeLessThanOrEqual(1);
-
-    // Ngăn kéo phải MỞ ĐƯỢC — một nút hiện ra mà không mở được thì nav ở khung
-    // hẹp là số 0, và ô trên vẫn xanh.
     await drawerTrigger(page).click();
     await expect(page.getByRole('dialog', { name: 'Điều hướng' })).toBeVisible();
     await expect(
@@ -137,103 +66,51 @@ for (const width of [375, NAV_COLLAPSE_MAX_PX]) {
   });
 }
 
-test(`${String(NAV_COLLAPSE_MAX_PX + 1)}px — ĐỐI CHỨNG ÂM: nav ngang trở lại @responsive`, async ({
-  api,
-  page,
-}) => {
-  // Ô này là thứ phân biệt `min-[769px]:` với `md:`. Với `md:` (min-width:768)
-  // thì ô 768px ở trên đã đỏ; với một cài đặt chặn quá tay (min-width:1024) thì
-  // chính ô NÀY đỏ. Cần cả hai phía mới chốt được đúng một pixel.
-  await page.setViewportSize({ width: NAV_COLLAPSE_MAX_PX + 1, height: 800 });
-  const path = await resolvePath(api, CATALOG);
-  await openScreen(page, path, CATALOG.auth);
+test(`${String(NAV_COLLAPSE_BELOW_PX)}px — ĐỐI CHỨNG ÂM: nav ngang trở lại @responsive`, async ({ api, page }) => {
+  await page.setViewportSize({ width: NAV_COLLAPSE_BELOW_PX, height: 800 });
+  await openScreen(page, await resolvePath(api, CATALOG), CATALOG.auth);
 
   await expect(desktopNav(page)).toBeVisible();
   await expect(drawerTrigger(page)).toBeHidden();
 });
 
-// ──────────────────────────────────── terminal: cảnh báo dưới 1024, terminal trên
+// ── Màn thực hành: không ngõ cụt, chỉ đổi hình dạng ─────────────────────────
 
-test(`${String(TERMINAL_MIN_WIDTH_PX - 1)}px — trang bài học thay terminal bằng cảnh báo @responsive`, async ({
-  api,
-  page,
-}) => {
-  await page.setViewportSize({ width: TERMINAL_MIN_WIDTH_PX - 1, height: 800 });
-  const path = await resolvePath(api, LESSON);
-  await openScreen(page, path, LESSON.auth);
+for (const width of [390, 768, NAV_COLLAPSE_BELOW_PX - 1]) {
+  test(`${String(width)}px — bài học xếp chồng nội dung trên khoang làm việc, không ngõ cụt @responsive`, async ({
+    api,
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 844 });
+    await openScreen(page, await resolvePath(api, LESSON), LESSON.auth);
 
-  await expect(
-    narrowNotice(page),
-    `Dưới ${String(TERMINAL_MIN_WIDTH_PX)}px phải hiện cảnh báo thay cho terminal ` +
-      `(13.B mục 8). Không thấy nó nghĩa là \`NarrowScreenNotice\` lại không có ` +
-      `call-site — đúng tình trạng đo được ngày 2026-09-07, khi component có thật ` +
-      `và test của nó xanh nhưng chưa ai từng nhìn thấy nó.`,
-  ).toBeVisible();
+    await expect(
+      deadEndNotice(page),
+      'Câu "cần màn hình rộng hơn" đã quay lại. Màn hẹp phải xếp chồng hai khoang, không thay khoang làm việc bằng một lời từ chối.',
+    ).toHaveCount(0);
+    await expect(stepRoute(page), 'Tuyến các bước của bài phải đọc được ở màn hẹp.').toBeVisible();
+    await expect(page.getByRole('button', { name: 'Bắt đầu', exact: true })).toBeVisible();
+    await expect(
+      splitShape(page),
+      'Khung chứa dưới ~900px phải XẾP CHỒNG. "side-by-side" ở đây nghĩa là hai khoang bị bóp còn nửa màn mỗi bên.',
+    ).toHaveAttribute('data-split-shape', 'stacked');
+    // Khoang làm việc có mặt (thanh khoang tối mang nhãn Terminal), không bị gỡ ở màn hẹp.
+    await expect(page.getByText('Terminal', { exact: true }).first()).toBeVisible();
 
-  // Nội dung bài vẫn phải đọc được — đó là nửa còn lại của câu "hạ cấp có chủ ý".
-  const textLength = await visibleTextLength(page);
-  expect(
-    textLength,
-    `Trang bài học chỉ còn ${String(textLength)} ký tự ở khung hẹp — cảnh báo đã ` +
-      `thay terminal nhưng nội dung cũng biến mất.`,
-  ).toBeGreaterThan(200);
+    expect(await visibleTextLength(page), 'nội dung bài biến mất ở khung hẹp').toBeGreaterThan(200);
+    expect(await horizontalOverflowPx(page), `bài học tràn ngang ở ${String(width)}px`).toBeLessThanOrEqual(1);
+  });
+}
 
-  const overflow = await horizontalOverflowPx(page);
-  expect(overflow, `Trang bài học tràn ngang ${String(overflow)}px`).toBeLessThanOrEqual(1);
-});
-
-test(`${String(TERMINAL_MIN_WIDTH_PX)}px — ĐỐI CHỨNG ÂM: đúng ngưỡng thì KHÔNG còn cảnh báo @responsive`, async ({
-  api,
-  page,
-}) => {
-  // Không có ô này thì ô trên xanh kể cả với một cài đặt hiện cảnh báo ở MỌI
-  // bề rộng — tức một sản phẩm không bao giờ mở được terminal.
-  await page.setViewportSize({ width: TERMINAL_MIN_WIDTH_PX, height: 800 });
-  const path = await resolvePath(api, LESSON);
-  await openScreen(page, path, LESSON.auth);
-
-  await expect(
-    narrowNotice(page),
-    `Ở đúng ${String(TERMINAL_MIN_WIDTH_PX)}px (ngưỡng là ">=") cảnh báo phải BIẾN ` +
-      `MẤT. Nó còn đó nghĩa là phép so dùng ">" thay vì ">=" — lệch đúng một pixel.`,
-  ).toBeHidden();
-});
-
-test(`${String(DESKTOP_TARGET_MIN_PX)}px — bố cục đầy đủ: nav ngang + khoang terminal @responsive`, async ({
-  api,
-  page,
-}) => {
+test(`${String(DESKTOP_TARGET_MIN_PX)}px — bài học immersive, hai khoang cạnh nhau @responsive`, async ({ api, page }) => {
   await page.setViewportSize({ width: DESKTOP_TARGET_MIN_PX, height: 900 });
-  const path = await resolvePath(api, LESSON);
-  await openScreen(page, path, LESSON.auth);
+  await openScreen(page, await resolvePath(api, LESSON), LESSON.auth);
 
-  /*
-   * Nav ngang phải ẨN ở đây, và đó là thiết kế chứ không phải thiếu sót.
-   *
-   * `/lessons/:id` nằm trong `IMMERSIVE_CHILD_PREFIXES` của
-   * `components/shell/immersive-routes.ts`: P16 §16.D.1 gỡ thanh nav toàn cục
-   * khỏi hai cây `/labs` và `/lessons` vì nó ăn 56px dọc trên đúng màn hình mà
-   * mỗi pixel dọc là một dòng terminal.
-   *
-   * Khẳng định cũ ở đây là `toBeVisible()`, viết TRƯỚC thay đổi đó, và lượt
-   * nghiệm thu 16.I đọc nó thành một hồi quy của tám lane. Nó không phải hồi
-   * quy — nó là một ô test lỗi thời. Ai thấy ô này đỏ thì sửa ô, đừng gỡ hai
-   * tiền tố kia ra khỏi `immersive-routes.ts`.
-   *
-   * Phủ "màn rộng thì có nav ngang" KHÔNG mất: nó nằm ở ô đối chứng ngay dưới,
-   * chạy trên một route không-immersive ở cùng 1280px.
-   */
-  await expect(
-    desktopNav(page),
-    'Route immersive phải KHÔNG có nav ngang. Nó hiện ra nghĩa là hai tiền tố ' +
-      '/labs và /lessons đã rơi khỏi immersive-routes.ts.',
-  ).toBeHidden();
-  await expect(narrowNotice(page)).toBeHidden();
-
-  // Chưa bấm Bắt đầu ⇒ chưa có phiên ⇒ chưa có bề mặt xterm. Thứ PHẢI có là
-  // khoang terminal với lời mời bắt đầu — đó là bằng chứng nhánh rộng đang
-  // dựng khoang, chứ không phải một cảnh báo khác.
+  await expect(desktopNav(page), 'Route immersive không có header ứng dụng.').toBeHidden();
+  await expect(deadEndNotice(page)).toHaveCount(0);
+  await expect(splitShape(page)).toHaveAttribute('data-split-shape', 'side-by-side');
   await expect(page.getByText(/để dựng sandbox và mở terminal/)).toBeVisible();
+  // Chưa bấm Bắt đầu thì chưa có terminal nào: mọi khẳng định "terminal nối được" sau này mới có nghĩa.
   await expect(terminalSurface(page)).toHaveCount(0);
 });
 
@@ -241,46 +118,14 @@ test(`${String(DESKTOP_TARGET_MIN_PX)}px — ĐỐI CHỨNG: route KHÔNG immers
   api,
   page,
 }) => {
-  /*
-   * Vế còn lại của ô ngay trên. Một mình "immersive thì ẩn nav" là nửa phép đo:
-   * nó xanh y hệt khi vỏ ngừng dựng nav ở MỌI route. Cần một route không
-   * immersive ở CÙNG bề rộng mới phân biệt được "ẩn có chọn lọc" với "mất hẳn".
-   */
   await page.setViewportSize({ width: DESKTOP_TARGET_MIN_PX, height: 900 });
-  const path = await resolvePath(api, CATALOG);
-  await openScreen(page, path, CATALOG.auth);
-
+  await openScreen(page, await resolvePath(api, CATALOG), CATALOG.auth);
   await expect(desktopNav(page)).toBeVisible();
-  await expect(narrowNotice(page)).toBeHidden();
 });
 
-// ═══════════════════════ P16 §16.I mục 4 — quét 32 màn ở 390px, KHÔNG tràn ngang
+// ── 390px: không màn nào tràn ngang ─────────────────────────────────────────
 
-/**
- * Bề rộng quét. 390px = iPhone 12/13/14 dọc, khung điện thoại phổ biến nhất và
- * hẹp hơn mọi ô ngưỡng ở trên.
- *
- * ⛔ Ô quét này KHÔNG thay được các ô ngưỡng phía trên, và đó là điều §16.I mục
- * 4 nói thẳng. Hai loại phép đo khác nhau về bản chất:
- *
- * | | ô ngưỡng (768/769, 1023/1024) | ô quét (dưới đây) |
- * |---|---|---|
- * | phủ | 2 route | 32 route |
- * | khẳng định | hành vi ĐỔI đúng tại một pixel | một bất biến duy nhất |
- * | đối chứng âm | có, ở cả hai phía | **không có** |
- *
- * Một lượt quét "không màn nào tràn ngang" vẫn XANH trên một sản phẩm mà nav
- * không bao giờ thu gọn và terminal không bao giờ mở — nó không hỏi những câu
- * đó. Đổi các ô ngưỡng lấy lượt quét này là hạ cấp; chạy CẢ HAI mới là phủ.
- *
- * Cái ô này thêm được, và các ô ngưỡng không có: 30 route còn lại chưa từng
- * được mở ở khung hẹp lần nào. Bảy lane P16 dựng lại toàn bộ frontend; một
- * `min-w-*` hay một bảng nhiều cột lọt vào bất kỳ đâu trong số đó sẽ đẩy trang
- * tràn ngang, và không ô nào ở trên nhìn tới.
- */
 const PHONE_WIDTH_PX = 390;
-
-/** Dung sai làm tròn thiết bị — cùng con số các ô ngưỡng ở trên đang dùng. */
 const OVERFLOW_TOLERANCE_PX = 1;
 
 async function assertNoOverflowAt390(page: Page, path: string, auth: string): Promise<void> {
@@ -290,16 +135,12 @@ async function assertNoOverflowAt390(page: Page, path: string, auth: string): Pr
   const overflow = await horizontalOverflowPx(page);
   expect(
     overflow,
-    `${path} tràn ngang ${String(overflow)}px ở khung ${String(PHONE_WIDTH_PX)}px. ` +
-      `Thủ phạm thường gặp: một \`min-w-*\` cứng, một bảng không bọc \`overflow-x\`, ` +
-      `hoặc một hàng flex không cho phép xuống dòng. Mở trace của ô này rồi đọc ` +
-      `\`document.documentElement.scrollWidth\` để tìm phần tử rộng nhất.`,
+    `${path} tràn ngang ${String(overflow)}px ở khung ${String(PHONE_WIDTH_PX)}px. Thủ phạm thường gặp: một ` +
+      '`min-w-*` cứng, một bảng không bọc `overflow-x`, hoặc một hàng flex không cho xuống dòng.',
   ).toBeLessThanOrEqual(OVERFLOW_TOLERANCE_PX);
 }
 
 test.describe(`${String(PHONE_WIDTH_PX)}px — quét công khai @responsive`, () => {
-  // Cùng lý do như `a11y.spec.ts`: `/login` và các màn xác thực chuyển hướng về
-  // `/me` khi ĐÃ có phiên, nên chúng phải mở bằng jar cookie rỗng.
   test.use({ storageState: { cookies: [], origins: [] } });
 
   for (const screen of SCREENS.filter((s) => s.auth === 'anon')) {
@@ -329,22 +170,11 @@ test.describe(`${String(PHONE_WIDTH_PX)}px — quét theo vai trò @responsive`,
   }
 });
 
-/**
- * Cổng của chính lượt quét: nó phải phủ ĐỦ 32 màn.
- *
- * Ba `describe` trên chia `SCREENS` theo `auth`; nếu ai đó thêm một mức `auth`
- * thứ tư thì những màn ấy rơi ra khỏi cả ba bộ lọc và biến mất khỏi lượt quét
- * — không lỗi, không cảnh báo, chỉ ít test hơn. Ô này là phép cộng lại.
- */
 test('lượt quét 390px phủ đủ mọi màn của SCREENS', () => {
   const covered =
     SCREENS.filter((s) => s.auth === 'anon').length +
     SCREENS.filter((s) => s.auth === 'user').length +
     SCREENS.filter((s) => s.auth === 'author' || s.auth === 'admin').length;
-  expect(
-    covered,
-    `Lượt quét 390px chỉ phủ ${String(covered)}/${String(SCREENS.length)} màn. ` +
-      `Một mức \`auth\` mới đã rơi ra khỏi cả ba describe.`,
-  ).toBe(SCREENS.length);
+  expect(covered, `Lượt quét 390px chỉ phủ ${String(covered)}/${String(SCREENS.length)} màn.`).toBe(SCREENS.length);
   expect(SCREENS.length).toBeGreaterThanOrEqual(MIN_SCREENS);
 });

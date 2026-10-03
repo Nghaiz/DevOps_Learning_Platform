@@ -1,24 +1,21 @@
 import { THEME_NAMES, type ThemeName } from '@devops-platform/terminal/themes';
 
 /**
- * C5/D2 — quy tắc chọn theme terminal, tách khỏi React để test được ở node.
+ * Quy tắc chọn theme terminal, tách khỏi React để test được ở node.
  *
- * Thứ tự: **tuỳ chọn hồ sơ thắng**, không có thì đi theo theme ứng dụng.
- * Người dùng chọn `dlp-contrast` là một quyết định a11y (họ cần tương phản cao
- * suốt buổi); để dark-mode của trang ghi đè lên nó là bỏ qua lựa chọn đó ở đúng
- * chỗ nó quan trọng nhất.
+ * Thứ tự: **tuỳ chọn hồ sơ thắng**; không có thì theme ĐÊM (`dlp-dark`), dù ứng
+ * dụng đang sáng hay tối. Khoang làm việc tối ở cả hai theme (design brief §7):
+ * một terminal sáng trên trang sáng không có ranh giới nào với phần đọc bài.
  *
- * ⚠ Giá trị KHÔNG hợp lệ rơi về theme ứng dụng chứ không ném: nguồn của `pref`
- * là một cột `text` trong DB (`user_preferences.terminal_theme`, không phải
- * enum) và một khoá localStorage — cả hai đều sống lâu hơn danh sách theme.
- * Một theme bị đổi tên không được phép làm trắng cả trang bài học.
+ * Người dùng chọn `dlp-contrast` hay `dlp-light` trong cài đặt là một quyết định
+ * có chủ đích (a11y, máy chiếu phòng lab), nên nó vẫn thắng.
+ *
+ * ⚠ Giá trị KHÔNG hợp lệ rơi về theme đêm chứ không ném: nguồn của `pref` là một
+ * cột `text` trong DB và một khoá localStorage, cả hai sống lâu hơn danh sách theme.
  */
-export function resolveTerminalTheme(
-  pref: ThemeName | null | undefined,
-  resolvedAppTheme: 'light' | 'dark',
-): ThemeName {
+export function resolveTerminalTheme(pref: ThemeName | null | undefined): ThemeName {
   if (pref != null && (THEME_NAMES as readonly string[]).includes(pref)) {
     return pref;
   }
-  return resolvedAppTheme === 'dark' ? 'dlp-dark' : 'dlp-light';
+  return 'dlp-dark';
 }

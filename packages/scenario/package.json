@@ -9,7 +9,8 @@
     "./content-blocks": "./src/content-blocks.ts",
     "./lab-score": "./src/lab-score.ts",
     "./quiz-score": "./src/quiz-score.ts",
-    "./path-progress": "./src/path-progress.ts"
+    "./path-progress": "./src/path-progress.ts",
+    "./verify-prelude": "./src/verify-prelude.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",

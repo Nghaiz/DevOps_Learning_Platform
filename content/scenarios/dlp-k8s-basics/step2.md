@@ -1,34 +1,30 @@
-# Pod — đơn vị nhỏ nhất, và vì sao bạn hiếm khi tạo nó trực tiếp
+# Pod đầu tiên
 
-Một **Pod** là đơn vị chạy nhỏ nhất trong Kubernetes — một hoặc nhiều
-container cùng chia sẻ network và storage. Tạo một Pod trần, không qua bất kỳ
-controller nào:
+**Pod** là đơn vị nhỏ nhất Kubernetes chạy được: một hoặc vài container dùng chung
+địa chỉ IP và ổ đĩa. Tạo một Pod chạy nginx:
 
-```
-kubectl run solo-pod --image=nginx:1.29.0 --port=80
-```{{exec}}
+`kubectl run web --image=nginx:1.27-alpine`{{exec}}
 
-Theo dõi cho tới khi nó `Running`:
+Lệnh trả về ngay, nhưng Pod chưa chạy. Nhìn thử:
 
-```
-kubectl get pod solo-pod --watch
-```{{exec interrupt}}
+`kubectl get pods`{{exec}}
 
-`--watch` chạy mãi — bấm Ctrl+C rồi chạy lại `kubectl get pod solo-pod` một
-lần nữa khi cột `STATUS` đã là `Running` và `READY` là `1/1`.
+Nhiều khả năng cột `STATUS` đang là `ContainerCreating`: node đang kéo image 20 MB
+qua registry mirror. Lần sau dùng lại image này sẽ nhanh hơn hẳn vì nó đã nằm trên
+node. Chờ tới khi Pod sẵn sàng:
 
-Xem chi tiết:
+`kubectl wait --for=condition=Ready pod/web --timeout=120s`{{exec}}
 
-```
-kubectl describe pod solo-pod
-```{{exec}}
+Giờ xem thêm vài cột:
 
-Đọc phần `Events` ở cuối — đó là nhật ký những gì scheduler và kubelet vừa làm
-để đưa Pod này tới `Running`: gán node, kéo image, khởi động container.
+`kubectl get pods -o wide`{{exec}}
 
-> **Vì sao bạn hiếm khi gõ `kubectl run` trong công việc thật?** Pod này KHÔNG
-> có ai đứng sau nó. Nếu chính nó bị lỗi hoặc bị xoá, không có gì tạo lại nó —
-> nó biến mất vĩnh viễn. Bước sau sẽ thay nó bằng một **Deployment**, thứ
-> đứng sau Pod và tự phục hồi.
+- `READY 1/1`: một container, cả một đều chạy.
+- `IP` dạng `10.42.0.x`: địa chỉ riêng của Pod, chỉ đi được từ trong cụm.
+- `NODE`: Pod rơi vào node nào. Cụm này chỉ có một node nên không có gì để chọn.
 
-Bấm **Kiểm tra** khi `solo-pod` đã `Running` và `Ready`.
+Để ý tag `1.27-alpine`. Gõ `--image=nginx` trần thì Kubernetes hiểu là `latest`, và
+`latest` hôm nay khác `latest` tháng sau. Hai Pod cùng một lệnh tạo có thể chạy hai
+bản nginx khác nhau mà không ai biết. Luôn ghim tag.
+
+Bấm **Kiểm tra**.

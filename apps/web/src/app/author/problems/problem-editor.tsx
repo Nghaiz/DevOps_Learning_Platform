@@ -1,275 +1,219 @@
 'use client';
 
-import { useState, type ReactElement, type ReactNode } from 'react';
-import { Button, Tabs, TabsContent, TabsList, TabsTrigger } from '@devops-platform/ui';
-import type { ProblemState } from '@devops-platform/games';
+import { useMemo, useState, type ReactElement, type ReactNode } from 'react';
 import { t } from '@devops-platform/copy';
+import type { ProblemState } from '@devops-platform/games';
+import { useToast } from '@devops-platform/ui';
+import {
+  IssueList,
+  RailSection,
+  StateChip,
+  StudioEditorFrame,
+  StudioPanel,
+  focusFieldByPath,
+  type SaveStatus,
+} from '../../../components/author/studio';
+import { Split, lineForTopic } from '../../../components/kit';
 import { ArenaPreview } from './arena-preview';
 import { ClassifyFields } from './classify-fields';
 import { ClusterFields } from './cluster-fields';
 import type { ClusterFormState, FieldIssue } from './cluster-form';
-import { parseList } from './text-tools';
 import { GameSelectField } from './game-select-field';
 import { pluginViewFor } from './game-plugin-view';
 import { HintListFields } from './hint-fields';
 import { JsonTransfer } from './json-transfer';
-import { ObjectiveFields } from './objective-fields';
+import { ObjectiveList } from './objective-list';
 import { PluginFields } from './plugin-fields';
-import { emptyObjective, formWithGame, moveObjective, type ProblemFormState } from './problem-form';
+import { STATE_KEYS } from './problem-labels';
+import { toStudioIssues } from './problem-issues';
+import { PROBLEM_MODES, modeForIssuePath, type ProblemMode } from './problem-modes';
+import { formWithGame, type ProblemFormState } from './problem-form';
 import { StatementFields } from './statement-fields';
 
+/** Hai việc trang gọi cần làm trên trình soạn: nhảy về một ô, mở một chế độ. */
+export interface EditorNav {
+  readonly jump: (path: string) => void;
+  readonly open: (mode: ProblemMode) => void;
+}
+
 /**
- * Khung tab của trình soạn bài — dùng chung cho cả `/new` lẫn `/[code]`.
+ * Trình soạn đề, dùng chung cho `/new` lẫn `/[code]`, dựng trên khung Xưởng soạn.
  *
- * ## Vì sao một khung chung chứ không hai bản
+ * Hai trang chỉ khác nhau ở HÀNH ĐỘNG (tạo mới vs. lưu, xuất bản, xoá), ở việc
+ * đã có mã hay chưa, và ở khối độ sẵn sàng trong cột kiểm. Phần soạn giống hệt,
+ * nên nó ở một chỗ: hai bản sẽ trôi khỏi nhau đúng ở chỗ một bên thêm ô.
  *
- * Hai trang chỉ khác nhau ở phần HÀNH ĐỘNG (tạo mới vs. lưu + xuất bản + xoá) và
- * ở việc đã có mã hay chưa. Toàn bộ phần soạn thì giống hệt. Hai bản sẽ trôi
- * khỏi nhau đúng ở chỗ dễ trôi nhất — một bên thêm ô, bên kia quên — và người
- * soạn gặp hai biểu mẫu khác nhau cho cùng một bài.
- *
- * `actions` nhận vào dưới dạng node để trang gọi tự quyết nút nào; tab "Xuất
- * bản" chỉ hiện khi `publishTab` được truyền, tức chỉ ở trang sửa.
+ * `toolbar`, `readiness`, `publish` là hàm nhận `EditorNav`, vì nút trên thanh
+ * dính và khối trong cột kiểm cũng phải nhảy được về một ô, mà chế độ đang mở
+ * do trình soạn giữ. Chế độ Xuất bản chỉ có khi trang gọi truyền `publish`.
  */
 export function ProblemEditor(props: {
   readonly form: ProblemFormState;
   readonly onChange: (next: ProblemFormState) => void;
-  readonly issues: readonly FieldIssue[];
+  readonly nextKey: () => string;
+  /** `null` với bài chưa lưu: máy chủ cấp mã, client không đoán. */
   readonly code: string | null;
   readonly state: ProblemState;
-  readonly nextKey: () => string;
-  readonly hasUnsavedChanges: boolean;
-  /** Nút lưu / tạo — trang gọi sở hữu, vì hai trang gọi hai mutation khác nhau. */
-  readonly actions: ReactNode;
-  readonly publishTab?: ReactNode;
+  readonly title: string;
+  /** Lỗi hiện cạnh ô và trong cột kiểm. */
+  readonly issues: readonly FieldIssue[];
+  readonly saveStatus: SaveStatus;
+  readonly toolbar: (nav: EditorNav) => ReactNode;
+  readonly readiness: (nav: EditorNav) => ReactNode;
+  readonly publish?: ((nav: EditorNav) => ReactNode) | undefined;
 }): ReactElement {
-  const [tab, setTab] = useState('mo-ta');
+  const { form, onChange } = props;
+  const { toast } = useToast();
+  const [mode, setMode] = useState<string>(PROBLEM_MODES.statement);
+
+  /** `null` khi game chưa có plugin: một câu trả lời hợp lệ, `GameSelectField` nói ra ca đó. */
+  const view = pluginViewFor(form.gameId);
+  const specFields = useMemo(() => view?.authorFields ?? [], [view]);
+  const line = lineForTopic({ gameId: form.gameId });
+  const studioIssues = useMemo(() => toStudioIssues(props.issues, specFields), [props.issues, specFields]);
+
+  const nav: EditorNav = {
+    open: setMode,
+    jump: (path) => {
+      const target = modeForIssuePath(path, specFields.map((field) => field.path));
+      if (target === null) return;
+      setMode(target);
+      focusFieldByPath(path, () => {
+        toast({ title: t('author.problem.jump-missing') });
+      });
+    },
+  };
 
   const patch = (part: Partial<ProblemFormState>): void => {
-    props.onChange({ ...props.form, ...part });
+    onChange({ ...form, ...part });
   };
   const patchCluster = (part: Partial<ClusterFormState>): void => {
-    props.onChange({ ...props.form, cluster: { ...props.form.cluster, ...part } });
+    onChange({ ...form, cluster: { ...form.cluster, ...part } });
   };
 
-  const namespaces = parseList(props.form.cluster.namespacesText);
-  const nodeNames = props.form.cluster.nodes
-    .map((node) => node.name.trim())
-    .filter((name) => name !== '');
-
-  /**
-   * Plugin của game đang chọn. `null` khi game chưa có bài tập, và đó là một
-   * câu trả lời hợp lệ chứ không phải lỗi (`GameSelectField` hiện trạng thái
-   * rỗng cho ca đó).
-   */
-  const view = pluginViewFor(props.form.gameId);
+  const modes = [
+    { value: PROBLEM_MODES.statement, label: t('author.problem.tab.statement') },
+    // Nhãn tới từ PLUGIN: "Cụm ban đầu" đúng với K8s và sai với mọi game khác.
+    // Đây cũng là dấu hiệu rẻ nhất trên màn hình cho thấy ô chọn game đã ăn.
+    { value: PROBLEM_MODES.spec, label: view?.specTabLabel ?? t('author.problem.tab.spec') },
+    { value: PROBLEM_MODES.objectives, label: t('author.problem.tab.objectives', { n: form.objectives.length }) },
+    { value: PROBLEM_MODES.hints, label: t('author.problem.tab.hints', { n: form.hints.length }) },
+    { value: PROBLEM_MODES.arena, label: t('author.problem.tab.arena') },
+    { value: PROBLEM_MODES.json, label: t('author.problem.tab.json') },
+    ...(props.publish === undefined
+      ? []
+      : [{ value: PROBLEM_MODES.publish, label: t('author.problem.tab.publish') }]),
+  ];
 
   return (
-    <div className="practice-editor">
-      <GameSelectField
-        gameId={props.form.gameId}
-        // Đổi game trên một bài ĐÃ LƯU là đổi cả kiểu `initialState` của nó,
-        // mà máy chủ chưa có đường nhận chuyện đó. Khoá ô lại ở trang sửa thì
-        // giới hạn nhìn thấy được; để mở thì người soạn đổi xong rồi mất bản
-        // cụm đã dựng, đổi lấy một lỗi 400.
-        canChange={props.code === null}
-        onChange={(gameId) => {
-          // Phép đổi nằm ở `formWithGame` chứ không viết thẳng ở đây: nó phải
-          // đổi ba thứ cùng lúc, và một hàm thuần thì ô nghiệm thu đo được mà
-          // không phải dựng DOM.
-          props.onChange(formWithGame(props.form, gameId));
-        }}
-      />
-
-      <Tabs
-        data-slot="tabs"
-        orientation="vertical"
-        value={tab}
-        onValueChange={(value) => {
-          setTab(value);
-        }}
-      >
-        <TabsList className="h-auto max-w-full flex-wrap justify-start [&>[data-slot=tabs-trigger]]:min-h-11">
-          <TabsTrigger value="mo-ta">{t('author.problem.tab.statement')}</TabsTrigger>
-          {/*
-            Nhãn tab tới từ PLUGIN, không phải một hằng: "Cụm ban đầu" đúng với
-            K8s và sai với mọi game khác. Đây cũng là dấu hiệu rẻ nhất trên màn
-            hình cho thấy ô chọn game đã ăn.
-          */}
-          <TabsTrigger value="cum">
-            {view?.specTabLabel ?? t('author.problem.tab.spec')}
-          </TabsTrigger>
-          <TabsTrigger value="muc-tieu">
-            {t('author.problem.tab.objectives', { n: props.form.objectives.length })}
-          </TabsTrigger>
-          <TabsTrigger value="goi-y">
-            {t('author.problem.tab.hints', { n: props.form.hints.length })}
-          </TabsTrigger>
-          <TabsTrigger value="thu">{t('author.problem.tab.arena')}</TabsTrigger>
-          <TabsTrigger value="json">{t('author.problem.tab.json')}</TabsTrigger>
-          {props.publishTab !== undefined && (
-            <TabsTrigger value="xuat-ban">{t('author.problem.tab.publish')}</TabsTrigger>
-          )}
-        </TabsList>
-
-        <TabsContent value="mo-ta">
-          <div className="flex flex-col gap-8 pt-4">
-            <StatementFields
-              form={props.form}
-              onChange={patch}
-              issues={props.issues}
-              code={props.code}
-            />
-            {/*
-              Tập chủ đề tới từ plugin của game đang chọn. Chín chủ đề K8s
-              không còn là danh sách dùng chung, và truyền `[]` khi game chưa
-              có plugin là đúng nghĩa: chưa có bài tập thì chưa có chủ đề nào.
-            */}
-            <ClassifyFields
-              form={props.form}
-              onChange={patch}
-              issues={props.issues}
-              topics={view?.topics ?? []}
-              // §18.D.6 — `false` khi plugin không khai `seedSpec`, tức HÔM NAY
-              // là mọi game. `ClassifyFields` vô hiệu hoá ô đánh dấu và nói ra
-              // lý do thay vì để người soạn bật một cờ không có tác dụng.
-              canSeed={view?.canSeed ?? false}
-            />
-          </div>
-        </TabsContent>
-
-        <TabsContent value="cum">
-          <div className="pt-4">
-            {view !== null && view.specEditor === 'generic' ? (
-              <PluginFields
-                fields={view.authorFields}
-                value={props.form.specText}
-                issues={props.issues}
-                onChange={(path, next) => {
-                  props.onChange({
-                    ...props.form,
-                    specText: { ...props.form.specText, [path]: next },
-                  });
-                }}
-              />
+    <StudioEditorFrame
+      crumbs={[
+        { label: t('shell.section.studio') },
+        { href: '/author/problems', label: t('shell.nav.author-problems') },
+        { label: props.code ?? t('author.problem.new.crumb') },
+      ]}
+      title={props.title}
+      status={<StateChip state={props.state} label={t(STATE_KEYS[props.state])} />}
+      toolbar={props.toolbar(nav)}
+      modes={modes}
+      mode={mode}
+      onModeChange={setMode}
+      rail={
+        <>
+          <RailSection title={t('author.studio.rail.issues')} tone={studioIssues.length > 0 ? 'bad' : 'ok'}>
+            {studioIssues.length > 0 ? (
+              <IssueList issues={studioIssues} onJump={nav.jump} />
             ) : (
-              <ClusterFields
-                cluster={props.form.cluster}
-                issues={props.issues}
-                nextKey={props.nextKey}
-                onChange={patchCluster}
-                onReplace={(cluster) => {
-                  props.onChange({ ...props.form, cluster });
-                }}
-              />
+              <p className="text-muted-foreground">{t('author.studio.rail.issues-clean')}</p>
             )}
-          </div>
-        </TabsContent>
+          </RailSection>
+          {props.readiness(nav)}
+        </>
+      }
+    >
+      <StudioPanel value={PROBLEM_MODES.statement}>
+        <Split index="01" title={t('author.problem.game.label')}>
+          <GameSelectField
+            gameId={form.gameId}
+            // Đổi game trên bài ĐÃ LƯU là đổi kiểu `initialState` của nó, mà máy
+            // chủ chưa có đường nhận chuyện đó: khoá ở trang sửa thì giới hạn
+            // nhìn thấy được, mở thì người soạn mất cụm đã dựng đổi lấy lỗi 400.
+            canChange={props.code === null}
+            onChange={(gameId) => {
+              onChange(formWithGame(form, gameId));
+            }}
+          />
+        </Split>
+        <Split index="02" title={t('problem.statement-fields-mo-ta')}>
+          <StatementFields form={form} onChange={patch} issues={props.issues} code={props.code} />
+        </Split>
+        <Split index="03" title={t('problem.classify-fields-phan-loai')}>
+          <ClassifyFields
+            form={form}
+            onChange={patch}
+            issues={props.issues}
+            topics={view?.topics ?? []}
+            // §18.D.6: `false` khi plugin không khai `seedSpec`, tức hôm nay là mọi game.
+            canSeed={view?.canSeed ?? false}
+          />
+        </Split>
+      </StudioPanel>
 
-        <TabsContent value="muc-tieu">
-          <section className="flex flex-col gap-4 pt-4">
-            <h2 className="border-b border-border pb-2 text-lg font-semibold text-foreground">
-              {t('author.problem.objectives.heading')}
-            </h2>
-            {props.form.objectives.map((objective, index) => (
-              <ObjectiveFields
-                key={objective.key}
-                objective={objective}
-              gameId={props.form.gameId}
-                index={index}
-                issues={props.issues}
-                namespaces={namespaces}
-                nodes={nodeNames}
-                canRemove={props.form.objectives.length > 1}
-                canMoveUp={index > 0}
-                canMoveDown={index < props.form.objectives.length - 1}
-                onChange={(part) => {
-                  patch({
-                    objectives: props.form.objectives.map((item, i) =>
-                      i === index ? { ...item, ...part } : item,
-                    ),
-                  });
-                }}
-                onRemove={() => {
-                  patch({ objectives: props.form.objectives.filter((_, i) => i !== index) });
-                }}
-                onMove={(delta) => {
-                  patch({ objectives: moveObjective(props.form.objectives, index, delta) });
-                }}
-              />
-            ))}
-            <div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  const next = emptyObjective(props.nextKey());
-                  patch({
-                    objectives: [
-                      ...props.form.objectives,
-                      { ...next, id: `muc-tieu-${String(props.form.objectives.length + 1)}` },
-                    ],
-                  });
-                }}
-              >
-                {t('author.problem.objectives.add')}
-              </Button>
-            </div>
-          </section>
-        </TabsContent>
-
-        <TabsContent value="goi-y">
-          <div className="pt-4">
-            <HintListFields
-              hints={props.form.hints}
+      <StudioPanel value={PROBLEM_MODES.spec}>
+        {view !== null && view.specEditor === 'generic' ? (
+          <Split index="01" title={view.specTabLabel}>
+            <PluginFields
+              fields={view.authorFields}
+              value={form.specText}
               issues={props.issues}
-              nextKey={props.nextKey}
-              onChange={(hints) => {
-                patch({ hints });
+              onChange={(path, next) => {
+                onChange({ ...form, specText: { ...form.specText, [path]: next } });
               }}
             />
-          </div>
-        </TabsContent>
-
-        <TabsContent value="thu">
-          <div className="pt-4">
-            <ArenaPreview
-              code={props.code}
-              gameId={props.form.gameId}
-              hasUnsavedChanges={props.hasUnsavedChanges}
-            />
-          </div>
-        </TabsContent>
-
-        <TabsContent value="json">
-          <div className="pt-4">
-            <JsonTransfer
-              form={props.form}
-              code={props.code}
-              nextKey={props.nextKey}
-              onImport={props.onChange}
-            />
-          </div>
-        </TabsContent>
-
-        {props.publishTab !== undefined && (
-          <TabsContent value="xuat-ban">
-            <div className="pt-4">{props.publishTab}</div>
-          </TabsContent>
+          </Split>
+        ) : (
+          <ClusterFields
+            cluster={form.cluster}
+            issues={props.issues}
+            line={line}
+            nextKey={props.nextKey}
+            onChange={patchCluster}
+            onReplace={(cluster) => {
+              onChange({ ...form, cluster });
+            }}
+          />
         )}
-      </Tabs>
+      </StudioPanel>
 
-      <div className="practice-editor-actions">
-        <span className="practice-save-state" role="status">
-          {props.hasUnsavedChanges
-            ? t('author.problem.edit.unsaved')
-            : props.code === null
-              ? t('author.problem.edit.new-draft')
-              : t('author.problem.edit.saved')}
-        </span>
-        {props.actions}
-      </div>
-    </div>
+      <StudioPanel value={PROBLEM_MODES.objectives}>
+        <ObjectiveList form={form} onChange={patch} issues={props.issues} line={line} nextKey={props.nextKey} />
+      </StudioPanel>
+
+      <StudioPanel value={PROBLEM_MODES.hints}>
+        <Split index="01" title={t('problem.hint-fields-goi-y')}>
+          <HintListFields
+            hints={form.hints}
+            issues={props.issues}
+            line={line}
+            nextKey={props.nextKey}
+            onChange={(hints) => {
+              patch({ hints });
+            }}
+          />
+        </Split>
+      </StudioPanel>
+
+      <StudioPanel value={PROBLEM_MODES.arena}>
+        <ArenaPreview code={props.code} gameId={form.gameId} saveStatus={props.saveStatus} />
+      </StudioPanel>
+
+      <StudioPanel value={PROBLEM_MODES.json}>
+        <JsonTransfer form={form} code={props.code} nextKey={props.nextKey} onImport={onChange} />
+      </StudioPanel>
+
+      {props.publish !== undefined && (
+        <StudioPanel value={PROBLEM_MODES.publish}>{props.publish(nav)}</StudioPanel>
+      )}
+    </StudioEditorFrame>
   );
 }

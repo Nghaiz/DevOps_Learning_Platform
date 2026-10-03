@@ -1,180 +1,201 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
-import Link from 'next/link';
-import { Alert, AlertDescription, AlertTitle, Button, ErrorState, Skeleton } from '@devops-platform/ui';
-import { t } from '@devops-platform/copy';
+import { count, t } from '@devops-platform/copy';
+import { Button, ErrorState, Skeleton } from '@devops-platform/ui';
+import { RailSection, saveStatusOf, type SaveStatus } from '../../../../components/author/studio';
+import { PageContainer } from '../../../../components/kit';
 import { api } from '../../../../lib/trpc-react';
 import { describeTrpcError } from '../../../../lib/trpc';
-import { useProblemMutations } from './use-problem-mutations';
 import type { FieldIssue } from '../cluster-form';
+import { pluginViewFor } from '../game-plugin-view';
 import { formFromProblem, type ProblemFormState } from '../problem-form';
 import { toProblemDraft } from '../problem-draft';
+import { mergeIssues, toStudioIssues } from '../problem-issues';
+import { PROBLEM_MODES } from '../problem-modes';
 import { publishIssues } from '../problem-validate';
-import { ProblemEditor } from '../problem-editor';
-import { PublishCheck } from '../publish-check';
+import { ProblemEditor, type EditorNav } from '../problem-editor';
+import { ProblemPublishPanel } from '../publish-check';
+import { SaveToolbar } from '../save-toolbar';
+import { useProblemMutations } from './use-problem-mutations';
+
+/** Payload đã serialise: thứ duy nhất đáng so để biết màn hình có lệch bản lưu không. */
+function snapshotOf(form: ProblemFormState): string | null {
+  const draft = toProblemDraft(form);
+  return draft.ok ? JSON.stringify(draft.value) : null;
+}
 
 /**
- * `/author/problems/[code]` — sửa một bài đã lưu.
+ * `/author/problems/[code]`: sửa một bài đã lưu.
  *
  * ## Nạp MỘT lần cho mỗi mã
  *
- * Cổng `form !== null` không phải tối ưu hoá: `byCode` được `invalidate` sau mỗi
- * lượt lưu, và nếu effect chạy lại thì nó ghi đè những gì người soạn đang gõ
- * bằng bản vừa lưu — mọi thay đổi sau lượt lưu biến mất khi query trả về. Đúng
- * cái bẫy `author/[id]` đã ghi lại.
+ * `forEdit` được `invalidate` sau mỗi lượt lưu. Nếu effect nạp lại form mỗi lần
+ * query trả về, nó ghi đè thứ người soạn đang gõ bằng bản vừa lưu. Cổng
+ * `form !== null` chặn đúng chuyện đó.
  *
- * ## "Chưa lưu" so bằng payload, không so bằng state form
+ * `forEdit`, KHÔNG `byCode`: `byCode` là đường của người xem và nó CHE gợi ý với
+ * người không phải chủ bài. Trình soạn phải đọc được đúng thứ mình vừa viết.
  *
- * `savedSnapshot` giữ payload đã gửi lên, không giữ `ProblemFormState`: state
- * mang khoá React (`key`) đổi mỗi lần thêm/xoá dòng, nên so state sẽ báo "chưa
- * lưu" ngay sau một lượt lưu thành công. So payload thì chỉ đổi khi NỘI DUNG
- * đổi — và đó mới là thứ cảnh báo ở tab Thử cần biết.
+ * ## "Đã lưu" chỉ đến từ máy chủ
+ *
+ * `savedSnapshot` giữ PAYLOAD (không giữ state form, vì state mang khoá React đổi
+ * mỗi lần thêm dòng) và chỉ được ghi trong `onSuccess`, bằng đúng payload đã gửi.
+ * Bản cũ ghi nó trong lúc BẤM, trước khi máy chủ trả lời, nên một lượt lưu bị từ
+ * chối vẫn hiện "Đã lưu" và mở khoá nút Xuất bản trên một bản máy chủ chưa có.
  *
  * ⛔ Không dựng `<main>` (C6bis). ⛔ Không `useInfiniteQuery`.
- *
- * ## Nút lưu mượn `common.action.save`, không khai bản thứ hai
- *
- * Nhãn `Lưu` là nhãn nút chung của cả sản phẩm và L0 sở hữu nó. Chép một
- * `author.problem.edit.save` sang đây là dựng nguồn thứ hai cho cùng một chữ,
- * và hai nguồn là hai thứ sẽ lệch.
  */
 export function ProblemEditClient({ code }: { readonly code: string }): ReactElement {
-
   const keyCounter = useRef(0);
   const nextKey = useCallback(() => {
     keyCounter.current += 1;
     return `k-${String(keyCounter.current)}`;
   }, []);
 
-  // `forEdit`, KHÔNG `byCode`: `byCode` là đường của NGƯỜI XEM và nó CHE nội
-  // dung gợi ý với người không phải chủ bài. Trình soạn phải đọc được đúng thứ
-  // mình vừa viết, nên nó đi đường của người soạn.
   const query = api.problems.forEdit.useQuery({ code }, { retry: false });
   const [form, setForm] = useState<ProblemFormState | null>(null);
   const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null);
-  const [issues, setIssues] = useState<readonly FieldIssue[]>([]);
-
+  const [saveIssues, setSaveIssues] = useState<readonly FieldIssue[]>([]);
   const loaded = query.data ?? null;
+  const { update, saveError, publish, archive, remove, busy } = useProblemMutations(code);
 
   useEffect(() => {
-    if (form !== null || loaded === null) {
-      return;
-    }
+    if (form !== null || loaded === null) return;
     const next = formFromProblem(loaded, nextKey);
     setForm(next);
-    const draft = toProblemDraft(next);
-    setSavedSnapshot(draft.ok ? JSON.stringify(draft.value) : null);
+    setSavedSnapshot(snapshotOf(next));
   }, [loaded, form, nextKey]);
 
-  const { update, publish, archive, remove, busy, serverError, setServerError } =
-    useProblemMutations(code);
-
   const gateIssues = useMemo(() => (form === null ? [] : publishIssues(form)), [form]);
-  const currentSnapshot = useMemo(() => {
-    if (form === null) {
-      return null;
-    }
-    const draft = toProblemDraft(form);
-    return draft.ok ? JSON.stringify(draft.value) : null;
-  }, [form]);
-  const hasUnsavedChanges = savedSnapshot === null || currentSnapshot !== savedSnapshot;
+  const currentSnapshot = useMemo(() => (form === null ? null : snapshotOf(form)), [form]);
 
   if (query.isPending) {
     return (
-      <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 px-6 py-10" aria-hidden>
+      <PageContainer className="flex flex-col gap-4 py-10">
         <Skeleton className="h-10 w-2/3" />
         <Skeleton className="h-96 w-full" />
-      </div>
+      </PageContainer>
     );
   }
 
   if (query.isError || loaded === null || form === null) {
     return (
-      <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 px-6 py-10">
+      <PageContainer className="py-10">
         <ErrorState
           title={t('author.problem.edit.error-title')}
-          message={
-            query.error === null ? t('author.problem.edit.error-fallback') : describeTrpcError(query.error)
-          }
+          message={query.error === null ? t('author.problem.edit.error-fallback') : describeTrpcError(query.error)}
           onRetry={() => void query.refetch()}
           retrying={query.isFetching}
         />
-      </div>
+      </PageContainer>
     );
   }
 
+  const status: SaveStatus = saveStatusOf({
+    persisted: true,
+    dirty: savedSnapshot === null || currentSnapshot !== savedSnapshot,
+    saving: update.isPending,
+    failed: saveError !== null,
+  });
+  const specFields = pluginViewFor(form.gameId)?.authorFields ?? [];
+  const fieldIssues = mergeIssues(saveIssues, gateIssues);
+
   const save = (): void => {
-    setServerError(null);
     const draft = toProblemDraft(form);
     if (!draft.ok) {
-      setIssues(draft.issues);
+      setSaveIssues(draft.issues);
       return;
     }
-    setIssues([]);
-    setSavedSnapshot(JSON.stringify(draft.value));
-    update.mutate({ code, ...draft.value });
+    setSaveIssues([]);
+    const sent = JSON.stringify(draft.value);
+    update.mutate(
+      { code, ...draft.value },
+      {
+        onSuccess: () => {
+          setSavedSnapshot(sent);
+        },
+      },
+    );
   };
 
   return (
-    <div className="practice-catalog">
-      <header className="flex flex-col gap-1">
-        <Link href="/author/problems" className="text-sm text-muted-foreground underline-offset-4 hover:underline">
-          ← {t('author.problem.nav.back')}
-        </Link>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-          {form.title === '' ? code : form.title}
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          <code className="font-mono">{code}</code> · {t('author.problem.edit.code-note')}
-        </p>
-      </header>
-
-      {serverError !== null && (
-        <Alert variant="destructive">
-          <AlertTitle>{t('author.problem.server-error-title')}</AlertTitle>
-          <AlertDescription>{serverError}</AlertDescription>
-        </Alert>
+    <ProblemEditor
+      form={form}
+      onChange={setForm}
+      nextKey={nextKey}
+      code={code}
+      state={loaded.state}
+      title={form.title === '' ? code : form.title}
+      issues={fieldIssues}
+      saveStatus={status}
+      toolbar={(nav) => (
+        <SaveToolbar
+          status={status}
+          label={t('common.action.save')}
+          onSave={save}
+          pending={update.isPending}
+          disabled={busy}
+          serverError={saveError}
+          localIssues={saveIssues}
+          onJump={nav.jump}
+        />
       )}
+      readiness={(nav) => <Readiness nav={nav} state={loaded.state} status={status} blockers={gateIssues.length} />}
+      publish={(nav) => (
+        <ProblemPublishPanel
+          code={code}
+          state={loaded.state}
+          saveStatus={status}
+          gateIssues={toStudioIssues(gateIssues, specFields)}
+          busy={busy}
+          publish={publish}
+          archive={archive}
+          remove={remove}
+          onJump={nav.jump}
+        />
+      )}
+    />
+  );
+}
 
-      <ProblemEditor
-        form={form}
-        onChange={setForm}
-        issues={issues}
-        code={code}
-        state={loaded.state}
-        nextKey={nextKey}
-        hasUnsavedChanges={hasUnsavedChanges}
-        publishTab={
-          <PublishCheck
-            state={loaded.state}
-            issues={gateIssues}
-            busy={busy}
-            onPublish={() => {
-              setServerError(null);
-              publish.mutate({ code });
-            }}
-            onArchive={() => {
-              setServerError(null);
-              archive.mutate({ code });
-            }}
-            onDelete={() => {
-              setServerError(null);
-              remove.mutate({ code });
-            }}
-          />
-        }
-        actions={
-          // Chỉ nút Lưu. Ô báo trạng thái lưu nằm ở `practice-save-state` trong
-          // chính `ProblemEditor`, và nó phủ BA trạng thái (chưa lưu, bản nháp
-          // mới, đã lưu). Một ô thứ hai ở đây đọc cùng cặp khoá chỉ phủ được
-          // hai, nên trang sửa hiện hai lần cùng một câu và ca `code === null`
-          // thì câu ở đây sai hẳn.
-          <Button type="button" onClick={save} loading={update.isPending} disabled={busy}>
-            {t('common.action.save')}
-          </Button>
-        }
-      />
-    </div>
+/**
+ * Khối độ sẵn sàng trong cột kiểm. Câu ở đây KHÁC câu trong chế độ Xuất bản: hai
+ * câu giống hệt nhau trên một màn hình là hai kết quả cho cùng một phép tìm chữ,
+ * và e2e luồng CI/CD tìm đúng câu của chế độ Xuất bản.
+ */
+function Readiness(props: {
+  readonly nav: EditorNav;
+  readonly state: 'draft' | 'published' | 'archived';
+  readonly status: SaveStatus;
+  readonly blockers: number;
+}): ReactElement {
+  const live = props.state === 'published';
+  const saveFirst = props.status !== 'saved';
+  const tone = live ? 'ok' : saveFirst ? 'warn' : props.blockers > 0 ? 'bad' : 'accent';
+  return (
+    <RailSection title={t('author.studio.rail.readiness')} tone={tone}>
+      <p>
+        {live
+          ? t('author.problem.rail.live')
+          : saveFirst
+            ? t('author.studio.publish.save-first.title')
+            : props.blockers > 0
+              ? count('author.problem.publish.blocked-title', props.blockers)
+              : t('author.problem.rail.ready')}
+      </p>
+      <div>
+        <Button
+          type="button"
+          variant="link"
+          size="sm"
+          onClick={() => {
+            props.nav.open(PROBLEM_MODES.publish);
+          }}
+        >
+          {t('author.problem.publish.open')}
+        </Button>
+      </div>
+    </RailSection>
   );
 }

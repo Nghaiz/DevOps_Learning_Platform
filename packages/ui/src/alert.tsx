@@ -29,15 +29,16 @@ export type AlertVariant = 'default' | 'warning' | 'destructive' | 'success';
  * SC 1.4.11, cùng lập luận đã ghi cho `--border` ở `docs/design-system.md` §1a.
  */
 const alertVariants = cva(
-  'relative grid grid-cols-[auto_1fr] gap-x-3 rounded-lg border p-4 text-sm',
+  // Khối phẳng trong trang: không bo, không bóng, không vạch màu một bên.
+  'relative grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 border p-4 text-sm',
   {
     variants: {
       variant: {
-        default: 'border-border bg-card text-card-foreground [&_svg]:text-foreground',
-        warning: 'border-warning/30 bg-warning/10 text-foreground [&_svg]:text-warning',
+        default: 'border-ink bg-card text-card-foreground [&_svg]:text-foreground',
+        warning: 'border-warning/50 bg-warning/10 text-foreground [&_svg]:text-warning',
         destructive:
-          'border-destructive/30 bg-destructive/10 text-foreground [&_svg]:text-destructive',
-        success: 'border-success/30 bg-success/10 text-foreground [&_svg]:text-success',
+          'border-destructive/50 bg-destructive/10 text-foreground [&_svg]:text-destructive',
+        success: 'border-success/50 bg-success/10 text-foreground [&_svg]:text-success',
       } satisfies Record<AlertVariant, string>,
     },
     defaultVariants: { variant: 'default' },
@@ -67,7 +68,7 @@ export function AlertTitle({
   return (
     <Heading
       data-slot="alert-title"
-      className={cn('col-start-2 leading-none font-medium', className)}
+      className={cn('col-start-2 leading-tight font-semibold', className)}
       {...props}
     />
   );
@@ -77,7 +78,7 @@ export function AlertDescription({ className, ...props }: ComponentProps<'div'>)
   return (
     <div
       data-slot="alert-description"
-      className={cn('col-start-2 text-sm text-muted-foreground', className)}
+      className={cn('col-start-2 text-sm text-foreground', className)}
       {...props}
     />
   );

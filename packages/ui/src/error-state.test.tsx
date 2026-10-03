@@ -40,4 +40,30 @@ describe('ErrorState', () => {
     expect(screen.getByText('Hết hạn phiên')).toBeDefined();
     expect(screen.queryByText('Không tải được dữ liệu')).toBeNull();
   });
+
+  it('retryLabel thay nhãn nút, actions đứng cạnh nút thử lại', async () => {
+    const user = userEvent.setup();
+    const onFirst = vi.fn();
+    render(
+      <ErrorState
+        message="Lỗi."
+        onRetry={vi.fn()}
+        retryLabel="Tải lại"
+        actions={
+          <button type="button" onClick={onFirst}>
+            Về đầu
+          </button>
+        }
+      />,
+    );
+    expect(screen.getByRole('button', { name: 'Tải lại' })).toBeDefined();
+    expect(screen.queryByRole('button', { name: 'Thử lại' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Về đầu' }));
+    expect(onFirst).toHaveBeenCalledTimes(1);
+  });
+
+  it('chỉ có actions, không onRetry ⇒ vẫn hiện nút phụ', () => {
+    render(<ErrorState message="Lỗi." actions={<button type="button">Quay về danh sách</button>} />);
+    expect(screen.getByRole('button', { name: 'Quay về danh sách' })).toBeDefined();
+  });
 });

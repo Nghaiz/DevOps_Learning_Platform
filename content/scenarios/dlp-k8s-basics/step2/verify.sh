@@ -1,38 +1,34 @@
 #!/bin/bash
-# Hai gia tri THAT: truot khi Pod 'solo-pod' chua ton tai hoac chua
-# Running/Ready, dat khi no da Running/Ready voi dung image.
+# Bước 2: Pod default/web chạy nginx:1.27-alpine và đã Ready.
+# Đọc kubeconfig gốc do k3s ghi, không đọc ~/.kube/config: người học có thể đổi
+# namespace mặc định trong file của họ, và lượt chấm không được đổi theo.
 set -uo pipefail
+export KUBECONFIG=/var/lib/dlp/k3s/kubeconfig.yaml
+k() { kubectl --request-timeout=10s "$@"; }
 
-dlp-k8s-wait 15
-rc=$?
-if [ "$rc" -ne 0 ]; then
-  if [ "$rc" -eq 2 ]; then
-    echo "Phien nay khong bat cum Kubernetes con (loi cau hinh ha tang, khong phai loi lam bai)."
-    echo "Bao lai cho quan tri vien."
-  else
-    echo "Cum chua san sang sau vai giay cho them. Doi mot chut roi bam Kiem tra lai."
-  fi
+if ! k get --raw /readyz >/dev/null 2>&1; then
+  fail "Cụm Kubernetes trong sandbox đang trả lời (chưa: đợi vài giây rồi kiểm lại)"
   exit 1
 fi
 
-if ! kubectl get pod solo-pod >/dev/null 2>&1; then
-  echo "Chua thay Pod 'solo-pod'. Hay chay: kubectl run solo-pod --image=nginx:1.29.0 --port=80"
+pod=$(k get pod web -n default -o json 2>/dev/null)
+if [ -z "$pod" ]; then
+  fail "Có Pod web trong namespace default (chưa có: kubectl run web --image=nginx:1.27-alpine)"
   exit 1
 fi
+pass "Có Pod web trong namespace default"
 
-PHASE=$(kubectl get pod solo-pod -o jsonpath='{.status.phase}' 2>/dev/null)
-READY=$(kubectl get pod solo-pod -o jsonpath='{.status.containerStatuses[0].ready}' 2>/dev/null)
-IMAGE=$(kubectl get pod solo-pod -o jsonpath='{.spec.containers[0].image}' 2>/dev/null)
-
-if [ "$PHASE" != "Running" ] || [ "$READY" != "true" ]; then
-  echo "Pod 'solo-pod' ton tai nhung chua Running/Ready (phase='${PHASE:-trong}' ready='${READY:-trong}')."
-  echo "Doi vai giay roi Kiem tra lai."
-  exit 1
+image=$(jq -r '.spec.containers[0].image' <<<"$pod")
+if [ "$image" = "nginx:1.27-alpine" ]; then
+  pass "Pod web chạy image nginx:1.27-alpine"
+else
+  fail "Pod web chạy image nginx:1.27-alpine (hiện: $image; xoá Pod rồi tạo lại đúng image)"
 fi
 
-if [ "$IMAGE" != "nginx:1.29.0" ]; then
-  echo "Pod 'solo-pod' dang chay image '$IMAGE', can dung nginx:1.29.0."
-  exit 1
+ready=$(jq -r '.status.conditions[]? | select(.type == "Ready") | .status' <<<"$pod")
+if [ "$ready" = "True" ]; then
+  pass "Pod web đã Ready"
+else
+  phase=$(jq -r '.status.phase' <<<"$pod")
+  fail "Pod web đã Ready (hiện: $phase; chờ bằng kubectl wait --for=condition=Ready pod/web)"
 fi
-
-echo "Dat — Pod 'solo-pod' Running/Ready voi image nginx:1.29.0."

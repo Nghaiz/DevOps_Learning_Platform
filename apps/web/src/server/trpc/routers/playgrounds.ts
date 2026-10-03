@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { rethrowContentSourceError } from '../../content/source-errors';
 import {
+  CONTENT_TOPICS,
   SANDBOX_TIER_NAMES,
   SCENARIO_CAPABILITIES,
   scenarioIdSchema,
@@ -8,6 +9,7 @@ import {
 import { profileForCapabilities, unsupportedCapabilities } from '../../lessons/catalog';
 import { playgroundSource, requirePlayground } from '../../labs/catalog';
 import { createSandboxSession } from '../../labs/session';
+import { recordSessionOrigin } from '../../sessions/origins';
 import { applySessionPreferences } from '../../sessions/preferences';
 import { createTRPCRouter, listInputSchema, protectedProcedure } from '../init';
 
@@ -58,6 +60,7 @@ const listPlaygroundsInput = listInputSchema
   .extend({
     tier: z.enum(SANDBOX_TIER_NAMES).optional(),
     capability: z.enum(SCENARIO_CAPABILITIES).optional(),
+    topic: z.enum(CONTENT_TOPICS).optional(),
   })
   .strict();
 
@@ -73,7 +76,7 @@ export const playgroundsRouter = createTRPCRouter({
       const result = await playgroundSource().listPlaygroundsPage({
         limit: input.limit,
         cursor: input.cursor,
-        filter: { tier: input.tier, capability: input.capability },
+        filter: { tier: input.tier, capability: input.capability, topic: input.topic },
       });
       return { items: result.items, limit: input.limit, nextCursor: result.nextCursor };
     } catch (cause) {
@@ -131,6 +134,14 @@ export const playgroundsRouter = createTRPCRouter({
       idempotencyKey: input.idempotencyKey,
       capabilities: playground.capabilities,
       interfaceLayout: playground.interfaceLayout,
+    });
+    // Ghi TRƯỚC khi áp tuỳ chọn: lượt ghi này là thứ `me.activeSessions` cần để
+    // dẫn "Làm tiếp" về đây — xem `sessions/origins.ts`.
+    await recordSessionOrigin(ctx.db, {
+      sessionId: session.id,
+      userId: ctx.user.id,
+      kind: 'playground',
+      contentId: playground.id,
     });
     const { preferencesApplied } = await applySessionPreferences(ctx, session);
     return { sessionId: session.id, ttlSeconds: playground.ttlSeconds, preferencesApplied };

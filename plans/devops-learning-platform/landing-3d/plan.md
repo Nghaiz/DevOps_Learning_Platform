@@ -81,7 +81,7 @@ xanh, một cổng đỏ rồi chạy lại), Production (địa cầu điểm +
 ## Giả định đã chốt (chủ dự án yêu cầu tự chủ, báo một lượt cuối)
 
 - Landing luôn tối, bất kể theme sáng/tối của app.
-- Font Archivo + JetBrains Mono nạp tạm trong landing tới khi layout gốc của 00 nạp chung.
+- Font Archivo + JetBrains Mono do layout gốc của 00 nạp chung (`--font-archivo`, `--font-jetbrains-mono`); landing không nạp riêng.
 - Dockerfile thêm `COPY public` (cụm đang 404 logo + favicon; 0c đồng ý).
 
 ## Nợ còn lại (ghi 2026-10-03, khi chủ dự án chuyển ưu tiên sang bản ổn định để demo)
@@ -101,5 +101,4 @@ Landing đã chạy đủ và qua cổng CI; các mục dưới đây KHÔNG ch�
    DOM bẩn), ~5 ms một khung. Không xảy ra với cuộn bánh xe do Lenis tự lái.
 4. **Đầu khu lộ trình (y≈15170)** có một nhịp GSAP 27 ms (style + layout 18 ms) lúc ghim ngang
    bắt đầu.
-5. **`fonts.ts` là tạm**: xoá khi layout gốc của 00 nạp chung Archivo + JetBrains Mono.
 

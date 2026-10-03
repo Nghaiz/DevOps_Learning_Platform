@@ -1,19 +1,16 @@
 'use client';
 
-import { useMemo } from 'react';
 import type { inferRouterOutputs } from '@trpc/server';
 import { t } from '@devops-platform/copy';
 import type { AppRouter } from '../../server/trpc/routers/app-router';
 import { api } from '../../lib/trpc-react';
-import { describeTrpcError, trpcErrorCode } from '../../lib/trpc';
-import { CatalogPage, CatalogScopeNotes } from '../../components/catalog/catalog-page';
-import { CatalogCard, CatalogGrid, CatalogGridSkeleton } from '../../components/catalog/catalog-grid';
+import { BoardMeta, BoardRow, PageContainer, lineForTopic } from '../../components/kit';
+import { CatalogPoster } from '../../components/catalog/catalog-poster';
 import { CatalogToolbar } from '../../components/catalog/catalog-toolbar';
-import { CatalogEmptyState } from '../../components/catalog/catalog-empty';
-import { CatalogError } from '../../components/catalog/catalog-error';
-import { CatalogPager } from '../../components/catalog/catalog-pager';
-import { catalogErrorTitle, catalogLead, catalogTitle } from '../../components/catalog/catalog-labels';
+import { CatalogResults } from '../../components/catalog/catalog-results';
+import { describeLoadedScope } from '../../components/catalog/catalog-labels';
 import { buildCatalogListInput } from '../../components/catalog/catalog-input';
+import { combineCatalogPages } from '../../components/catalog/catalog-pages';
 import { searchPage } from '../../components/catalog/catalog-search';
 import { useCatalogControls } from '../../components/catalog/use-catalog-controls';
 import {
@@ -35,128 +32,92 @@ const SORT_OPTIONS: readonly SortOption<QuizRow>[] = [
   },
 ];
 
-/**
- * Ô tìm soi tiêu đề và mô tả của BỘ câu hỏi, không soi câu hỏi bên trong.
- *
- * Đó không phải một giới hạn kỹ thuật mà là một ranh giới cố ý: `quiz.list` chỉ
- * trả `QuizSummary`, không câu hỏi, không đáp án. Kéo nội dung câu hỏi xuống
- * client để tìm được sẽ phá đúng ranh giới mà server đang giữ.
- */
 function quizSearchFields(item: QuizRow): readonly (string | null)[] {
   return [item.title, item.description];
 }
 
 /**
- * Trang danh sách `/quiz`.
+ * Trang danh sách `/quiz`. Cùng khuôn với `/lessons`, không có bộ lọc:
+ * `quiz.list` nhận đúng cursor và `.strict()` từ chối mọi field lọc.
  *
- * Cùng khuôn `paths-client.tsx`: `quiz.list` nhận đúng `listInputSchema`
- * (`limit` + `cursor`) và `.strict()` từ chối mọi field lọc, nên trang này chỉ
- * có ô tìm và ô sắp xếp. `nextCursor` là cursor THẬT (keyset theo `id` qua
- * `listPublishedQuizzesPage`), không phải một `null` cố định.
- *
- * ⛔ Danh sách chỉ có `QuizSummary`. Ranh giới đó do server giữ (`quiz.get` khai
- * tường minh `QuizForLearner`; `quiz.list` bỏ cả `state`), và trang này không
- * được đi vòng qua nó bằng một lời gọi khác.
+ * Tuyến màu suy từ mã bộ câu hỏi (`dlp-quiz-docker-co-ban` ⇒ docker): payload
+ * danh sách không có trường chủ đề.
  */
-export function QuizClient({ canAuthor }: { readonly canAuthor: boolean }): React.ReactElement {
+export function QuizClient({
+  canAuthor,
+  total,
+}: {
+  readonly canAuthor: boolean;
+  readonly total: number | null;
+}): React.ReactElement {
   const controls = useCatalogControls();
-  const query = api.quiz.list.useQuery(buildCatalogListInput(controls.filters, controls.cursor));
-
-  const sortOption = findSortOption(SORT_OPTIONS, controls.sortKey);
-  const loaded = query.data?.items ?? [];
-  const items = useMemo(
-    () => sortPage(searchPage(query.data?.items ?? [], controls.normalizedSearch, quizSearchFields), sortOption),
-    [query.data, controls.normalizedSearch, sortOption],
+  const results = api.useQueries((q) =>
+    controls.cursors.map((cursor) => q.quiz.list(buildCatalogListInput(controls.filters, cursor))),
   );
-  const hasNext = query.data?.nextCursor != null;
+  const pages = combineCatalogPages(results);
+  const loaded = pages.status === 'success' ? pages.items : [];
+  const items = sortPage(
+    searchPage(loaded, controls.normalizedSearch, quizSearchFields),
+    findSortOption(SORT_OPTIONS, controls.sortKey),
+  );
+  const hasNext = pages.status === 'success' && pages.hasNext;
 
   return (
-    <CatalogPage title={catalogTitle('quiz')} description={catalogLead('quiz')}>
-      <CatalogToolbar
-        kind="quiz"
-        fields={[]}
-        filters={controls.filters}
-        onDifficulty={controls.setDifficulty}
-        onTier={controls.setTier}
-        onClearFilters={controls.clearFilters}
-        sortKey={controls.sortKey}
-        sortOptions={SORT_OPTIONS}
-        onSort={controls.setSortKey}
-        search={controls.search}
-        onSearch={controls.setSearch}
-        shown={query.isSuccess ? items.length : null}
-        hasNext={hasNext}
-        disabled={query.isPending}
-      />
-
-      {query.isPending && <CatalogGridSkeleton />}
-
-      {query.isError && (
-        <CatalogError
-          title={catalogErrorTitle('quiz')}
-          message={describeTrpcError(query.error)}
-          errorCode={trpcErrorCode(query.error)}
-          retrying={query.isFetching}
-          page={controls.page}
-          onRetry={() => void query.refetch()}
-          onFirstPage={controls.goFirst}
-        />
-      )}
-
-      {query.isSuccess && items.length === 0 && (
-        <CatalogEmptyState
+    <>
+      <CatalogPoster kind="quiz" count={total} />
+      <PageContainer className="py-10 md:py-12">
+        <CatalogToolbar
           kind="quiz"
-          page={controls.page}
-          hasActiveFilter={controls.hasActiveFilter}
-          canAuthor={canAuthor}
-          query={controls.normalizedSearch}
-          loaded={loaded.length}
-          hasNext={hasNext}
+          fields={[]}
+          filters={controls.filters}
+          onTopic={controls.setTopic}
+          onDifficulty={controls.setDifficulty}
+          onTier={controls.setTier}
           onClearFilters={controls.clearFilters}
-          onClearSearch={controls.clearSearch}
-          onFirstPage={controls.goFirst}
+          sortKey={controls.sortKey}
+          sortOptions={SORT_OPTIONS}
+          onSort={controls.setSortKey}
+          search={controls.search}
+          onSearch={controls.setSearch}
+          scopeNote={describeLoadedScope({
+            kind: 'quiz',
+            loaded: loaded.length,
+            hasNext,
+            searching: controls.hasSearch,
+            sorting: controls.isSorted,
+          })}
+          disabled={pages.status === 'pending'}
         />
-      )}
-
-      {query.isSuccess && items.length > 0 && (
-        <>
-          <CatalogGrid>
-            {items.map((item) => (
-              <CatalogCard
+        <div className="mt-8">
+          <CatalogResults
+            kind="quiz"
+            pages={pages}
+            shown={items.length}
+            controls={controls}
+            canAuthor={canAuthor}
+            onRetry={(index) => void results[index]?.refetch()}
+            isFetching={(index) => results[index]?.isFetching ?? false}
+          >
+            {items.map((item, index) => (
+              <BoardRow
                 key={item.id}
                 href={`/quiz/${item.id}`}
+                index={index + 1}
+                order={index}
+                line={lineForTopic({ id: item.id })}
                 title={item.title}
-                description={item.description}
-                meta={[
-                  { icon: 'questions', label: t('catalog.meta.questions', { n: item.questionCount }) },
-                  {
-                    icon: 'threshold',
-                    label: t('catalog.meta.threshold', { percent: item.passThresholdPercent }),
-                  },
-                ]}
+                sub={item.description ?? undefined}
+                meta={
+                  <>
+                    <BoardMeta>{t('catalog.meta.questions', { n: item.questionCount })}</BoardMeta>
+                    <BoardMeta>{t('catalog.meta.threshold', { percent: item.passThresholdPercent })}</BoardMeta>
+                  </>
+                }
               />
             ))}
-          </CatalogGrid>
-
-          <CatalogScopeNotes
-            kind="quiz"
-            page={controls.page}
-            shown={items.length}
-            loaded={loaded.length}
-            hasNext={hasNext}
-            sortKey={controls.sortKey}
-            query={controls.normalizedSearch}
-          />
-
-          <CatalogPager
-            hasNext={hasNext}
-            onNext={() => controls.goNext(query.data.nextCursor)}
-            onReset={controls.goFirst}
-            page={controls.page}
-            loading={query.isFetching}
-          />
-        </>
-      )}
-    </CatalogPage>
+          </CatalogResults>
+        </div>
+      </PageContainer>
+    </>
   );
 }

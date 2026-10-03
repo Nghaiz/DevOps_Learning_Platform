@@ -54,16 +54,36 @@ import { gradeFromSubmission, type ProblemSubmission } from '@devops-platform/ga
  * sinh ra để tránh: đổ lỗi sai cú pháp cho người chơi vì một thiếu sót của hệ
  * thống.
  */
+export type SubmissionVerdictKind = 'ac' | 'wa' | 'ce' | 'ungraded';
+
+/**
+ * Loại verdict của một dòng lịch sử, cho phần TÔ MÀU của chip.
+ *
+ * Cùng một phép suy với `submissionVerdictLabel` (hàm đó đọc lại chính hàm này),
+ * nên màu và chữ của một dòng không thể nói hai điều khác nhau. `ungraded` tách
+ * khỏi `ce` đúng theo lý lẽ ở khối trên: chỉ lượt có `failedCode` mới là lỗi thật.
+ */
+export function submissionVerdictKind(
+  submission: Pick<ProblemSubmission, 'passed' | 'total' | 'failedCode'>,
+): SubmissionVerdictKind {
+  const { verdict } = gradeFromSubmission(submission);
+  if (verdict === 'CE') {
+    return submission.failedCode === null ? 'ungraded' : 'ce';
+  }
+  return verdict === 'AC' ? 'ac' : 'wa';
+}
+
 export function submissionVerdictLabel(
   submission: Pick<ProblemSubmission, 'passed' | 'total' | 'failedCode'>,
 ): string {
-  const { verdict } = gradeFromSubmission(submission);
-  if (verdict === 'CE') {
-    return submission.failedCode === null
-      ? t('catalog.problem.subs-verdict-ungraded')
-      : t('catalog.problem.verdict-ce');
+  const kind = submissionVerdictKind(submission);
+  if (kind === 'ungraded') {
+    return t('catalog.problem.subs-verdict-ungraded');
   }
-  if (verdict === 'AC') {
+  if (kind === 'ce') {
+    return t('catalog.problem.verdict-ce');
+  }
+  if (kind === 'ac') {
     return t('catalog.problem.verdict-ac');
   }
   return t('catalog.problem.verdict-wa', {

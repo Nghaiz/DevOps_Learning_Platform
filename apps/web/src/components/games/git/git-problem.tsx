@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useRef, useState, type ReactElement } from 'react';
 import { toVerdictView, type GitEngineSession, type VerdictView } from '@devops-platform/games';
 
+import { t } from '@devops-platform/copy';
 import { GitStatusScreen } from './git-status-screen';
 import { GitLevelScreen } from './git-level-screen';
 import { useHintReveal } from '../../../lib/use-hint-reveal';
@@ -55,9 +56,7 @@ import { describeTrpcError } from '../../../lib/trpc';
  *     `GitOjClaimInput.objectivesMet` về thứ VẪN gác thật.
  */
 
-const CAU_CHUA_NOP_DUOC =
-  'Bài này chưa có testcase nào nên chưa chấm được. Mở ở chế độ đọc và luyện ' +
-  'tay; hãy báo cho tác giả bài.';
+const CAU_CHUA_NOP_DUOC = t('games.git.oj.no-testcase');
 
 export interface GitProblemScreenProps {
   /** Mã bài, từ `?problem=`. Đã lọc rỗng ở `page.tsx`. */
@@ -257,7 +256,7 @@ function GitProblemBody({ code }: { readonly code: string }): ReactElement {
   );
 
   if (solver.isPending) {
-    return <GitStatusScreen text="Đang nạp đề bài và chuẩn bị kho Git của bạn…" />;
+    return <GitStatusScreen text={t('games.git.oj.loading')} />;
   }
   if (solver.isError || problem === null) {
     return (
@@ -266,7 +265,10 @@ function GitProblemBody({ code }: { readonly code: string }): ReactElement {
         onRetry={() => {
           void solver.refetch();
         }}
-        text={`Không mở được bài ${code}: ${solver.error === null ? 'không có dữ liệu' : describeTrpcError(solver.error)}`}
+        text={t('games.git.oj.load-error', {
+          code,
+          reason: solver.error === null ? t('games.git.oj.no-data') : describeTrpcError(solver.error),
+        })}
       />
     );
   }
@@ -283,19 +285,19 @@ function GitProblemBody({ code }: { readonly code: string }): ReactElement {
       level={gitOjLevel(problem)}
       // Bài OJ theo định nghĩa là bài KHÔNG dạy, nên không có ngăn bài giảng.
       theory={null}
-      exitLabel="← Trang bài tập"
+      exitLabel={t('games.git.play.back-problems')}
       onExit={() => {
         window.location.assign(`/problems/${encodeURIComponent(problem.code)}`);
       }}
       oj={{
         gradable,
         notice: gradable ? null : CAU_CHUA_NOP_DUOC,
-        submitLabel: submitting ? 'Đang chấm và nộp…' : 'Nộp bài',
+        submitLabel: submitting ? t('games.git.oj.submitting') : t('games.git.oj.submit'),
         submitDisabled: !gradable || submitting,
         onSubmit: submit,
         result: ketQuaDocDuoc(view, errorMessage),
         failedLabels: (view?.failed ?? []).map(
-          (failed) => failed.label ?? 'Testcase ẩn chưa hiện tên',
+          (failed) => failed.label ?? t('games.git.oj.hidden-case'),
         ),
         hintReveals: hints.reveals,
         onRevealHint,
@@ -314,16 +316,16 @@ function GitProblemBody({ code }: { readonly code: string }): ReactElement {
  */
 function ketQuaDocDuoc(view: VerdictView | null, errorMessage: string | null): string | null {
   if (errorMessage !== null) {
-    return `Chưa nộp được: ${errorMessage}`;
+    return t('games.git.oj.submit-error', { message: errorMessage });
   }
   if (view === null) {
     return null;
   }
   if (view.fraction === null) {
-    return `CE — ${view.failedReason ?? 'lượt chơi không chạy tới nơi nên chưa chấm được.'}`;
+    return t('games.git.oj.ce', { reason: view.failedReason ?? t('games.git.oj.ce-default') });
   }
   const { passed, total } = view.fraction;
   return view.verdict === 'AC'
-    ? `AC (${String(passed)}/${String(total)}) — qua hết testcase.`
-    : `WA (${String(passed)}/${String(total)})`;
+    ? t('games.git.oj.ac', { passed, total })
+    : t('games.git.oj.wa', { passed, total });
 }

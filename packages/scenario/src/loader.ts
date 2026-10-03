@@ -8,6 +8,7 @@ import {
   type ScenarioStep,
 } from '@devops-platform/shared-types/scenario';
 import { mapBackendImage, KNOWN_BACKEND_IMAGE_IDS } from './backend.ts';
+import { diagramRefs, loadDiagramMap } from './diagrams.ts';
 import { ScenarioError } from './errors.ts';
 import { parseKillercodaIndex, type KillercodaIndex, type KillercodaPhase } from './killercoda.ts';
 import { scenarioSidecarSchema, type ScenarioSidecar } from './sidecar.ts';
@@ -103,6 +104,7 @@ export async function loadScenario(scenarioDir: string): Promise<Scenario> {
     description: index.description ?? null,
     difficulty: sidecar.difficulty,
     estimatedMinutes: sidecar.estimatedMinutes,
+    topic: sidecar.topic,
     tier: backend.tier,
     capabilities: [...backend.capabilities],
     requiresCapabilities: requires,
@@ -126,6 +128,19 @@ export async function loadScenario(scenarioDir: string): Promise<Scenario> {
     source: sidecar.source,
     ignoredUpstreamFields: ignoredFields,
   };
+
+  const markdowns = [scenario.intro, ...scenario.steps, scenario.finish].flatMap((phase) =>
+    phase === null ? [] : [phase.markdown],
+  );
+  let diagrams;
+  try {
+    diagrams = await loadDiagramMap(dir, diagramRefs(markdowns));
+  } catch (cause) {
+    throw new ScenarioError(dir, (cause as Error).message, { cause });
+  }
+  if (diagrams !== undefined) {
+    scenario.diagrams = diagrams;
+  }
 
   // Kiểm lại DTO bằng chính schema mà 2.B/2.D sẽ tin. Không thừa: nó bắt lỗi
   // của HÀM NÀY (một field quên gán, một index lệch), thứ mà không phép kiểm nào

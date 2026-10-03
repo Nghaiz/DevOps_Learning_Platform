@@ -3,8 +3,10 @@ import { and, eq, inArray } from 'drizzle-orm';
 import { z } from 'zod';
 import { SandboxTier } from '@devops-platform/shared-types';
 import {
+  CONTENT_TOPICS,
   effectiveCapabilities,
   scenarioIdSchema,
+  toScenarioForLearner,
   SANDBOX_TIER_NAMES,
   SCENARIO_CAPABILITIES,
   SCENARIO_DIFFICULTIES,
@@ -17,7 +19,7 @@ import { attachSandboxCookie } from '../../auth/sandbox-cookie';
 import { mintAccessTokenFor } from '../../auth/jwt';
 import { callOrchestrator, orchestratorClient } from '../../grpc/orchestrator-client';
 import { toJsonSession } from '../../grpc/session-json';
-import { CONTENT_ORDER_KEYS, resolveScenarioAssets } from '@devops-platform/scenario';
+import { CONTENT_ORDER_KEYS, resolveScenarioAssets, withVerifyPrelude } from '@devops-platform/scenario';
 import { rethrowContentSourceError } from '../../content/source-errors';
 import {
   profileForCapabilities,
@@ -30,6 +32,7 @@ import { isFirstPhase, phaseRefSchema, resolvePhase } from '../../lessons/phase'
 import { buildToolsEnableScript } from '../../lessons/tools-enable';
 import { setupScriptPlan } from '../../lessons/setup-plan';
 import { runScriptInSession } from '../../lessons/validate';
+import { recordSessionOrigin } from '../../sessions/origins';
 import { applySessionPreferences } from '../../sessions/preferences';
 import { createTRPCRouter, listInputSchema, protectedProcedure } from '../init';
 
@@ -232,6 +235,7 @@ const listLessonsInput = listInputSchema
     difficulty: z.enum(SCENARIO_DIFFICULTIES).optional(),
     tier: z.enum(SANDBOX_TIER_NAMES).optional(),
     capability: z.enum(SCENARIO_CAPABILITIES).optional(),
+    topic: z.enum(CONTENT_TOPICS).optional(),
     orderBy: z.enum(CONTENT_ORDER_KEYS).optional(),
   })
   .strict();
@@ -274,6 +278,7 @@ export const lessonsRouter = createTRPCRouter({
           difficulty: input.difficulty,
           tier: input.tier,
           capability: input.capability,
+          topic: input.topic,
         },
       });
     } catch (cause) {
@@ -322,11 +327,17 @@ export const lessonsRouter = createTRPCRouter({
     };
   }),
 
-  /** Nội dung đầy đủ một bài + tiến độ của chính người gọi. */
+  /**
+   * Một bài ở dạng NGƯỜI HỌC + tiến độ của chính người gọi.
+   *
+   * `ScenarioForLearner`: script chấm và script setup được thay bằng
+   * `hasVerify`/`hasSetup` — FE chỉ cần biết có nút Kiểm tra và có cần gọi
+   * `runSetup` hay không. Rào ở `learner-dto-leak.test.ts` (shared-types).
+   */
   get: protectedProcedure.input(getInput).query(async ({ ctx, input }) => {
     const scenario = await requireScenario(input.scenarioId);
     return {
-      scenario,
+      scenario: toScenarioForLearner(scenario),
       /**
        * Profile tài nguyên của CHÍNH bài này — cùng `profileForScenario` mà
        * `startSession` dùng, nên nhãn "còn N chỗ" cạnh nút Bắt đầu nói về đúng
@@ -469,6 +480,17 @@ export const lessonsRouter = createTRPCRouter({
       ),
     );
     await attachSandboxCookie(ctx, ctx.user.id, response.session);
+    // `attachSandboxCookie` đã ném nếu orchestrator không trả phiên, nên tới đây
+    // `response.session` có mặt; kiểm lại chỉ để thu hẹp kiểu. Ghi để
+    // `me.activeSessions` dẫn "Làm tiếp" về đúng bài — xem `sessions/origins.ts`.
+    if (response.session !== undefined) {
+      await recordSessionOrigin(ctx.db, {
+        sessionId: response.session.id,
+        userId: ctx.user.id,
+        kind: 'lesson',
+        contentId: scenario.id,
+      });
+    }
     const { preferencesApplied } = await applySessionPreferences(ctx, response.session);
 
     return {
@@ -615,7 +637,8 @@ export const lessonsRouter = createTRPCRouter({
       sessionId: input.sessionId,
       userId: ctx.user.id,
       expiresAtSeconds,
-      script: phase.verifyScript,
+      // Prelude verify (contracts §C1) — cùng hàm với `labs.checkTask`.
+      script: withVerifyPrelude(phase.verifyScript),
     });
 
     // Chỉ step mới đẩy tiến độ — intro/finish không có chỗ trong `stepIndex`.

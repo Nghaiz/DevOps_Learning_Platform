@@ -27,6 +27,7 @@ export const playgroundSchema = contentBaseSchema
     backendImageId: true,
     interfaceLayout: true,
     toolset: true,
+    topic: true,
   })
   .extend({
     /**

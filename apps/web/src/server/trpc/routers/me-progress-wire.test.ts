@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { eq } from 'drizzle-orm';
+import { inArray } from 'drizzle-orm';
 import { closeTestDb, ctxFor, testDb, uniqueId } from '../../../security/test-helpers';
+import { contentSourceFor } from '../../content/source';
 import { progress, users } from '../../db/schema';
 import { appRouter } from './app-router';
 import { toProgressRowDTO } from './me';
@@ -42,10 +43,29 @@ beforeAll(async () => {
   });
 });
 
+/** Người thứ hai cho ô `lessonTitle`, để không đổi dòng đầu mà ô trên đọc. */
+const TITLED = { id: uniqueId('me-wire-title'), role: 'user' as const };
+/** Bài có thật trên đĩa (`content/scenarios/`). */
+const REAL_LESSON = 'dlp-docker-basics';
+
+beforeAll(async () => {
+  const db = testDb();
+  await db.insert(users).values({
+    id: TITLED.id,
+    name: TITLED.id,
+    email: `${TITLED.id}@test.local`,
+    role: 'user',
+  });
+  await db.insert(progress).values([
+    { userId: TITLED.id, lessonId: REAL_LESSON, stepIndex: 1 },
+    { userId: TITLED.id, lessonId: LESSON_ID, stepIndex: 0 },
+  ]);
+});
+
 afterAll(async () => {
   const db = testDb();
-  await db.delete(progress).where(eq(progress.userId, ME.id));
-  await db.delete(users).where(eq(users.id, ME.id));
+  await db.delete(progress).where(inArray(progress.userId, [ME.id, TITLED.id]));
+  await db.delete(users).where(inArray(users.id, [ME.id, TITLED.id]));
   await closeTestDb();
 });
 
@@ -69,6 +89,20 @@ describe('me.listProgress — hình dạng đi qua dây', () => {
     const out = await appRouter.createCaller(ctxFor(ME)).me.listProgress({ limit: 10 });
 
     expect(JSON.parse(JSON.stringify(out.items))).toEqual(out.items);
+  });
+});
+
+describe('me.listProgress — lessonTitle đi kèm từng dòng', () => {
+  it('bài tra ra ⇒ đúng tên của bài; bài không tra ra ⇒ null, dòng VẪN có mặt', async () => {
+    const expected = (await contentSourceFor({ kind: 'admin' }).get(REAL_LESSON))?.title;
+    // Đối chứng: bài đó phải có thật, nếu không ô dưới so `undefined` với `null`.
+    expect(typeof expected, `bài ${REAL_LESSON} không còn trên đĩa`).toBe('string');
+
+    const out = await appRouter.createCaller(ctxFor(TITLED)).me.listProgress({ limit: 10 });
+    const byLesson = new Map(out.items.map((item) => [item.lessonId, item.lessonTitle]));
+    expect(byLesson.get(REAL_LESSON)).toBe(expected);
+    expect(byLesson.has(LESSON_ID)).toBe(true);
+    expect(byLesson.get(LESSON_ID)).toBeNull();
   });
 });
 

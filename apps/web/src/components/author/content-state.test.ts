@@ -7,7 +7,6 @@ import {
   lastPublishFailure,
   describeUpdatedAt,
   sortByRecent,
-  STATE_BADGE,
   STATE_KEYS,
   type AuthoredItem,
 } from './content-state';
@@ -100,11 +99,11 @@ describe('describeItem — nhãn nói đúng thứ ta biết', () => {
   it('playground KHÔNG được đọc thành "0 bước"', () => {
     const ref = describeItem(item({ kind: 'playground', stepCount: 0 }));
     const text = say(ref);
-    expect(text).toBe('Playground · không có bước');
+    expect(text).toBe('Sân chơi · không có bước');
     expect(text).not.toContain('0 bước');
     // Nhánh playground không được mang `n` sang bản đồ: một tham số thừa ở đây
     // là một con số chờ ai đó quyết định hiện nó ra.
-    expect(ref.params).toEqual({ kind: 'Playground' });
+    expect(ref.params).toEqual({ kind: 'Sân chơi' });
   });
 
   it('lab đếm task, lesson đếm bước', () => {
@@ -136,10 +135,9 @@ describe('lastPublishFailure', () => {
 });
 
 describe('bảng nhãn phủ hết trạng thái', () => {
-  it('mỗi state có nhãn tiếng Việt dựng được từ bản đồ và một variant badge', () => {
+  it('mỗi state có nhãn tiếng Việt dựng được từ bản đồ', () => {
     for (const state of ['draft', 'publishing', 'published', 'archived'] as const) {
       expect(say({ key: STATE_KEYS[state] })).not.toBe('');
-      expect(STATE_BADGE[state]).not.toBe('');
     }
   });
 });

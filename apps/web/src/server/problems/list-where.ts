@@ -1,6 +1,7 @@
 import {
   arrayContains,
   arrayOverlaps,
+  eq,
   gt,
   ilike,
   inArray,
@@ -40,6 +41,9 @@ export function filterWhere(filter: ProblemFilter | undefined): readonly SQL[] {
   }
   if (filter.tags !== undefined && filter.tags.length > 0) {
     clauses.push(arrayContains(problems.tags, [...filter.tags]));
+  }
+  if (filter.gameId !== undefined) {
+    clauses.push(eq(problems.gameId, filter.gameId));
   }
 
   const query = filter.query?.trim();

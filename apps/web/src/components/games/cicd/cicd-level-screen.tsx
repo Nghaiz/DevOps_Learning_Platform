@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useMemo, useRef, useState, type ReactElement } from 'react';
+import { t } from '@devops-platform/copy';
 import { Button, MarkdownView } from '@devops-platform/ui';
 import {
   mergeStageCatalogue,
@@ -17,6 +18,7 @@ import {
 import { CicdCdPanel } from './cicd-cd-panel';
 import { CicdCheatsheet } from './cicd-cheatsheet';
 import { CicdOverridesPanel } from './cicd-overrides-panel';
+import { recordCicdRun } from './cicd-progress';
 import { CicdResultPanel } from './cicd-result-panel';
 import { formatNumber, formatSeconds, runWorkflow, type CicdRunOutcome } from './cicd-run';
 import { CicdSnippetBar } from './cicd-snippet-bar';
@@ -222,6 +224,12 @@ export function CicdLevelScreen({
       ...(level.cd === undefined ? {} : { cd: { level: level.cd, edited: cdPolicies } }),
     });
     setOutcome(ketQua);
+    /*
+     * Mốc của chiến dịch: chỉ màn LEVEL, chỉ lượt đã chấm. Ở chế độ OJ danh sách
+     * mục tiêu truyền vào là rỗng nên `won` luôn đúng một cách vô nghĩa, và máy
+     * chủ mới là nơi chấm; ghi mốc ở đó là khai một màn đã qua mà chưa ai chấm.
+     */
+    if (oj === undefined && ketQua.kind === 'scored') recordCicdRun(level.id, ketQua.won);
     setHistory((truoc) => [...truoc, { n: truoc.length + 1, outcome: ketQua }]);
     /*
      * Mở bảng kết quả khi có kết quả. Người chơi vừa bấm "Chạy thử" thì thứ họ
@@ -313,7 +321,7 @@ export function CicdLevelScreen({
         view: model.view,
         placement: model.placement,
         interaction,
-        label: `Đồ thị đường ống của màn ${level.title}`,
+        label: t('games.cicd.play.scene-label', { title: level.title }),
       }
     : null;
 
@@ -390,7 +398,7 @@ export function CicdLevelScreen({
           }}
           yaml={yaml}
           onYaml={setYaml}
-          ariaLabel={`Workflow YAML của màn ${level.title}`}
+          ariaLabel={t('games.cicd.play.yaml-label', { title: level.title })}
           errorLines={errorLines}
           textareaRef={editorRef}
           footer={
@@ -406,7 +414,7 @@ export function CicdLevelScreen({
         <div className="absolute inset-y-3 right-3 flex w-[min(26rem,38vw)] flex-col gap-3 overflow-y-auto">
           {panels.state.mission ? (
             <CicdHudPanel
-              title="Đề bài"
+              title={t('games.cicd.panel.mission')}
               onClose={() => {
                 panels.close('mission');
               }}
@@ -424,7 +432,7 @@ export function CicdLevelScreen({
 
           {panels.state.inspector ? (
             <CicdHudPanel
-              title="Thông số job"
+              title={t('games.cicd.play.inspector-title')}
               onClose={() => {
                 panels.close('inspector');
               }}
@@ -437,7 +445,7 @@ export function CicdLevelScreen({
 
           {panels.state.result ? (
             <CicdHudPanel
-              title="Kết quả"
+              title={t('games.cicd.panel.result')}
               onClose={() => {
                 panels.close('result');
               }}
@@ -446,7 +454,7 @@ export function CicdLevelScreen({
             >
               {outcome === null ? (
                 <p className="text-sm text-muted-foreground">
-                  Bấm “Chạy thử” để mô phỏng {level.evaluation.passes} lượt và xem ba trục.
+                  {t('games.cicd.play.run-first', { passes: level.evaluation.passes })}
                 </p>
               ) : (
                 <CicdResultPanel
@@ -469,10 +477,10 @@ export function CicdLevelScreen({
 
               <AttemptHistory history={history} chamTaiCho={oj === undefined} />
 
-              <section className="mt-3 flex flex-col gap-2" aria-label="Gợi ý">
+              <section className="mt-3 flex flex-col gap-2" aria-label={t('games.cicd.play.hints')}>
                 <div className="flex items-center gap-2">
                   <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-                    Gợi ý
+                    {t('games.cicd.play.hints')}
                   </h3>
                   {hintsShown < level.hints.length ? (
                     <Button
@@ -494,12 +502,12 @@ export function CicdLevelScreen({
                         });
                       }}
                     >
-                      Mở gợi ý {hintsShown + 1}/{level.hints.length}
+                      {t('games.cicd.play.hint-open', { n: hintsShown + 1, total: level.hints.length })}
                     </Button>
                   ) : null}
                 </div>
                 {hintsShown === 0 ? (
-                  <p className="text-xs text-muted-foreground">Chưa mở gợi ý nào.</p>
+                  <p className="text-xs text-muted-foreground">{t('games.cicd.play.no-hints-open')}</p>
                 ) : (
                   <ul className="flex flex-col gap-1">
                     {level.hints.slice(0, hintsShown).map((hint, index) => (
@@ -520,7 +528,7 @@ export function CicdLevelScreen({
 
           {panels.state.tools ? (
             <CicdHudPanel
-              title="Bảng núm"
+              title={t('games.cicd.panel.tools')}
               onClose={() => {
                 panels.close('tools');
               }}
@@ -545,7 +553,7 @@ export function CicdLevelScreen({
 
           {panels.state.learn ? (
             <CicdHudPanel
-              title="Bài học"
+              title={t('games.cicd.panel.learn')}
               onClose={() => {
                 panels.close('learn');
               }}
@@ -570,11 +578,13 @@ export function CicdLevelScreen({
                       setShowTheory((dangMo) => !dangMo);
                     }}
                   >
-                    Bài lý thuyết: {theory.frontmatter.title} · {theory.frontmatter.readMinutes}{' '}
-                    phút
+                    {t('games.cicd.play.theory', {
+                      title: theory.frontmatter.title,
+                      minutes: theory.frontmatter.readMinutes,
+                    })}
                   </Button>
                   {showTheory ? (
-                    <div className="rounded-lg border border-border px-4 py-3" data-testid="cicd-theory">
+                    <div className="border border-border px-4 py-3" data-testid="cicd-theory">
                       <MarkdownView markdown={theory.body} resolveAssetUrl={() => null} />
                     </div>
                   ) : null}
@@ -588,7 +598,7 @@ export function CicdLevelScreen({
 
           {panels.state.minimap ? (
             <CicdHudPanel
-              title="Bản đồ"
+              title={t('games.cicd.panel.minimap')}
               onClose={() => {
                 panels.close('minimap');
               }}
@@ -596,7 +606,7 @@ export function CicdLevelScreen({
               testId="cicd-panel-minimap"
             >
               {scene === null ? (
-                <p className="text-xs text-muted-foreground">Chưa có đồ thị để thu nhỏ.</p>
+                <p className="text-xs text-muted-foreground">{t('games.cicd.play.no-minimap')}</p>
               ) : (
                 <CicdMinimap scene={scene} />
               )}
@@ -646,7 +656,7 @@ function CicdOjBar({
 }): ReactElement {
   return (
     <section
-      aria-label="Nộp bài"
+      aria-label={t('games.cicd.play.submit-aria')}
       data-testid="cicd-oj-bar"
       /*
        * ⛔ BOTTOM-CENTER, và vị trí này là kết quả của một phép đo chứ không phải
@@ -662,7 +672,7 @@ function CicdOjBar({
        * Mép trái ở giữa chiều cao là ngăn kéo ô soạn, mép trên giữa là bảng ba
        * trục — nên đáy-giữa là vùng còn trống thật sự.
        */
-      className="pointer-events-auto absolute bottom-3 left-1/2 z-30 flex max-w-sm -translate-x-1/2 flex-col gap-2 rounded-lg border border-border bg-card/95 p-3 shadow-lg"
+      className="pointer-events-auto absolute bottom-3 left-1/2 z-30 flex max-w-sm -translate-x-1/2 flex-col gap-2 border border-foreground bg-card p-3 shadow-float"
     >
       <div className="flex items-center gap-2">
         <Button
@@ -679,7 +689,7 @@ function CicdOjBar({
       </div>
 
       <p aria-live="polite" data-testid="cicd-oj-result" className="text-sm">
-        {oj.result ?? 'Chưa nộp lần nào. Ba trục ở trên là của lượt chạy thử, không phải điểm bài.'}
+        {oj.result ?? t('games.cicd.play.no-submit')}
       </p>
 
       {oj.failedLabels.length > 0 ? (
@@ -709,49 +719,49 @@ function AttemptHistory({
   readonly chamTaiCho: boolean;
 }): ReactElement {
   return (
-    <section className="mt-3 flex flex-col gap-2" aria-label="Lịch sử các lượt chạy">
+    <section className="mt-3 flex flex-col gap-2" aria-label={t('games.cicd.play.history-aria')}>
       <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-        Lịch sử ({history.length})
+        {t('games.cicd.play.history', { n: history.length })}
       </h3>
       {history.length === 0 ? (
-        <p className="text-xs text-muted-foreground">Chưa chạy lượt nào.</p>
+        <p className="text-xs text-muted-foreground">{t('games.cicd.play.history-empty')}</p>
       ) : (
         <ol className="flex flex-col gap-1">
           {[...history].reverse().map((entry) => (
             <li
               key={entry.n}
-              className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-border px-3 py-2 text-xs"
+              className="flex flex-wrap items-center gap-x-3 gap-y-1 border border-border px-3 py-2 text-xs"
             >
               <span className="font-mono text-muted-foreground">#{entry.n}</span>
               {entry.outcome.kind === 'parse-error' ? (
                 <span className="text-destructive">
-                  Không quét được YAML ({entry.outcome.errors.length} lỗi)
+                  {t('games.cicd.play.h.parse', { n: entry.outcome.errors.length })}
                 </span>
               ) : entry.outcome.kind === 'engine-error' ? (
-                <span className="text-destructive">Workflow không chạy được</span>
+                <span className="text-destructive">{t('games.cicd.play.h.engine')}</span>
               ) : entry.outcome.kind === 'shape-error' ? (
-                <span className="text-destructive">Job không khớp màn — chưa chấm</span>
+                <span className="text-destructive">{t('games.cicd.play.h.shape')}</span>
               ) : entry.outcome.kind === 'cd-error' ? (
-                <span className="text-destructive">Chính sách CD không hợp lệ</span>
+                <span className="text-destructive">{t('games.cicd.play.h.cd')}</span>
               ) : entry.outcome.kind === 'empty' ? (
-                <span className="text-muted-foreground">Chưa có job nào để chạy</span>
+                <span className="text-muted-foreground">{t('games.cicd.play.h.empty')}</span>
               ) : (
                 <>
                   {chamTaiCho ? (
                     <span className={entry.outcome.won ? 'text-success' : 'text-warning'}>
-                      {entry.outcome.won ? 'Đạt' : 'Chưa đạt'}
+                      {entry.outcome.won ? t('games.cicd.play.h.won') : t('games.cicd.play.h.lost')}
                     </span>
                   ) : (
-                    <span className="text-muted-foreground">Đã chạy</span>
+                    <span className="text-muted-foreground">{t('games.cicd.play.h.ran')}</span>
                   )}
                   <span className="text-muted-foreground">
                     ① {formatSeconds(entry.outcome.axes.leadTimeSeconds)}
                   </span>
                   <span className="text-muted-foreground">
-                    ② {formatNumber(entry.outcome.axes.throughputPerHour)}/giờ
+                    {t('games.cicd.play.h.throughput', { v: formatNumber(entry.outcome.axes.throughputPerHour) })}
                   </span>
                   <span className="text-muted-foreground">
-                    ③ {formatNumber(entry.outcome.axes.runnerMinutes)} runner-phút
+                    {t('games.cicd.play.h.runner', { v: formatNumber(entry.outcome.axes.runnerMinutes) })}
                   </span>
                 </>
               )}
@@ -774,6 +784,6 @@ function AttemptHistory({
 function chuGoiY(reveal: HintReveal | undefined): string {
   if (reveal === undefined) return '…';
   if (reveal.phase === 'ready') return reveal.text;
-  if (reveal.phase === 'error') return `Chưa lấy được gợi ý: ${reveal.message}`;
-  return 'Đang lấy gợi ý…';
+  if (reveal.phase === 'error') return t('games.cicd.play.hint-error', { message: reveal.message });
+  return t('games.cicd.play.hint-pending');
 }

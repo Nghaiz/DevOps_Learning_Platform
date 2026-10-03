@@ -21,6 +21,7 @@
 
 import type { ReactElement } from 'react';
 import { cn } from '@devops-platform/ui';
+import { t } from '@devops-platform/copy';
 
 import { cicdSceneNodes, project2d, sceneAxes, type CicdSceneProps } from '../scene-props';
 
@@ -69,7 +70,7 @@ export function CicdMinimap({ scene, className }: CicdMinimapProps): ReactElemen
 
   return (
     <div className={cn('relative', className)}>
-      <div className="relative h-32 w-full overflow-hidden rounded-lg border border-border bg-muted/40">
+      <div className="relative h-32 w-full overflow-hidden border border-border bg-muted/40">
         {nodes.map(({ id, node, spot }) => {
           const [h, v] = project2d(spot, axes);
           const left = ((h - minH) / spanH) * 84 + 8;
@@ -93,7 +94,7 @@ export function CicdMinimap({ scene, className }: CicdMinimapProps): ReactElemen
               }}
               style={{ left: `${left}%`, top: `${top}%` }}
               className={cn(
-                'absolute size-3 -translate-x-1/2 -translate-y-1/2 rounded-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+                'absolute size-3 -translate-x-1/2 -translate-y-1/2 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
                 STATUS_BG[node.statusToken] ?? 'bg-muted-foreground',
                 selected && 'ring-2 ring-ring',
               )}
@@ -102,8 +103,8 @@ export function CicdMinimap({ scene, className }: CicdMinimapProps): ReactElemen
         })}
       </div>
       <p className="mt-1 text-[0.65rem] text-muted-foreground">
-        {nodes.length} thực thể · dọc là{' '}
-        {axes.vertical === 'y' ? 'dải môi trường' : 'làn job song song'}
+        {t('games.cicd.minimap.count', { n: nodes.length })} ·{' '}
+        {axes.vertical === 'y' ? t('games.cicd.minimap.axis.env') : t('games.cicd.minimap.axis.lanes')}
       </p>
     </div>
   );

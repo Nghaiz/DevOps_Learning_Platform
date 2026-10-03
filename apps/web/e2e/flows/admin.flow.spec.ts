@@ -18,6 +18,8 @@
  * vào report chứ không nhét vào đây.
  */
 
+import { t } from '@devops-platform/copy';
+
 import { expect, requireRole, test } from './flow-kit';
 import { openScreen } from '../fixtures/nav';
 
@@ -26,13 +28,28 @@ test.describe('luồng 6 — quản trị', { tag: '@flow' }, () => {
     requireRole(account, 'admin');
     test.setTimeout(3 * 60_000);
 
-    const adminNav = page.getByRole('navigation', { name: 'Điều hướng quản trị' });
+    // Thanh chuyển trang con của section Quản trị: `SectionSwitcher`
+    // (`components/kit/section-switcher.tsx`) do `PosterHeader` vẽ ở mép dưới
+    // poster của mọi màn dùng `AdminPage`. Thay cho thanh nav riêng "Điều hướng
+    // quản trị" trước bản dựng lại PTIT. Nó KHÔNG nằm trong nav của header
+    // (`shell.nav.aria`), nên phạm vi này không khớp nhầm mega menu.
+    const adminNav = page.getByRole('navigation', {
+      name: t('shell.switcher.aria', { section: t('shell.section.admin') }),
+      exact: true,
+    });
+    const switchTo = (label: string) => adminNav.getByRole('link', { name: label, exact: true });
 
     // ── 1. Tổng quan: sức chứa + trạng thái nguồn metric ────────────────────
     await openScreen(page, '/admin', 'admin');
-    await expect(page.getByRole('heading', { name: 'Tổng quan', level: 1 })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: t('admin.overview.title'), level: 1 }),
+    ).toBeVisible();
     await expect(adminNav).toBeVisible();
-    await expect(page.getByText('Sức chứa').first()).toBeVisible();
+    // Sức chứa nay là một mục `Split` có `h2` riêng; neo vào heading thay vì
+    // `getByText(...).first()`, vì chữ đó còn nằm trong nhãn thước đo.
+    await expect(
+      page.getByRole('heading', { name: t('admin.capacity.title'), level: 2, exact: true }),
+    ).toBeVisible();
 
     // ⚠ KHÔNG khẳng định `ok: true` cho mọi nguồn. §3bis: netpol web→gateway:8083
     // bị TỪ CHỐI có lý do, nên `gateway: reached:false, ok:false` là hành vi
@@ -41,12 +58,15 @@ test.describe('luồng 6 — quản trị', { tag: '@flow' }, () => {
     // Thứ luồng khẳng định: trang NÓI RA trạng thái, thay vì im lặng.
 
     // ── 2. Người dùng: bảng + rào đổi vai trò ───────────────────────────────
-    await adminNav.getByRole('link', { name: 'Người dùng' }).click();
+    await switchTo(t('shell.nav.admin-users')).click();
     await page.waitForURL('**/admin/users');
-    await expect(page.getByRole('heading', { name: 'Người dùng', level: 1 })).toBeVisible();
-    await expect(page.getByRole('columnheader', { name: 'Vai trò' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: t('admin.users.title'), level: 1 })).toBeVisible();
+    await expect(
+      page.getByRole('columnheader', { name: t('admin.users.col-role'), exact: true }),
+    ).toBeVisible();
 
-    const userRows = page.locator('table tbody tr');
+    // Hàng dữ liệu = hàng có ô `cell`; hàng tiêu đề chỉ có `columnheader`.
+    const userRows = page.getByRole('row').filter({ has: page.getByRole('cell') });
     await expect(
       userRows,
       'Bảng người dùng render 0 hàng, dù chính tài khoản đang đăng nhập phải có ' +
@@ -54,29 +74,50 @@ test.describe('luồng 6 — quản trị', { tag: '@flow' }, () => {
     ).not.toHaveCount(0);
 
     // Mở hộp thoại xác nhận rồi HUỶ — xem khối chú thích đầu file.
-    await page.getByRole('button', { name: 'Đổi vai trò' }).first().click();
+    await page.getByRole('button', { name: t('admin.users.change-role'), exact: true }).first().click();
     const roleDialog = page.getByRole('dialog');
     await expect(roleDialog).toBeVisible();
     await expect(
+      // Đoạn giữa của `admin.role-change.body` — khoá ĐỘNG (email, từ, thành),
+      // nên khớp chuỗi con thay vì gọi `t()` với tham số bịa.
       roleDialog.getByText('Việc này được ghi vào nhật ký quản trị kèm tên bạn'),
       'Hộp thoại đổi vai trò không nói rằng hành động sẽ được ghi audit. AC 13.G ' +
         'mục 24 đòi mọi hành động quản trị có dấu vết, và người bấm phải biết trước.',
     ).toBeVisible();
-    await roleDialog.getByRole('button', { name: 'Huỷ' }).click();
+    await roleDialog.getByRole('button', { name: t('common.confirm.cancel'), exact: true }).click();
     await expect(roleDialog).toBeHidden();
 
     // ── 3. Phiên đang chạy ──────────────────────────────────────────────────
-    await adminNav.getByRole('link', { name: 'Phiên đang chạy' }).click();
+    await switchTo(t('shell.nav.admin-sessions')).click();
     await page.waitForURL('**/admin/sessions');
-    await expect(page.getByRole('heading', { name: 'Phiên đang chạy', level: 1 })).toBeVisible();
-    await expect(page.getByText('Danh sách này chỉ có phiên CÒN SỐNG')).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: t('admin.sessions.title'), level: 1 }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: t('admin.sessions.alert-title'), level: 2 }),
+    ).toBeVisible();
 
     // Danh sách có thể RỖNG hợp lệ (không ai đang học). Nên phép kiểm là: hoặc
     // có bảng với cột "Chủ phiên", hoặc có trạng thái rỗng — chứ không phải một
     // trang câm. Trang câm là thứ duy nhất sai ở đây.
-    const sessionsTable = page.getByRole('columnheader', { name: 'Chủ phiên' });
+    //
+    // ⚠ CHỜ một trong hai xuất hiện TRƯỚC khi rẽ nhánh. Lúc query còn chạy trang
+    // vẽ `LedgerSkeleton`; một `count()` tức thời ở thời điểm đó trả 0 và luồng
+    // rơi vào nhánh "không có phiên" mà chưa hề đọc danh sách. Trang lỗi
+    // (`LedgerError`) thì không khớp vế nào, nên nó đỏ ở đây — đúng ý.
+    const sessionsTable = page.getByRole('columnheader', {
+      name: t('admin.sessions.col-owner'),
+      exact: true,
+    });
+    const sessionsEmpty = page.getByText(t('admin.sessions.empty-title'), { exact: true });
+    await expect(
+      sessionsTable.or(sessionsEmpty),
+      'Trang phiên không vẽ bảng lẫn trạng thái rỗng — trang câm hoặc lỗi tải.',
+    ).toBeVisible({ timeout: 30_000 });
     if (await sessionsTable.count()) {
-      await expect(page.getByRole('button', { name: 'Kết thúc' }).first()).toBeVisible();
+      await expect(
+        page.getByRole('button', { name: t('admin.sessions.terminate'), exact: true }).first(),
+      ).toBeVisible();
     } else {
       test.info().annotations.push({
         type: 'chua-do',
@@ -88,21 +129,23 @@ test.describe('luồng 6 — quản trị', { tag: '@flow' }, () => {
     }
 
     // ── 4. Nội dung ─────────────────────────────────────────────────────────
-    await adminNav.getByRole('link', { name: 'Nội dung' }).click();
+    await switchTo(t('shell.nav.admin-content')).click();
     await page.waitForURL('**/admin/content');
-    await expect(page.getByRole('heading', { name: 'Nội dung', level: 1 })).toBeVisible();
+    await expect(page.getByRole('heading', { name: t('admin.content.title'), level: 1 })).toBeVisible();
     await expect(
-      page.getByText('Lưu trữ không ghi vào nhật ký quản trị'),
+      page.getByRole('heading', { name: t('admin.content.alert-title'), level: 2 }),
       'Trang nội dung không nói rằng nút Lưu trữ đi qua đường người soạn và KHÔNG ' +
         'ghi admin_audit. Giấu chuyện đó làm người vận hành tin nhật ký đầy đủ hơn ' +
         'thực tế.',
     ).toBeVisible();
 
     // ── 5. Nhật ký ──────────────────────────────────────────────────────────
-    await adminNav.getByRole('link', { name: 'Nhật ký' }).click();
+    await switchTo(t('shell.nav.admin-audit')).click();
     await page.waitForURL('**/admin/audit');
-    await expect(page.getByRole('heading', { name: 'Nhật ký quản trị', level: 1 })).toBeVisible();
-    await expect(page.getByText('Đây là một nửa của nhật ký')).toBeVisible();
+    await expect(page.getByRole('heading', { name: t('admin.audit.title'), level: 1 })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: t('admin.audit.alert-title'), level: 2 }),
+    ).toBeVisible();
 
     // Cột phải có mặt kể cả khi chưa hành động nào được ghi — bảng rỗng là
     // trạng thái hợp lệ của một cụm sạch, bảng KHÔNG TỒN TẠI thì không.
@@ -117,7 +160,7 @@ test.describe('luồng 6 — quản trị', { tag: '@flow' }, () => {
     // `data-slot` là hook ổn định mà component đã cố ý phát ra.
     await expect(
       page
-        .getByRole('columnheader', { name: 'Hành động' })
+        .getByRole('columnheader', { name: t('admin.audit.col-action'), exact: true })
         .or(page.locator('[data-slot="empty-state"]'))
         .first(),
       'Trang nhật ký không có bảng lẫn trạng thái rỗng — không đọc được gì.',

@@ -21,8 +21,9 @@ import { t } from '@devops-platform/copy';
  *    thứ hai thành "xong rồi" là nói dối đúng với người đang bị chặn.
  * 2. `itemCount === 0` (lộ trình rỗng do tác giả vừa tạo) cho `0/0` — một phân
  *    số không nói gì.
- * 3. `nextItemId` là **id của phần**, không phải tiêu đề. Nhãn phải trình bày
- *    nó như một mã, không như một cái tên.
+ * 3. `nextItemId` là **id của phần**, không phải tiêu đề, và id thô không bao
+ *    giờ hiện ra màn hình. Nhãn "Làm tiếp" chỉ dựng khi nơi gọi đã có TÊN
+ *    (`nextTitle`, đọc từ `paths.get`); chưa có tên thì không nói gì.
  *
  * ⚠ Trang này KHÔNG lưu lại bất kỳ con số nào ở đây vào state rồi khẳng định
  * từ bản sao đó (P8/P10 cấm derived field; 13.E mục 19 nhắc lại cho FE). Mọi
@@ -36,6 +37,8 @@ export interface PathProgressInput {
   readonly itemCount: number;
   /** Phần `available` đầu tiên, hoặc `null` (đã đạt hết HOẶC phần còn lại đều khoá). */
   readonly nextItemId: string | null;
+  /** Tên của phần `nextItemId`; `null` khi chưa tải được tên. */
+  readonly nextTitle?: string | null;
 }
 
 export interface PathProgressSummary {
@@ -47,8 +50,6 @@ export interface PathProgressSummary {
   readonly label: string;
   /** Câu chữ về việc nên làm gì tiếp, `null` khi không có gì để nói. */
   readonly nextLabel: string | null;
-  /** `true` khi `nextLabel` nói về một mã phần (UI hiện bằng font mono). */
-  readonly nextIsItemId: boolean;
 }
 
 export function summarizePathProgress(input: PathProgressInput): PathProgressSummary {
@@ -60,19 +61,18 @@ export function summarizePathProgress(input: PathProgressInput): PathProgressSum
       max: 0,
       label: t('me.path.no-items'),
       nextLabel: null,
-      nextIsItemId: false,
     };
   }
 
-  const label = t('me.path.passed', { passed: passedCount, total: itemCount });
+  const label = t('me.path.passed', { passed: String(passedCount), total: String(itemCount) });
 
   if (nextItemId !== null) {
+    const name = input.nextTitle ?? null;
     return {
       value: passedCount,
       max: itemCount,
       label,
-      nextLabel: t('me.path.next-item', { id: nextItemId }),
-      nextIsItemId: true,
+      nextLabel: name === null ? null : t('me.path.next-item', { name }),
     };
   }
 
@@ -85,7 +85,6 @@ export function summarizePathProgress(input: PathProgressInput): PathProgressSum
       max: itemCount,
       label,
       nextLabel: t('me.path.all-passed'),
-      nextIsItemId: false,
     };
   }
 
@@ -94,6 +93,5 @@ export function summarizePathProgress(input: PathProgressInput): PathProgressSum
     max: itemCount,
     label,
     nextLabel: t('me.path.locked'),
-    nextIsItemId: false,
   };
 }

@@ -1,6 +1,7 @@
 {
   "id": "dlp-k8s-multinode-scheduling",
   "difficulty": "intermediate",
+"topic": "kubernetes",
   "estimatedMinutes": 25,
   "source": null,
   "acknowledgedUnknownFields": [],

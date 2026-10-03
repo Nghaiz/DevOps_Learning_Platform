@@ -3,6 +3,7 @@ import {
   MIN_PASSWORD_LENGTH,
   describePasswordChangeError,
   describePasswordSection,
+  saveStateOf,
   validatePasswordChange,
 } from './account-sections';
 
@@ -82,5 +83,26 @@ describe('describePasswordChangeError', () => {
 
   it('không có câu nào từ máy chủ: vẫn phải nói làm gì tiếp', () => {
     expect(describePasswordChangeError(null, null)).toContain('thử lại');
+  });
+});
+
+describe('saveStateOf', () => {
+  const base = { dirty: false, pending: false, saved: false, failed: false };
+
+  it('đang gửi thắng mọi thứ', () => {
+    expect(saveStateOf({ ...base, pending: true, dirty: true, failed: true })).toBe('saving');
+  });
+
+  it('lỗi vẫn hiện khi ô còn nháp', () => {
+    expect(saveStateOf({ ...base, failed: true, dirty: true })).toBe('failed');
+  });
+
+  it('nháp mới thắng một "Đã lưu" cũ', () => {
+    expect(saveStateOf({ ...base, saved: true, dirty: true })).toBe('dirty');
+  });
+
+  it('đã lưu, rồi không gì cả', () => {
+    expect(saveStateOf({ ...base, saved: true })).toBe('saved');
+    expect(saveStateOf(base)).toBe('idle');
   });
 });

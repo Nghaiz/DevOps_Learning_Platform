@@ -1,19 +1,17 @@
 'use client';
 
-import { useMemo } from 'react';
 import type { inferRouterOutputs } from '@trpc/server';
 import { t } from '@devops-platform/copy';
 import type { AppRouter } from '../../server/trpc/routers/app-router';
 import { api } from '../../lib/trpc-react';
-import { describeTrpcError, trpcErrorCode } from '../../lib/trpc';
-import { CatalogPage, CatalogScopeNotes } from '../../components/catalog/catalog-page';
-import { CatalogCard, CatalogGrid, CatalogGridSkeleton } from '../../components/catalog/catalog-grid';
+import { BoardMeta, BoardRow, PageContainer } from '../../components/kit';
+import { CatalogPoster } from '../../components/catalog/catalog-poster';
 import { CatalogToolbar } from '../../components/catalog/catalog-toolbar';
-import { CatalogEmptyState } from '../../components/catalog/catalog-empty';
-import { CatalogError } from '../../components/catalog/catalog-error';
-import { CatalogPager } from '../../components/catalog/catalog-pager';
-import { catalogErrorTitle, catalogLead, catalogTitle, tierLabel } from '../../components/catalog/catalog-labels';
+import { CatalogResults } from '../../components/catalog/catalog-results';
+import { contentLine } from '../../components/catalog/catalog-row';
+import { describeLoadedScope, tierLabel } from '../../components/catalog/catalog-labels';
 import { buildCatalogListInput } from '../../components/catalog/catalog-input';
+import { combineCatalogPages } from '../../components/catalog/catalog-pages';
 import { searchPage } from '../../components/catalog/catalog-search';
 import { useCatalogControls } from '../../components/catalog/use-catalog-controls';
 import {
@@ -31,130 +29,92 @@ const SORT_OPTIONS: readonly SortOption<PlaygroundRow>[] = [
   { key: 'ttl', label: t('catalog.sort.ttl'), compare: compareCount((item) => item.ttlSeconds) },
 ];
 
-/** Xem `lessonSearchFields` ở `lessons-client.tsx`: tập trường bằng đúng thứ hiện trên thẻ. */
 function playgroundSearchFields(item: PlaygroundRow): readonly (string | null)[] {
   return [item.title, item.description, ...item.capabilities];
 }
 
 /**
- * Trang danh sách `/playgrounds`, cùng khuôn `lessons-client.tsx`.
+ * Trang danh sách `/playgrounds`. Cùng khuôn với `/lessons`.
  *
- * ⚠ **Không có ô lọc độ khó ở đây, và đó là chủ ý.** `playgrounds.list` NHẬN
- * `difficulty` nhưng bỏ qua nó: `PlaygroundSummary` không có field độ khó
- * (`playgroundSchema` cố ý không có, vì không có bài thì không có gì để khó dễ),
- * và `listPlaygroundsPage` không đọc field filter đó. Hiện một ô lọc mà server
- * không bao giờ áp dụng là một điều khiển nói dối: người dùng bấm, danh sách
- * không đổi, và không có gì trên màn hình giải thích vì sao.
- *
- * Hệ quả cho hàng tab của `CatalogToolbar`: `fields` ở đây là `['tier']`, nên
- * tab ánh xạ sang hạng sandbox chứ không sang độ khó. Ánh xạ đó là dữ liệu
- * (`fields[0]`), không phải một bảng viết tay cho từng trang.
- *
- * TTL hiện NGAY ở đây (đơn vị phút). AC 8.E đòi người học biết môi trường tự
- * đóng sau bao lâu TRƯỚC KHI bấm vào, không chỉ trước khi bấm "Bắt đầu" bên
- * trong `/playgrounds/[id]`.
+ * ⚠ KHÔNG có hàng chip độ khó: `playgrounds.list` từ chối `difficulty`
+ * (`PlaygroundSummary` không có độ khó, một máy trống không có bài để khó dễ).
+ * Một chip ở đây sẽ là điều khiển nói dối.
  */
-export function PlaygroundsClient({ canAuthor }: { readonly canAuthor: boolean }): React.ReactElement {
+export function PlaygroundsClient({
+  canAuthor,
+  total,
+}: {
+  readonly canAuthor: boolean;
+  readonly total: number | null;
+}): React.ReactElement {
   const controls = useCatalogControls();
-  const query = api.playgrounds.list.useQuery(buildCatalogListInput(controls.filters, controls.cursor));
-
-  const sortOption = findSortOption(SORT_OPTIONS, controls.sortKey);
-  const loaded = query.data?.items ?? [];
-  const items = useMemo(
-    () =>
-      sortPage(searchPage(query.data?.items ?? [], controls.normalizedSearch, playgroundSearchFields), sortOption),
-    [query.data, controls.normalizedSearch, sortOption],
+  const results = api.useQueries((q) =>
+    controls.cursors.map((cursor) => q.playgrounds.list(buildCatalogListInput(controls.filters, cursor))),
   );
-  const hasNext = query.data?.nextCursor != null;
+  const pages = combineCatalogPages(results);
+  const loaded = pages.status === 'success' ? pages.items : [];
+  const items = sortPage(
+    searchPage(loaded, controls.normalizedSearch, playgroundSearchFields),
+    findSortOption(SORT_OPTIONS, controls.sortKey),
+  );
+  const hasNext = pages.status === 'success' && pages.hasNext;
 
   return (
-    <CatalogPage title={catalogTitle('playgrounds')} description={catalogLead('playgrounds')}>
-      <CatalogToolbar
-        kind="playgrounds"
-        fields={['tier']}
-        filters={controls.filters}
-        onDifficulty={controls.setDifficulty}
-        onTier={controls.setTier}
-        onClearFilters={controls.clearFilters}
-        sortKey={controls.sortKey}
-        sortOptions={SORT_OPTIONS}
-        onSort={controls.setSortKey}
-        search={controls.search}
-        onSearch={controls.setSearch}
-        shown={query.isSuccess ? items.length : null}
-        hasNext={hasNext}
-        disabled={query.isPending}
-      />
-
-      {query.isPending && <CatalogGridSkeleton />}
-
-      {query.isError && (
-        <CatalogError
-          title={catalogErrorTitle('playgrounds')}
-          message={describeTrpcError(query.error)}
-          errorCode={trpcErrorCode(query.error)}
-          retrying={query.isFetching}
-          page={controls.page}
-          onRetry={() => void query.refetch()}
-          onFirstPage={controls.goFirst}
-        />
-      )}
-
-      {query.isSuccess && items.length === 0 && (
-        <CatalogEmptyState
+    <>
+      <CatalogPoster kind="playgrounds" count={total} />
+      <PageContainer className="py-10 md:py-12">
+        <CatalogToolbar
           kind="playgrounds"
-          page={controls.page}
-          hasActiveFilter={controls.hasActiveFilter}
-          canAuthor={canAuthor}
-          query={controls.normalizedSearch}
-          loaded={loaded.length}
-          hasNext={hasNext}
+          fields={['topic', 'tier']}
+          filters={controls.filters}
+          onTopic={controls.setTopic}
+          onDifficulty={controls.setDifficulty}
+          onTier={controls.setTier}
           onClearFilters={controls.clearFilters}
-          onClearSearch={controls.clearSearch}
-          onFirstPage={controls.goFirst}
+          sortKey={controls.sortKey}
+          sortOptions={SORT_OPTIONS}
+          onSort={controls.setSortKey}
+          search={controls.search}
+          onSearch={controls.setSearch}
+          scopeNote={describeLoadedScope({
+            kind: 'playgrounds',
+            loaded: loaded.length,
+            hasNext,
+            searching: controls.hasSearch,
+            sorting: controls.isSorted,
+          })}
+          disabled={pages.status === 'pending'}
         />
-      )}
-
-      {query.isSuccess && items.length > 0 && (
-        <>
-          <CatalogGrid>
-            {items.map((item) => (
-              <CatalogCard
+        <div className="mt-8">
+          <CatalogResults
+            kind="playgrounds"
+            pages={pages}
+            shown={items.length}
+            controls={controls}
+            canAuthor={canAuthor}
+            onRetry={(index) => void results[index]?.refetch()}
+            isFetching={(index) => results[index]?.isFetching ?? false}
+          >
+            {items.map((item, index) => (
+              <BoardRow
                 key={item.id}
                 href={`/playgrounds/${item.id}`}
+                index={index + 1}
+                order={index}
+                line={contentLine(item)}
                 title={item.title}
-                description={item.description}
-                meta={[
-                  {
-                    icon: 'ttl',
-                    label: t('catalog.meta.ttl', { minutes: Math.round(item.ttlSeconds / 60) }),
-                  },
-                  { icon: 'sandbox', label: tierLabel(item.tier) },
-                ]}
-                tags={item.capabilities}
+                sub={item.description ?? undefined}
+                meta={
+                  <>
+                    <BoardMeta>{t('catalog.meta.ttl', { minutes: Math.round(item.ttlSeconds / 60) })}</BoardMeta>
+                    <BoardMeta>{tierLabel(item.tier)}</BoardMeta>
+                  </>
+                }
               />
             ))}
-          </CatalogGrid>
-
-          <CatalogScopeNotes
-            kind="playgrounds"
-            page={controls.page}
-            shown={items.length}
-            loaded={loaded.length}
-            hasNext={hasNext}
-            sortKey={controls.sortKey}
-            query={controls.normalizedSearch}
-          />
-
-          <CatalogPager
-            hasNext={hasNext}
-            onNext={() => controls.goNext(query.data.nextCursor)}
-            onReset={controls.goFirst}
-            page={controls.page}
-            loading={query.isFetching}
-          />
-        </>
-      )}
-    </CatalogPage>
+          </CatalogResults>
+        </div>
+      </PageContainer>
+    </>
   );
 }

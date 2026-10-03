@@ -1,121 +1,85 @@
 'use client';
 
 import type { ReactElement } from 'react';
-import { Alert, AlertDescription, AlertTitle, Button } from '@devops-platform/ui';
+import { ArrowUpRight } from 'lucide-react';
 import { t } from '@devops-platform/copy';
 import type { GameId } from '@devops-platform/games';
-
+import { Alert, AlertDescription, AlertTitle, Button, cn } from '@devops-platform/ui';
+import type { SaveStatus } from '../../../components/author/studio';
+import { Split, lineFillClass, lineForTopic } from '../../../components/kit';
 import { GAME_NAME, problemPreviewHref } from './game-plugin-view';
 
 /**
- * Mở đấu trường 3D với chính bài đang soạn, để người soạn tự thử.
+ * Mở game với chính bài đang soạn, để người soạn tự làm thử.
  *
- * ## Đường vào là `/games/k8s?problem=<mã>` — đúng một đường, không bịa đường thứ hai
+ * Đường vào là tham số truy vấn `problem` của route game, đúng một đường: một
+ * điểm gắn thứ hai là hai chỗ quyết định "bài này chơi thế nào", và chúng trôi.
  *
- * Lead chốt (2026-09-08) rằng chế độ bài tập của arena nhận bài qua tham số truy
- * vấn `problem`, và `arena-contract.ts` khai `ArenaMode` cho nó. Trang soạn KHÔNG
- * dựng một điểm gắn riêng: một đường vào thứ hai nghĩa là hai chỗ quyết định
- * "bài này chơi thế nào", và chúng sẽ trôi khỏi nhau.
+ * Hệ quả phải NÓI RA: đường đó nạp bài từ MÁY CHỦ theo mã.
+ * - Bài chưa lưu lần nào thì chưa có mã, tức chưa có đường vào. Nói thẳng thay vì
+ *   lấp bằng một nút bấm không làm gì.
+ * - Bài đã lưu nhưng đang sửa dở thì game mở bản ĐÃ LƯU. Một nút xem trước mở bản
+ *   cũ mà không cảnh báo là kiểu sai lặng lẽ tệ nhất.
  *
- * ## Hệ quả phải NÓI RA, không được giấu
+ * §18.D.5: đường vào tra theo `gameId` (`problemPreviewHref`), KHÔNG dựng bằng
+ * công thức `/games/${gameId}?problem=`: game chưa có route đọc `?problem=` sẽ mở
+ * một ván thường, không 404, không log. Lý do đầy đủ ở `lib/problem-preview-href.ts`.
  *
- * Đường đó nạp bài từ MÁY CHỦ theo mã. Nên:
- *
- * - Bài chưa lưu lần nào thì chưa có mã ⇒ **chưa có đường vào nào**. Đây là chỗ
- *   nối còn hở, và nó được nói thẳng ở đây thay vì lấp bằng một nút bấm không
- *   làm gì.
- * - Bài đã lưu nhưng đang sửa dở thì arena mở ra bản ĐÃ LƯU, không phải thứ trên
- *   màn hình. Một nút "xem trước" mở ra bản cũ mà không cảnh báo là kiểu sai
- *   lặng lẽ tệ nhất — người soạn kết luận sai về chính thay đổi vừa làm.
- *
- * ## ⚠ Mã bài rời khỏi CÂU cảnh báo, và đó là một đánh đổi có chủ ý
- *
- * Bản cũ nhúng `<code>{props.code}</code>` vào giữa câu "Đấu trường nạp bài từ
- * máy chủ theo mã X". Đưa câu đó vào bản đồ thì hoặc mất thẻ `<code>` (mã hiện
- * ra như chữ thường), hoặc phải cắt câu làm hai khoá nửa vời mà bộ dò đọc
- * thành hai mảnh vô nghĩa. Chọn cách thứ ba: câu không nhắc mã nữa, vì mã đã
- * nằm ngay trên nhãn nút bên dưới. Không mất thông tin nào.
- *
- * ## Icon `ResourceKind` KHÔNG được import ở đây
- *
- * Ràng buộc phòng ngừa của P16: nếu file này một ngày cần icon tài nguyên thì
- * lấy từ `packages/ui/src/resource-icon.tsx`, không lấy từ
- * `components/k8s-arena/**`. Hiện tại nó không cần icon nào.
+ * Icon `ResourceKind`, nếu một ngày cần, lấy từ `packages/ui`, KHÔNG từ
+ * `components/k8s-arena/**`.
  */
 export function ArenaPreview(props: {
   readonly code: string | null;
   readonly gameId: GameId;
-  readonly hasUnsavedChanges: boolean;
+  readonly saveStatus: SaveStatus;
 }): ReactElement {
-  if (props.code === null) {
-    return (
-      <section className="flex flex-col gap-4">
-        <h2 className="border-b border-border pb-2 text-lg font-semibold text-foreground">
-          {t('author.problem.arena.heading')}
-        </h2>
+  const href = props.code === null ? null : problemPreviewHref(props.gameId, props.code);
+  const line = lineForTopic({ gameId: props.gameId });
+
+  return (
+    <Split index="01" title={t('author.problem.arena.heading')} aside={t('author.problem.arena.lead')}>
+      {props.code === null ? (
         <Alert variant="warning">
           <AlertTitle>{t('author.problem.arena.no-code-title')}</AlertTitle>
           <AlertDescription>{t('author.problem.arena.no-code-body')}</AlertDescription>
         </Alert>
-      </section>
-    );
-  }
-
-  /*
-   * §18.D.5 — đường vào tra theo `gameId`, KHÔNG dựng bằng công thức
-   * `/games/${gameId}?problem=`. Công thức đó sai im lặng với mọi game chưa có
-   * route đọc `?problem=`: nó mở một ván bình thường, không 404 và không log,
-   * nên người soạn kết luận rằng bài của họ đã xem trước được.
-   *
-   * ⚠ Ví dụ cũ ở đây là `/games/git`, và nó đã HẾT ĐÚNG ngày 2026-09-15: route
-   * đó nay đọc `params.problem` thật. Bốn game còn lại (`pipeline`, `netpol`,
-   * `dockerfile`, `cicd`) vẫn chưa có route nào, nên lý lẽ của bảng tra vẫn
-   * nguyên — chỉ ví dụ phải đổi. Lý do đầy đủ ở `lib/problem-preview-href.ts`.
-   */
-  const href = problemPreviewHref(props.gameId, props.code);
-
-  if (href === null) {
-    return (
-      <section className="flex flex-col gap-4">
-        <h2 className="border-b border-border pb-2 text-lg font-semibold text-foreground">
-          {t('author.problem.arena.heading')}
-        </h2>
+      ) : href === null ? (
         <Alert variant="warning">
           <AlertTitle>{t('author.problem.arena.no-route-title')}</AlertTitle>
           <AlertDescription>
             {t('author.problem.arena.no-route-body', { game: GAME_NAME[props.gameId] })}
           </AlertDescription>
         </Alert>
-      </section>
-    );
-  }
-
-  return (
-    <section className="flex flex-col gap-4">
-      <h2 className="border-b border-border pb-2 text-lg font-semibold text-foreground">
-        {t('author.problem.arena.heading')}
-      </h2>
-
-      <p className="text-sm text-muted-foreground">{t('author.problem.arena.lead')}</p>
-
-      {props.hasUnsavedChanges && (
-        <Alert variant="warning">
-          <AlertTitle>{t('author.problem.arena.stale-title')}</AlertTitle>
-          <AlertDescription>{t('author.problem.arena.stale-body')}</AlertDescription>
-        </Alert>
+      ) : (
+        <div className="flex flex-col gap-4">
+          {props.saveStatus !== 'saved' && (
+            <Alert variant="warning" className="animate-rise">
+              <AlertTitle>{t('author.problem.arena.stale-title')}</AlertTitle>
+              <AlertDescription>{t('author.problem.arena.stale-body')}</AlertDescription>
+            </Alert>
+          )}
+          <div className={cn('relative flex flex-wrap items-center gap-4 overflow-hidden p-5', lineFillClass(line))}>
+            <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-hatch opacity-10" />
+            <p className="relative min-w-0 flex-1">
+              <span className="block type-label opacity-80">{GAME_NAME[props.gameId]}</span>
+              <span className="block font-mono text-2xl font-medium">{props.code}</span>
+            </p>
+            {/*
+              `target="_blank"` để trang soạn không mất thứ đang gõ; `rel` đi kèm vì
+              thiếu nó thì tab mới với tới được `window.opener`.
+            */}
+            <Button asChild variant="ink">
+              <a href={href} target="_blank" rel="noopener noreferrer" className="group relative">
+                {t('author.problem.arena.open', { code: props.code })}
+                <ArrowUpRight
+                  aria-hidden
+                  className="size-4 transition-transform duration-150 group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
+                />
+              </a>
+            </Button>
+          </div>
+        </div>
       )}
-
-      <div>
-        {/*
-          `target="_blank"` để trang soạn không mất state đang gõ, và `rel` đi
-          kèm vì không có nó thì tab mới với tới được `window.opener`.
-        */}
-        <Button asChild variant="outline">
-          <a href={href} target="_blank" rel="noopener noreferrer">
-            {t('author.problem.arena.open', { code: props.code })}
-          </a>
-        </Button>
-      </div>
-    </section>
+    </Split>
   );
 }

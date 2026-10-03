@@ -11,6 +11,7 @@ và tài liệu này là bug**.
 | Cổng nộp bài | `apps/web/src/server/exams/attempt-seed.ts` |
 | Mở / nộp lượt | `apps/web/src/server/exams/crud.ts` |
 | Bảng điểm | `apps/web/src/server/exams/scoreboard.ts` |
+| Cửa sổ chấm (SSOT) | `apps/web/src/server/exams/scoring-window.ts` |
 | Xuất CSV | `apps/web/src/server/exams/csv.ts` |
 | Router | `apps/web/src/server/trpc/routers/exams.ts`, `exam-sitting.ts` |
 | Đếm ngược phía client | `apps/web/src/app/(session)/exams/countdown.ts` |
@@ -277,6 +278,21 @@ Cổng chạy **TRƯỚC**, nên một lượt bị từ chối không tốn m�
 Không có `examId` thì **không làm gì cả** — mọi lượt nộp ngoài kỳ thi đi qua đó không đổi một
 dòng nào.
 
+⛔ **Không có `examId` thì lượt nộp LUÔN là luyện tập**, kể cả khi người nộp đang có một lượt thi
+mở chứa đúng bài đó. Máy chủ **không suy** lượt nộp thuộc kỳ thi nào: không tra lượt thi đang mở,
+không so seed. Một bản từng suy (tra lượt mở chứa bài rồi áp luật thi) và nó từ chối **mọi** lượt
+nộp bài thi: cổng thứ ba đòi `seed === attempt.seed`, trong khi client **không bao giờ nhận** seed
+của lượt thi (`viewOf` ở `exam-sitting.ts`, xem §4) và arena K8s sinh seed ngẫu nhiên mỗi phiên.
+
+Hệ quả cần biết: một lượt luyện tập nằm trong cửa sổ chấm của lượt thi (§6) **vẫn được tính vào
+bảng điểm**, với seed bất kỳ. Bảng điểm gán lượt nộp theo thời gian, không theo `examId` —
+`problem_submissions` không có cột `exam_id`. Cổng seed chỉ chạy với lượt nộp mang `examId`.
+
+| Input của `problems.submit` | Hành vi |
+|---|---|
+| không có `examId` | luyện tập: không cổng thi, không truy vấn lượt thi |
+| có `examId` | `NOT_FOUND` nếu không thuộc lớp · `FORBIDDEN` nếu chưa mở lượt, bài ngoài đề, lượt đã khoá, hoặc lệch seed |
+
 ⚠ **`FORBIDDEN` chứ không `BAD_REQUEST`.** Người nộp không gửi lên dữ liệu hỏng; họ gửi một
 lượt hợp lệ mà luật kỳ thi không nhận. `BAD_REQUEST` sẽ dẫn họ đi sửa bài làm, trong khi thứ
 cần sửa là việc họ đã hết giờ, hoặc đang làm một bài ngoài đề.
@@ -294,13 +310,27 @@ Một sinh viên có thể đã giải `K8S-0001` từ **tuần trước**. Nế
 `problem_code` thì bài làm tuần trước rơi thẳng vào bảng điểm kỳ thi — **không lỗi, không cảnh
 báo, và điểm trông hoàn toàn hợp lý**.
 
-Nên mọi lượt nộp phải nằm trong `[started_at, hạn]` của **chính lượt thi đó**. Hạn là một phép
-TÍNH chứ không phải một cột, nên SQL phải dựng lại nó:
+Nên mọi lượt nộp phải nằm trong **cửa sổ chấm** của **chính lượt thi đó**, hai đầu đều đóng:
 
 ```sql
-least(a.started_at + make_interval(mins => a.duration_minutes),
-      coalesce(e.closes_at, 'infinity'::timestamptz))
+-- [exam_attempts.started_at, least(submitted_at, hạn)]
+least(coalesce(exam_attempts.submitted_at, 'infinity'::timestamptz),
+      exam_attempts.started_at + make_interval(mins => exam_attempts.duration_minutes),
+      coalesce(exams.closes_at, 'infinity'::timestamptz))
 ```
+
+Hai vế sau là **hạn** (`attemptDeadline` của `clock.ts`), dựng lại bằng SQL vì hạn là một phép
+TÍNH chứ không phải một cột. Vế đầu dừng cửa sổ ở lúc **bấm nộp**: nộp xong thì lượt thi khoá,
+nhưng người học vẫn mở được bài và nộp như luyện tập (§5). Cửa sổ dừng ở hạn thì những lượt giải
+**sau khi bấm nộp** vẫn rơi vào bảng điểm — người nộp sớm được thêm thời gian mà không ai thấy.
+Lượt giải đúng mốc bấm nộp vẫn được tính.
+
+**Một định nghĩa, ba chỗ đọc.** Mảnh SQL sống ở `apps/web/src/server/exams/scoring-window.ts`
+(`inScoringWindow`). Bảng điểm (`scoreboard.ts`) và dấu `solved` của màn làm bài
+(`exam-problems.ts`, trả qua `examSitting.get`) cùng lọc bằng nó; CSV dựng từ chính bảng điểm
+nên không có bản riêng. Lệch nhau thì sinh viên thấy dấu tích mà giảng viên không thấy điểm.
+⚠ Mảnh SQL tham chiếu `exam_attempts` và `exams` bằng **tên bảng**: câu truy vấn dùng nó phải
+join hai bảng đó **không đặt bí danh**.
 
 `'infinity'` chứ không phải một ngày xa trong tương lai — `timestamptz` của Postgres có giá
 trị vô cực thật, và một hằng "năm 9999" là một **quả bom hẹn giờ có thật**.

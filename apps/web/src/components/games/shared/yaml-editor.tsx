@@ -75,7 +75,7 @@ const TOKEN_CLASS: Readonly<Record<YamlTokenKind, string>> = {
  * sửa chỉ chạm một bản.
  */
 const SHARED_BOX =
-  'absolute inset-0 m-0 rounded-md p-2 font-mono text-xs leading-5 whitespace-pre border-0';
+  'absolute inset-0 m-0 p-2 font-mono text-xs leading-5 whitespace-pre border-0';
 
 /**
  * Chép từ `k8s-arena/hud/inspector-frame.tsx` lúc chuyển nhà, KHÔNG import
@@ -153,7 +153,7 @@ export function YamlEditor({
   const lines = tokenizeYaml(value);
 
   return (
-    <div className="flex min-h-0 flex-1 overflow-hidden rounded-md bg-muted">
+    <div className="flex min-h-0 flex-1 overflow-hidden bg-muted">
       {showLineNumbers ? (
         <pre
           ref={gutterRef}

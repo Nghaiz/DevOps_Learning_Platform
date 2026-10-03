@@ -1,227 +1,225 @@
 'use client';
 
-import { useState, type ReactElement } from 'react';
+import { useEffect, useState, type ReactElement } from 'react';
 import Link from 'next/link';
-import {
-  Badge,
-  Button,
-  Card,
-  CardContent,
-  CursorPager,
-  EmptyState,
-  ErrorState,
-  Skeleton,
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '@devops-platform/ui';
+import { Plus } from 'lucide-react';
+import { Badge, Button, CursorPager, Difficulty, EmptyState, ErrorState } from '@devops-platform/ui';
 import type { inferRouterOutputs } from '@trpc/server';
 import { t } from '@devops-platform/copy';
-import { PROBLEM_DIFFICULTY_LABELS } from '@devops-platform/games';
+import { PROBLEM_DIFFICULTY_LABELS, type ProblemDifficulty } from '@devops-platform/games';
 import type { AppRouter } from '../../../server/trpc/routers/app-router';
 import { api } from '../../../lib/trpc-react';
 import { describeTrpcError } from '../../../lib/trpc';
-import { DIFFICULTY_BADGE, STATE_BADGE, STATE_FILTERS, STATE_KEYS, filterLabelKey, joinTopicLabels, type StateFilter } from './problem-labels';
+import { Board, BoardRow, BoardSkeleton, PageContainer, PosterHeader, lineForTopic } from '../../../components/kit';
+import { StateChip, StudioListBody, type StudioFilter } from '../../../components/author/studio';
+import { GAME_NAME } from './game-plugin-view';
+import { STATE_FILTERS, STATE_KEYS, filterLabelKey, joinTopicLabels, type StateFilter } from './problem-labels';
 
 /**
- * Một hàng ĐÚNG NHƯ NÓ TỚI QUA DÂY.
- *
- * Bản trước nhận `ProblemWithStats` của `packages/games` — kiểu của thời
- * K8s-một-game. `problems.mine` nay trả DTO game-neutral (`gameId`, `testcases`,
- * `initialState: unknown`), nên kiểu cũ không còn nhận nổi thứ chính máy chủ
- * gửi. Suy từ router là khuôn đang dùng ở chín trang client khác của app, và nó
- * làm chuyện này không lặp lại: hợp đồng đổi lần nữa thì chỗ này đi theo, không
- * cần ai nhớ.
+ * Một hàng ĐÚNG NHƯ NÓ TỚI QUA DÂY. Suy từ router, nên hợp đồng đổi thì chỗ này
+ * đi theo mà không ai phải nhớ (`problems.mine` trả DTO game-neutral).
  */
 type AuthorProblemRow = inferRouterOutputs<AppRouter>['problems']['mine']['items'][number];
 
+/** Độ khó của đề sang bậc của glyph 4 vạch. Nhãn chữ vẫn là nhãn của đề. */
+const DIFFICULTY_LEVEL = {
+  easy: 'basic',
+  medium: 'intermediate',
+  hard: 'advanced',
+  expert: 'expert',
+} as const satisfies Record<ProblemDifficulty, 'basic' | 'intermediate' | 'advanced' | 'expert'>;
+
+/** Gõ xong mới hỏi máy chủ: mỗi phím một request là phí, và con trỏ trang phải về đầu. */
+const SEARCH_DEBOUNCE_MS = 300;
+
 /**
- * `/author/problems` — bài OJ của tôi.
+ * `/author/problems`: đề do người soạn viết.
  *
- * ## `problems.mine`, KHÔNG phải `problems.list`
+ * ## Lọc và tìm ở MÁY CHỦ, không đếm
  *
- * `ProblemFilter` trong hợp đồng không có field chủ sở hữu, nên "bài của tôi"
- * không diễn đạt được qua `list` — và lane D cố ý không thêm field vào hợp đồng
- * của lead để lách chuyện đó. `mine` lọc theo người gọi ở máy chủ (admin thấy
- * mọi bài, cùng luật `assertContentOwner`).
+ * `problems.mine` phân trang bằng cursor, nên lọc ở client chỉ lọc trong PHẠM VI
+ * MỘT TRANG: tab "Nháp" hiện 3 đề trong khi người soạn có 40. Trạng thái và ô tìm
+ * đi thẳng vào `filter.state` / `filter.query`. Không có số đếm trên tab, vì máy
+ * chủ không trả số đếm theo trạng thái và một con số đếm trên một trang là sai.
  *
- * ## Lọc ở MÁY CHỦ, không lọc ở client
+ * `mine` chứ không `list`: `ProblemFilter` không có field chủ sở hữu; `mine` lọc
+ * theo người gọi ở máy chủ (admin thấy mọi đề).
  *
- * Khác trang `/author` cũ, thứ nhận cả danh sách trong một lượt và lọc tại chỗ.
- * Ở đây có phân trang cursor thật, nên lọc ở client sẽ lọc trong PHẠM VI MỘT
- * TRANG — tab "Nháp" hiện 3 bài trong khi người soạn có 40, và không có gì nói
- * ra điều đó.
- *
- * ⛔ KHÔNG `useInfiniteQuery`: `@trpc/react-query` tự chèn `direction` vào input,
- * mọi input schema của dự án là `.strict()`, và hậu quả là request thật 400
- * trong khi test ở tầng API vẫn xanh.
- *
- * ## Hai bảng nhãn CÒN LẠI ngoài `packages/copy`, và đó không phải sót
- *
- * `PROBLEM_DIFFICULTY_LABELS` và `PROBLEM_TOPIC_LABELS` tới từ
- * `packages/games`, ngoài bảng sở hữu của lane này. Chúng là chữ người dùng
- * đọc và về lâu dài thuộc về bản đồ, nhưng chuyển chúng là sửa một gói khác
- * cộng mọi nơi gọi của nó, nên việc đó được BÁO chứ không tự làm ở đây.
+ * ⛔ KHÔNG `useInfiniteQuery` (input `.strict()`, `direction` bị chèn, 400).
  */
 export function ProblemListClient(): ReactElement {
   const [filter, setFilter] = useState<StateFilter>('all');
+  const [search, setSearch] = useState('');
+  const [query, setQuery] = useState('');
   const [cursor, setCursor] = useState<string | null>(null);
   const [page, setPage] = useState(1);
 
-  const query = api.problems.mine.useQuery({
-    ...(filter === 'all' ? {} : { filter: { state: [filter] } }),
+  useEffect(() => {
+    const next = search.trim();
+    if (next === query) return undefined;
+    const timer = window.setTimeout(() => {
+      setQuery(next);
+      // Đổi điều kiện tìm phải VỀ ĐẦU: con trỏ keyset được cấp cho tập kết quả cũ.
+      setCursor(null);
+      setPage(1);
+    }, SEARCH_DEBOUNCE_MS);
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [search, query]);
+
+  const listQuery = api.problems.mine.useQuery({
+    ...(filter === 'all' && query === ''
+      ? {}
+      : {
+          filter: {
+            ...(filter === 'all' ? {} : { state: [filter] }),
+            ...(query === '' ? {} : { query }),
+          },
+        }),
     ...(cursor === null ? {} : { cursor }),
   });
 
-  const items = query.data?.items ?? [];
+  const items = listQuery.data?.items ?? [];
 
   const changeFilter = (next: StateFilter): void => {
-    // Đổi bộ lọc phải VỀ ĐẦU: con trỏ keyset được cấp cho tập kết quả cũ, và
-    // dùng lại nó trên tập mới cho ra một trang bắt đầu từ giữa hư không.
     setFilter(next);
     setCursor(null);
     setPage(1);
   };
 
+  const filters: readonly StudioFilter<StateFilter>[] = STATE_FILTERS.map((value) => ({
+    value,
+    label: t(filterLabelKey(value)),
+  }));
+
   return (
-    <div className="practice-catalog">
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">{t('author.problem.list.title')}</h1>
-          <p className="text-sm text-muted-foreground">{t('author.problem.list.lead')}</p>
-        </div>
-        <Button asChild>
-          <Link href="/author/problems/new">{t('author.problem.list.new-cta')}</Link>
-        </Button>
-      </header>
+    <>
+      <PosterHeader
+        section="studio"
+        kicker={t('author.problem.list.kicker')}
+        title={t('author.problem.list.title')}
+        lead={t('author.problem.list.lead')}
+        aside={
+          <Button asChild variant="ink" size="lg" iconLeft={<Plus aria-hidden className="size-4" />}>
+            <Link href="/author/problems/new">{t('author.problem.list.new-cta')}</Link>
+          </Button>
+        }
+      />
+      <PageContainer>
+        <div className="flex flex-col gap-6 py-10">
+          <StudioListBody
+            filterLabel={t('author.studio.list.filter-label')}
+            filters={filters}
+            filter={filter}
+            onFilterChange={changeFilter}
+            searchLabel={t('author.studio.list.search-label')}
+            searchPlaceholder={t('author.studio.list.search-placeholder')}
+            search={search}
+            onSearchChange={setSearch}
+          >
+            {listQuery.isPending && <BoardSkeleton rows={4} label={t('author.studio.list.loading')} />}
 
-      {query.isPending && (
-        <div className="flex flex-col gap-3" aria-hidden>
-          {[0, 1, 2].map((row) => (
-            <Skeleton key={row} className="h-24 w-full" />
-          ))}
-        </div>
-      )}
-
-      {query.isError && (
-        <ErrorState
-          title={t('author.problem.list.error-title')}
-          message={describeTrpcError(query.error)}
-          onRetry={() => void query.refetch()}
-          retrying={query.isFetching}
-        />
-      )}
-
-      {query.isSuccess && (
-        <Tabs
-          value={filter}
-          onValueChange={(value) => {
-            changeFilter(value as StateFilter);
-          }}
-        >
-          <TabsList>
-            {STATE_FILTERS.map((value) => (
-              <TabsTrigger key={value} value={value}>
-                {t(filterLabelKey(value))}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-          {/*
-            Danh sách PHẢI nằm trong `TabsContent`. Radix đặt `aria-controls` lên
-            mọi trigger; không có panel nào thì trigger đang active trỏ vào hư
-            không và axe báo mức critical `aria-valid-attr-value` — đúng lỗi
-            `/author` đã trả giá ngày 2026-09-07.
-          */}
-          <TabsContent value={filter}>
-            <div className="flex flex-col gap-4 pt-2">
-              {items.length === 0 ? (
-                <EmptyState
-                  title={
-                    filter === 'all'
-                      ? t('author.problem.list.empty-title')
-                      : t('author.problem.list.empty-filtered', { state: t(filterLabelKey(filter)) })
-                  }
-                  description={t('author.problem.list.empty-body')}
-                  action={
-                    <Button asChild>
-                      <Link href="/author/problems/new">{t('author.problem.list.empty-cta')}</Link>
-                    </Button>
-                  }
-                />
-              ) : (
-                <ul className="flex flex-col gap-3">
-                  {items.map((row) => (
-                    <li key={row.problem.code}>
-                      <ProblemRow row={row} />
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              <CursorPager
-                page={page}
-                loading={query.isFetching}
-                hasNext={(query.data?.nextCursor ?? null) !== null}
-                onNext={() => {
-                  setCursor(query.data?.nextCursor ?? null);
-                  setPage((value) => value + 1);
-                }}
-                onReset={() => {
-                  setCursor(null);
-                  setPage(1);
-                }}
+            {listQuery.isError && (
+              <ErrorState
+                title={t('author.problem.list.error-title')}
+                message={describeTrpcError(listQuery.error)}
+                onRetry={() => void listQuery.refetch()}
+                retrying={listQuery.isFetching}
               />
-            </div>
-          </TabsContent>
-        </Tabs>
-      )}
-    </div>
+            )}
+
+            {listQuery.isSuccess && (
+              <div className="flex flex-col gap-6">
+                {items.length === 0 ? (
+                  <EmptyState
+                    title={
+                      query !== ''
+                        ? t('author.studio.list.no-match', { query })
+                        : filter === 'all'
+                          ? t('author.problem.list.empty-title')
+                          : t('author.problem.list.empty-filtered', { state: t(filterLabelKey(filter)) })
+                    }
+                    {...(query === ''
+                      ? {
+                          description: t('author.problem.list.empty-body'),
+                          action: (
+                            <Button asChild>
+                              <Link href="/author/problems/new">{t('author.problem.list.empty-cta')}</Link>
+                            </Button>
+                          ),
+                        }
+                      : {})}
+                  />
+                ) : (
+                  <Board label={t('author.problem.list.board-label')}>
+                    {items.map((row, index) => (
+                      <ProblemRow key={row.problem.code} row={row} index={index + 1} />
+                    ))}
+                  </Board>
+                )}
+
+                <CursorPager
+                  page={page}
+                  loading={listQuery.isFetching}
+                  hasNext={(listQuery.data.nextCursor ?? null) !== null}
+                  onNext={() => {
+                    setCursor(listQuery.data.nextCursor ?? null);
+                    setPage((value) => value + 1);
+                  }}
+                  onReset={() => {
+                    setCursor(null);
+                    setPage(1);
+                  }}
+                />
+              </div>
+            )}
+          </StudioListBody>
+        </div>
+      </PageContainer>
+    </>
   );
 }
 
-function ProblemRow({ row }: { readonly row: AuthorProblemRow }): ReactElement {
-  const { problem, stats } = row;
+function ProblemRow(props: { readonly row: AuthorProblemRow; readonly index: number }): ReactElement {
+  const { problem, stats } = props.row;
+  const line = lineForTopic({ gameId: problem.gameId });
 
   return (
-    <Card>
-      <CardContent className="flex flex-wrap items-start justify-between gap-3 py-4">
-        <div className="flex min-w-0 flex-col gap-1.5">
-          <div className="flex flex-wrap items-center gap-2">
-            <Link
-              href={`/author/problems/${encodeURIComponent(problem.code)}`}
-              className="text-base font-medium text-foreground underline-offset-4 hover:underline"
-            >
-              {problem.title}
-            </Link>
-            <Badge variant={STATE_BADGE[problem.state]}>{t(STATE_KEYS[problem.state])}</Badge>
-            <Badge variant={DIFFICULTY_BADGE[problem.difficulty]}>
-              {PROBLEM_DIFFICULTY_LABELS[problem.difficulty]}
-            </Badge>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            <code className="font-mono">{problem.code}</code>
-            {/*
-              `joinTopicLabels` chứ không tra thẳng bảng: `topics` nay là
-              `ProblemTopicId` (chuỗi mờ) nên bảng nhãn K8s không còn phủ hết,
-              và một phép tra hụt đi qua `join(', ')` sẽ in ra chuỗi
-              `"undefined"` giữa câu. Lý do đầy đủ ở `problem-labels.ts`.
-            */}
-            {problem.topics.length > 0 &&
-              t('author.problem.list.row-topics', {
-                topics: joinTopicLabels(problem.topics),
+    <BoardRow
+      href={`/author/problems/${encodeURIComponent(problem.code)}`}
+      index={props.index}
+      order={props.index - 1}
+      line={line}
+      title={problem.title}
+      sub={
+        <span>
+          <code className="font-mono text-xs">{problem.code}</code>
+          {/*
+            `joinTopicLabels` chứ không tra thẳng bảng: `topics` là chuỗi mờ theo
+            game, và một phép tra hụt đi qua `join` sẽ in chữ "undefined".
+          */}
+          {problem.topics.length > 0 &&
+            t('author.problem.list.row-topics', { topics: joinTopicLabels(problem.topics) })}
+          {' · '}
+          {stats.attemptCount === 0
+            ? t('author.problem.list.row-untried')
+            : t('author.problem.list.row-solved', {
+                solvers: stats.solverCount,
+                attempts: stats.attemptCount,
               })}
-          </p>
-          <p className="text-xs text-muted-foreground">
-            {stats.attemptCount === 0
-              ? t('author.problem.list.row-untried')
-              : t('author.problem.list.row-solved', { solvers: stats.solverCount, attempts: stats.attemptCount })}
-          </p>
-        </div>
-        <Button asChild variant="outline" size="sm">
-          <Link href={`/author/problems/${encodeURIComponent(problem.code)}`}>{t('common.action.open')}</Link>
-        </Button>
-      </CardContent>
-    </Card>
+        </span>
+      }
+      meta={
+        <>
+          <Badge variant="outline">{GAME_NAME[problem.gameId]}</Badge>
+          <span className="inline-flex items-center gap-1.5 font-mono text-xs text-muted-foreground">
+            <Difficulty level={DIFFICULTY_LEVEL[problem.difficulty]} />
+            {PROBLEM_DIFFICULTY_LABELS[problem.difficulty]}
+          </span>
+        </>
+      }
+      state={<StateChip state={problem.state} label={t(STATE_KEYS[problem.state])} />}
+    />
   );
 }

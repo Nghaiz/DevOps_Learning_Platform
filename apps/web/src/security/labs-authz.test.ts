@@ -263,11 +263,28 @@ describe('labs.list / labs.get', () => {
     expect(out.items[0]).not.toHaveProperty('tasks'); // summary, không phải full
   });
 
-  it('get trả lab đầy đủ + unsupportedCapabilities', async () => {
+  it('get trả lab dạng người học + unsupportedCapabilities', async () => {
     makeLab({ id: 'lab-get-a' });
     const out = await (await caller(user)).labs.get({ labId: 'lab-get-a' });
     expect(out.lab.tasks).toHaveLength(2);
     expect(out.unsupportedCapabilities).toEqual([]);
+  });
+
+  it('get KHÔNG đưa script chấm, gợi ý hay script setup ra khỏi server (lab không gợi ý)', async () => {
+    const SECRET = 'DAP-AN-LAB-BI-MAT';
+    const lab = labSchema.parse({
+      ...makeLab({ id: 'lab-get-secret' }),
+      tasks: [
+        { id: 'task-a', title: 'A', markdown: 'Đề A', verifyScript: `test -f /${SECRET}`, weight: 1, hint: SECRET },
+      ],
+      setup: { foreground: `echo ${SECRET}`, background: `touch /${SECRET}` },
+    });
+    labFixtures.set(lab.id, lab);
+
+    const out = await (await caller(user)).labs.get({ labId: 'lab-get-secret' });
+    expect(JSON.stringify(out)).not.toContain(SECRET);
+    expect(out.lab.tasks[0]).toEqual({ id: 'task-a', title: 'A', markdown: 'Đề A', weight: 1 });
+    expect(out.lab).not.toHaveProperty('setup');
   });
 
   it('lab không tồn tại → NOT_FOUND', async () => {
@@ -429,6 +446,18 @@ describe('labs.checkTask — ba ca lỗi (contract §3 luật 3)', () => {
     });
     expect(out).toEqual({ exitCode: 1, passed: false, output: 'assertion thất bại' });
     expect(await countTaskResults(attemptId)).toBe(before + 1);
+  });
+
+  it('script gửi xuống gateway mang prelude verify (pass/fail/check + trap) rồi mới tới script của task', async () => {
+    const { VERIFY_PRELUDE } = await import('@devops-platform/scenario');
+    fetchSpy.mockImplementationOnce(() =>
+      Promise.resolve(jsonResponse(200, { exitCode: 0, output: '✓ xong', truncated: false })),
+    );
+    await (await caller(user)).labs.checkTask({ labId: 'lab-check-err-fixture', attemptId, taskId: 'task-a' });
+    const init = (fetchSpy.mock.calls[0] as unknown[] | undefined)?.[1] as { body?: string } | undefined;
+    const sent = JSON.parse(init?.body ?? '{}') as { script?: string };
+    expect(sent.script?.startsWith(VERIFY_PRELUDE)).toBe(true);
+    expect(sent.script?.endsWith('true')).toBe(true);
   });
 
   it('gateway trả 200 nhưng SAI SHAPE (contract vỡ) → NÉM, KHÔNG ghi dòng nào', async () => {

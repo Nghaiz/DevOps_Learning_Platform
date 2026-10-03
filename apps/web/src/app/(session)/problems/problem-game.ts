@@ -12,7 +12,7 @@ import { t } from '@devops-platform/copy';
  * trường `gameId`, và schema đầu vào của `problems.list` khai `.strict()` —
  * đo 2026-09-15, `problemFilterSchema.safeParse({ gameId: 'git' })` trả
  * `unrecognized_keys`. Một bộ chọn hứa lọc bài mà chỉ đổi được từ vựng là một
- * điều khiển NÓI DỐI; câu `catalog.problems.game-hint` vì thế nói đúng một vế.
+ * điều khiển NÓI DỐI; câu `problem.oj.filter.game-hint` vì thế nói đúng một vế.
  *
  * Thực tế nó vẫn thu hẹp danh sách, chỉ là gián tiếp: chủ đề `branching` chỉ có
  * trên bài Git, nên chọn nó ra đúng tập bài Git. Khác nhau ở chỗ phép thu hẹp
@@ -42,8 +42,8 @@ import { t } from '@devops-platform/copy';
 
 /** Tên hiển thị theo game. `null` = game chưa có từ vựng chủ đề nào để chọn. */
 const GAME_NAMES: Readonly<Record<GameId, string | null>> = {
-  k8s: t('catalog.problems.game.k8s'),
-  git: t('catalog.problems.game.git'),
+  k8s: t('problem.oj.game.k8s'),
+  git: t('problem.oj.game.git'),
   pipeline: null,
   netpol: null,
   dockerfile: null,
@@ -57,7 +57,7 @@ const GAME_NAMES: Readonly<Record<GameId, string | null>> = {
    * khỏi bộ chọn và đọc ra y hệt "game này chưa có chủ đề" (ô đầu của
    * `problem-game.test.ts` gác đúng vế đó).
    */
-  cicd: t('catalog.problems.game.cicd'),
+  cicd: t('problem.oj.game.cicd'),
 };
 
 /**

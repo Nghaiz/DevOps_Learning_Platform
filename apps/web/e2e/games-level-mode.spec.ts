@@ -133,4 +133,26 @@ test.describe('đấu trường K8s — chế độ LEVEL', () => {
         `component này, nên đây là nửa quan trọng hơn của phép kiểm.`,
     ).toBeVisible({ timeout: 30_000 });
   });
+
+  /*
+   * Trang chọn màn nằm NGOÀI canvas (đợt dựng lại PTIT, 2026-10-03): màn đang chơi
+   * ghi vào `?level=` và nằm trong một lớp phủ kín vỏ trang. Hai lời hứa đó chỉ có
+   * nghĩa nếu nút Back của trình duyệt đưa người chơi về đúng trang chọn màn.
+   */
+  test('màn đang chơi nằm ở URL, phủ kín vỏ trang, và Back trả về trang chọn màn', async ({
+    page,
+  }) => {
+    await openScreen(page, GAME_PATH, 'anon');
+    const pick = page.getByRole('button', { name: PICK_LEVEL }).first();
+    await expect(pick).toBeVisible({ timeout: 20_000 });
+    await pick.click();
+
+    await expect(page).toHaveURL(/[?&]level=k8s-/u);
+    await expect(page.getByTestId('k8s-playing-layer')).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('.arena-root')).toBeVisible({ timeout: 30_000 });
+
+    await page.goBack();
+    await expect(page.getByTestId('k8s-playing-layer')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: PICK_LEVEL }).first()).toBeVisible();
+  });
 });

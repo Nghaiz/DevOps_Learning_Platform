@@ -60,7 +60,7 @@ describe('ContentView — code block hành động', () => {
     ];
 
     render(<ContentView blocks={blocks} resolveAssetUrl={noResolve} onExec={onExec} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Ngắt & chạy' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Ngắt và chạy' }));
 
     expect(onExec).toHaveBeenCalledTimes(1);
     expect(onExec).toHaveBeenCalledWith('tail -f app.log', true);
@@ -81,11 +81,21 @@ describe('ContentView — code block hành động', () => {
       { kind: 'code', code: 'kubectl get pods', language: null, action: 'exec', inline: false },
     ];
 
-    render(<ContentView blocks={blocks} resolveAssetUrl={noResolve} onExec={vi.fn()} execEnabled={false} />);
+    render(
+      <ContentView
+        blocks={blocks}
+        resolveAssetUrl={noResolve}
+        onExec={vi.fn()}
+        execEnabled={false}
+        execDisabledReason="Chờ terminal sẵn sàng"
+      />,
+    );
 
     const button = screen.getByRole('button', { name: 'Chạy' }) as HTMLButtonElement;
     expect(button.disabled).toBe(true);
-    expect(button.getAttribute('title')).not.toBeNull();
+    // Lý do là CHỮ nhìn thấy được, và nút trỏ tới nó: `title` trên nút disabled không ai đọc được.
+    const reason = screen.getByText('Chờ terminal sẵn sàng');
+    expect(button.getAttribute('aria-describedby')).toBe(reason.id);
   });
 
   it('nút chép ghi vào clipboard và hiện xác nhận', async () => {
@@ -115,7 +125,7 @@ describe('ContentView — code block hành động', () => {
     render(<ContentView blocks={blocks} resolveAssetUrl={noResolve} />);
     fireEvent.click(screen.getByRole('button', { name: 'Chép' }));
 
-    expect(await screen.findByRole('button', { name: 'Chép thất bại' })).toBeDefined();
+    expect(await screen.findByRole('button', { name: 'Chép không được' })).toBeDefined();
   });
 });
 

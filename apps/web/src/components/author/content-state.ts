@@ -60,16 +60,6 @@ export const STATE_KEYS: Readonly<Record<ContentState, StaticTextKey>> = {
   archived: 'author.state.archived',
 };
 
-/** Variant `Badge` (C2) cho từng trạng thái: một bảng, không phải một chuỗi ternary. */
-export const STATE_BADGE: Readonly<
-  Record<ContentState, 'default' | 'secondary' | 'success' | 'warning' | 'outline'>
-> = {
-  draft: 'secondary',
-  publishing: 'warning',
-  published: 'success',
-  archived: 'outline',
-};
-
 /** Bộ lọc của trang danh sách: bốn trạng thái + một mục "tất cả". */
 export const STATE_FILTERS = ['all', ...CONTENT_STATES] as const;
 export type StateFilter = (typeof STATE_FILTERS)[number];

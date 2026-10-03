@@ -1,6 +1,7 @@
 'use client';
 
 import type { ReactElement, ReactNode } from 'react';
+import { t } from '@devops-platform/copy';
 import {
   BAD_RELEASE_RESPONSES,
   RELEASE_STRATEGIES,
@@ -41,19 +42,19 @@ export interface CicdCdPanelProps {
 }
 
 const NHAN_PHUC_HOI: Readonly<Record<(typeof BAD_RELEASE_RESPONSES)[number], string>> = {
-  rollback: 'Lùi về bản cũ (rollback)',
-  'roll-forward': 'Dựng bản sửa rồi tiến (roll-forward)',
+  rollback: t('games.cicd.cd.on-bad-rollback'),
+  'roll-forward': t('games.cicd.cd.on-bad-roll-forward'),
 };
 
 const NHAN_DANG: Readonly<Record<SecretForm, string>> = {
-  raw: 'nguyên văn',
-  base64: 'base64',
-  url: 'mã hoá URL',
-  reversed: 'đảo ngược',
+  raw: t('games.cicd.cd.form.raw'),
+  base64: t('games.cicd.cd.form.base64'),
+  url: t('games.cicd.cd.form.url'),
+  reversed: t('games.cicd.cd.form.reversed'),
 };
 
 const O_SO =
-  'w-24 rounded-md border border-border bg-background px-2 py-1 text-right text-sm text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none';
+  'w-24 border border-border bg-background px-2 py-1 text-right text-sm text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none';
 
 export function CicdCdPanel({ cd, value, onChange }: CicdCdPanelProps): ReactElement | null {
   if (cd.editable.length === 0) {
@@ -81,21 +82,21 @@ export function CicdCdPanel({ cd, value, onChange }: CicdCdPanelProps): ReactEle
   const biMat = cd.masking?.scenario.secrets ?? [];
 
   return (
-    <div className="flex flex-col gap-4 rounded-lg border border-border bg-muted px-4 py-3" data-testid="cicd-cd-panel">
+    <div className="flex flex-col gap-4 border border-border bg-muted px-4 py-3" data-testid="cicd-cd-panel">
       <div className="flex flex-col gap-1">
-        <h3 className="text-sm font-semibold text-foreground">Bảng điều khiển phát hành</h3>
+        <h3 className="text-sm font-semibold text-foreground">{t('games.cicd.cd.title')}</h3>
         <p className="text-xs text-muted-foreground">
-          Những chính sách này không nằm trong workflow. Chúng chạy trên kịch bản của màn cùng lượt “Chạy thử”.
+          {t('games.cicd.cd.lead')}
         </p>
       </div>
 
       {release !== undefined && (mo('release.strategy') || mo('release.onBadRelease') || mo('release.rolling') || mo('release.canary')) ? (
-        <section className="flex flex-col gap-3" aria-label="Phát hành">
-          <h4 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Phát hành</h4>
+        <section className="flex flex-col gap-3" aria-label={t('games.cicd.cd.release')}>
+          <h4 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">{t('games.cicd.cd.release')}</h4>
 
           {mo('release.strategy') ? (
             <ChonMot
-              legend="Chiến lược phát hành"
+              legend={t('games.cicd.cd.strategy')}
               name="cd-strategy"
               options={RELEASE_STRATEGIES.map((s) => ({ value: s, label: s }))}
               selected={release.strategy}
@@ -107,7 +108,7 @@ export function CicdCdPanel({ cd, value, onChange }: CicdCdPanelProps): ReactEle
 
           {mo('release.onBadRelease') ? (
             <ChonMot
-              legend="Khi phát hiện bản lỗi"
+              legend={t('games.cicd.cd.on-bad')}
               name="cd-on-bad"
               options={BAD_RELEASE_RESPONSES.map((r) => ({ value: r, label: NHAN_PHUC_HOI[r] }))}
               selected={release.onBadRelease}
@@ -120,7 +121,7 @@ export function CicdCdPanel({ cd, value, onChange }: CicdCdPanelProps): ReactEle
           {mo('release.rolling') && release.rolling !== undefined ? (
             <O
               id="cd-rolling-batch"
-              label="Rolling: số máy thay mỗi đợt"
+              label={t('games.cicd.cd.rolling-batch')}
               value={release.rolling.batchSize}
               onValue={(batchSize) => {
                 datRelease({ rolling: { batchSize } });
@@ -130,13 +131,13 @@ export function CicdCdPanel({ cd, value, onChange }: CicdCdPanelProps): ReactEle
 
           {mo('release.canary') && release.canary !== undefined ? (
             <fieldset className="flex flex-col gap-2">
-              <legend className="text-sm text-foreground">Canary</legend>
-              <O id="cd-canary-weight" label="% lưu lượng vào bản ứng viên" value={release.canary.weightPercent} onValue={(weightPercent) => { datCanary({ weightPercent }); }} />
-              <O id="cd-canary-interval" label="Độ dài một khoảng đo (giây)" value={release.canary.intervalSeconds} onValue={(intervalSeconds) => { datCanary({ intervalSeconds }); }} />
-              <O id="cd-canary-intervals" label="Số khoảng đo trước khi quyết" value={release.canary.intervals} onValue={(intervals) => { datCanary({ intervals }); }} />
+              <legend className="text-sm text-foreground">{t('games.cicd.cd.canary')}</legend>
+              <O id="cd-canary-weight" label={t('games.cicd.cd.canary-weight')} value={release.canary.weightPercent} onValue={(weightPercent) => { datCanary({ weightPercent }); }} />
+              <O id="cd-canary-interval" label={t('games.cicd.cd.canary-interval')} value={release.canary.intervalSeconds} onValue={(intervalSeconds) => { datCanary({ intervalSeconds }); }} />
+              <O id="cd-canary-intervals" label={t('games.cicd.cd.canary-intervals')} value={release.canary.intervals} onValue={(intervals) => { datCanary({ intervals }); }} />
               <O
                 id="cd-canary-delta"
-                label="Ngưỡng hủy: lỗi canary cao hơn nhóm đối chứng (điểm %)"
+                label={t('games.cicd.cd.canary-delta')}
                 value={Math.round(release.canary.maxErrorRateDelta * 10000) / 100}
                 step={0.1}
                 onValue={(diem) => {
@@ -154,12 +155,12 @@ export function CicdCdPanel({ cd, value, onChange }: CicdCdPanelProps): ReactEle
       ) : null}
 
       {gitops !== undefined && (mo('gitops.reconcileEvery') || mo('gitops.selfHeal') || mo('gitops.ignoreFields')) ? (
-        <section className="flex flex-col gap-3" aria-label="Đối soát">
-          <h4 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Đối soát</h4>
+        <section className="flex flex-col gap-3" aria-label={t('games.cicd.cd.gitops')}>
+          <h4 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">{t('games.cicd.cd.gitops')}</h4>
           {mo('gitops.reconcileEvery') ? (
             <O
               id="cd-reconcile"
-              label="Chu kỳ đối soát (giây)"
+              label={t('games.cicd.cd.reconcile')}
               value={gitops.reconcileEverySeconds}
               onValue={(reconcileEverySeconds) => {
                 datGitOps({ reconcileEverySeconds });
@@ -176,12 +177,12 @@ export function CicdCdPanel({ cd, value, onChange }: CicdCdPanelProps): ReactEle
                 }}
                 className="size-4 accent-primary"
               />
-              Tự sửa khi phát hiện lệch
+              {t('games.cicd.cd.self-heal')}
             </label>
           ) : null}
           {mo('gitops.ignoreFields') ? (
             <fieldset className="flex flex-col gap-1">
-              <legend className="text-sm text-foreground">Trường không đối soát</legend>
+              <legend className="text-sm text-foreground">{t('games.cicd.cd.ignore-fields')}</legend>
               {truongGitOps.map((field) => (
                 <label key={field} className="flex items-center gap-2 text-xs text-foreground">
                   <input
@@ -205,9 +206,9 @@ export function CicdCdPanel({ cd, value, onChange }: CicdCdPanelProps): ReactEle
       ) : null}
 
       {masking !== undefined && mo('masking.masked') ? (
-        <section className="flex flex-col gap-2" aria-label="Che bí mật">
-          <h4 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Che bí mật trong log</h4>
-          <p className="text-xs text-muted-foreground">Bộ che chỉ thay những chuỗi đã đăng ký dưới đây.</p>
+        <section className="flex flex-col gap-2" aria-label={t('games.cicd.cd.masking')}>
+          <h4 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">{t('games.cicd.cd.masking-title')}</h4>
+          <p className="text-xs text-muted-foreground">{t('games.cicd.cd.masking-note')}</p>
           {biMat.map((secret) => (
             <fieldset key={secret.id} className="flex flex-wrap items-center gap-x-4 gap-y-1">
               <legend className="font-mono text-xs text-foreground">{secret.id}</legend>

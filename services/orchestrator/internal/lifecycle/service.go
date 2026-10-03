@@ -327,7 +327,7 @@ func (s *Service) Create(
 		ExpiresAt: &expiresAt,
 	})
 
-	return sess.ToProto(), nil
+	return sess.ToProto(s.cfg.HardCap), nil
 }
 
 // replayIdempotent trả lại đúng session cũ khi idempotency_key đã dùng.
@@ -365,7 +365,7 @@ func (s *Service) replayIdempotent(
 				return nil, status.Error(codes.Internal, "trạng thái idempotency không nhất quán")
 			}
 			s.promoteIdem(ctx, idemKey, raw, pendingID)
-			return sess.ToProto(), nil
+			return sess.ToProto(s.cfg.HardCap), nil
 		}
 		s.log.Info("lời gọi đồng thời cùng idempotency_key đang xử lý",
 			slog.String("session_id_dang_tao", pendingID))
@@ -394,7 +394,7 @@ func (s *Service) replayIdempotent(
 			slog.String("session_id", sess.ID))
 		return nil, status.Error(codes.Internal, "trạng thái idempotency không nhất quán")
 	}
-	return sess.ToProto(), nil
+	return sess.ToProto(s.cfg.HardCap), nil
 }
 
 // claimWithColdPath claim từ pool; pool rỗng thì tạo pod đồng bộ rồi claim lại.
@@ -749,7 +749,7 @@ func (s *Service) Claim(
 	if sess.PodName == "" {
 		return nil, status.Error(codes.FailedPrecondition, "session chưa có pod")
 	}
-	return sess.ToProto(), nil
+	return sess.ToProto(s.cfg.HardCap), nil
 }
 
 // Get trả trạng thái session của chính người gọi.
@@ -760,7 +760,7 @@ func (s *Service) Get(
 	if err != nil {
 		return nil, err
 	}
-	return sess.ToProto(), nil
+	return sess.ToProto(s.cfg.HardCap), nil
 }
 
 // loadOwned gộp "đọc" và "kiểm chủ sở hữu" thành MỘT đường trả lỗi.

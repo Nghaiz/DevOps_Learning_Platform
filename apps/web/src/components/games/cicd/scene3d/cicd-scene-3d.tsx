@@ -41,6 +41,7 @@ import {
   type ReactElement,
 } from 'react';
 import * as THREE from 'three';
+import { t } from '@devops-platform/copy';
 import { Canvas, useThree } from '@react-three/fiber';
 
 import {
@@ -205,7 +206,7 @@ export function CicdScene3d(props: CicdScene3dProps): ReactElement {
        * cũng là cách arena đặt (`k8s-arena/scene/arena-scene.tsx:98`).
        */
       role="group"
-      aria-label={`${props.label ?? 'Đồ thị đường ống CI/CD, chế độ 3D'}. Dùng phím mũi tên để đi giữa các công việc, Enter để chọn, Escape để bỏ chọn.`}
+      aria-label={t('games.cicd.scene.group-3d', { label: props.label ?? t('games.cicd.scene.label-3d') })}
     >
       {/*
         Phần tử dò màu: nằm TRONG cây DOM đang mang theme, nên `getComputedStyle`
@@ -235,7 +236,7 @@ export function CicdScene3d(props: CicdScene3dProps): ReactElement {
           toneMappingExposure: 1.1,
         }}
         role="img"
-        aria-label={props.label ?? 'Đồ thị đường ống CI/CD, chế độ 3D'}
+        aria-label={props.label ?? t('games.cicd.scene.label-3d')}
       >
         <SceneBackground color={colors.background} />
         <SceneLighting tier={tier} />
@@ -292,7 +293,7 @@ export function CicdScene3d(props: CicdScene3dProps): ReactElement {
         thay được đồ thị, nhưng nó nói đúng những gì đồ thị đang nói.
       */}
       <p className="sr-only">
-        {`Đồ thị có ${draw.nodeCount} công việc và ${draw.edgeCount} quan hệ phụ thuộc. `}
+        {`${t('games.cicd.scene.desc-3d', { nodes: draw.nodeCount, edges: draw.edgeCount })} `}
         {draw.nodes.map((node) => node.ariaLabel).join('. ')}
       </p>
       {/*
@@ -306,8 +307,8 @@ export function CicdScene3d(props: CicdScene3dProps): ReactElement {
         {focusedNode === null ? '' : focusedNode.ariaLabel}
       </p>
       {degraded ? (
-        <p className="pointer-events-none absolute bottom-2 left-2 rounded bg-background/85 px-2 py-1 text-xs text-muted-foreground ring-1 ring-border">
-          Không đọc được một số màu chủ đề — cảnh đang dùng màu dự phòng.
+        <p className="pointer-events-none absolute bottom-2 left-2 bg-background px-2 py-1 text-xs text-muted-foreground ring-1 ring-border">
+          {t('games.cicd.scene.colors-fallback')}
         </p>
       ) : null}
     </div>
@@ -393,23 +394,23 @@ function CameraAngleControl({
     <div className="pointer-events-none absolute right-2 top-2 flex items-center gap-1">
       <button
         type="button"
-        className="pointer-events-auto rounded bg-background/85 px-2 py-1 text-xs text-foreground ring-1 ring-border hover:bg-background"
+        className="pointer-events-auto bg-background px-2 py-1 text-xs text-foreground ring-1 ring-border hover:bg-background"
         onClick={() => onRotate(-1)}
-        aria-label={`Xoay cảnh sang trái. ${angleLabel(angleIndex - 1)}`}
+        aria-label={t('games.cicd.scene.rotate-left', { angle: angleLabel(angleIndex - 1) })}
       >
         ◀
       </button>
       <span
-        className="pointer-events-none rounded bg-background/85 px-2 py-1 text-xs text-muted-foreground ring-1 ring-border"
+        className="pointer-events-none bg-background px-2 py-1 text-xs text-muted-foreground ring-1 ring-border"
         data-cicd-camera-angle={angleIndex}
       >
         {`${angleIndex + 1}/${CAMERA_ANGLE_COUNT}`}
       </span>
       <button
         type="button"
-        className="pointer-events-auto rounded bg-background/85 px-2 py-1 text-xs text-foreground ring-1 ring-border hover:bg-background"
+        className="pointer-events-auto bg-background px-2 py-1 text-xs text-foreground ring-1 ring-border hover:bg-background"
         onClick={() => onRotate(1)}
-        aria-label={`Xoay cảnh sang phải. ${angleLabel(angleIndex + 1)}`}
+        aria-label={t('games.cicd.scene.rotate-right', { angle: angleLabel(angleIndex + 1) })}
       >
         ▶
       </button>

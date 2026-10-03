@@ -7,7 +7,12 @@ import { summarizePathProgress } from './path-progress';
  */
 describe('summarizePathProgress', () => {
   it('đang dở: nói đúng số phần đã đạt, KHÔNG làm tròn lên thành xong', () => {
-    const summary = summarizePathProgress({ passedCount: 2, itemCount: 5, nextItemId: 'k8s-pod' });
+    const summary = summarizePathProgress({
+      passedCount: 2,
+      itemCount: 5,
+      nextItemId: 'k8s-pod',
+      nextTitle: 'Pod đầu tiên',
+    });
 
     expect(summary.label).toBe('Đã đạt 2/5 phần');
     expect(summary.value).toBe(2);
@@ -17,11 +22,22 @@ describe('summarizePathProgress', () => {
     expect(summary.nextLabel).not.toContain('tất cả');
   });
 
-  it('đang dở: trỏ tới phần tiếp theo bằng MÃ phần, đánh dấu để UI hiện dạng mã', () => {
+  it('đang dở: trỏ tới phần tiếp theo bằng TÊN, không bao giờ bằng mã thô', () => {
+    const summary = summarizePathProgress({
+      passedCount: 1,
+      itemCount: 4,
+      nextItemId: 'ci-cd-01',
+      nextTitle: 'Pipeline đầu tiên',
+    });
+
+    expect(summary.nextLabel).toBe('Làm tiếp: Pipeline đầu tiên');
+    expect(summary.nextLabel).not.toContain('ci-cd-01');
+  });
+
+  it('đang dở mà chưa có tên: im lặng thay vì in mã thô', () => {
     const summary = summarizePathProgress({ passedCount: 1, itemCount: 4, nextItemId: 'ci-cd-01' });
 
-    expect(summary.nextLabel).toBe('Phần tiếp theo: ci-cd-01');
-    expect(summary.nextIsItemId).toBe(true);
+    expect(summary.nextLabel).toBeNull();
   });
 
   it('đạt hết: nói "đã đạt tất cả các phần", KHÔNG nói "hoàn thành lộ trình"', () => {
@@ -29,7 +45,6 @@ describe('summarizePathProgress', () => {
 
     expect(summary.label).toBe('Đã đạt 4/4 phần');
     expect(summary.nextLabel).toBe('Đã đạt tất cả các phần');
-    expect(summary.nextIsItemId).toBe(false);
     // "hoàn thành lộ trình" là một trạng thái KHÔNG cột nào lưu — đạt hết phần
     // là thứ ta đếm được, hoàn thành là thứ ta không biết.
     expect(summary.nextLabel).not.toContain('hoàn thành');

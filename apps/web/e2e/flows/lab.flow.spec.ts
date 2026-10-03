@@ -1,217 +1,319 @@
 /**
- * Luồng 2 — lab: bảng task → chấm từng task → điểm tổng → bảng xếp hạng
- * (`phase-13.md:74`, 13.H mục 27).
+ * Luồng 2 — lab: mở lab từ danh mục → mở phiên → terminal CHẠY lệnh → IDE tải →
+ * chấm một nhiệm vụ TRƯỢT → sửa bằng terminal → chấm lại ĐẠT → điểm tổng tăng →
+ * nộp bài → bảng xếp hạng → nhả phiên (`phase-13.md:74`, 13.H mục 27).
  *
- * Bốn thứ luồng này khẳng định, và lý do từng thứ ở đây chứ không ở chỗ khác:
- *   1. bảng task render ĐỦ hàng (một bảng rỗng cũng "hiện ra");
- *   2. chấm RIÊNG một task đi tới kết quả — nút "Chấm nhiệm vụ này", không
- *      phải nút chấm chung của bài học;
- *   3. điểm tổng có mặt và nói bằng chữ (`role="status"` duy nhất của trang);
- *   4. tab "Bảng xếp hạng" mở được và render một bảng thật.
+ * ── Vì sao luồng này giải một nhiệm vụ THẬT ─────────────────────────────────
+ * Đây là bằng chứng end-to-end duy nhất rằng người học mở được lab, có terminal
+ * và IDE dùng được, và qua được phép chấm. Bản trước chỉ khẳng định "lượt chấm
+ * chạy tới nơi" (Đạt HOẶC Chưa đạt đều xanh), tức không bao giờ chứng minh được
+ * rằng một lab ĐẠT được. Muốn thấy "Đạt" thì harness phải biết đáp án, nên nó
+ * dùng một lab + nhiệm vụ CỐ ĐỊNH mà đáp án nằm ngay trong repo:
  *
- * ⚠ Bảng xếp hạng chỉ tồn tại khi lab bật `leaderboard`. Không lab nào bật thì
- * bước 4 báo rõ điều đó thay vì đỏ mập mờ — nhưng nó KHÔNG tự bỏ qua trong im
- * lặng, vì "không có tab" và "tab hỏng" là hai chuyện khác nhau.
+ *   `content/labs/dlp-linux-triage/setup/background.sh` gieo
+ *   `/root/lab-linux/service.secret` với quyền 644, và
+ *   `task-harden-secret-permissions/verify.sh` chỉ đạt khi quyền là đúng 600.
+ *
+ * Lab này được chọn vì cả ba điều cùng lúc: đáp án là MỘT lệnh tất định, lab
+ * khai `interface.layout: ide` (nên IDE bị đo thật), và bật `leaderboard`.
+ *
+ * ⛔ Không có đường lùi sang "lab đầu danh mục". Một lab mà harness không biết
+ * đáp án chỉ cho phép khẳng định lại điều yếu cũ, và một ô xanh như thế đọc ra
+ * như "lab đạt được" trong khi nó không đo điều đó. Bản deploy thiếu lab này ⇒
+ * ĐỎ với câu nói rõ điều đó.
+ *
+ * ── Đối chứng cùng lượt ─────────────────────────────────────────────────────
+ *   | mốc            | dương                         | đối chứng                        |
+ *   |----------------|-------------------------------|----------------------------------|
+ *   | trước Bắt đầu  | đủ mọi nhiệm vụ của API       | không có terminal, nút chấm khoá |
+ *   | shell sống     | `DLPE2E-OK` về qua dây        | chuỗi gõ vào có dấu nháy, khác   |
+ *   | trước khi sửa  | terminal đọc `PERM_644`       | chấm ⇒ "Chưa đạt", điểm 0        |
+ *   | sau khi sửa    | terminal đọc `PERM_600`       | chấm ⇒ "Đạt", điểm > 0           |
+ *
+ * Cặp thứ ba là thứ làm ô "Đạt" có nghĩa: cùng nhiệm vụ, cùng phiên, phép chấm
+ * TRƯỢT trước khi sửa và ĐẠT sau khi sửa. Một phép chấm luôn trả đạt sẽ đỏ ở vế
+ * trượt, thay vì lặng lẽ làm vế đạt xanh.
  */
 
+import type { APIRequestContext } from '@playwright/test';
+import { t } from '@devops-platform/copy';
 import {
   SANDBOX_FLOW_TIMEOUT_MS,
   SESSION_READY_TIMEOUT_MS,
   endSandbox,
   expect,
+  releaseSandboxQuietly,
   startSandbox,
   test,
+  watchRateLimits,
 } from './flow-kit';
-import { t } from '@devops-platform/copy';
-import { firstItemId } from '../fixtures/api';
-import { openScreen } from '../fixtures/nav';
+import {
+  SHELL_MARKER_CMD,
+  SHELL_MARKER_OUT,
+  expectIdeLoaded,
+  expectTerminalLive,
+  expectTerminalOutput,
+  runCheck,
+  terminalSurface,
+  typeInTerminal,
+  watchTerminalTraffic,
+  workspaceTab,
+} from './session-kit';
+import { trpcQuery } from '../fixtures/api';
+import { openScreen, settle } from '../fixtures/nav';
+
+/** Lab, nhiệm vụ và file mà harness biết đáp án. Xem khối chú thích đầu file. */
+const KNOWN = {
+  labId: 'dlp-linux-triage',
+  taskId: 'harden-secret-permissions',
+  file: '/root/lab-linux/service.secret',
+} as const;
+
+/**
+ * `stat -c 'PERM_%a'` in `PERM_644` / `PERM_600`, còn tiếng vọng của lệnh gõ vào
+ * mang `'PERM_%a'`: hai chuỗi khác nhau, nên tìm `PERM_600` chỉ khớp KẾT QUẢ.
+ */
+const READ_PERM = `stat -c 'PERM_%a' ${KNOWN.file}`;
+const FIX_PERM = `chmod 600 ${KNOWN.file}`;
+
+interface LabDetail {
+  readonly lab: {
+    readonly id: string;
+    readonly title: string;
+    readonly interfaceLayout: string | null;
+    readonly leaderboard: boolean;
+    readonly tasks: readonly { readonly id: string; readonly title: string }[];
+  };
+}
+
+async function loadKnownLab(api: APIRequestContext): Promise<LabDetail> {
+  try {
+    return await trpcQuery<LabDetail>(api, 'labs.get', { labId: KNOWN.labId });
+  } catch (cause) {
+    throw new Error(
+      `Bản deploy không có lab '${KNOWN.labId}', là lab DUY NHẤT luồng này biết đáp án. ` +
+        'Nội dung nạp từ image: kiểm content/labs trong image đang chạy. Không lùi sang lab ' +
+        'khác, vì khi đó luồng không còn chứng minh được rằng một lab ĐẠT được.',
+      { cause },
+    );
+  }
+}
 
 /*
-  ⛔ DỌN PHIÊN KỂ CẢ KHI Ô ĐỎR — thiếu vế này, mỗi lượt đỏ tự làm khó lượt sau.
-
-  `endSandbox` chỉ được gọi ở cuối ca, nên bất kỳ thất bại nào trước đó đều
-  **bỏ lại một pod** sống tới hết `SESSION_TTL` (mặc định 1 giờ). Lab này dùng
-  profile k8s, quota namespace là `pods: 6` và một khe đã thuộc pod ấm — tức chỉ
-  4-5 lượt đỏ liên tiếp là kẹt namespace nguyên một tiếng.
-
-  Điều làm nó đắt hơn vẻ: lúc đó triệu chứng ĐỔI DẠNG. Đo được 2026-09-14, một
-  lượt tái hiện chết ở `flow-kit.ts:176` với `ResourceExhausted` (quota đầy) chứ
-  không chết ở chỗ bug thật — người đọc đi truy quota trong khi nguyên nhân nằm
-  chỗ khác hẳn. Một ô đỏ tự bỏa ra nguyên nhân giả cho lượt sau là tồi tệ hơn một
-  ô đỏ bình thường.
-
-  Tốt nhất có thể, KHÔNG khẳng định: đây là lượt dọn, không phải phép kiểm. Ném ở
-  đây sẽ che mất thất bại THẬT của ca.
+  ⛔ DỌN PHIÊN KỂ CẢ KHI Ô ĐỎ. Một lượt đỏ giữa chừng bỏ lại một pod sống tới hết
+  `SESSION_TTL`. Quota namespace của cụm lab nhỏ, nên vài lượt đỏ liên tiếp là
+  kẹt chỗ, và lượt sau đỏ với `ResourceExhausted` ở NHẦM chỗ (đo 2026-09-14).
 */
 test.afterEach(async ({ page }) => {
-  const end = page.getByRole('button', { name: 'Kết thúc phiên' });
-  try {
-    if (await end.count()) {
-      await end.click({ timeout: 15_000 });
-      await expect(end).toBeHidden({ timeout: 60_000 });
-    }
-  } catch {
-    // Phiên có thể chưa từng dựng, hoặc trang đã đóng. Reaper là lưới cuối.
+  if (await releaseSandboxQuietly(page)) {
+    test.info().annotations.push({
+      type: 'don-dep',
+      description: 'Luồng đỏ khi phiên còn sống; afterEach đã bấm "Kết thúc phiên" để nhả khe quota.',
+    });
   }
 });
 
 test.describe('luồng 2 — lab', { tag: '@flow' }, () => {
-  test('bảng task → chấm từng task → điểm tổng → bảng xếp hạng', async ({ page, api }) => {
+  test('mở lab → terminal chạy lệnh → IDE tải → chấm trượt → sửa → chấm đạt → nộp → xếp hạng', async ({
+    page,
+    api,
+  }) => {
     test.setTimeout(SANDBOX_FLOW_TIMEOUT_MS);
+    const rateLimited = watchRateLimits(page);
+    // Đăng ký TRƯỚC khi mở phiên: frame đầu (dấu nhắc shell) đến ngay lúc mount.
+    const traffic = watchTerminalTraffic(page);
 
-    const labId = await firstItemId(api, 'labs.list');
+    // ── 0. Nội dung mà luồng dựa vào ────────────────────────────────────────
+    const { lab } = await loadKnownLab(api);
+    const task = lab.tasks.find((candidate) => candidate.id === KNOWN.taskId);
     expect(
-      labId,
-      'labs.list trả 0 mục nên không có lab nào để đi luồng này. Danh mục rỗng là ' +
-        'vấn đề của bản deploy (nội dung nạp từ image), không phải của harness.',
-    ).not.toBeNull();
+      task,
+      `Lab '${KNOWN.labId}' không còn nhiệm vụ '${KNOWN.taskId}'. Đáp án của luồng gắn với ` +
+        'nhiệm vụ đó: sửa KNOWN và READ_PERM/FIX_PERM theo nội dung mới.',
+    ).toBeDefined();
+    const taskTitle = task?.title ?? '';
+    expect(
+      lab.interfaceLayout,
+      `Lab '${KNOWN.labId}' không còn khai layout ide, nên vế "IDE tải được" của luồng không ` +
+        'còn đo gì. Chọn một lab có IDE thay vì bỏ vế đó.',
+    ).toBe('ide');
 
-    await openScreen(page, `/labs/${encodeURIComponent(labId ?? '')}`, 'user');
+    // ── 1. Mở lab từ danh mục, qua chính link của dòng ──────────────────────
+    // Dòng danh mục (`BoardRow`) là MỘT link có tên = tiêu đề lab
+    // (`aria-labelledby`). Đi bằng link, không `goto`: một dòng hỏng href là lỗi
+    // thật mà `goto` đi vòng qua.
+    await openScreen(page, '/labs', 'user');
+    await expect(
+      page.getByRole('heading', { level: 1, name: t('catalog.title.labs'), exact: true }),
+    ).toBeVisible();
+    const row = page.getByRole('link', { name: lab.title, exact: true });
+    await expect(
+      row,
+      `Danh mục lab không có dòng '${lab.title}'. Lab có trong API nhưng không lên danh mục ` +
+        '(hoặc nằm ngoài trang đầu của danh sách).',
+    ).toBeVisible();
+    await row.click();
+    await page.waitForURL(`**/labs/${encodeURIComponent(KNOWN.labId)}`);
+    await settle(page);
 
+    // Trang thực hành là immersive: `<h1>` duy nhất nằm trên `WorkspaceBar`.
+    await expect(page.getByRole('heading', { level: 1, name: lab.title, exact: true })).toBeVisible();
+
+    // ── 2. Tiền đề: đủ nhiệm vụ, chưa có gì để nối, nút chấm khoá ───────────
     /*
-      ── 1. Danh sách nhiệm vụ ────────────────────────────────────────────────
-
-      ⚠ Neo vào `aria-label` của danh sách, lấy TỪ BẢN ĐỒ COPY.
-
-      Bản trước tìm một `<table>` với `columnheader "Nhiệm vụ"` và đếm `tbody tr`,
-      cộng một caption viết thẳng. Trang lab đã đổi hình ở `0487000 feat(lab):
-      trang lab dùng danh sách kiểm` — nay là `<ul aria-label>` chứa `<li><button>`
-      (`components/session/task-checklist.tsx`), không còn bảng nhiệm vụ nào.
-      Spec giữ bản chép cũ nên đỏ, và nó đỏ vì HARNESS lạc hậu, không vì sản phẩm
-      sai. (Bảng xếp hạng ở tab bên cạnh VẪN là `<table>`; các ô của nó bên dưới
-      giữ nguyên.)
-
-      Cùng lý do như `path.flow`: một chuỗi viết thẳng trong spec là bản sao thứ
-      hai của dữ liệu, và bản sao thì trôi. `t()` làm phép kiểm nói đúng điều nó
-      muốn nói.
-
-      Ô ĐẾM giữ nguyên tinh thần cũ: một danh sách rỗng vẫn "hiện ra", nên phải
-      đếm mục chứ không chỉ kiểm danh sách có mặt.
+      Khẳng định THEO DANH TÍNH, không theo số đếm: mọi nhiệm vụ API trả về phải
+      có dòng của nó. Một phép đếm `listitem` còn đếm luôn các `<li>` trong
+      markdown của nhiệm vụ đang mở (`TaskChecklist` bung đề bài NGAY trong `<li>`
+      của nó), nên nó vừa lỏng vừa sai.
     */
     const taskList = page.getByRole('list', { name: t('session.lab.checklist-legend') });
-    await expect(
-      taskList,
-      'Không thấy danh sách nhiệm vụ của lab. Trang đã đổi hình dạng?',
-    ).toBeVisible();
-
-    const taskRows = taskList.getByRole('listitem');
-    await expect(
-      taskRows,
-      'Danh sách nhiệm vụ render 0 mục. Một danh sách rỗng vẫn "hiện ra" nên phép ' +
-        'kiểm phải đếm mục, không chỉ kiểm danh sách có mặt.',
-    ).not.toHaveCount(0);
-
-    // ── 2. Bắt đầu lần thử, rồi chấm MỘT task ───────────────────────────────
-    // Nhãn nút là 'Bắt đầu' khi chưa có lần thử và 'Làm lại' khi đã có
-    // (`lab-client.tsx` truyền `startLabel`). Chọn theo cái đang hiện, thay vì
-    // giả định tài khoản e2e chưa từng làm lab này.
-    const startLabel = (await page.getByRole('button', { name: 'Làm lại', exact: true }).count())
-      ? 'Làm lại'
-      : 'Bắt đầu';
-    await startSandbox(page, startLabel);
-
-    // Mỗi mục là một `<button>` thật (chủ ý của `TaskChecklist`) — bấm nó mở đề
-    // của đúng nhiệm vụ đó.
-    await taskRows.first().getByRole('button').first().click();
-
-    const checkTask = page.getByRole('button', { name: 'Chấm nhiệm vụ này' });
-    await expect(checkTask).toBeVisible();
-    /*
-      ⏱ Chờ theo mốc PHA PHIÊN, không theo trần mặc định 15s.
-
-      `lab-client` khoá nút này vì BA lý do, không phải hai: chưa có lần thử,
-      lần thử đã nộp, HOẶC `setupPending` — vế thứ ba thêm ở P15/15.C, khi
-      setup của lab chuyển sang chạy NỀN để người học không bị chặn ở màn
-      trắng. Chú thích cũ ở đây chỉ liệt kê hai, nên nó kết luận sai rằng một
-      nút xám sau khi Bắt đầu thành công là mâu thuẫn. Không mâu thuẫn: đó là
-      cửa sổ setup đang chạy.
-
-      Setup của lab k8s đi đường LẠNH mất 17-26s (đo ở P15), tức LUÔN vượt
-      trần 15s mặc định của `toBeEnabled()`. Ô này vì thế đỏ một cách có hệ
-      thống trên lab k8s và xanh trên lab linux — tính chất "đỏ tùy lab đứng đầu
-      danh mục" đúng là thứ làm người đọc đi truy sai chỗ.
-
-      Dùng `SESSION_READY_TIMEOUT_MS` thay vì một con số mới: đây vẫn là "chờ pha
-      phiên đổi", cùng thứ mà `startSandbox` đã chờ.
-    */
-    await expect(
-      checkTask,
-      'Nút "Chấm nhiệm vụ này" còn khoá sau khi phiên đã mở VÀ setup đã có đủ ' +
-        'thời gian chạy. `lab-client` khoá nó ở ba trường hợp: chưa có lần thử, ' +
-        'lần thử đã nộp, hoặc `setupPending`. Hai cái đầu mâu thuẫn với việc vừa ' +
-        'bấm Bắt đầu thành công; cái thứ ba nghĩa là setup chạy quá lâu hoặc đã ' +
-        'chết — đọc banner setup trên trang để biết cái nào.',
-    ).toBeEnabled({ timeout: SESSION_READY_TIMEOUT_MS });
-    await checkTask.click();
-
-    // Ba nhánh của `CheckResultPanel`, y như luồng 1: luồng khẳng định đường
-    // chấm chạy tới nơi, không khẳng định bài làm đúng.
-    await expect(
-      page.getByText(/^(Đạt|Chưa đạt \(exit |Không chấm được)/).first(),
-      'Bấm chấm task nhưng không có bảng kết quả nào hiện ra.',
-    ).toBeVisible({ timeout: 120_000 });
-    await expect(
-      page.getByText('Không chấm được'),
-      'Lượt chấm task không chạy được (nhánh error) — lỗi hạ tầng chấm bài, ' +
-        'không phải "chưa đạt".',
-    ).toBeHidden();
-
-    // ── 3. Điểm tổng ────────────────────────────────────────────────────────
-    // `lab-client` cố ý chỉ có MỘT chỗ khẳng định điểm trong cả trang; nó là
-    // một `role="status"` chứa `summary.headline`. Khẳng định nó có chữ, chứ
-    // không so một con số cụ thể — điểm phụ thuộc bài làm, và một phép so cứng
-    // sẽ đỏ ở mọi nội dung khác.
-    const scoreBanner = page.locator('[role="status"]').filter({ hasText: /điểm|Điểm|task|nhiệm vụ/ });
-    await expect(
-      scoreBanner.first(),
-      'Không thấy bảng điểm tổng. `lab-client` vẽ nó ở MỘT chỗ duy nhất; thiếu ' +
-        'nó nghĩa là người học không đọc được mình đang ở đâu.',
-    ).toBeVisible();
-
-    // ── 4. Nộp bài — điểm tổng chốt lại từ các lượt chấm đã có ──────────────
-    const submit = page.getByRole('button', { name: 'Nộp bài', exact: true });
-    await expect(submit).toBeVisible();
-    await submit.click();
-    // Sau khi nộp, `lab-client` khoá lượt chấm lại và hiện câu lý do đó. Đây là
-    // dấu hiệu quan sát được của "đã nộp", không phải một khoảng chờ.
-    /*
-      ⚠ LẤY CÂU TỪ BẢN ĐỒ COPY, không chép lại.
-
-      Bản trước chép thẳng "Đã nộp — không chấm lại được", trong khi
-      `session.lab.blocked-submitted` đã đổi sang "đã nộp NÊN không chấm lại
-      được". Lệch ĐÚNG MỘT TỪ, và ô đỏ trong khi sản phẩm làm đúng mọi thứ:
-      đã nộp, đã khoá lượt chấm, đã hiện câu lý do.
-
-      Cùng lớp với ba spec đã sửa ở `5a49353` và `9e546f7`: harness chép một bản
-      câu chữ rồi để nó trôi. Neo vào `t()` thì lần biên tập sau không làm ô này
-      đỏ nữa, mà vẫn gác đúng điều nó gác.
-    */
-    await expect(page.getByText(t('session.lab.blocked-submitted'))).toBeVisible({
-      timeout: 60_000,
-    });
-
-    // ── 5. Bảng xếp hạng ────────────────────────────────────────────────────
-    const leaderboardTab = page.getByRole('tab', { name: 'Bảng xếp hạng' });
-    if (await leaderboardTab.count()) {
-      await leaderboardTab.click();
+    await expect(taskList, 'Không thấy danh sách nhiệm vụ của lab.').toBeVisible();
+    for (const each of lab.tasks) {
       await expect(
-        page.getByRole('columnheader', { name: 'Người học' }),
-        'Tab "Bảng xếp hạng" mở ra nhưng không có bảng nào — tab tồn tại mà nội ' +
-          'dung không render là một lỗi, không phải một lab không bật leaderboard.',
-      ).toBeVisible({ timeout: 60_000 });
-      await expect(page.getByRole('columnheader', { name: 'Điểm' })).toBeVisible();
-    } else {
-      // KHÔNG `test.skip()` ở đây: cả luồng đã chạy xong bốn bước kia và chúng
-      // là kết quả thật. Ghi vào báo cáo để đợt 3 biết ô "leaderboard" của AC
-      // chưa được luồng này đóng, thay vì tưởng nó đã xanh.
-      test.info().annotations.push({
-        type: 'chua-do',
-        description:
-          `Lab '${labId ?? ''}' không bật leaderboard nên bước bảng xếp hạng KHÔNG ` +
-          `được kiểm. Muốn đóng ô AC đó thì cụm phải có ít nhất một lab bật cờ này.`,
-      });
+        taskList.getByRole('button', { name: each.title }),
+        `Nhiệm vụ '${each.title}' có trong labs.get nhưng không có dòng trên trang.`,
+      ).toBeVisible();
     }
 
-    await endSandbox(page);
+    // Mỗi dòng là một `<button data-state>` (`task-checklist.tsx`); bấm nó bung đề
+    // + nút chấm + kết quả của đúng nhiệm vụ đó, ngay trong `<li>` của nó.
+    const target = taskList.getByRole('button', { name: taskTitle });
+    const targetItem = taskList.getByRole('listitem').filter({ has: page.getByRole('button', { name: taskTitle }) });
+    await target.click();
+    await expect(target).toHaveAttribute('aria-current', 'true');
+    await expect(target).toHaveAttribute('data-state', 'not-attempted');
+
+    const checkButton = targetItem.getByRole('button', { name: t('session.lab.check-one'), exact: true });
+    await expect(checkButton).toBeDisabled();
+    await expect(targetItem.getByText(t('session.lab.blocked-no-session'))).toBeVisible();
+
+    // Bảng điểm: `role=status` duy nhất mang thước điểm (`lab-client.tsx`).
+    const scoreMeter = page.getByRole('status').getByRole('meter', { name: t('session.lab.score-label') });
+    await expect(scoreMeter).toHaveAttribute('aria-valuenow', '0');
+
+    // Đối chứng của "terminal nối được": chưa bắt đầu thì KHÔNG có khoang terminal.
+    await expect(
+      terminalSurface(page),
+      'Chưa bấm Bắt đầu mà đã có khoang terminal: khi đó "terminal nối được" bên dưới không ' +
+        'còn phân biệt được với một khung vẽ sẵn.',
+    ).toHaveCount(0);
+    await expect(
+      workspaceTab(page, 'editor'),
+      'labs.get nói lab có IDE nhưng khoang làm việc không có tab Editor.',
+    ).toBeVisible();
+
+    // ── 3. Mở phiên ─────────────────────────────────────────────────────────
+    // `lab-client` đặt nhãn "Làm lại" khi trang đã có một lần thử, "Bắt đầu" khi chưa.
+    const restart = t('session.controls.restart');
+    const startLabel = (await page.getByRole('button', { name: restart, exact: true }).count())
+      ? restart
+      : t('session.controls.start');
+    const { sessionId } = await startSandbox(page, 'labs.startAttempt', rateLimited, startLabel);
+
+    // ── 4. Terminal: có byte về, và shell CHẠY lệnh ─────────────────────────
+    // Bài IDE mở ở tab Editor, hàng terminal mang `hidden` cho tới khi đổi tab.
+    await workspaceTab(page, 'terminal').click();
+    await expectTerminalLive(page, traffic);
+    await typeInTerminal(page, SHELL_MARKER_CMD);
+    await expectTerminalOutput(
+      traffic,
+      SHELL_MARKER_OUT,
+      `Gõ \`${SHELL_MARKER_CMD}\` nhưng không thấy \`${SHELL_MARKER_OUT}\` quay về. Tiếng vọng ` +
+        'mang HAI DẤU NHÁY, nên chuỗi này chỉ xuất hiện khi shell THỰC SỰ chạy lệnh.',
+    );
+
+    // ── 5. IDE tải được ────────────────────────────────────────────────────
+    await expectIdeLoaded(page);
+
+    // ── 6. Chờ setup nền của lab xong ───────────────────────────────────────
+    /*
+      ⏱ Chờ theo mốc PHA PHIÊN, không theo trần mặc định. `lab-client` khoá nút
+      chấm vì BA lý do: chưa có lần thử, lần thử đã nộp, hoặc `setupPending`
+      (setup chạy NỀN từ P15/15.C). Setup lab đi đường lạnh mất 17-26s (đo ở
+      P15), luôn vượt trần 15s mặc định. Nút mở = setup đã gieo file cần sửa.
+    */
+    await expect(
+      checkButton,
+      'Nút "Chấm nhiệm vụ này" còn khoá sau khi phiên đã mở VÀ setup đã có đủ thời gian. ' +
+        'Hai lý do khoá đầu mâu thuẫn với việc vừa bấm Bắt đầu; còn lại là `setupPending`: ' +
+        'setup chạy quá lâu hoặc đã chết, đọc băng thông báo trên trang để biết.',
+    ).toBeEnabled({ timeout: SESSION_READY_TIMEOUT_MS });
+
+    // ── 7. Trước khi sửa: trạng thái hỏng, và phép chấm TRƯỢT ───────────────
+    await workspaceTab(page, 'terminal').click();
+    await typeInTerminal(page, READ_PERM);
+    await expectTerminalOutput(
+      traffic,
+      'PERM_644',
+      `Setup lẽ ra gieo ${KNOWN.file} với quyền 644. Không đọc được PERM_644 nghĩa là setup ` +
+        'đổi, hoặc lệnh không chạy, và vế "trượt rồi mới đạt" bên dưới mất nghĩa.',
+    );
+
+    expect(
+      await runCheck(page, checkButton, targetItem, 'labs.checkTask'),
+      'Chấm TRƯỚC khi sửa mà đã "Đạt". Phép chấm không phân biệt bài làm đúng với sai, nên ' +
+        'lượt "Đạt" sau khi sửa sẽ không chứng minh được gì.',
+    ).toBe('failed');
+    await expect(target).toHaveAttribute('data-state', 'failed');
+    await expect(scoreMeter).toHaveAttribute('aria-valuenow', '0');
+
+    // ── 8. Sửa bằng terminal, đọc lại, chấm ĐẠT ─────────────────────────────
+    await typeInTerminal(page, FIX_PERM);
+    await typeInTerminal(page, READ_PERM);
+    await expectTerminalOutput(
+      traffic,
+      'PERM_600',
+      `Đã gõ \`${FIX_PERM}\` nhưng terminal không đọc ra PERM_600: lệnh sửa không tới shell.`,
+    );
+
+    expect(
+      await runCheck(page, checkButton, targetItem, 'labs.checkTask'),
+      `File đã là 600 (terminal vừa đọc PERM_600) mà phép chấm vẫn trượt. Script chấm của ` +
+        `nhiệm vụ '${KNOWN.taskId}' và trạng thái thật trong pod không khớp nhau.`,
+    ).toBe('passed');
+    await expect(target).toHaveAttribute('data-state', 'passed');
+
+    // Điểm tổng suy từ `results` của lần thử, tải lại sau lượt chấm.
+    await expect
+      .poll(async () => Number(await scoreMeter.getAttribute('aria-valuenow')), {
+        timeout: 30_000,
+        message: 'Nhiệm vụ đã Đạt nhưng thước điểm tổng vẫn ở 0: kết quả chấm không vào lần thử.',
+      })
+      .toBeGreaterThan(0);
+
+    // ── 9. Nộp bài ──────────────────────────────────────────────────────────
+    await page.getByRole('button', { name: t('session.lab.submit'), exact: true }).click();
+    // Hộp xác nhận (điểm chốt, không chấm lại được): bấm nút Nộp bài TRONG hộp.
+    await page.getByRole('dialog').getByRole('button', { name: t('session.lab.submit'), exact: true }).click();
+    // Đã nộp ⇒ `lab-client` khoá lượt chấm và in câu lý do: dấu hiệu quan sát được của "đã nộp".
+    await expect(targetItem.getByText(t('session.lab.blocked-submitted'))).toBeVisible({ timeout: 60_000 });
+    await expect(checkButton).toBeDisabled();
+
+    // ── 10. Bảng xếp hạng ───────────────────────────────────────────────────
+    // Tab chỉ tồn tại khi lab bật `leaderboard`. So với API cả HAI chiều: có cờ mà
+    // không có tab là lỗi, không cờ mà có tab cũng là lỗi.
+    const leaderboardTab = page.getByRole('tab', { name: t('session.lab.leaderboard-tab'), exact: true });
+    if (lab.leaderboard) {
+      await leaderboardTab.click();
+      // Bảng gồm mọi lần thử ĐÃ NỘP của lab (`labs.leaderboard`), nên lần vừa nộp
+      // bảo đảm bảng có ít nhất một dòng dữ liệu, không rơi vào trạng thái rỗng.
+      await expect(
+        page.getByRole('columnheader', { name: t('session.lab.col-learner'), exact: true }),
+        'Tab "Bảng xếp hạng" mở ra nhưng không có bảng nào, dù vừa có một lần nộp.',
+      ).toBeVisible({ timeout: 60_000 });
+      await expect(page.getByRole('columnheader', { name: t('session.lab.col-score'), exact: true })).toBeVisible();
+    } else {
+      await expect(leaderboardTab, 'Lab không bật leaderboard mà trang vẫn có tab Bảng xếp hạng.').toHaveCount(0);
+    }
+
+    // ── 11. Nhả ĐÚNG phiên của mình ─────────────────────────────────────────
+    await endSandbox(page, sessionId, 'session.reap');
+
+    if (rateLimited.length > 0) {
+      test.info().annotations.push({
+        type: 'rate-limit',
+        description: `Lượt này ăn ${String(rateLimited.length)} phản hồi 429 ở: ${rateLimited.join(', ')}.`,
+      });
+    }
   });
 });

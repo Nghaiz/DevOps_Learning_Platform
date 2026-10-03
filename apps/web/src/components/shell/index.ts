@@ -11,7 +11,6 @@ export {
   DESKTOP_TARGET_MIN_PX,
   meetsTerminalWidth,
 } from './breakpoints';
-export { NarrowScreenNotice } from './narrow-screen-notice';
 export { useMinWidth } from './use-min-width';
 export { useCapacity, CAPACITY_REFETCH_MS } from './use-capacity';
 export type { CapacityState } from './use-capacity';
@@ -34,7 +33,10 @@ export { useViewer } from './viewer-context';
 export {
   PRIMARY_NAV,
   userMenuItems,
-  navSectionsFor,
+  sectionsFor,
+  sectionById,
+  activeSection,
+  NAV_SECTIONS,
   isActiveNav,
   activeNavItem,
   normalizeRole,
@@ -42,10 +44,11 @@ export {
 export type {
   NavItem,
   PrimaryNavItem,
-  NavGroup,
+  SectionId,
+  SectionTone,
+  NavSectionDef,
   NavIconName,
   NavAudience,
-  NavSection,
   Viewer,
   ViewerRole,
 } from './nav';

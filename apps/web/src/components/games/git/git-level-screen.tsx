@@ -3,6 +3,7 @@
 import dynamic from 'next/dynamic';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 
+import { t } from '@devops-platform/copy';
 import {
   createGitSession,
   layoutDag,
@@ -48,65 +49,43 @@ import { detectWebgl2 } from '../shared/webgl-detect';
 import type { HintReveal } from '../../../lib/use-hint-reveal';
 
 /**
- * Màn CHƠI của Phòng thí nghiệm Git — một màn duy nhất cho cả ba đường vào.
- *
- * Tách khỏi `git-game.tsx` ở 18.E (nửa client của khối 4) vì một lý do cơ học,
- * không phải vì file kia dài: chế độ chơi bài OJ (`git-problem.tsx`) phải dùng
- * LẠI đúng màn này, mà `git-game.tsx` lại là chỗ chọn giữa ba đường vào — để cả
- * hai ở một file là một vòng import (`git-game` → `git-problem` → `git-game`).
- *
- * ⛔ Ba đường vào, MỘT màn, và đó là điều kiện để mọi lời khai "chơi được" có
- * nghĩa:
+ * Màn CHƠI của Phòng thí nghiệm Git: một màn duy nhất cho cả ba đường vào.
  *
  *  1. Level phát hành (`GIT_LEVELS`), qua `?level=`.
  *  2. Chơi thử một level vừa dựng bằng Builder (§18.E.6), qua prop `trial`.
  *  3. Làm một bài OJ (§18.C cho game thứ hai), qua prop `oj`.
  *
  * Một bản sao của màn chơi cho bất kỳ đường nào trong ba đường trên sẽ làm câu
- * "bài này chơi được" chỉ đúng với bản sao đó.
+ * "bài này chơi được" chỉ đúng với bản sao đó. Tách khỏi `git-game.tsx` vì
+ * `git-problem.tsx` phải dùng LẠI màn này (tránh vòng import).
+ *
+ * Màn chơi ở trong vũ trụ tối `.git-odyssey` (giống terminal và IDE của khu thực
+ * hành: không gian làm việc luôn tối). Khung quanh nó theo hệ PTIT: góc vuông,
+ * tiêu đề Archivo, nhãn mono, viền màu chương dưới thanh trên.
  */
-/**
- * Tiêu đề chương, dùng ở CẢ HAI file: màn chọn level (`git-game.tsx`) và thanh
- * trên của màn chơi (dưới). Mở ra thay vì chép sang file kia — hai bảng cùng nội
- * dung là hai chỗ để trôi, và chỗ trôi ở đây đọc ra thành "danh sách gọi chương này
- * một tên, màn chơi gọi nó một tên khác".
- */
-export const CHAPTER_TITLE: Record<1 | 2 | 3, string> = {
-  1: 'Chương 1 · Nắn lịch sử',
-  2: 'Chương 2 · Làm việc nhóm',
-  3: 'Chương 3 · Cứu hộ',
-};
+
+/** Tiêu đề chương ở thanh trên của màn chơi, đọc từ bản đồ chữ. */
+function chapterTitle(chapter: 1 | 2 | 3): string {
+  return t('games.git.chapter.title', { n: chapter, name: t(`games.git.chapter.${chapter}.name`) });
+}
 
 /**
- * Chế độ renderer, đọc một lần lúc mount.
- *
- * ⚠ Phép dò WebGL2 và `localStorage` **chỉ chạy trong `useState` khởi tạo lười**,
- * không chạy ở thân component. Hai lý do:
- *
- *  1. Cả hai không tồn tại lúc server render. Gọi thẳng sẽ ném ở SSR.
- *  2. Gọi lại ở mỗi lần render sẽ dựng một `<canvas>` mới mỗi lượt vẽ, và trang
- *     này vẽ lại sau mỗi lệnh người chơi gõ.
- *
- * Trạng thái `'unknown'` của bộ dò được truyền thẳng xuống chứ không gộp vào
- * `'unavailable'`: gộp lại sẽ làm trang nháy chế độ lúc hydrate, và nó xoá mất
- * sự khác nhau giữa "máy không chạy nổi 3D" với "chưa đo được".
+ * Chế độ renderer, đọc một lần lúc mount. Phép dò WebGL2 và `localStorage` chỉ
+ * chạy trong `useState` khởi tạo lười: cả hai không tồn tại lúc server render, và
+ * gọi lại mỗi lần vẽ sẽ dựng một `<canvas>` mới sau mỗi lệnh người chơi gõ.
  */
 const ENABLED_MODES: readonly RendererMode[] = ['2d', '3d'];
 
 /**
- * Tầng 3D nạp động, `ssr: false`.
- *
- * ⚠ Cả hai vế đều bắt buộc. `ssr: false` vì `three` đụng `window`/`canvas` lúc
- * dựng; **nạp động** vì gói 3D nặng ~631KB và một `import` tĩnh sẽ kéo nó vào
- * bundle của mọi người chơi, kể cả người ở chế độ 2D và kể cả người chưa từng
- * mở game. P17 đã trả giá đúng chỗ này một lần (`44f8e39`), và cổng CI
- * `bundle:check` gác nó.
+ * Tầng 3D nạp động, `ssr: false`. `three` đụng `window` lúc dựng, và gói 3D nặng
+ * ~631KB: một `import` tĩnh sẽ kéo nó vào bundle của mọi người chơi (cổng CI
+ * `bundle:check` gác chỗ này).
  */
 const GitScene3D = dynamic(() => import('./scene3d/index.ts').then((m) => m.GitScene3D), {
   ssr: false,
   loading: () => (
-    <p className="p-4 text-sm text-muted-foreground" role="status">
-      Đang nạp cảnh 3D…
+    <p className="p-4 font-mono text-sm text-muted-foreground" role="status">
+      {t('games.git.play.loading-3d')}
     </p>
   ),
 });
@@ -114,22 +93,9 @@ const GitScene3D = dynamic(() => import('./scene3d/index.ts').then((m) => m.GitS
 /**
  * Hậu kỳ (bloom) có bật không. Tắt bằng `?fx=off`.
  *
- * ═══════════════════════════════════════════════════════════════════════════
- * ĐÂY LÀ ĐIỀU KIỆN ĐỂ Ô AC-7 CÓ NGHĨA, KHÔNG PHẢI MỘT CỜ GỠ LỖI TIỆN TAY
- * ═══════════════════════════════════════════════════════════════════════════
- *
- * `EffectComposer` reset `renderer.info.render` ở **mỗi** lần `render()`, và
- * pass cuối là một tam giác phủ toàn màn hình — nên `calls` đọc ra là **1** và
- * `triangles` là **1**, bất kể cảnh có 2 hay 2000 object. Một ô nghiệm thu viết
- * `expect(calls).toBeLessThan(100)` khi bloom đang bật sẽ XANH mãi mãi và
- * **chứng minh đúng zero điều gì** (`rules/green-that-proves-nothing.md`).
- *
- * Arena giải bằng cách ghim bậc chất lượng qua bảng cài đặt; game Git không có
- * bảng cài đặt, nên công tắc là tham số URL. Nó cố ý **không** có nút bấm: đây
- * không phải một lựa chọn của người chơi, nó là một đường để ĐO.
- *
- * Đọc một lần lúc mount, không theo dõi thay đổi — đổi `?fx=` giữa chừng thì
- * tải lại trang.
+ * ĐÂY LÀ ĐIỀU KIỆN ĐỂ Ô AC-7 CÓ NGHĨA: `EffectComposer` reset `renderer.info.render`
+ * ở mỗi lần `render()`, nên khi bloom bật `calls` đọc ra là 1 bất kể cảnh có bao
+ * nhiêu object. Công tắc cố ý không có nút bấm: nó là một đường để ĐO.
  */
 function useEffectsEnabled(): boolean {
   const [enabled] = useState(() => {
@@ -153,12 +119,9 @@ function useRendererChoice(): {
   const resolved = resolveRendererMode({
     stored,
     support,
-    // 17.K đã xong ở P17b. Đây là chỗ duy nhất phải đổi, đúng như bản ghi đóng
-    // chặng P17 dự trù.
     has3d: true,
-    // Mặc định vẫn là 2D dù máy chạy được 3D. Chế độ 2D là NGANG HÀNG chứ không
-    // phải đường lùi (ràng buộc 3 của chặng), nó nạp ngay và không tốn 631KB;
-    // ai muốn 3D thì bấm một lần và lựa chọn đó được nhớ.
+    // Mặc định vẫn là 2D dù máy chạy được 3D: 2D là chế độ NGANG HÀNG, nạp ngay
+    // và không tốn 631KB; ai muốn 3D thì bấm một lần và lựa chọn đó được nhớ.
     fallback: '2d',
   });
 
@@ -170,27 +133,13 @@ function useRendererChoice(): {
   return { resolved, setMode };
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Màn chơi
-// ═══════════════════════════════════════════════════════════════════════════
-
 /**
- * Phần thêm của chế độ LÀM BÀI OJ (§18.C cho game thứ hai).
- *
- * ## Vì sao một prop chứ không phải một màn riêng
- *
- * Cùng lý lẽ đã ghi cho `trial`: một bài OJ phải đi qua ĐÚNG màn người chơi thật sẽ
- * thấy, nếu không thì "bài này chơi được" chỉ đúng với bản sao.
- *
- * ## `gradable` KHÔNG phải một cờ tiện tay
- *
- * Wire của người học cắt `check`/`args` của mọi testcase (§18.B.4), nên engine trong
- * trình duyệt KHÔNG chấm được. Khi đó danh sách mục tiêu phải nói "chấm ở máy chủ"
- * chứ không được hiện ☐: một ô chưa tích ở đây là một lời khẳng định SAI ("chưa đạt"),
- * không phải một ô trống vô hại.
+ * Phần thêm của chế độ LÀM BÀI OJ. `gradable` KHÔNG phải một cờ tiện tay: wire
+ * của người học cắt `check`/`args` của mọi testcase (§18.B.4), nên engine trong
+ * trình duyệt không chấm được, và danh sách mục tiêu phải nói "chấm ở máy chủ"
+ * thay vì hiện ô trống (một ô chưa tích ở đây là lời khẳng định SAI "chưa đạt").
  */
 export interface OjScreenProps {
-  /** Bài có đủ testcase để nộp không. OJ luôn chấm trên máy chủ. */
   readonly gradable: boolean;
   /** Câu nói ra giới hạn, hiện TRÊN MÀN khi `gradable` là `false`. */
   readonly notice: string | null;
@@ -202,18 +151,11 @@ export interface OjScreenProps {
   /** Tên testcase chưa qua, theo lần chấm gần nhất của máy chủ. */
   readonly failedLabels: readonly string[];
   /**
-   * Trạng thái xin chữ gợi ý từ máy chủ, theo chỉ số.
-   *
-   * Bài OJ nạp qua `problems.byCode`, và đường đó CHE chữ của gợi ý chưa mở
-   * (§18.B.4) — nên `level.hints` ở chế độ này toàn chuỗi rỗng. Không có hai
-   * trường này thì nút "Mở gợi ý" trừ điểm rồi đẩy ra đúng chữ *"Gợi ý 1: "*.
+   * Trạng thái xin chữ gợi ý từ máy chủ, theo chỉ số. Bài OJ nạp qua
+   * `problems.byCode`, và đường đó CHE chữ của gợi ý chưa mở (§18.B.4).
    */
   readonly hintReveals: ReadonlyMap<number, HintReveal>;
-  /**
-   * Xin chữ gợi ý thứ `index`; `null` ⇒ ĐỪNG mở gợi ý (không trừ điểm).
-   *
-   * Xem `lib/use-hint-reveal.ts` về thứ tự gọi-trước-trừ-sau.
-   */
+  /** Xin chữ gợi ý thứ `index`; `null` ⇒ ĐỪNG mở gợi ý (không trừ điểm). */
   readonly onRevealHint: (index: number) => Promise<string | null>;
 }
 
@@ -222,14 +164,9 @@ interface LevelScreenProps {
   readonly theory: TheoryDoc | null;
   readonly onExit: () => void;
   /**
-   * Có mặt ⇒ đây là lượt CHƠI THỬ một level vừa dựng bằng Builder (§18.E.6), và
-   * màn hiện thêm nút chạy lời giải mẫu.
-   *
-   * Vì sao là một prop chứ không phải một màn riêng: chơi thử phải đi qua ĐÚNG
-   * màn người chơi thật sẽ thấy, nếu không thì "chơi được" chỉ đúng với bản sao.
-   * Và nó chở `solutionCommands` riêng thay vì đọc `level.solutionCommands` để
-   * chỗ gọi nói rõ ý định — một level phát hành cũng có trường đó, nhưng màn chơi
-   * bình thường KHÔNG được mọc ra nút chạy lời giải.
+   * Có mặt ⇒ lượt CHƠI THỬ một level vừa dựng bằng Builder (§18.E.6): màn hiện
+   * thêm nút chạy lời giải mẫu. Chở `solutionCommands` riêng để chỗ gọi nói rõ ý
+   * định: màn chơi bình thường KHÔNG được mọc ra nút đó.
    */
   readonly trial?: { readonly solutionCommands: readonly string[] };
   /** Có mặt ⇒ đây là một lượt làm BÀI OJ. Xem `OjScreenProps`. */
@@ -248,12 +185,9 @@ export function GitLevelScreen({
   onNext,
 }: LevelScreenProps): ReactElement {
   /*
-   * ⚠ Phiên giữ trong `useRef`, KHÔNG trong `useState`.
-   *
-   * `createGitSession` trả một object có định danh ổn định và tự quản state bên
-   * trong; nhét nó vào `useState` sẽ khiến React coi mỗi lần `setState` là một
-   * giá trị mới và dựng lại phiên, tức mất sạch tiến độ của người chơi ở mỗi
-   * lần render. `useRef` + một bộ đếm `tick` để ép vẽ lại là hình dạng đúng.
+   * ⚠ Phiên giữ trong `useRef`, KHÔNG trong `useState`: `createGitSession` trả một
+   * object tự quản state bên trong; `useRef` + bộ đếm `tick` để ép vẽ lại là hình
+   * dạng đúng.
    */
   const sessionRef = useRef<GitEngineSession | null>(null);
   sessionRef.current ??= createGitSession({ level });
@@ -277,45 +211,15 @@ export function GitLevelScreen({
   const effects = useEffectsEnabled();
 
   /*
-   * ⚠ `session.getView()`, KHÔNG phải `buildView(world)`.
-   *
-   * `buildView(world, hints = {})` — tham số thứ hai mặc định RỖNG, và
-   * `accentFor()` đọc đúng nó để quyết ba trong sáu accent:
-   * `conflictedOids` → `conflicted`, `duplicateOf` → `duplicate`,
-   * `freshOids` → `fresh`. Hints do engine sinh ra THEO TỪNG LỆNH (commit phát
-   * `freshOids`, cherry-pick phát `duplicateOf`, merge xung đột phát
-   * `conflictedOids`) và chỉ sống trong phiên.
-   *
-   * Dựng lại view từ `world` là vứt sạch chúng, nên ba accent đó **chưa bao giờ
-   * hiện ra trong sản phẩm** — dù `git-palette.ts` khai đủ màu/hình/chuyển
-   * động, `accent-3d.ts` khai đủ khối, và test của cả hai đều xanh. Các ô đó
-   * kiểm bảng khai TỰ NHẤT QUÁN, không kiểm có gì được vẽ.
-   *
-   * Tìm ra 2026-09-14 khi phép đo mù màu chỉ dựng được 2/6 accent. Không cổng
-   * nào bắt được, vì không cổng nào đi từ một lệnh git tới một pixel.
+   * ⚠ `session.getView()`, KHÔNG phải `buildView(world)`: hints do engine sinh ra
+   * theo từng lệnh (`freshOids`, `duplicateOf`, `conflictedOids`) chỉ sống trong
+   * phiên, và dựng lại view từ `world` là vứt sạch ba accent đó.
    */
   const view = session.getView();
   /*
-   * ⚠ Kết quả mục tiêu đọc từ `session.getStatus()`, KHÔNG tự chấm lại bằng
-   * `evaluateObjectives` với cây đích `null`.
-   *
-   * Cùng lý lẽ với `getView()` ngay trên, và cùng hình dạng lỗi. Bản cũ truyền
-   * `null` làm cây đích, mà `evaluatePredicate` trả `false` CỨNG cho
-   * `graphShapeMatches` khi target là `null` (`predicates.ts:178`) — trong khi
-   * engine chấm bằng cây đích thật dựng từ `level.target` (`engine.ts:135`).
-   *
-   * Hệ quả: một level dùng `graphShapeMatches` hiện mục tiêu đó VĨNH VIỄN đỏ
-   * trên màn, còn engine thì coi là đã đạt. Hai phần của mã trả lời khác nhau về
-   * cùng một level, và phần người chơi nhìn thấy là phần sai.
-   *
-   * Hôm nay chưa ai chạm: không level nào trong 32 level phát hành dùng vị từ đó
-   * (đo 2026-09-15), nên nhánh này là mã chết. **Level Builder (§18.E) làm nó
-   * sống** — "rebase cho ra hình dạng này" chính là loại level mà một builder
-   * trực quan dựng ra tự nhiên nhất.
-   *
-   * Đọc từ engine thay vì dựng lại cây đích ở đây còn tránh một bản sao thứ hai
-   * của hằng seed: `createGitSession` mặc định `seed = 1`, và một `buildWorld(
-   * level.target, <seed khác>)` ở tầng giao diện sẽ so với một cây đích khác.
+   * ⚠ Kết quả mục tiêu đọc từ `session.getStatus()`, KHÔNG tự chấm lại với cây
+   * đích `null`: `graphShapeMatches` trả `false` cứng khi target là `null`, trong
+   * khi engine chấm bằng cây đích thật.
    */
   const met = new Set(session.getStatus().objectivesMet);
   const results: readonly ObjectiveResult[] = level.objectives.map((o) => ({
@@ -325,13 +229,7 @@ export function GitLevelScreen({
     met: met.has(o.id),
   }));
   const verdict = verdictOf(results);
-  /*
-   * Engine có chấm được lượt này không, hay phải đợi máy chủ.
-   *
-   * Đặt thành một biến có TÊN thay vì viết `oj !== undefined && !oj.gradable` ở ba
-   * chỗ trong JSX: ba bản của cùng một điều kiện là ba chỗ để một lần sửa bỏ sót, và bỏ
-   * sót ở đây nghĩa là màn hình vừa nói "chấm ở máy chủ" vừa hiện một con số `0/n`.
-   */
+  /* Engine có chấm được lượt này không, hay phải đợi máy chủ. Một tên, ba chỗ dùng. */
   const serverGraded = oj !== undefined;
   const output = session.getOutput();
 
@@ -343,9 +241,7 @@ export function GitLevelScreen({
       const outcome = session.run(command);
       setFeedback({
         tone: outcome.result.error ? 'error' : 'success',
-        text: outcome.result.error
-          ? 'Lệnh chưa thực hiện được. Xem hướng dẫn ở terminal.'
-          : command + ' · Đã thực hiện',
+        text: outcome.result.error ? t('games.git.play.ran-error') : t('games.git.play.ran', { command }),
       });
       redraw();
     },
@@ -356,19 +252,23 @@ export function GitLevelScreen({
     const changed = session.undo();
     setFeedback({
       tone: changed ? 'success' : 'error',
-      text: changed ? 'Đã hoàn tác một bước.' : 'Chưa có bước nào để hoàn tác.',
+      text: changed ? t('games.git.play.undo-done') : t('games.git.play.undo-none'),
+    });
+    redraw();
+  }, [session, redraw]);
+
+  const redo = useCallback(() => {
+    const changed = session.redo();
+    setFeedback({
+      tone: changed ? 'success' : 'error',
+      text: changed ? t('games.git.play.redo-done') : t('games.git.play.redo-none'),
     });
     redraw();
   }, [session, redraw]);
 
   /*
-   * Chạy lời giải mẫu qua ĐÚNG `session.run` mà người chơi đi qua, từng lệnh một.
-   *
-   * KHÔNG gọi `checkSolvable`: hàm đó dựng một phiên RIÊNG để trả một báo cáo, và
-   * nó đã có nút của nó ở §E.7. Ở đây người soạn muốn NHÌN chuỗi lệnh chạy trên
-   * chính cây họ đang xem — bản ghi lệnh, ô kết quả và đồ thị đều phải nhúc nhích.
-   * Gọi `checkSolvable` sẽ để màn hình y nguyên và chỉ ô kết quả đổi, tức trả lời
-   * một câu hỏi khác câu người soạn đang hỏi.
+   * Chạy lời giải mẫu qua ĐÚNG `session.run` mà người chơi đi qua, từng lệnh một,
+   * để người soạn NHÌN chuỗi lệnh chạy trên chính cây họ đang xem.
    */
   const runSolution = useCallback(() => {
     if (trial === undefined) return;
@@ -396,34 +296,30 @@ export function GitLevelScreen({
     },
   };
 
+  const crumb = oj ? t('games.git.play.crumb-oj') : trial ? t('games.git.play.crumb-trial') : chapterTitle(level.chapter);
+
   return (
     <div className="git-odyssey git-play-screen" data-chapter={level.chapter}>
       <header className="git-play-header">
         <button type="button" className="git-button git-back-button" onClick={onExit}>
-          <ArrowLeft size={17} />
-          <span>{exitLabel?.replace('← ', '') ?? 'Bản đồ'}</span>
+          <ArrowLeft size={17} aria-hidden="true" />
+          <span>{exitLabel ?? t('games.git.play.back')}</span>
         </button>
         <span className="git-header-divider" />
         <div className="git-play-title">
           <p className="git-eyebrow">
-            GIT ODYSSEY /{' '}
-            {oj ? 'ĐẤU TRƯỜNG OJ' : trial ? 'LEVEL BUILDER' : CHAPTER_TITLE[level.chapter]}
+            <span className="git-line-code">GIT</span> {crumb}
           </p>
           <h1>{level.title}</h1>
         </div>
         <div className="git-play-actions">
           <span className="git-move-count">
-            <Terminal size={14} /> {status.movesUsed} lệnh
+            <Terminal size={14} aria-hidden="true" /> {t('games.git.play.moves', { n: status.movesUsed })}
           </span>
           <ModeToggle resolved={resolved} enabled={ENABLED_MODES} onChange={setMode} />
           {trial && (
-            <button
-              type="button"
-              className="git-button"
-              onClick={runSolution}
-              data-testid="git-run-solution"
-            >
-              Chạy lời giải mẫu
+            <button type="button" className="git-button" onClick={runSolution} data-testid="git-run-solution">
+              {t('games.git.play.run-solution')}
             </button>
           )}
           {oj && (
@@ -434,21 +330,23 @@ export function GitLevelScreen({
               onClick={() => oj.onSubmit(session)}
               data-testid="git-oj-submit"
             >
-              <Send size={15} />
+              <Send size={15} aria-hidden="true" />
               {oj.submitLabel}
             </button>
           )}
         </div>
       </header>
       <div className="git-mission-strip">
-        <Flag size={15} />
+        <Flag size={15} aria-hidden="true" />
         <p>{level.mission}</p>
         {!serverGraded ? (
           <span aria-live="polite" data-testid="git-verdict">
-            {won ? '✓ Hoàn thành' : 'Mục tiêu'} {verdict.passedCount}/{verdict.totalCount}
+            {won
+              ? t('games.git.play.verdict-done', { passed: verdict.passedCount, total: verdict.totalCount })
+              : t('games.git.play.verdict', { passed: verdict.passedCount, total: verdict.totalCount })}
           </span>
         ) : (
-          <span>Chấm trên máy chủ</span>
+          <span>{t('games.git.play.server-graded')}</span>
         )}
       </div>
       <div className="git-play-body">
@@ -458,58 +356,49 @@ export function GitLevelScreen({
               <GitScene3D
                 effects={effects}
                 scene={scene}
-                label={'Đồ thị commit của level ' + level.title}
+                label={t('games.git.play.scene-label', { title: level.title })}
               />
             </div>
           ) : (
             <GitMapStage scene={scene} feedback={feedback} revision={tick} />
           )}
           {won && celebrate && (
-            <section className="git-victory" aria-label="Hoàn thành nhiệm vụ">
-              <div className="git-confetti" aria-hidden="true">
-                {Array.from({ length: 24 }, (_, i) => (
-                  <i
-                    key={i}
-                    style={{
-                      left: ((i * 29) % 100) + '%',
-                      animationDelay: i * 0.045 + 's',
-                      rotate: i * 37 + 'deg',
-                    }}
-                  />
-                ))}
-              </div>
-              <span className="git-victory-medal">
+            <section className="git-victory" aria-label={t('games.git.win.aria')}>
+              <span className="git-victory-medal" aria-hidden="true">
                 <Trophy size={32} />
               </span>
-              <p className="git-eyebrow">TRẠM ĐÃ ĐƯỢC CHINH PHỤC</p>
-              <h2>Lịch sử nằm trong tay bạn.</h2>
+              <p className="git-eyebrow">{t('games.git.win.kicker')}</p>
+              <h2>{t('games.git.win.title')}</h2>
               <p>
-                Hoàn thành {verdict.passedCount}/{verdict.totalCount} mục tiêu · {status.movesUsed}{' '}
-                lệnh
+                {t('games.git.win.summary', {
+                  passed: verdict.passedCount,
+                  total: verdict.totalCount,
+                  moves: status.movesUsed,
+                })}
               </p>
               {level.teaching.takeaways.length > 0 && (
                 <ul>
                   {level.teaching.takeaways.map((takeaway) => (
                     <li key={takeaway}>
-                      <Check size={15} />
+                      <Check size={15} aria-hidden="true" />
                       {takeaway}
                     </li>
                   ))}
                 </ul>
               )}
               <div>
-                <button className="git-button" onClick={() => setCelebrate(false)}>
-                  Tiếp tục khám phá
+                <button type="button" className="git-button" onClick={() => setCelebrate(false)}>
+                  {t('games.git.win.stay')}
                 </button>
                 {onNext ? (
-                  <button className="git-button git-button-primary" onClick={onNext}>
-                    Trạm tiếp theo
-                    <ArrowRight size={16} />
+                  <button type="button" className="git-button git-button-primary" onClick={onNext}>
+                    {t('games.git.win.next')}
+                    <ArrowRight size={16} aria-hidden="true" />
                   </button>
                 ) : (
-                  <button className="git-button git-button-primary" onClick={onExit}>
-                    Về {trial ? 'Builder' : 'bản đồ'}
-                    <ArrowRight size={16} />
+                  <button type="button" className="git-button git-button-primary" onClick={onExit}>
+                    {trial ? t('games.git.win.back-builder') : t('games.git.win.back')}
+                    <ArrowRight size={16} aria-hidden="true" />
                   </button>
                 )}
               </div>
@@ -517,26 +406,21 @@ export function GitLevelScreen({
           )}
         </div>
         {/*
-          Cùng lý do với `<aside>` trong `git-sandbox.tsx`: landmark
-          `complementary` thứ hai trên màn này (cái thứ nhất là thanh bên của
-          vỏ ứng dụng), nên nó cần một cái tên. Chưa ô nào bắt được ca này —
-          `a11y.spec.ts` quét màn sandbox chứ chưa quét một màn level mở trong
-          vỏ ứng dụng — nên nó là cùng một lỗi đang nằm chờ, không phải một lỗi
-          khác.
+          Landmark `complementary` cần một cái tên khi trên màn có hơn một cái.
         */}
-        <aside className="git-side-panel" aria-label="Bảng nhiệm vụ và cẩm nang">
-          <nav className="git-panel-tabs" aria-label="Nội dung nhiệm vụ">
-            <button aria-pressed={tab === 'mission'} onClick={() => setTab('mission')}>
-              <Flag size={15} />
-              {oj ? 'Đề bài' : 'Nhiệm vụ'}
+        <aside className="git-side-panel" aria-label={t('games.git.panel.aria')}>
+          <nav className="git-panel-tabs" aria-label={t('games.git.panel.tabs')}>
+            <button type="button" aria-pressed={tab === 'mission'} onClick={() => setTab('mission')}>
+              <Flag size={15} aria-hidden="true" />
+              {oj ? t('games.git.panel.mission-oj') : t('games.git.panel.mission')}
             </button>
-            <button aria-pressed={tab === 'guide'} onClick={() => setTab('guide')}>
-              <BookOpen size={15} />
-              Cẩm nang
+            <button type="button" aria-pressed={tab === 'guide'} onClick={() => setTab('guide')}>
+              <BookOpen size={15} aria-hidden="true" />
+              {t('games.git.panel.guide')}
             </button>
-            <button aria-pressed={tab === 'refs'} onClick={() => setTab('refs')}>
-              <GitBranch size={15} />
-              Refs
+            <button type="button" aria-pressed={tab === 'refs'} onClick={() => setTab('refs')}>
+              <GitBranch size={15} aria-hidden="true" />
+              {t('games.git.panel.refs')}
             </button>
           </nav>
           <div className="git-panel-content">
@@ -544,20 +428,18 @@ export function GitLevelScreen({
               <>
                 <section className="git-objective-section">
                   <p className="git-eyebrow">
-                    <Flag size={13} /> {oj ? 'ĐỀ BÀI OJ' : 'ĐÍCH ĐẾN CỦA BẠN'}
+                    <Flag size={13} aria-hidden="true" />{' '}
+                    {oj ? t('games.git.panel.goal-oj') : t('games.git.panel.goal')}
                   </p>
                   <h2>{level.title}</h2>
                   <div className="git-readable-content">
-                    <MarkdownView
-                      markdown={level.brief || level.mission}
-                      resolveAssetUrl={() => null}
-                    />
+                    <MarkdownView markdown={level.brief || level.mission} resolveAssetUrl={() => null} />
                   </div>
                   {!serverGraded && (
                     <div
                       className="git-objective-progress"
                       role="progressbar"
-                      aria-label="Tiến độ mục tiêu"
+                      aria-label={t('games.git.panel.progress')}
                       aria-valuenow={verdict.passedCount}
                       aria-valuemin={0}
                       aria-valuemax={verdict.totalCount || 1}
@@ -565,14 +447,13 @@ export function GitLevelScreen({
                       <span
                         style={{
                           width:
-                            (verdict.totalCount
-                              ? (verdict.passedCount / verdict.totalCount) * 100
-                              : 0) + '%',
+                            (verdict.totalCount ? (verdict.passedCount / verdict.totalCount) * 100 : 0) +
+                            '%',
                         }}
                       />
                     </div>
                   )}
-                  <h3>{oj ? 'Tiêu chí chấm bài' : 'Mục tiêu nhiệm vụ'}</h3>
+                  <h3>{oj ? t('games.git.panel.criteria') : t('games.git.panel.objectives')}</h3>
                   <ul className="git-objective-list">
                     {results.map((result) => (
                       <li key={result.id} data-met={!serverGraded && result.met}>
@@ -581,13 +462,14 @@ export function GitLevelScreen({
                         </span>
                         <span>
                           {result.label}
-                          {!result.required && <small>Thưởng</small>}
+                          {!result.required && <small>{t('games.git.panel.bonus')}</small>}
                           <span className="sr-only">
+                            {', '}
                             {serverGraded
-                              ? ' — chấm ở máy chủ'
+                              ? t('games.git.panel.on-server')
                               : result.met
-                                ? ' — đã đạt'
-                                : ' — chưa đạt'}
+                                ? t('games.git.panel.met')
+                                : t('games.git.panel.unmet')}
                           </span>
                         </span>
                       </li>
@@ -598,16 +480,13 @@ export function GitLevelScreen({
                 {oj && (
                   <section
                     className="git-oj-result"
-                    data-verdict={
-                      oj.result?.startsWith('AC') ? 'accepted' : oj.result ? 'review' : 'waiting'
-                    }
+                    data-verdict={oj.result?.startsWith('AC') ? 'accepted' : oj.result ? 'review' : 'waiting'}
                   >
                     <h3>
-                      <Medal size={18} /> Kết quả lượt nộp gần nhất
+                      <Medal size={18} aria-hidden="true" /> {t('games.git.panel.last-result')}
                     </h3>
                     <p aria-live="polite" data-testid="git-oj-result">
-                      {oj.result ??
-                        'Sẵn sàng khi bạn sẵn sàng. Hoàn thành đề bài rồi nhấn Nộp bài.'}
+                      {oj.result ?? t('games.git.panel.no-result')}
                     </p>
                     {oj.failedLabels.length > 0 && (
                       <ul>
@@ -620,16 +499,20 @@ export function GitLevelScreen({
                 )}
                 <section className="git-hints">
                   <h3>
-                    <Lightbulb size={16} /> Tiếp sức hành trình
+                    <Lightbulb size={16} aria-hidden="true" /> {t('games.git.panel.hints')}
                   </h3>
                   {level.hints.length === 0 ? (
-                    <p>Nhiệm vụ này không có gợi ý.</p>
+                    <p>{t('games.git.panel.no-hints')}</p>
                   ) : (
                     level.hints.map((_hint, i) => {
                       const reveal = oj?.hintReveals.get(i);
+                      /*
+                       * Dòng gợi ý đã mở do ENGINE in ra terminal (`revealHint`), nên
+                       * tiền tố của nó là chữ của engine, không phải chữ giao diện.
+                       */
                       const revealedText = [...output]
                         .reverse()
-                        .find((line) => line.text.startsWith('Gợi ý ' + (i + 1) + ': '))?.text;
+                        .find((line) => line.text.startsWith(`Gợi ý ${String(i + 1)}: `))?.text;
                       return (
                         <div key={i}>
                           <button
@@ -649,15 +532,17 @@ export function GitLevelScreen({
                             }}
                           >
                             <span>
-                              <Lightbulb size={14} />
-                              {reveal?.phase === 'pending' ? 'Đang mở…' : 'Mở gợi ý ' + (i + 1)}
+                              <Lightbulb size={14} aria-hidden="true" />
+                              {reveal?.phase === 'pending'
+                                ? t('games.git.panel.hint-pending')
+                                : t('games.git.panel.hint-open', { n: i + 1 })}
                             </span>
-                            <ChevronDown size={14} />
+                            <ChevronDown size={14} aria-hidden="true" />
                           </button>
                           {revealedText && <p className="git-revealed-hint">{revealedText}</p>}
                           {reveal?.phase === 'error' && (
                             <p role="alert" className="text-destructive">
-                              Không mở được: {reveal.message}
+                              {t('games.git.panel.hint-error', { message: reveal.message })}
                             </p>
                           )}
                         </div>
@@ -671,21 +556,18 @@ export function GitLevelScreen({
               <>
                 <section>
                   <p className="git-eyebrow">
-                    <BookOpen size={13} /> CẨM NANG THÁM HIỂM
+                    <BookOpen size={13} aria-hidden="true" /> {t('games.git.panel.guide-kicker')}
                   </p>
-                  <h2>Hiểu lệnh. Hiểu lịch sử.</h2>
+                  <h2>{t('games.git.panel.guide-title')}</h2>
                   {level.teaching.primer && (
                     <div className="git-readable-content">
                       <MarkdownView markdown={level.teaching.primer} resolveAssetUrl={() => null} />
                     </div>
                   )}
-                  <p className="git-inline-notice">
-                    Gõ lệnh ở terminal, nhấn Enter để thực hiện. ↑↓ xem lại lệnh. Ctrl/Cmd + Z hoàn
-                    tác.
-                  </p>
+                  <p className="git-inline-notice">{t('games.git.panel.keys')}</p>
                 </section>
                 <section className="git-cheatsheet">
-                  <h3>Công cụ của nhiệm vụ</h3>
+                  <h3>{t('games.git.panel.tools')}</h3>
                   {level.teaching.cheatsheet.length > 0 ? (
                     level.teaching.cheatsheet.map((entry, i) => (
                       <div key={i}>
@@ -694,7 +576,7 @@ export function GitLevelScreen({
                       </div>
                     ))
                   ) : (
-                    <p>Tra cú pháp tại nút “Thư viện lệnh” bên dưới terminal.</p>
+                    <p>{t('games.git.panel.no-tools')}</p>
                   )}
                 </section>
                 {level.teaching.pitfalls?.map((pitfall) => (
@@ -704,19 +586,23 @@ export function GitLevelScreen({
                 ))}
                 {level.teaching.proTips?.map((tip) => (
                   <p className="git-revealed-hint" key={tip}>
-                    <Sparkles size={14} /> {tip}
+                    <Sparkles size={14} aria-hidden="true" /> {tip}
                   </p>
                 ))}
                 {theory && (
                   <section>
                     <button
+                      type="button"
                       className="git-hint-button"
                       aria-expanded={showTheory}
                       onClick={() => setShowTheory((v) => !v)}
                     >
-                      <BookOpen size={16} />
-                      {theory.frontmatter.title} · {theory.frontmatter.readMinutes} phút
-                      <ChevronDown size={14} />
+                      <BookOpen size={16} aria-hidden="true" />
+                      {t('games.git.panel.theory', {
+                        title: theory.frontmatter.title,
+                        minutes: theory.frontmatter.readMinutes,
+                      })}
+                      <ChevronDown size={14} aria-hidden="true" />
                     </button>
                     {showTheory && (
                       <div className="git-readable-content git-theory">
@@ -730,22 +616,21 @@ export function GitLevelScreen({
             {tab === 'refs' && (
               <section>
                 <p className="git-eyebrow">
-                  <GitBranch size={13} /> ĐỊNH VỊ TRONG KHO
+                  <GitBranch size={13} aria-hidden="true" /> {t('games.git.panel.refs-kicker')}
                 </p>
-                <h2>Bạn đang ở đâu?</h2>
+                <h2>{t('games.git.panel.refs-title')}</h2>
                 <p className="git-inline-notice">
-                  {view.detached
-                    ? 'Detached HEAD: bạn đang đứng trực tiếp trên một commit.'
-                    : 'HEAD đi cùng nhánh hiện tại. Chọn một ref để tìm commit trên bản đồ.'}
+                  {view.detached ? t('games.git.panel.detached') : t('games.git.panel.attached')}
                 </p>
                 <ul className="git-ref-list">
                   {view.refs.map((ref) => (
                     <li key={ref.repo + ':' + ref.name}>
                       <button
+                        type="button"
                         onClick={() => setSelected(ref.repo + ':' + ref.oid)}
                         data-current={ref.isCurrent}
                       >
-                        <GitBranch size={16} />
+                        <GitBranch size={16} aria-hidden="true" />
                         <span>
                           <strong>{ref.shortName}</strong>
                           <small>
@@ -762,32 +647,19 @@ export function GitLevelScreen({
           </div>
         </aside>
       </div>
-      <section className="git-terminal">
+      <section className="git-terminal" aria-label={t('games.git.play.terminal')}>
         <header>
           <span>
-            <i />
-            <i />
-            <i />
-            <Terminal size={14} /> TERMINAL <small>~/git-odyssey</small>
+            <Terminal size={14} aria-hidden="true" /> {t('games.git.play.terminal')} <small>~/git-lab</small>
           </span>
           <div>
             <button type="button" onClick={undo}>
-              <Undo2 size={14} />
-              Hoàn tác
+              <Undo2 size={14} aria-hidden="true" />
+              {t('games.git.play.undo')}
             </button>
-            <button
-              type="button"
-              onClick={() => {
-                const changed = session.redo();
-                setFeedback({
-                  tone: changed ? 'success' : 'error',
-                  text: changed ? 'Đã làm lại một bước.' : 'Chưa có bước nào để làm lại.',
-                });
-                redraw();
-              }}
-            >
-              <Redo2 size={14} />
-              Làm lại
+            <button type="button" onClick={redo}>
+              <Redo2 size={14} aria-hidden="true" />
+              {t('games.git.play.redo')}
             </button>
           </div>
         </header>

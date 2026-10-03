@@ -1,8 +1,10 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
+import { withReturnPath } from '../../login/return-path';
 import { t } from '@devops-platform/copy';
 
 import { readViewerSession } from '../../../components/catalog/viewer-role.server';
+import { PosterHeader } from '../../../components/kit';
 import { ExamsClient } from './exams-client';
 
 export const metadata: Metadata = {
@@ -23,7 +25,18 @@ export const metadata: Metadata = {
  */
 export default async function ExamsPage() {
   if ((await readViewerSession()) === null) {
-    redirect('/login');
+    // Mang đường về theo: đăng nhập xong thì quay lại đúng trang này.
+    redirect(withReturnPath('/login', '/exams'));
   }
-  return <ExamsClient />;
+  return (
+    <>
+      <PosterHeader
+        section="judge"
+        kicker={t('exam.kicker')}
+        title={t('exam.title')}
+        lead={t('exam.lead')}
+      />
+      <ExamsClient />
+    </>
+  );
 }

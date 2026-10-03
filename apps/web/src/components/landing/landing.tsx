@@ -1,10 +1,8 @@
 'use client';
 
 import { t } from '@devops-platform/copy';
-import { cn } from '@devops-platform/ui';
 import { SECTION_IDS } from './content';
 import type { LandingCatalog } from './data/catalog-shape';
-import { LANDING_FONT_CLASS } from './fonts';
 import { VelocityMarquee } from './fx/velocity-marquee';
 import { LandingMotion, useMotionMode } from './motion/motion-provider';
 import { Closing } from './sections/closing';
@@ -37,7 +35,7 @@ export function Landing({ catalog }: { readonly catalog: Promise<LandingCatalog>
 function LandingRoot({ catalog }: { readonly catalog: Promise<LandingCatalog> }) {
   const mode = useMotionMode();
   return (
-    <div className={cn(styles.root, LANDING_FONT_CLASS)} data-testid="landing-root" data-motion={mode}>
+    <div className={styles.root} data-testid="landing-root" data-motion={mode}>
       <a className={styles.skip} href={`#${SECTION_IDS.paths}`}>
         {t('home.skip.label')}
       </a>

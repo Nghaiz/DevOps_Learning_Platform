@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import type { Scenario, ScenarioPhase, ScenarioStep } from '@devops-platform/shared-types/scenario';
+import {
+  toScenarioForLearner,
+  type Scenario,
+  type ScenarioForLearner,
+  type ScenarioPhase,
+  type ScenarioStep,
+} from '@devops-platform/shared-types/scenario';
 import { buildPhases, canCheck, phaseKeyForStepIndex } from './phases';
 
 function phase(over: Partial<ScenarioPhase> = {}): ScenarioPhase {
@@ -16,8 +22,9 @@ function step(index: number, over: Partial<ScenarioStep> = {}): ScenarioStep {
   return { ...phase(), index, ...over };
 }
 
-function scenario(over: Partial<Scenario> = {}): Scenario {
-  return { intro: null, finish: null, steps: [step(0)], ...over } as Scenario;
+/** Trang bài học nhận `ScenarioForLearner` — fixture đi đúng đường biến đổi đó. */
+function scenario(over: Partial<Scenario> = {}): ScenarioForLearner {
+  return toScenarioForLearner({ intro: null, finish: null, steps: [step(0)], ...over } as Scenario);
 }
 
 describe('buildPhases', () => {

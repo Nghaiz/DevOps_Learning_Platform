@@ -430,21 +430,38 @@ test.describe('bàn phím — đi hết luồng chính', () => {
   });
 
   /**
-   * Sáu mục điều hướng chính (`components/shell/nav.ts` PRIMARY_NAV).
+   * Bốn section học tập trên header (bản dựng lại PTIT, `components/shell/nav.ts`
+   * NAV_SECTIONS): mỗi section là một liên kết tới trang con đầu tiên của nó.
    *
-   * Chép tay ở đây chứ không import: `nav.ts` nằm trong `src/` và là mã SẢN
-   * PHẨM do lane khác sở hữu. Nếu spec import chính hằng của sản phẩm thì một
-   * lần xoá nhầm mục "Quiz" khỏi `PRIMARY_NAV` sẽ làm spec quét ít hơn mà vẫn
-   * xanh — cùng lớp lỗi với "để cảnh tự khai báo chính nó" ở `routes.ts`.
+   * Chép tay ở đây chứ không import: nếu spec import chính hằng của sản phẩm thì
+   * một lần xoá nhầm một section sẽ làm spec quét ít hơn mà vẫn xanh.
    */
   const PRIMARY_NAV: { label: string; path: string }[] = [
-    { label: 'Bài học', path: '/lessons' },
-    { label: 'Lab', path: '/labs' },
-    { label: 'Playground', path: '/playgrounds' },
-    { label: 'Lộ trình', path: '/paths' },
-    { label: 'Quiz', path: '/quiz' },
-    { label: 'Của tôi', path: '/me' },
+    { label: 'Học', path: '/paths' },
+    { label: 'Thực hành', path: '/labs' },
+    { label: 'Luyện đề', path: '/problems' },
+    { label: 'Trò chơi', path: '/games' },
   ];
+
+  test('mega menu mở bằng bàn phím và Tab đi vào được trang con', async ({ page }) => {
+    await openScreen(page, '/me', 'user');
+    await parkMouse(page);
+    const nav = page.getByRole('navigation', { name: 'Điều hướng chính' });
+    const toggle = nav.getByRole('button', { name: 'Mở danh sách mục Học' });
+    await toggle.focus();
+    await page.keyboard.press('Enter');
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    let reached = false;
+    for (let i = 0; i < 12 && !reached; i += 1) {
+      await page.keyboard.press('Tab');
+      const info = await activeInfo(page);
+      if (info === null) break;
+      reached = info.href === '/lessons';
+    }
+    expect(reached, 'Tab từ nút mở mega menu "Học" không tới được /lessons').toBe(true);
+    await page.keyboard.press('Escape');
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  });
 
   for (const item of PRIMARY_NAV) {
     test(`điều hướng tới ${item.path} chỉ bằng bàn phím`, async ({ page }) => {
@@ -477,34 +494,31 @@ test.describe('bàn phím — đi hết luồng chính', () => {
     });
   }
 
-  test('ô tìm kiếm chỉ đưa control đang hiện vào vòng Tab khi mở và đóng', async ({ page }) => {
+  test('ô tìm của danh mục nằm trong vòng Tab, có tên, và nút xoá dọn được từ khoá', async ({ page }) => {
+    // Ô tìm của danh mục là một ô nhập luôn hiện (không còn nút mở/đóng kiểu
+    // gooey). Thứ cần giữ: tới được bằng Tab, mang tên đọc được, và nút xoá
+    // hiện ra khi có chữ rồi dọn được chữ chỉ bằng bàn phím.
     await openScreen(page, '/lessons', 'user');
     await parkMouse(page);
-    const search = page.getByRole('search');
-    const opener = search.getByRole('button', { name: 'Mở ô tìm kiếm', exact: true });
-    const close = search.getByRole('button', { name: 'Đóng ô tìm kiếm', exact: true });
-    await expect(opener).toBeVisible();
-    await expect(close).toHaveCount(0);
-    for (let i = 0; i < 30; i += 1) {
+    const search = page.getByRole('search', { name: 'Tìm trong danh sách bài học', exact: true });
+    const input = search.getByRole('searchbox', { name: 'Tìm theo tên', exact: true });
+    await expect(input).toBeVisible();
+    let reached = false;
+    for (let i = 0; i < 40 && !reached; i += 1) {
       await page.keyboard.press('Tab');
-      if ((await activeInfo(page))?.label === 'Mở ô tìm kiếm') break;
+      reached = await input.evaluate((el) => el === document.activeElement);
     }
-    await expect(opener).toBeFocused();
+    expect(
+      reached,
+      'Tab 40 lần trên /lessons không tới được ô tìm: ô nằm ngoài vòng Tab, hoặc bị che sau một phần tử nuốt phím.',
+    ).toBe(true);
+    await page.keyboard.type('pod');
+    const clear = page.getByRole('button', { name: 'Xoá bộ lọc', exact: true });
+    await expect(clear, 'Có từ khoá mà không hiện nút Xoá bộ lọc.').toBeVisible();
+    await clear.focus();
     await page.keyboard.press('Enter');
-    const input = search.getByRole('textbox', { name: 'Ô nhập từ khoá', exact: true });
-    await expect(input).toBeFocused();
-    await page.keyboard.press('Tab');
-    await expect(close).toBeFocused();
-    await page.keyboard.press('Shift+Tab');
-    await expect(input).toBeFocused();
-    await page.keyboard.press('Tab');
-    await page.keyboard.press('Enter');
-    await expect(opener).toBeFocused();
-    await expect(close).toHaveCount(0);
-    await page.keyboard.press('Tab');
-    const next = await activeInfo(page);
-    expect(next).not.toBeNull();
-    expect(next?.label).not.toMatch(/Đóng ô tìm kiếm|Ô nhập từ khoá/);
+    await expect(input).toHaveValue('');
+    await expect(clear).toHaveCount(0);
   });
 
   test('mở bài học đầu tiên từ /lessons chỉ bằng bàn phím', async ({ page }) => {

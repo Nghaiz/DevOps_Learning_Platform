@@ -118,9 +118,15 @@ describe('Toast — trạng thái error (§4a)', () => {
 
     const card = title.closest('[data-slot="toast"]');
     expect(card, 'toast phải render qua ToastCard, không phải qua biến thể dựng sẵn của sonner').not.toBeNull();
+    // Mặt toast luôn là khối MỰC (design-brief §5); biến thể nằm ở Ô ICON.
     const classes = (card as HTMLElement).className.split(/\s+/);
-    expect(classes).toContain('bg-destructive');
-    expect(classes).toContain('text-destructive-foreground');
+    expect(classes).toContain('bg-ink');
+    expect(classes).toContain('text-ink-foreground');
+    const tile = (card as HTMLElement).querySelector('[data-slot="toast-icon"]');
+    expect(tile, 'toast lỗi phải có ô icon tô màu destructive').not.toBeNull();
+    const tileClasses = (tile as HTMLElement).className.split(/\s+/);
+    expect(tileClasses).toContain('bg-destructive');
+    expect(tileClasses).toContain('text-destructive-foreground');
     expect((card as HTMLElement).dataset['variant']).toBe('destructive');
   });
 
@@ -204,11 +210,11 @@ describe('Toaster — vòng focus của nút đóng không dùng --ring', () => 
   });
 
   /**
-   * §5: toast là mặt nổi cỡ card ⇒ `rounded-lg`; §6: nó chồng lên nội dung
-   * trang ⇒ `shadow-elevation-3`, và PHẢI có `border` vì Windows High Contrast
-   * bỏ hẳn `box-shadow` — một mặt tách khỏi nền chỉ bằng bóng thì biến mất.
+   * Toast là lớp nổi ⇒ bo góc qua `rounded-surface` (0 trong app, bậc cũ trong
+   * game K8s) và bóng cứng `shadow-float`; PHẢI có `border` vì Windows High
+   * Contrast bỏ hẳn `box-shadow` — một mặt tách khỏi nền chỉ bằng bóng thì biến mất.
    */
-  it('mặt toast dùng bậc bo góc + bậc nâng nền ngữ nghĩa, kèm viền', async () => {
+  it('mặt toast dùng bo góc lớp nổi + bóng lớp nổi, kèm viền, trên khối mực', async () => {
     render(
       <div>
         <Trigger />
@@ -218,9 +224,11 @@ describe('Toaster — vòng focus của nút đóng không dùng --ring', () => 
     fireEvent.click(screen.getByRole('button', { name: 'Lưu' }));
     const title = await screen.findByText('Đã lưu hồ sơ');
     const classes = (title.closest('[data-slot="toast"]') as HTMLElement).className.split(/\s+/);
-    expect(classes).toContain('rounded-lg');
-    expect(classes).toContain('shadow-elevation-3');
+    expect(classes).toContain('rounded-surface');
+    expect(classes).toContain('shadow-float');
     expect(classes).toContain('border');
+    expect(classes).toContain('bg-ink');
+    expect(classes.filter((name) => name.startsWith('shadow-elevation-'))).toEqual([]);
     // Không còn bậc bóng ngoài hệ ba bậc ngữ nghĩa.
     expect(classes).not.toContain('shadow-lg');
     expect(classes).not.toContain('shadow-md');

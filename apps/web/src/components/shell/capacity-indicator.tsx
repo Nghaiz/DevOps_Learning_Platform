@@ -67,7 +67,7 @@ export function CapacityIndicator() {
 
   if (data === null) {
     if (loading) {
-      return <Skeleton className="h-6 w-24 rounded-md" />;
+      return <Skeleton className="h-8 w-28 bg-chrome-foreground/10" />;
     }
     if (error === null) {
       return null;
@@ -75,7 +75,7 @@ export function CapacityIndicator() {
     return (
       <Tooltip>
         <TooltipTrigger asChild>
-          <Badge variant="outline">{t('shell.capacity.unread-badge')}</Badge>
+          <Badge variant="outline" className="h-8 border-chrome-border bg-transparent font-mono text-chrome-foreground">{t('shell.capacity.unread-badge')}</Badge>
         </TooltipTrigger>
         <TooltipContent className="max-w-xs">
           {t('shell.capacity.unread-body', { error })}
@@ -100,7 +100,7 @@ export function CapacityIndicator() {
     return (
       <Tooltip>
         <TooltipTrigger asChild>
-          <Badge variant="outline">{t('shell.capacity.unknown-badge')}</Badge>
+          <Badge variant="outline" className="h-8 border-chrome-border bg-transparent font-mono text-chrome-foreground">{t('shell.capacity.unknown-badge')}</Badge>
         </TooltipTrigger>
         <TooltipContent className="max-w-xs">
           <p>{t('shell.capacity.unknown-body')}</p>
@@ -120,12 +120,12 @@ export function CapacityIndicator() {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Badge variant="outline" className="gap-1.5">
+        <Badge variant="outline" className="h-8 gap-2 border-chrome-border bg-transparent font-mono text-chrome-foreground">
           {/* Chấm thuần đồ hoạ: nhãn ngay bên cạnh đã nói đủ mức, nên gắn thêm
               nhãn cho nó là bắt trình đọc màn hình nghe hai lần. */}
           <span
             aria-hidden="true"
-            className={cn('size-2 shrink-0 rounded-full', TONE_DOT[reading.tone])}
+            className={cn('size-2 shrink-0', TONE_DOT[reading.tone])}
           />
           {reading.label}
         </Badge>
