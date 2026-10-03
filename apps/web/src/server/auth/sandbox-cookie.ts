@@ -10,11 +10,11 @@ import { mintSandboxTokenFor } from './jwt';
  * quyết định `Path`/`Max-Age`/`Secure`, và chúng sẽ lệch nhau ở lần đầu tiên có
  * người sửa một bên.
  *
- * `Path=/ws` thu hẹp cookie xuống ĐÚNG đường handshake: mọi request tới `/`,
+ * Path theo phiên (xem `sandboxCookiePaths`) thu hẹp cookie xuống ĐÚNG đường handshake: mọi request tới `/`,
  * `/api/*`, `/session` đều KHÔNG mang nó, nên một lỗ rò header ở route khác không
  * làm lộ token mở shell.
  *
- * ⚠ HỆ QUẢ CỦA `Path=/ws` MÀ 2.C PHẢI BIẾT: trình duyệt cũng không gửi cookie này
+ * ⚠ HỆ QUẢ CỦA PATH HẸP MÀ 2.C PHẢI BIẾT: trình duyệt cũng không gửi cookie này
  * tới `/exec/session/{id}` của gateway. Nên `checkStep` KHÔNG thể forward cookie
  * của người dùng — BFF phải tự mint một token server-side. Xem
  * `server/lessons/validate.ts`.
@@ -32,17 +32,37 @@ import { mintSandboxTokenFor } from './jwt';
 export const SANDBOX_COOKIE_NAME = 'dlp_sandbox';
 
 /**
- * D8 (phase-13) — HAI đường mang cookie này: `/ws` (WS terminal, P2) và `/ide`
- * (iframe Theia, P13). `Set-Cookie` phân biệt theo CẶP `(name, path)`, nên hai
- * cookie CÙNG TÊN nhưng khác `Path` sống độc lập trong trình duyệt — không
- * cookie nào ghi đè cookie kia, và trình duyệt tự chọn đúng cookie theo path
- * của request.
+ * D8 (phase-13) — HAI đường mang cookie này: `/ws/session/<id>` (WS terminal) và
+ * `/ide/session/<id>` (iframe Theia). `Set-Cookie` phân biệt theo CẶP
+ * `(name, path)`, nên các cookie CÙNG TÊN khác `Path` sống độc lập trong trình
+ * duyệt — và trình duyệt tự chọn cookie theo path của request.
  *
- * ⛔ TUYỆT ĐỐI không gộp thành MỘT cookie `Path=/`: đó là lùi lại đúng lỗ hổng
- * mà `Path=/ws` ban đầu đóng — token mở được shell sẽ tới cả `/`, `/api/*`,
- * `/session`, mở rộng bề mặt rò header cho bất kỳ route nào trong tương lai.
+ * D7.1 (labs rebuild) — path THEO TỪNG PHIÊN, không còn `/ws` và `/ide` trơn.
+ * Bản cũ dùng chung một `(name, path)` cho mọi phiên, nên mở phiên thứ hai ở tab
+ * khác GHI ĐÈ cookie của phiên thứ nhất: mọi lượt nối lại WS / tải lại IDE của
+ * tab cũ mang token sai `sid` và gateway trả 403. Path riêng từng phiên làm hai
+ * cookie không bao giờ trùng cặp `(name, path)`.
+ *
+ * Cookie `Path=/ws`, `Path=/ide` mà bản cũ đã phát vẫn sống tới hết `Max-Age`
+ * và vẫn được gửi kèm; gateway chọn cookie theo `sid` chứ không theo vị trí
+ * (`sessionauth.pickToken`), nên chúng vô hại và tự rụng. KHÔNG chủ động xoá
+ * chúng ở đây: cookie rộng đó có thể là chìa DUY NHẤT của một phiên tạo trước
+ * bản này, đang mở ở tab khác.
+ *
+ * Path ghép bằng `encodeURIComponent` — ĐÚNG phép biến đổi mà FE dùng khi dựng
+ * URL (`packages/terminal` connection, `ideSessionUrl`). So khớp path cookie là
+ * so chuỗi trên path đã mã hoá, nên hai bên phải mã hoá giống hệt; và nó cũng
+ * chặn `;`/xuống dòng trong id lọt vào header `Set-Cookie`.
+ *
+ * ⛔ TUYỆT ĐỐI không gộp thành MỘT cookie `Path=/`: token mở được shell sẽ tới cả
+ * `/`, `/api/*`, `/session`, mở rộng bề mặt rò header cho mọi route tương lai.
  */
-export const SANDBOX_COOKIE_PATHS = ['/ws', '/ide'] as const;
+const SANDBOX_COOKIE_PATH_PREFIXES = ['/ws/session/', '/ide/session/'] as const;
+
+export function sandboxCookiePaths(sessionId: string): string[] {
+  const segment = encodeURIComponent(sessionId);
+  return SANDBOX_COOKIE_PATH_PREFIXES.map((prefix) => `${prefix}${segment}`);
+}
 
 export function buildSandboxCookie(token: string, maxAgeSeconds: number, path: string): string {
   return [
@@ -53,6 +73,39 @@ export function buildSandboxCookie(token: string, maxAgeSeconds: number, path: s
     'Secure',
     'SameSite=Strict',
   ].join('; ');
+}
+
+/**
+ * D7.1 — mốc hết hạn của token VÀ cookie = TRẦN CỨNG của phiên (`hardCapAt` =
+ * createdAt + HARD_CAP, orchestrator tính lúc đọc), không phải `expiresAt` lúc mint.
+ *
+ * `expiresAt` lúc tạo chỉ là hạn tới heartbeat đầu (≈ SESSION_TTL). Gateway đẩy nó
+ * trong Redis tới tận trần cứng mỗi khi có hoạt động, nhưng không ai mint lại
+ * token — nên `exp = expiresAt` làm mọi lượt nối lại WS / tải lại IDE trả 401 từ
+ * khoảng phút 60 trong khi phiên vẫn sống. Token sống tới trần cứng không mở thêm
+ * quyền nào: gateway đọc Redis ở MỌI request (bước f–h), phiên chết là 404/409
+ * bất kể `exp`.
+ *
+ * `max(hardCapAt, expiresAt)`: claim xảy ra SAU create, nên phiên tạo với
+ * `ttl = HARD_CAP` có `expiresAt` vượt `hardCapAt` vài giây — token phải sống ít
+ * nhất bằng phiên.
+ *
+ * Orchestrator đời cũ (trước field `hard_cap_at`) không trả mốc này ⇒ giữ hành vi
+ * cũ (`expiresAt`) và CẢNH BÁO, thay vì làm hỏng việc tạo phiên trong lúc rollout.
+ */
+function sandboxLifetimeEnd(
+  sessionId: string,
+  expiresAt: { seconds: bigint },
+  hardCapAt: { seconds: bigint } | undefined,
+): number {
+  const expiresAtSeconds = Number(expiresAt.seconds);
+  if (hardCapAt === undefined) {
+    console.warn('[sandbox-cookie] orchestrator không trả hardCapAt — token sống theo expiresAt lúc mint', {
+      sessionId,
+    });
+    return expiresAtSeconds;
+  }
+  return Math.max(Number(hardCapAt.seconds), expiresAtSeconds);
 }
 
 /**
@@ -76,7 +129,13 @@ export function buildSandboxCookie(token: string, maxAgeSeconds: number, path: s
 export async function attachSandboxCookie(
   ctx: { user: { id: string }; resHeaders: Headers },
   ownerUserId: string,
-  session: { id?: string; expiresAt?: { seconds: bigint } | undefined } | undefined,
+  session:
+    | {
+        id?: string;
+        expiresAt?: { seconds: bigint } | undefined;
+        hardCapAt?: { seconds: bigint } | undefined;
+      }
+    | undefined,
 ): Promise<void> {
   if (ctx.user.id !== ownerUserId) {
     return;
@@ -96,10 +155,10 @@ export async function attachSandboxCookie(
   // ms, và đúng ở biên (`exp == now + 1`) sinh ra `Max-Age=0` — cookie bị xoá ngay
   // khi vừa đặt, trong khi token thì hợp lệ. Một lần đọc, không có cửa sổ đó.
   const nowSeconds = Math.floor(Date.now() / 1000);
-  const expiresAtSeconds = Number(expiresAt.seconds);
-  const token = await mintSandboxTokenFor(ownerUserId, sessionId, expiresAtSeconds);
-  const maxAge = expiresAtSeconds - nowSeconds;
-  for (const path of SANDBOX_COOKIE_PATHS) {
+  const lifetimeEnd = sandboxLifetimeEnd(sessionId, expiresAt, session?.hardCapAt);
+  const token = await mintSandboxTokenFor(ownerUserId, sessionId, lifetimeEnd);
+  const maxAge = lifetimeEnd - nowSeconds;
+  for (const path of sandboxCookiePaths(sessionId)) {
     ctx.resHeaders.append('Set-Cookie', buildSandboxCookie(token, maxAge, path));
   }
 }

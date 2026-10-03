@@ -166,7 +166,7 @@ type Bridge struct {
 
 	// Nhịp heartbeat. Là TRƯỜNG chứ không phải hằng chỉ vì test: một suite chờ
 	// đủ 20s/60s thật thì hoặc chạy hàng phút, hoặc (tệ hơn) không ai viết nó.
-	// Giá trị production nằm ở pingInterval/pongTimeout/extendInterval và New
+	// Giá trị production nằm ở pingInterval/pongTimeout/ExtendInterval và New
 	// luôn đặt đúng chúng — xem SetHeartbeatTiming.
 	pingEvery   time.Duration
 	pongWait    time.Duration
@@ -223,7 +223,7 @@ func New(f ExecutorFactory, alive SessionAliveFunc, extender Extender, log *slog
 		met:         met,
 		pingEvery:   pingInterval,
 		pongWait:    pongTimeout,
-		extendEvery: extendInterval,
+		extendEvery: ExtendInterval,
 	}
 }
 

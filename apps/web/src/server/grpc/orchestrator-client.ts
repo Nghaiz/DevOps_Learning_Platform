@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { createClient, ConnectError, Code, type Client } from '@connectrpc/connect';
+import { createClient, ConnectError, Code, type Client, type Interceptor } from '@connectrpc/connect';
 import { createGrpcTransport } from '@connectrpc/connect-node';
 import { TRPCError } from '@trpc/server';
 import { SessionService } from '@devops-platform/shared-types';
@@ -23,12 +23,72 @@ import { grpcMtls, orchestratorGrpcAddr } from '../env';
  */
 let cachedClient: Client<typeof SessionService> | null = null;
 
+/**
+ * RPC CHỈ ĐỌC — thứ duy nhất được thử lại. Lấy từ descriptor, không gõ chuỗi tên
+ * method: đổi tên trong proto thì tập này đổi theo hoặc không biên dịch được.
+ *
+ * ⛔ Create/Claim/Extend/Reap KHÔNG BAO GIỜ vào đây. Một lượt đứt kết nối không
+ * nói gì về việc server ĐÃ làm hay chưa: thử lại CreateSession là claim thêm một
+ * pod khỏi trần quota (idempotencyKey chỉ đỡ được nếu lượt đầu đã ghi xong), thử
+ * lại Reap/Extend là ghi hai lần.
+ */
+const READ_ONLY_METHODS: ReadonlySet<unknown> = new Set([
+  SessionService.method.getSession,
+  SessionService.method.getCapacity,
+  SessionService.method.listSessions,
+]);
+
+/** Mã lỗi Node của lớp "kết nối h2 đứt giữa chừng" — không phải câu trả lời của server. */
+const DISCONNECT_NODE_CODES: ReadonlySet<string> = new Set(['ERR_STREAM_PREMATURE_CLOSE', 'ECONNRESET']);
+
+function isDisconnect(error: unknown): boolean {
+  if (!(error instanceof ConnectError)) {
+    return false;
+  }
+  // connect-node gói lỗi Node vào `cause` (connectErrorFromNodeReason); đi dọc
+  // chuỗi, có trần để một `cause` vòng không treo được vòng lặp.
+  let current: unknown = error;
+  for (let depth = 0; depth < 8 && current instanceof Error; depth++) {
+    const code = (current as { code?: unknown }).code;
+    if (typeof code === 'string' && DISCONNECT_NODE_CODES.has(code)) {
+      return true;
+    }
+    current = current.cause;
+  }
+  return false;
+}
+
+/**
+ * D7.5 — `GetSession` hỏng ~5–10% với "Premature close" (phase-5 §5.A: kết nối h2
+ * đứt giữa chừng, orchestrator không log lỗi, không restart). Thử lại ĐÚNG MỘT
+ * LẦN, chỉ RPC chỉ-đọc, chỉ lớp đứt kết nối.
+ *
+ * Ở tầng TRANSPORT chứ không trong `callOrchestrator` — đúng lý do phase-5 hoãn
+ * vá: hàm ấy bọc cả RPC không idempotent. Lượt thử lại được log, nên tần suất
+ * vẫn đọc được thay vì bị che đi.
+ */
+export const retryReadOnlyOnDisconnect: Interceptor = (next) => async (req) => {
+  try {
+    return await next(req);
+  } catch (error) {
+    if (req.stream || !READ_ONLY_METHODS.has(req.method) || !isDisconnect(error)) {
+      throw error;
+    }
+    console.warn('[grpc:orchestrator] kết nối đứt giữa RPC chỉ-đọc — thử lại một lần', {
+      method: req.method.name,
+      rawMessage: error instanceof ConnectError ? error.rawMessage : String(error),
+    });
+    return await next(req);
+  }
+};
+
 function client(): Client<typeof SessionService> {
   if (cachedClient === null) {
     const mtls = grpcMtls();
     const scheme = mtls === null ? 'http' : 'https';
     const transport = createGrpcTransport({
       baseUrl: `${scheme}://${orchestratorGrpcAddr()}`,
+      interceptors: [retryReadOnlyOnDisconnect],
       ...(mtls === null
         ? {}
         : {

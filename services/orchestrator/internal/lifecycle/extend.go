@@ -131,7 +131,7 @@ func (s *Service) Extend(
 		})
 	}
 
-	return sess.ToProto(), hardCapReached, nil
+	return sess.ToProto(s.cfg.HardCap), hardCapReached, nil
 }
 
 // applyExtendResult đọc mảng script trả về. Chỉ lấy cờ hard-cap; các giá trị

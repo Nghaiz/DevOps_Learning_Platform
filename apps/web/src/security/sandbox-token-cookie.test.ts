@@ -217,7 +217,7 @@ describe('G12 phần B — Set-Cookie dlp_sandbox trên session.create', () => {
     expect(cookie?.toLowerCase()).not.toContain('domain=');
   });
 
-  it('không cookie nào mang Path=/ — D8 chỉ mở rộng đúng /ws và /ide', async () => {
+  it('không cookie nào mang Path=/ — chỉ đúng /ws/session/<id> và /ide/session/<id>', async () => {
     const cookies = await createAs({ id: 'user-a', role: 'user' }, 'user-a');
     const paths = cookies
       .filter((c) => c.startsWith('dlp_sandbox='))
@@ -230,7 +230,10 @@ describe('G12 phần B — Set-Cookie dlp_sandbox trên session.create', () => {
     // `Path=/` dù `Path` là gì. Một assertion không thể thất bại đọc y hệt một
     // assertion đang bảo vệ điều gì đó.
     expect(paths.every((path) => path !== undefined)).toBe(true);
-    expect([...new Set(paths)].sort()).toEqual(['/ide', '/ws']);
+    // D7.1 (labs rebuild): path THEO PHIÊN — `/ws`, `/ide` trơn làm phiên ở tab
+    // thứ hai ghi đè cookie của phiên ở tab thứ nhất.
+    const sid = encodeURIComponent(fakeSession?.id ?? '');
+    expect([...new Set(paths)].sort()).toEqual([`/ide/session/${sid}`, `/ws/session/${sid}`]);
   });
 
   it('cookie thứ hai (Path=/ide) mang CÙNG token và CÙNG thuộc tính với cookie /ws', async () => {
