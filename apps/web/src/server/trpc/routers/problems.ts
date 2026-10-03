@@ -18,7 +18,9 @@ import { listProblems, listProblemsForSolver } from '../../problems/list';
 import { recordHintReveal } from '../../problems/reveals';
 import { listMySubmissions } from '../../problems/submissions';
 import { submitProblem, tryGradeProblem } from '../../problems/submit';
-import { assertExamSubmission } from '../../exams/submission-context';
+import type { Database } from '../../db/client';
+import { examSubmissionRejection } from '../../exams/attempt-seed';
+import { getAttemptFor, getExamForStudent } from '../../exams/crud';
 import { problemBodySchema, problemCodeSchema, problemUpdateSchema } from '../../problems/validate';
 import { problemVisibilityFor, visibleProblemWhere } from '../../problems/visibility';
 import { authorProcedure, createTRPCRouter, listInputSchema, protectedProcedure } from '../init';
@@ -292,13 +294,11 @@ export const problemsRouter = createTRPCRouter({
            */
           runLog: runLogInput,
           /*
-           * §18.G — GỢI Ý tường minh rằng lượt nộp thuộc kỳ thi nào.
+           * §18.G — lượt nộp TRONG một kỳ thi mang theo `examId`.
            *
-           * `.optional()`, và từ khi máy chủ tự suy ngữ cảnh kỳ thi thì nó KHÔNG
-           * còn là công tắc bật ba cổng: vắng nó, máy chủ vẫn áp luật thi nếu
-           * người nộp đang có một lượt thi mở chứa bài này
-           * (`exams/submission-context.ts`). Có nó mà không khớp một lượt mở
-           * chứa bài này ⇒ bị từ chối, không rơi về luyện tập.
+           * `.optional()`, và đó là điều kiện để nó không phá gì: mọi lượt nộp
+           * ngoài kỳ thi (toàn bộ lưu lượng hôm nay) đi qua đây không đổi một
+           * dòng nào. Chỉ khi trường này có mặt thì ba cổng của kỳ thi mới chạy.
            *
            * ⚠ Nó KHÔNG phải một lời khai đáng tin: ai cũng gửi lên được một
            * `examId` bất kỳ. Thứ làm nó an toàn là `getExamForStudent` lọc theo
@@ -361,18 +361,7 @@ export const problemsRouter = createTRPCRouter({
        * luật, và hai bản của một luật thì trôi khỏi nhau ở đúng cái ai đó chỉ sửa
        * một bên.
        */
-      /*
-       * Cổng kỳ thi — chạy TRƯỚC `submitProblem`, nên một lượt bị từ chối không
-       * tốn một lượt phát lại nhật ký. Có `examId` hay không, máy chủ tự quyết
-       * lượt nộp này có thuộc một lượt thi đang mở hay không; xem
-       * `exams/submission-context.ts`.
-       */
-      await assertExamSubmission(
-        ctx.db,
-        ctx.user.id,
-        { examId: input.examId, problemCode: row.code, seed: input.runLog.seed },
-        new Date(),
-      );
+      await assertExamRules(ctx, input, row.code);
       return submitProblem(
         ctx.db,
         toProblemDTO(row),
@@ -401,7 +390,7 @@ export const problemsRouter = createTRPCRouter({
    *     trước khi tới được máy chủ.
    *
    * ⚠ KHÔNG nhận `examId`. Trong một kỳ thi, "thử xem đạt chưa" là một câu hỏi
-   * khác hẳn và nó phải đi qua ba cổng của kỳ thi (`assertExamSubmission`) chứ không
+   * khác hẳn và nó phải đi qua ba cổng của kỳ thi (`assertExamRules`) chứ không
    * đi vòng — mở nó ở đây là mở một đường chấm không bị đồng hồ thi ràng buộc.
    */
   tryGrade: protectedProcedure
@@ -471,3 +460,67 @@ export const problemsRouter = createTRPCRouter({
     return toProblemDTO(row);
   }),
 });
+
+/**
+ * Ba cổng của một lượt nộp TRONG kỳ thi (§18.G, "cổng số 1").
+ *
+ * Không có `examId` thì không làm gì cả — mọi lượt nộp ngoài kỳ thi đi qua đây
+ * không đổi một dòng nào, và seed do người nộp mang lên vẫn là hành vi CỐ Ý của
+ * hợp đồng (`core/problem.ts` § `Submission.seed`).
+ *
+ * ## ⛔ Không có `examId` thì là LUYỆN TẬP, kể cả khi đang có lượt thi mở
+ *
+ * Máy chủ KHÔNG tự suy lượt nộp thuộc kỳ thi nào. Một bản từng làm thế (tra lượt
+ * thi mở chứa bài này rồi áp luật thi) và nó từ chối MỌI lượt nộp bài thi: luật
+ * thi đòi `seed === attempt.seed`, trong khi client không bao giờ nhận seed của
+ * lượt thi (`exam-sitting.ts` § `viewOf`) và arena K8s sinh seed ngẫu nhiên mỗi
+ * phiên. Lượt nộp luyện tập trong giờ thi vẫn vào bảng điểm theo CỬA SỔ thời
+ * gian (`exams/scoring-window.ts`) — đó là hành vi có chủ đích, `exam-format.md` §5.
+ *
+ * ## Vì sao cổng nằm ở ĐÂY chứ không trong `submitProblem`
+ *
+ * `submitProblem` trả lời câu "bài làm này đúng tới đâu". Cổng này trả lời câu
+ * "lượt nộp này có được tính không" — hai câu khác nhau, và gộp chúng sẽ bắt
+ * `submitProblem` phải biết về kỳ thi, tức nó không dùng lại được cho đường nộp
+ * thường. Cổng chạy TRƯỚC, nên một lượt bị từ chối không tốn một lượt phát lại
+ * toàn bộ nhật ký.
+ *
+ * ## `FORBIDDEN` chứ không `BAD_REQUEST`
+ *
+ * Người nộp không gửi lên dữ liệu hỏng; họ gửi một lượt hợp lệ mà luật kỳ thi
+ * không nhận. `BAD_REQUEST` sẽ dẫn họ đi sửa bài làm, trong khi thứ cần sửa là
+ * việc họ đã hết giờ, hoặc đang làm một bài ngoài đề.
+ */
+async function assertExamRules(
+  ctx: { db: Database; user: { id: string } },
+  input: { examId?: string | undefined; runLog: { seed: number } },
+  problemCode: string,
+): Promise<void> {
+  if (input.examId === undefined) {
+    return;
+  }
+  const now = new Date();
+  // Lọc theo tư cách thành viên lớp. Một `examId` của lớp khác trả NOT_FOUND ở
+  // đây, nên trường `examId` trên dây không cấp thêm quyền nào.
+  const exam = await getExamForStudent(ctx.db, input.examId, ctx.user.id);
+  const attempt = await getAttemptFor(ctx.db, input.examId, ctx.user.id);
+  if (attempt === null) {
+    throw new TRPCError({
+      code: 'FORBIDDEN',
+      message: 'Bạn chưa mở lượt thi này, nên bài nộp không được tính',
+    });
+  }
+  const rejection = examSubmissionRejection(
+    {
+      problemCodes: exam.problemCodes,
+      attemptSeed: attempt.seed,
+      attempt,
+      closesAt: exam.closesAt,
+    },
+    { problemCode, seed: input.runLog.seed },
+    now,
+  );
+  if (rejection !== null) {
+    throw new TRPCError({ code: 'FORBIDDEN', message: rejection });
+  }
+}

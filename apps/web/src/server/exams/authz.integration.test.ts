@@ -374,18 +374,15 @@ describe('18.G · cổng seed lúc NỘP, đi qua router thật', () => {
    * — và bản đó đã được đo là sẽ từ chối MỌI lượt nộp K8s, vì arena sinh seed
    * ngẫu nhiên mỗi phiên. Đó chính là phương án (a) mà chủ dự án đã bác.
    */
-  it('cùng lượt nộp KHÔNG kèm examId, từ người KHÔNG có lượt thi mở, thì cổng seed không chạm tới', async () => {
+  it('cùng lượt nộp KHÔNG kèm examId thì cổng seed không chạm tới', async () => {
     /*
-     * ⚠ Đổi người nộp từ MEMBER sang OUTSIDER khi máy chủ bắt đầu tự suy ngữ cảnh
-     * kỳ thi (`exams/submission-context.ts`). MEMBER đang có lượt MỞ ở
-     * `seedExamId` chứa đúng bài này, nên lượt nộp không kèm `examId` của MEMBER
-     * nay LÀ một lượt thi và PHẢI qua cổng seed — đó là cả mục đích của phép suy.
-     *
-     * Điều ô này gác vẫn nguyên vẹn: phương án (b) — cổng seed KHÔNG gác vô điều
-     * kiện. Người không có lượt thi mở nào vẫn nộp với seed bất kỳ. Phép suy được
-     * đo kỹ ở `exams/exam-context.integration.test.ts`.
+     * ⚠ Người nộp là MEMBER, và MEMBER đang có lượt MỞ ở `seedExamId` chứa đúng
+     * bài này — đó là cả điểm của ô. Đang có lượt thi mở KHÔNG kéo một lượt nộp
+     * không kèm `examId` vào luật thi: client không bao giờ nhận seed của lượt
+     * thi, nên một máy chủ tự suy ngữ cảnh sẽ từ chối mọi lượt nộp bài thi. Đổi
+     * người nộp sang ai đó KHÔNG có lượt mở là làm ô này xanh mà không đo gì.
      */
-    const error = await callerAs(OUTSIDER, 'user')
+    const error = await callerAs(MEMBER, 'user')
       .problems.submit(payloadWith(999, publishedCode, undefined) as never)
       .then(() => null)
       .catch((caught: unknown) => caught);

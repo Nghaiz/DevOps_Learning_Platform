@@ -277,6 +277,21 @@ Cổng chạy **TRƯỚC**, nên một lượt bị từ chối không tốn m�
 Không có `examId` thì **không làm gì cả** — mọi lượt nộp ngoài kỳ thi đi qua đó không đổi một
 dòng nào.
 
+⛔ **Không có `examId` thì lượt nộp LUÔN là luyện tập**, kể cả khi người nộp đang có một lượt thi
+mở chứa đúng bài đó. Máy chủ **không suy** lượt nộp thuộc kỳ thi nào: không tra lượt thi đang mở,
+không so seed. Một bản từng suy (tra lượt mở chứa bài rồi áp luật thi) và nó từ chối **mọi** lượt
+nộp bài thi: cổng thứ ba đòi `seed === attempt.seed`, trong khi client **không bao giờ nhận** seed
+của lượt thi (`viewOf` ở `exam-sitting.ts`, xem §4) và arena K8s sinh seed ngẫu nhiên mỗi phiên.
+
+Hệ quả cần biết: một lượt luyện tập nằm trong cửa sổ chấm của lượt thi (§6) **vẫn được tính vào
+bảng điểm**, với seed bất kỳ. Bảng điểm gán lượt nộp theo thời gian, không theo `examId` —
+`problem_submissions` không có cột `exam_id`. Cổng seed chỉ chạy với lượt nộp mang `examId`.
+
+| Input của `problems.submit` | Hành vi |
+|---|---|
+| không có `examId` | luyện tập: không cổng thi, không truy vấn lượt thi |
+| có `examId` | `NOT_FOUND` nếu không thuộc lớp · `FORBIDDEN` nếu chưa mở lượt, bài ngoài đề, lượt đã khoá, hoặc lệch seed |
+
 ⚠ **`FORBIDDEN` chứ không `BAD_REQUEST`.** Người nộp không gửi lên dữ liệu hỏng; họ gửi một
 lượt hợp lệ mà luật kỳ thi không nhận. `BAD_REQUEST` sẽ dẫn họ đi sửa bài làm, trong khi thứ
 cần sửa là việc họ đã hết giờ, hoặc đang làm một bài ngoài đề.

@@ -19,13 +19,15 @@ import { appRouter } from '../trpc/routers/app-router';
  *
  * 1. `examSitting.get` trả `problems` — thứ tự đề, tên, `gameId`, và `solved`
  *    tính trong CỬA SỔ của chính lượt thi đó.
- * 2. `problems.submit` tự SUY ngữ cảnh kỳ thi: lượt thi đang mở chứa bài này ⇒
- *    luật thi áp như khi gửi `examId`; không có ⇒ luyện tập như cũ.
+ * 2. `problems.submit` KHÔNG suy ngữ cảnh kỳ thi: không có `examId` ⇒ luyện tập,
+ *    kể cả khi người nộp đang có lượt thi mở chứa bài đó. Luật thi (đúng đề,
+ *    còn giờ, đúng seed) chỉ chạy khi `examId` có mặt. Client không bao giờ nhận
+ *    seed của lượt thi, nên một máy chủ tự suy sẽ từ chối mọi lượt nộp bài thi.
  *
  * Lượt thi được CHÈN THẲNG với `started_at` và `seed` chọn trước, thay vì đi qua
- * `examSitting.start`: các ô về "lượt khác", "hết giờ" và "lượt mới nhất" cần
- * những mốc thời gian mà một lượt mở thật lúc chạy test không dựng được, và một
- * seed ngẫu nhiên 31 bit làm ô "lệch seed" bong tróc 1 lần trên 2³¹.
+ * `examSitting.start`: các ô về "lượt khác", "hết giờ" và "hai lượt chồng nhau"
+ * cần những mốc thời gian mà một lượt mở thật lúc chạy test không dựng được, và
+ * một seed ngẫu nhiên 31 bit làm ô "lệch seed" bong tróc 1 lần trên 2³¹.
  *
  * ⚠ ĐÒI Postgres. `createCaller` bỏ qua tầng serialize của tRPC.
  */
@@ -301,25 +303,60 @@ describe('examSitting.get · problems', () => {
   });
 });
 
-describe('problems.submit · ngữ cảnh kỳ thi do máy chủ tự suy', () => {
-  it('lượt thi MỞ chứa bài, không gửi examId, lệch seed ⇒ FORBIDDEN nói ra kỳ thi', async () => {
-    const error = await submitError(callerAs(A), payload(SUBMITTABLE, 999));
-    expect(error?.code).toBe('FORBIDDEN');
-    expect(error?.message).toContain('seed');
-    expect(error?.message).toContain(MAIN_TITLE);
-    expect(await submissionCount(A, SUBMITTABLE)).toBe(2);
-  });
-
-  it('lượt thi MỞ, đúng seed, không gửi examId ⇒ được ghi, và bảng điểm của lượt đó thấy nó', async () => {
-    const result = await callerAs(A).problems.submit(payload(SUBMITTABLE, 101) as never);
+describe('problems.submit · không có examId thì là luyện tập', () => {
+  it('lượt thi MỞ chứa bài, không gửi examId, seed bất kỳ ⇒ được ghi, cổng seed không chạm tới', async () => {
+    // 999 ≠ seed 101 của lượt chính. Có cổng thi thì lượt này bị FORBIDDEN.
+    const result = await callerAs(A).problems.submit(payload(SUBMITTABLE, 999) as never);
     expect(result.submission.problemCode).toBe(SUBMITTABLE);
     expect(await submissionCount(A, SUBMITTABLE)).toBe(3);
+  });
 
+  it('lượt luyện tập đó nằm trong cửa sổ của lượt thi đang mở ⇒ bảng điểm vẫn thấy nó', async () => {
+    // Bảng điểm gán lượt nộp vào lượt thi theo CỬA SỔ thời gian, không theo
+    // examId — lượt nộp vừa ghi ở ô trên rơi vào đó.
     const board = await callerAs(ADMIN, 'admin').exams.scoreboard({ examId: mainExamId });
     const cell = board.rows
       .find((row) => row.userId === A)
       ?.cells.find((c) => c.problemCode === SUBMITTABLE);
     expect(cell?.passed, 'lượt nộp không rơi vào cửa sổ của lượt thi').not.toBeNull();
+  });
+
+  it('hai lượt mở cùng chứa bài, không gửi examId ⇒ seed của lượt nào cũng được, kể cả seed lạ', async () => {
+    for (const seed of [606, 707, 31_337]) {
+      await callerAs(F).problems.submit(payload(SUBMITTABLE, seed) as never);
+    }
+    expect(await submissionCount(F, SUBMITTABLE)).toBe(3);
+  });
+
+  it('không có lượt thi nào ⇒ luyện tập: seed bất kỳ, được ghi', async () => {
+    await callerAs(C).problems.submit(payload(SUBMITTABLE, 123_456) as never);
+    expect(await submissionCount(C, SUBMITTABLE)).toBe(1);
+  });
+
+  it('lượt thi đã HẾT GIỜ ⇒ luyện tập', async () => {
+    await callerAs(D).problems.submit(payload(SUBMITTABLE, 42) as never);
+    expect(await submissionCount(D, SUBMITTABLE)).toBe(1);
+  });
+
+  it('lượt thi đã BẤM NỘP ⇒ luyện tập', async () => {
+    await callerAs(E).problems.submit(payload(SUBMITTABLE, 42) as never);
+    expect(await submissionCount(E, SUBMITTABLE)).toBe(1);
+  });
+});
+
+describe('problems.submit · có examId thì luật thi áp đủ, câu lỗi không đổi', () => {
+  it('examId tường minh, lệch seed ⇒ FORBIDDEN nói về seed, không ghi', async () => {
+    const before = await submissionCount(A, SUBMITTABLE);
+    const error = await submitError(callerAs(A), payload(SUBMITTABLE, 999, mainExamId));
+    expect(error?.code).toBe('FORBIDDEN');
+    expect(error?.message).toBe('Bài nộp mang seed khác seed máy chủ đã cấp cho lượt thi này');
+    expect(await submissionCount(A, SUBMITTABLE)).toBe(before);
+  });
+
+  it('examId tường minh, đúng seed ⇒ được ghi', async () => {
+    const before = await submissionCount(A, SUBMITTABLE);
+    await callerAs(A).problems.submit(payload(SUBMITTABLE, 101, mainExamId) as never);
+    expect(await submissionCount(A, SUBMITTABLE)).toBe(before + 1);
   });
 
   it('examId tường minh KHÔNG khớp lượt mở chứa bài ⇒ bị từ chối, không rơi về luyện tập', async () => {
@@ -339,33 +376,18 @@ describe('problems.submit · ngữ cảnh kỳ thi do máy chủ tự suy', () =
     expect(await submissionCount(A, SUBMITTABLE)).toBe(before);
   });
 
-  it('không có lượt thi nào ⇒ luyện tập: seed bất kỳ, được ghi', async () => {
-    await callerAs(C).problems.submit(payload(SUBMITTABLE, 123_456) as never);
-    expect(await submissionCount(C, SUBMITTABLE)).toBe(1);
-  });
-
-  it('lượt thi đã HẾT GIỜ ⇒ luyện tập', async () => {
-    await callerAs(D).problems.submit(payload(SUBMITTABLE, 42) as never);
-    expect(await submissionCount(D, SUBMITTABLE)).toBe(1);
-  });
-
-  it('lượt thi đã BẤM NỘP ⇒ luyện tập', async () => {
-    await callerAs(E).problems.submit(payload(SUBMITTABLE, 42) as never);
-    expect(await submissionCount(E, SUBMITTABLE)).toBe(1);
-  });
-
-  it('hai lượt mở cùng chứa bài ⇒ áp luật của lượt BẮT ĐẦU GẦN NHẤT', async () => {
-    const stale = await submitError(callerAs(F), payload(SUBMITTABLE, 606));
-    expect(stale?.code).toBe('FORBIDDEN');
-    expect(stale?.message).toContain(LATER_TITLE);
-    await callerAs(F).problems.submit(payload(SUBMITTABLE, 707) as never);
-    expect(await submissionCount(F, SUBMITTABLE)).toBe(1);
-  });
-
-  it('examId tường minh hợp lệ thắng phép suy', async () => {
-    // Đề chính bắt đầu TRƯỚC đề sau, nên phép suy sẽ chọn đề sau; gợi ý tường
-    // minh chọn đề chính và seed của nó.
+  it('hai lượt mở chồng nhau ⇒ examId chọn đúng lượt, và seed của lượt kia bị từ chối', async () => {
+    const before = await submissionCount(F, SUBMITTABLE);
+    const crossed = await submitError(callerAs(F), payload(SUBMITTABLE, 707, mainExamId));
+    expect(crossed?.code).toBe('FORBIDDEN');
+    expect(crossed?.message).toContain('seed');
     await callerAs(F).problems.submit(payload(SUBMITTABLE, 606, mainExamId) as never);
-    expect(await submissionCount(F, SUBMITTABLE)).toBe(2);
+    await callerAs(F).problems.submit(payload(SUBMITTABLE, 707, laterExamId) as never);
+    expect(await submissionCount(F, SUBMITTABLE)).toBe(before + 2);
+  });
+
+  it('người ngoài lớp gửi examId ⇒ NOT_FOUND', async () => {
+    const error = await submitError(callerAs(OUTSIDER), payload(SUBMITTABLE, 101, mainExamId));
+    expect(error?.code).toBe('NOT_FOUND');
   });
 });
