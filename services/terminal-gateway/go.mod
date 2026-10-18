@@ -13,7 +13,7 @@ require (
 	github.com/Nghaiz/DevOps_Learning_Platform/proto/gen/go v0.0.0-00010101000000-000000000000
 	github.com/Nghaiz/DevOps_Learning_Platform/services/shared v0.0.0
 	github.com/coder/websocket v1.8.15
-	github.com/go-jose/go-jose/v4 v4.1.5
+	github.com/go-jose/go-jose/v4 v4.1.6
 	github.com/prometheus/client_golang v1.25.0
 	github.com/prometheus/client_model v0.6.3
 	github.com/redis/go-redis/v9 v9.23.0
