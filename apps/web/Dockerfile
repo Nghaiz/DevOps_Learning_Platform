@@ -123,6 +123,18 @@ COPY apps/web/src/server/db apps/web/src/server/db
 RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
            /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
 
+# Gỡ nốt hai thứ `deps` để lại mà chỉ lúc BUILD mới cần, cùng lý do với bước trên:
+#  · /root/.cache: bản pnpm corepack đã tải về (kèm `tar` riêng của pnpm, dính
+#    GHSA-r292-9mhp-454m ở 7.5.19) và cache metadata của pnpm. Binary corepack đã
+#    gỡ ở trên nên bản pnpm này không còn đường nào gọi tới; nó chỉ còn là thứ Trivy đếm.
+#  · `@typescript/typescript-linux-*`: binary `tsc` của TS7, một binary Go mang CVE
+#    stdlib của bản Go dựng ra nó (xem memory/README § Toolchain về alias TS6/TS7).
+#    drizzle-kit nạp `drizzle.config.ts` bằng esbuild của chính nó, không gọi TS7.
+# Đo 2026-10-18, cùng một lượt DB Trivy: HIGH 16 → 0 (CRITICAL 0 → 0); image sau bản
+# này chạy `migrate` trên Postgres sạch hai lượt, cả hai "migrations applied
+# successfully", ra đủ 18/18 migration và 30 bảng.
+RUN rm -rf /root/.cache /repo/node_modules/.pnpm/@typescript+typescript-linux-*
+
 # Vá libssl3 + libcrypto3 (CVE-2026-14456) — migrator cũng là image CHẠY trong
 # cụm (Helm migrate Job) và nối Postgres qua TLS, nên cùng bề mặt như `runner`.
 # Lý lẽ đầy đủ ở stage `runner` bên dưới. Đóng nợ P16 §6.6.4 #1.
