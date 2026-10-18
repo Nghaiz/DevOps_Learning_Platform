@@ -10,7 +10,10 @@ import path from 'node:path';
 
 const VERDICT = { pass: 'ĐẠT', fail: 'TRƯỢT', error: 'LỖI HẠ TẦNG' };
 const sec = (ms) => (ms === undefined || ms === null ? '—' : `${(ms / 1000).toFixed(1)}s`);
-const cell = (s) => String(s).replace(/\|/g, '\\|').replace(/\n/g, ' ');
+// Thoát `\` TRƯỚC `|`. Bỏ bước đầu thì chuỗi có sẵn `\|` (log lỗi hạ tầng hay chứa
+// `\`) thành `\\|`: Markdown đọc `\\` là một dấu `\`, còn `|` sau nó lại là vách
+// cột, nên bảng lệch cột. CodeQL js/incomplete-sanitization.
+const cell = (s) => String(s).replace(/\\/g, '\\\\').replace(/\|/g, '\\|').replace(/\n/g, ' ');
 
 function checkCell(c) {
   if (c === null) return '—';
