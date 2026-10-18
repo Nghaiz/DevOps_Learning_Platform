@@ -3,7 +3,7 @@
 # Lý do: go.work trỏ sang proto/gen/go và services/shared, cả hai nằm ngoài
 # thư mục này nên build context phải là root.
 
-FROM golang:1.26.9-alpine AS build
+FROM golang:1.27.2-alpine AS build
 WORKDIR /src
 
 # Copy manifest trước để layer tải dependency được cache lại giữa các lần build.

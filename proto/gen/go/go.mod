@@ -2,7 +2,7 @@
 // go.mod này viết tay (buf.gen.yaml không bật `clean`, nên nó không bị xoá).
 module github.com/Nghaiz/DevOps_Learning_Platform/proto/gen/go
 
-go 1.26.9
+go 1.27.2
 
 require (
 	google.golang.org/grpc v1.84.0
