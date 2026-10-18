@@ -1004,14 +1004,19 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # ⛔ Ổ `/` của runner KHÔNG còn đủ cho image này. Từ 2026-10-13 job đỏ trên
-      # MỌI PR (#164 tới #168) với `no space left on device`: image có Theia (cỡ
-      # GB) đã nằm trong docker, rồi Trivy tải Java DB (~940 MB, vì image có
-      # artifact Java) vào `.cache/trivy` trên CÙNG ổ đó và FATAL trước khi quét
-      # byte nào. Bước khẳng định ở cuối job bắt được, nên cổng đỏ chứ không xanh
-      # khống. Gỡ các toolchain cài sẵn mà job này không dùng; `df` in hai đầu để
-      # lần sau thiếu chỗ thì log nói ngay còn bao nhiêu.
-      - name: 'Dọn đĩa runner (image Theia + Java DB của Trivy không vừa ổ /)'
+      # ⛔ Job này HẾT ĐĨA trên runner của repo PRIVATE (2 CPU / 7,75 GiB). Từ
+      # 2026-10-13 tới 2026-10-18 nó đỏ trên mọi PR (#164 tới #168) với `no space
+      # left on device` đúng lúc Trivy tải Java DB (~940 MB, vì image có artifact
+      # Java) vào `.cache/trivy`, sau khi image có Theia (cỡ GB) đã nằm trong
+      # docker. Bước khẳng định ở cuối job bắt được, nên cổng đỏ chứ không xanh
+      # khống. Runner của repo PUBLIC (4 CPU / 15,6 GiB) có `/` 145G, còn 86G
+      # trống: job xanh mà không cần bước này, nên nó CHỈ chạy khi repo private.
+      # Đo 2026-10-18 trên runner public: gỡ các toolchain dưới đây giải phóng 22G
+      # trong ~95 giây. Trên runner private nó CHƯA được đo (repo đã public trước
+      # lượt chạy đầu của bước này) — repo private lại mà job vẫn đỏ thì đọc `df`
+      # ở đây trước tiên.
+      - name: 'Dọn đĩa runner (repo private: runner nhỏ không chứa nổi image Theia + Java DB)'
+        if: github.event.repository.private
         run: |
           df -h /
           sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
@@ -1927,12 +1932,12 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # Cùng lý do với bước dọn đĩa của job `sandbox-image` (cổng PR của chính
-      # image này): image có Theia cộng Java DB của Trivy không vừa ổ `/`, và ở
-      # đây còn tới HAI lượt Trivy. Chỉ hàng sandbox-base cần; bốn hàng kia không
-      # mang artifact Java và nhỏ hơn nhiều.
-      - name: 'Dọn đĩa runner (chỉ hàng sandbox-base)'
-        if: matrix.name == 'sandbox-base'
+      # Cùng lý do và cùng điều kiện với bước dọn đĩa của job `sandbox-image` (cổng
+      # PR của chính image này): chỉ cần khi repo private (runner nhỏ), và chỉ cho
+      # hàng sandbox-base — ở đây còn tới HAI lượt Trivy; bốn hàng kia không mang
+      # artifact Java và nhỏ hơn nhiều.
+      - name: 'Dọn đĩa runner (repo private, chỉ hàng sandbox-base)'
+        if: matrix.name == 'sandbox-base' && github.event.repository.private
         run: |
           df -h /
           sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
