@@ -415,8 +415,14 @@ jobs:
         # mất 3 module còn lại (lần go1.26.5 dính GO-2026-6090 chỉ báo
         # proto/gen/go, không ai biết 3 module kia sạch hay bẩn cho tới khi quét
         # tay). Quét hết rồi mới trả mã lỗi.
+        #
+        # ⛔ govulncheck PHẢI theo kịp bản Go: v1.1.4 (x/tools v0.29.0) PANIC trên mã
+        # Go 1.27 (`unexpected expr: *ast.KeyValueExpr` trong go/ssa), và panic đó
+        # chỉ hiện khi quét với GOOS=linux. Trên Windows nó in "No vulnerabilities
+        # found" vì không nạp phần stdlib chỉ biên dịch cho Linux, nên quét tay ở máy
+        # dev phải đặt GOOS=linux. Lên Go minor mới thì nâng cả dòng dưới.
         run: |
-          go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
+          go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
           rc=0
           for dir in $(go list -m -f '{{.Dir}}'); do
             echo "--- govulncheck $dir"
