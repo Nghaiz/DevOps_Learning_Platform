@@ -5,7 +5,7 @@
 // sẽ lệch ngay lần đầu ai đó sửa một bên (rules/code-conventions.md — No Duplicated Logic).
 module github.com/Nghaiz/DevOps_Learning_Platform/services/shared
 
-go 1.26.9
+go 1.27.2
 
 require github.com/prometheus/client_golang v1.25.0
 
