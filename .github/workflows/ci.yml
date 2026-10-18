@@ -200,7 +200,7 @@ jobs:
           fi
 
       # KHÔNG khai `version:` — root package.json đã có `packageManager:
-      # pnpm@11.10.0` (SSOT); action-setup coi khai cả hai nơi là LỖI CỨNG
+      # pnpm@11.11.0` (SSOT); action-setup coi khai cả hai nơi là LỖI CỨNG
       # ("Multiple versions of pnpm specified"), không phải cảnh báo.
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
 
