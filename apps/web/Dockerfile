@@ -113,8 +113,8 @@ COPY apps/web/src/server/db apps/web/src/server/db
 # Bản đầu của stage này quên bước đó, nên Trivy đếm 1 CVE CRITICAL + 6 HIGH
 # (`tar` 7.5.16, `brace-expansion` 5.0.6) đến từ /usr/local/lib/node_modules/npm
 # do base image đóng sẵn — ĐỦ để làm đỏ job `Build & push: migrator` ở d5da78b.
-# Cả hai gói đó KHÔNG có trong pnpm-lock.yaml của repo (lock đang giữ
-# brace-expansion 5.0.9 đã vá); chúng đến từ npm bundled trong `node:24-alpine`.
+# Cả hai gói đó KHÔNG có trong pnpm-lock.yaml của repo (lock khi đó giữ
+# brace-expansion 5.0.9, bản đã vá lúc ấy); chúng đến từ npm bundled trong `node:24-alpine`.
 # Đó là lý do "nâng dependency" không sửa được, phải gỡ npm ra khỏi image.
 #
 # An toàn vì CMD gọi `node` trực tiếp: mọi thứ cần cài đã cài xong ở stage `deps`,
