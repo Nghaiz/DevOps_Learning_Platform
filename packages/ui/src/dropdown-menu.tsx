@@ -14,22 +14,32 @@ export function DropdownMenuContent({
 }: ComponentProps<typeof RadixDropdownMenu.Content>) {
   return (
     <RadixDropdownMenu.Portal>
-      <RadixDropdownMenu.Content
-        data-slot="dropdown-menu-content"
-        sideOffset={sideOffset}
-        className={cn(
-          // Lớp nổi: vuông, viền mực, bóng cứng `shadow-float` (design-brief §5).
-          'z-50 min-w-[10rem] overflow-hidden rounded-surface border border-ink bg-popover p-1 text-popover-foreground',
-          'shadow-float animate-rise [animation-duration:var(--motion-fast)]',
-          className,
-        )}
-        {...props}
-      />
+      {/*
+        Portal gắn vào <body>, ngoài `.legacy-skin` của màn chơi, nên token của legacy.css không tới.
+        Bọc trong một khung `contents` mang lại phạm vi đó; KHÔNG gắn lớp lên chính nội dung: quy tắc
+        `.legacy-skin { color; font-family }` nằm ngoài @layer và sẽ đè lớp chữ của nó.
+      */}
+      <div className="legacy-skin contents">
+        <RadixDropdownMenu.Content
+          data-slot="dropdown-menu-content"
+          sideOffset={sideOffset}
+          className={cn(
+            // Lớp nổi: vuông, viền mực, bóng cứng `shadow-float` (design-brief §5).
+            'z-50 min-w-[10rem] overflow-hidden rounded-surface border border-ink bg-popover p-1 text-popover-foreground',
+            'shadow-float animate-rise [animation-duration:var(--motion-fast)]',
+            className,
+          )}
+          {...props}
+        />
+      </div>
     </RadixDropdownMenu.Portal>
   );
 }
 
-export function DropdownMenuItem({ className, ...props }: ComponentProps<typeof RadixDropdownMenu.Item>) {
+export function DropdownMenuItem({
+  className,
+  ...props
+}: ComponentProps<typeof RadixDropdownMenu.Item>) {
   return (
     <RadixDropdownMenu.Item
       data-slot="dropdown-menu-item"
@@ -57,7 +67,10 @@ export function DropdownMenuSeparator({
   );
 }
 
-export function DropdownMenuLabel({ className, ...props }: ComponentProps<typeof RadixDropdownMenu.Label>) {
+export function DropdownMenuLabel({
+  className,
+  ...props
+}: ComponentProps<typeof RadixDropdownMenu.Label>) {
   return (
     <RadixDropdownMenu.Label
       data-slot="dropdown-menu-label"

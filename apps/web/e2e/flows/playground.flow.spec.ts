@@ -149,7 +149,7 @@ test.describe('luồng 7 — sân chơi', { tag: '@flow' }, () => {
     await expect(
       page
         .getByRole('listitem')
-        .filter({ has: rows.first() })
+        .filter({ has: page.getByRole('link', { name: detail.playground.title, exact: true }) })
         .getByText(t('catalog.meta.ttl', { minutes: ttlMinutes }), { exact: true }),
       `Dòng '${detail.playground.title}' không nói TTL. Người học phải biết môi trường tự ` +
         'đóng sau bao lâu TRƯỚC KHI bấm vào, không chỉ trước khi bấm Bắt đầu.',

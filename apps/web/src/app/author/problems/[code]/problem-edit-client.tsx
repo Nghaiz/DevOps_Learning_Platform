@@ -176,7 +176,7 @@ function Readiness(props: {
           : saveFirst
             ? t('author.studio.publish.save-first.title')
             : props.blockers > 0
-              ? count('author.problem.publish.blocked-title', props.blockers)
+              ? count('author.problem.publish.blocked-rail', props.blockers)
               : t('author.problem.rail.ready')}
       </p>
       <div>

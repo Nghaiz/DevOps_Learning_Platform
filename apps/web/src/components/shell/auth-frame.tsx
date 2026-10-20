@@ -69,7 +69,7 @@ const TOPICS: readonly { readonly topic: string; readonly icon: IconName }[] = [
  */
 function AuthAside() {
   return (
-    <aside className="relative hidden overflow-hidden border-l border-rule bg-acc-wash lg:flex lg:flex-col lg:justify-center lg:gap-8 lg:px-14 lg:py-16 xl:px-20">
+    <div className="relative hidden overflow-hidden border-l border-rule bg-acc-wash lg:flex lg:flex-col lg:justify-center lg:gap-8 lg:px-14 lg:py-16 xl:px-20">
       <SectionArt kind="practice" width={300} className="animate-enter" />
       <div className="flex max-w-lg flex-col gap-4">
         <p className="font-display text-4xl font-semibold tracking-[-0.025em] text-balance text-ink">{t('auth.frame.headline')}</p>
@@ -86,6 +86,6 @@ function AuthAside() {
           </li>
         ))}
       </ul>
-    </aside>
+    </div>
   );
 }

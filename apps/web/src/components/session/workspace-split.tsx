@@ -106,8 +106,11 @@ export function WorkspaceSplit({
   const wide = useDefaultLayout({ id: `${storageKey}:h`, panelIds: PANES, onlySaveAfterUserInteractions: true });
   const tall = useDefaultLayout({ id: `${storageKey}:v`, panelIds: PANES, onlySaveAfterUserInteractions: true });
   const readPercent = Math.round(defaultRatio * 100);
-  const wideLayout = wide.defaultLayout ?? { read: readPercent, work: 100 - readPercent };
-  const tallLayout = tall.defaultLayout ?? { read: 42, work: 58 };
+  // Bố cục đã lưu mà có khoang gần như bằng 0 (lưu từ bản trước, khi còn kéo thu được) thì bỏ.
+  const usable = (layout: { readonly [id: string]: number } | undefined) =>
+    layout !== undefined && PANES.every((id) => (layout[id] ?? 0) >= 15) ? layout : undefined;
+  const wideLayout = usable(wide.defaultLayout) ?? { read: readPercent, work: 100 - readPercent };
+  const tallLayout = usable(tall.defaultLayout) ?? { read: 42, work: 58 };
 
   // Đổi hình dạng hay đổi khoang phóng to thì đặt lại tỉ lệ. `defaultLayout` của nhóm
   // chỉ đọc lúc mount, nên lượt đổi về sau phải đi qua API mệnh lệnh.
@@ -153,16 +156,24 @@ export function WorkspaceSplit({
             else tall.onLayoutChanged(layout, meta);
           }}
         >
-          <Pane id="read" minSize="18%" collapsible collapsedSize={0} className="overflow-hidden">
-            {content}
+          {/*
+            Chỉ thu gọn được ở chế độ phóng một khoang (màn hẹp). Kéo tay ở chế độ thường từng thu
+            khoang làm việc về 0, lưu lại, và lần sau trang mở ra không còn thấy nút Bắt đầu.
+          */}
+          <Pane id="read" minSize="18%" collapsible={zoom !== 'both'} collapsedSize={0} className="overflow-hidden">
+            <div className="h-full w-full" inert={zoom === 'work'}>
+              {content}
+            </div>
           </Pane>
           <PaneHandle
             orientation={horizontal ? 'horizontal' : 'vertical'}
             label={t('session.workspace.resize')}
             className={cn(zoom !== 'both' && 'pointer-events-none invisible')}
           />
-          <Pane id="work" minSize="22%" collapsible collapsedSize={0} className="overflow-hidden">
-            {side}
+          <Pane id="work" minSize="22%" collapsible={zoom !== 'both'} collapsedSize={0} className="overflow-hidden">
+            <div className="h-full w-full" inert={zoom === 'read'}>
+              {side}
+            </div>
           </Pane>
         </PaneGroup>
       </div>

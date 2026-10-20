@@ -50,7 +50,7 @@ export const TabsTrigger = forwardRef<
     <RadixTabs.Trigger
       ref={ref}
       className={cn(
-        'group inline-flex shrink-0 items-center gap-2 whitespace-nowrap text-sm transition-colors duration-150 outline-none focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-focus',
+        'group inline-flex shrink-0 items-center gap-2 whitespace-nowrap text-sm transition-colors duration-150 outline-none focus-visible:outline-solid focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus',
         look === 'line'
           ? [
               'relative -mb-px h-10 text-ink-2 hover:text-ink data-[state=active]:font-medium data-[state=active]:text-ink',

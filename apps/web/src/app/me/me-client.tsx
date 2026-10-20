@@ -37,7 +37,7 @@ function useLead(): Lead | null {
   const progress = api.me.listProgress.useQuery({});
   const exams = api.examSitting.list.useQuery();
 
-  if (sessions.isPending || progress.isPending) return null;
+  if (sessions.isPending || progress.isPending || exams.isPending) return null;
 
   const machine = sessions.data?.items.find((session) => describeMySessionStatus(session.status).live);
   if (machine !== undefined) {
@@ -74,6 +74,8 @@ function useLead(): Lead | null {
     };
   }
 
+  // Một nguồn lỗi thì "không có gì đang làm dở" có thể sai: nói là chưa đọc được.
+  if (sessions.isError || progress.isError || exams.isError) return { sentence: t('me.home.lead-unknown'), action: null };
   return { sentence: t('me.home.lead-quiet'), action: null };
 }
 

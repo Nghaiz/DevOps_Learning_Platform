@@ -1,9 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { Button, Icon, Pill, Row, RowList, RowsSkeleton, Section } from '@devops-platform/ds';
-import { renderCopy, t } from '@devops-platform/copy';
+import { Button, ErrorBlock, Icon, Pill, Row, RowList, RowsSkeleton, Section } from '@devops-platform/ds';
+import { err, renderCopy, t } from '@devops-platform/copy';
 import { api } from '../../lib/trpc-react';
+import { describeTrpcError } from '../../lib/trpc';
 import { formatWhen } from '../../lib/format-moment';
 import { EXAM_WINDOW_KEYS, examWhen, examWindow } from '../../app/(session)/exams/exam-status';
 
@@ -13,7 +14,6 @@ import { EXAM_WINDOW_KEYS, examWhen, examWindow } from '../../app/(session)/exam
  */
 export function ClassExams({ headingLevel = 2 }: { readonly headingLevel?: 2 | 3 }) {
   const exams = api.examSitting.list.useQuery();
-  if (exams.isError) return null;
   const items =
     exams.data === undefined
       ? []
@@ -33,6 +33,17 @@ export function ClassExams({ headingLevel = 2 }: { readonly headingLevel?: 2 | 3
       }
     >
       {exams.isPending ? <RowsSkeleton rows={1} label={t('me.exams.title')} /> : null}
+      {/* Lỗi tải KHÔNG được làm cả khối biến mất: sinh viên có kỳ thi đang mở sẽ không thấy gì. */}
+      {exams.isError ? (
+        <ErrorBlock
+          title={err('me.error.exams-load', { reason: describeTrpcError(exams.error) }).what}
+          retryLabel={t('common.action.retry')}
+          retrying={exams.isFetching}
+          onRetry={() => void exams.refetch()}
+        >
+          {err('me.error.exams-load', { reason: describeTrpcError(exams.error) }).next}
+        </ErrorBlock>
+      ) : null}
       {exams.isSuccess && items.length === 0 ? <p className="text-sm text-ink-3">{t('me.exams.empty')}</p> : null}
       {items.length > 0 ? (
         <RowList label={t('me.exams.title')}>

@@ -84,14 +84,18 @@ export interface NoticeProps {
   readonly children?: ReactNode;
   readonly action?: ReactNode;
   readonly className?: string;
-  /** `alert` cho lỗi vừa xảy ra do thao tác của người dùng; còn lại để mặc định. */
+  /**
+   * `tone="bad"` mặc định là `alert`, như `Alert variant="destructive"` của kit cũ: lỗi lưu,
+   * lỗi nhập, lỗi xuất bản phải được trình đọc màn hình đọc ngay. Truyền `status` để hạ xuống.
+   */
   readonly role?: 'alert' | 'status';
 }
 
 export function Notice({ tone = 'info', title, children, action, className, role }: NoticeProps) {
   const spec = NOTICE[tone];
+  const liveRole = role ?? (tone === 'bad' ? 'alert' : undefined);
   return (
-    <div role={role} className={cn('flex items-start gap-3 border border-t-2 border-rule bg-paper px-4 py-3 text-sm', spec.box, className)}>
+    <div role={liveRole} className={cn('flex items-start gap-3 border border-t-2 border-rule bg-paper px-4 py-3 text-sm', spec.box, className)}>
       <Icon name={spec.icon} size={18} className={cn('mt-px', spec.ink)} />
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         {title === undefined ? null : <p className={cn('font-medium', spec.ink)}>{title}</p>}
@@ -182,7 +186,9 @@ export function Skeleton({ className, ...rest }: HTMLAttributes<HTMLDivElement>)
 /** Khung chờ cho một danh sách dòng: giữ đúng nhịp dòng để không nhảy khi dữ liệu về. */
 export function RowsSkeleton({ rows = 5, label, className }: { rows?: number; label: string; className?: string }) {
   return (
-    <div role="status" aria-label={label} className={cn('flex flex-col', className)}>
+    // Vùng status đọc NỘI DUNG khi nó đổi, không đọc nhãn: không có chữ bên trong là câm.
+    <div role="status" aria-label={label} className={cn('relative flex flex-col', className)}>
+      <span className="sr-only">{label}</span>
       {Array.from({ length: rows }, (_, index) => (
         <div key={index} className="flex items-center gap-4 border-b border-rule py-4">
           <Skeleton className="size-9 rounded-md" />
@@ -207,6 +213,8 @@ export interface ProgressLineProps {
   readonly className?: string;
   /** Chữ hiện bên phải ("7/12 bài"). */
   readonly caption?: ReactNode;
+  /** Câu đọc thay cho phần trăm (`aria-valuetext`), ví dụ "7 trên 12 chỗ". */
+  readonly valueText?: string;
   /**
    * `progressbar` cho việc ĐANG chạy tới đích (tải, làm bài); `meter` cho một số đo
    * tại chỗ (điểm, số bước đã đạt). Trình đọc màn hình đọc hai vai này khác nhau.
@@ -222,16 +230,18 @@ const FILL: Record<NonNullable<ProgressLineProps['tone']>, string> = {
   topic: 'bg-tp-solid',
 };
 
-export function ProgressLine({ value, label, tone = 'acc', size = 'sm', className, caption, role = 'progressbar' }: ProgressLineProps) {
+export function ProgressLine({ value, label, tone = 'acc', size = 'sm', className, caption, role = 'progressbar', valueText }: ProgressLineProps) {
   const height = size === 'xs' ? 'h-1' : size === 'md' ? 'h-2' : 'h-1.5';
   const ratio = value === null ? null : Math.min(1, Math.max(0, value));
   const bar = (
     <div
-      role={role}
+      // `meter` bắt buộc có giá trị; chưa biết số thì là một tiến trình chưa xác định.
+      role={ratio === null ? 'progressbar' : role}
       aria-label={label}
       aria-valuemin={0}
       aria-valuemax={100}
       {...(ratio === null ? {} : { 'aria-valuenow': Math.round(ratio * 100) })}
+      {...(valueText === undefined ? {} : { 'aria-valuetext': valueText })}
       className={cn('relative w-full overflow-hidden rounded-full bg-well-2', height)}
     >
       {ratio === null ? (
@@ -256,8 +266,9 @@ export function ProgressLine({ value, label, tone = 'acc', size = 'sm', classNam
 /** Thanh mảnh chạy ở mép trên khi trang hoặc một khối đang tải lại. */
 export function LoadingLine({ label, className }: { label: string; className?: string }) {
   return (
-    <div role="status" aria-label={label} className={cn('pointer-events-none h-0.5 w-full overflow-hidden', className)}>
-      <span className="block h-full w-1/3 animate-sweep bg-acc-solid" />
+    <div role="status" aria-label={label} className={cn('pointer-events-none relative h-0.5 w-full overflow-hidden', className)}>
+      <span className="sr-only">{label}</span>
+      <span aria-hidden className="block h-full w-1/3 animate-sweep bg-acc-solid" />
     </div>
   );
 }

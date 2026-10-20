@@ -91,7 +91,9 @@ const LEGACY_ZONES = [
 ];
 
 // ─────────────────────────────────────────────────────────────── luật tĩnh
-const IMPORT_FROM = String.raw`(?:\bfrom\s*|\bimport\s*\(\s*|\bimport\s+)['"]`;
+const IMPORT_FROM = String.raw`(?:\bfrom\s*|\bimport\s*\(\s*|\bimport\s+|\brequire\s*\(\s*)['"]`;
+/** Đường con sau tên gói (`lucide-react/dynamic`, `lucide-react/icons/check`) vẫn là gói đó. */
+const SUBPATH = String.raw`(?:\/[^'"]*)?`;
 
 const STATIC_RULES = [
   {
@@ -104,22 +106,25 @@ const STATIC_RULES = [
     why: 'bộ icon đại trà; hệ `ds` có bộ glyph riêng (`<Icon name="…" />`)',
     src:
       IMPORT_FROM +
-      String.raw`(?:lucide-react|lucide|react-icons(?:\/[^'"]*)?|@heroicons\/[^'"]+|@tabler\/icons[^'"]*|` +
-      String.raw`@phosphor-icons\/[^'"]+|@radix-ui\/react-icons|@mui\/icons-material(?:\/[^'"]*)?|react-feather|` +
-      String.raw`@fortawesome\/[^'"]+|iconoir-react|@iconify\/[^'"]+|@remixicon\/[^'"]+|react-bootstrap-icons)['"]`,
+      String.raw`(?:(?:lucide-react|lucide|react-icons|@radix-ui\/react-icons|@mui\/icons-material|react-feather|iconoir-react|` +
+      String.raw`react-bootstrap-icons|@primer\/octicons-react|@ant-design\/icons)${SUBPATH}|@heroicons\/[^'"]+|@tabler\/icons[^'"]*|` +
+      String.raw`@phosphor-icons\/[^'"]+|@fortawesome\/[^'"]+|@iconify\/[^'"]+|@remixicon\/[^'"]+)['"]`,
   },
   {
     id: 'loader-vòng',
     why: 'loader quay vòng (donut, spinner); hệ `ds` báo đang tải bằng vạch quét',
-    src: String.raw`(?<![\w-])animate-spin(?![\w-])|@keyframes\s+spin\b|rotate\(\s*(?:360deg|1turn)\s*\)`,
+    src:
+      String.raw`(?<![\w-])animate-spin(?![\w-])|animate-[[(][^\])]*spin|animation(?:-name)?\s*:[^;'"]*\bspin\b|` +
+      String.raw`animation\s*:\s*['"][^'"]*\bspin\b|@keyframes\s+spin\b|rotate\(\s*-?(?:360deg|720deg|1turn|2turn)\s*\)|` +
+      String.raw`rotate\s*:\s*-?(?:360deg|720deg|1turn)`,
   },
   {
     id: 'viền-trái',
     why: 'viền trái dày làm dấu đang chọn; đường kẻ 1px làm vạch chia thì hợp lệ',
     src:
-      String.raw`(?<![\w-])border-[ls]-(?:[2-9]|\[\s*[2-9](?:\.\d+)?px\s*\])(?![\w-])` +
-      String.raw`|border-(?:left|inline-start)(?:-width)?\s*:\s*[2-9](?:\.\d+)?px` +
-      String.raw`|inset_[2-9]px_0(?![\d.])`,
+      String.raw`(?<![\w-])border-[ls]-(?:[2-9]|\[\s*(?:[2-9](?:\.\d+)?px|0?\.\d+(?:rem|em)|[1-9](?:\.\d+)?(?:rem|em))\s*\])(?![\w-])` +
+      String.raw`|border-(?:left|inline-start)(?:-width)?\s*:[^;]*?(?<![\d.])(?:[2-9](?:\.\d+)?px|0?\.\d+(?:rem|em)|[1-9](?:\.\d+)?(?:rem|em))` +
+      String.raw`|inset_[2-9]px_0(?![\d.])|inset\s+[2-9]px\s+0(?![\d.])`,
   },
   {
     id: 'cuộn-thiếu-relative',
@@ -128,7 +133,11 @@ const STATIC_RULES = [
       'trang dài/trôi (đã gặp ba lần: bảng 390px, bảng sandbox Git 6977px, khoang đọc lab 1723px)',
     // Theo DÒNG: có tiện ích cuộn mà cùng dòng không có relative/absolute/fixed/sticky. Lớp
     // tách nhiều dòng trong cn(...) thì đặt `relative` cùng dòng với overflow là xong.
-    src: String.raw`^(?!.*(?<![\w-])(?:[a-z0-9-]+:)*(?:relative|absolute|fixed|sticky)(?![\w-])).*?(?<![\w-])(?:[a-z0-9-]+:)*overflow-(?:x-|y-)?(?:auto|scroll)(?![\w-])`,
+    // Vùng cuộn KHÔNG tiền tố phải có `relative` KHÔNG tiền tố: `md:relative overflow-x-auto` dưới md
+    // không có khung định vị, đúng ca sr-only thoát ra. Vùng cuộn có tiền tố thì nhận khung có tiền tố.
+    src:
+      String.raw`^(?!.*(?<![\w:-])(?:relative|absolute|fixed|sticky)(?![\w-])).*?(?<![\w:-])overflow-(?:x-|y-)?(?:auto|scroll)(?![\w-])` +
+      String.raw`|^(?!.*(?<![\w-])(?:[a-z0-9-]+:)*(?:relative|absolute|fixed|sticky)(?![\w-])).*?(?<![\w-])(?:[a-z0-9-]+:)+overflow-(?:x-|y-)?(?:auto|scroll)(?![\w-])`,
   },
   {
     id: 'vòng-focus-mất',
@@ -139,7 +148,10 @@ const STATIC_RULES = [
     // Theo DÒNG: có outline-none/hidden TRẦN (không tiền tố biến thể) và một tiện ích outline dưới
     // `focus-visible:`, mà cùng dòng không có `focus-visible:outline-solid`. Lớp tách nhiều dòng trong
     // cn(...) thì đặt `focus-visible:outline-solid` cùng dòng với `outline-none`.
-    src: String.raw`^(?!.*(?<![\w-])focus-visible:outline-solid(?![\w-]))(?=.*(?<![\w:-])outline-(?:none|hidden)(?![\w-])).*?(?<![\w-])(?:[a-z0-9-]+:)*focus-visible:outline-(?!none(?![\w-])|hidden(?![\w-])|solid(?![\w-]))[\w-]+`,
+    src:
+      String.raw`^(?!.*(?<![\w-])(?:[a-z0-9-]+:)*(?:focus|focus-visible|focus-within|data-\[focus(?:-visible)?\]|group-focus(?:-visible)?|peer-focus(?:-visible)?):outline-solid(?![\w-]))` +
+      String.raw`(?=.*(?<![\w-])(?:(?:focus|focus-visible|focus-within|data-\[focus(?:-visible)?\]|group-focus(?:-visible)?|peer-focus(?:-visible)?):)?outline-(?:none|hidden)(?![\w-]))` +
+      String.raw`.*?(?<![\w-])(?:[a-z0-9-]+:)*(?:focus|focus-visible|focus-within|data-\[focus(?:-visible)?\]|group-focus(?:-visible)?|peer-focus(?:-visible)?):outline(?:-(?!none(?![\w-])|hidden(?![\w-])|solid(?![\w-]))[\w-]+|(?![\w-]))`,
   },
 ];
 
@@ -345,6 +357,24 @@ const DIRTY = [
   ['vòng-focus-mất', "'font-medium text-acc-ink outline-none hover:underline focus-visible:outline-2 focus-visible:outline-focus'"],
   ['vòng-focus-mất-hidden', '<h3 tabIndex={0} className="text-lg outline-hidden focus-visible:outline-2">'],
   ['vòng-focus-mất-chỉ-màu', "'inline-flex h-7 outline-none hover:bg-well focus-visible:outline-focus'"],
+  ['vòng-focus-mất-tắt-theo-biến-thể', "'px-1 focus-visible:outline-none focus-visible:outline-2 focus-visible:outline-focus'"],
+  ['vòng-focus-mất-outline-trần', "'rounded-sm outline-none focus-visible:outline'"],
+  ['vòng-focus-mất-focus', "'rounded-sm outline-none focus:outline-2'"],
+  ['icon-đường-con', "import { DynamicIcon } from 'lucide-react/dynamic';"],
+  ['icon-require', "const { Check } = require('lucide-react');"],
+  ['icon-octicons', "import { CheckIcon } from '@primer/octicons-react';"],
+  ['icon-antd', "import { CheckOutlined } from '@ant-design/icons';"],
+  ['kit-cũ-require', "const ui = require('@devops-platform/ui');"],
+  ['spinner-tuỳ-ý', "className=\"size-4 animate-[spin_1s_linear_infinite]\""],
+  ['spinner-biến', "className=\"animate-(--animate-spin)\""],
+  ['spinner-css-animation', '  animation: spin 1s linear infinite;'],
+  ['spinner-style', "style={{ animation: 'spin 1s linear infinite' }}"],
+  ['spinner-âm', 'transform: rotate(-360deg);'],
+  ['viền-trái-rem', 'className="border-l-[0.25rem] border-acc-solid"'],
+  ['viền-trái-css-đảo', '  border-left: solid 3px var(--acc-solid);'],
+  ['viền-trái-css-rem', '  border-left: 0.25rem solid var(--acc-solid);'],
+  ['viền-trái-bóng-css', '  box-shadow: inset 3px 0 0 var(--acc-solid);'],
+  ['cuộn-relative-có-tiền-tố', 'className="md:relative overflow-x-auto"'],
 ];
 
 const CLEAN = [
@@ -371,6 +401,10 @@ const CLEAN = [
   "'h-10 w-full rounded-sm border px-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus'",
   "'relative flex items-center gap-2 rounded-sm px-2.5 text-sm outline-none data-[highlighted]:bg-well'",
   '<main id="noi-dung" tabIndex={-1} className="flex flex-1 flex-col outline-none">',
+  "[&_a]:outline-none [&_a]:after:absolute [&_a]:after:inset-0 [&_a:focus-visible]:after:outline-2",
+  'className="border-l border-rule pl-4 [&_svg]:rotate-180"',
+  '  border-left: 1px solid var(--rule);',
+  'className="relative md:overflow-x-auto"',
 ];
 
 function selfTest(rules) {

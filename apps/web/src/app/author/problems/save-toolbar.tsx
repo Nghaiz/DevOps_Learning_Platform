@@ -46,7 +46,7 @@ export function SaveToolbar(props: {
           onClick={() => {
             props.onJump(first.path);
           }}
-          className="inline-flex h-8 animate-enter items-center gap-1.5 px-1 text-xs font-medium text-bad-ink underline-offset-4 hover:underline focus-visible:outline-none focus-visible:outline-2 focus-visible:outline-focus"
+          className="inline-flex h-8 animate-enter items-center gap-1.5 px-1 text-xs font-medium text-bad-ink underline-offset-4 hover:underline focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-focus"
         >
           <Icon name="warning" size={14} className="shrink-0" />
           {count('author.problem.new.issues-title', props.localIssues.length)}

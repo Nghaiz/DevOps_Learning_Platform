@@ -121,6 +121,7 @@ function CapacityBoard(): ReactElement {
             role="meter"
             size="md"
             label={t('admin.capacity.meter-label')}
+            valueText={t('admin.capacity.meter-value', { used: total - level.remaining, total })}
             tone={level.tone === 'full' ? 'bad' : level.tone === 'low' ? 'warn' : 'acc'}
             className="max-w-xl"
           />

@@ -481,7 +481,7 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
       kind="lab"
       startLabel={attemptId === null ? t('session.controls.start') : t('session.controls.restart')}
       onStart={requestRestart}
-      starting={session.starting}
+      starting={session.starting || resume.pending}
       tierLabel={tierLabel(lab.tier)}
       profile={profile}
       capacity={describeCapacity(capacity.data, profile)}

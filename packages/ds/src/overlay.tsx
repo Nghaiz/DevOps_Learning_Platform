@@ -80,7 +80,7 @@ export const SelectItem = forwardRef<
       ref={ref}
       className={cn(
         'relative flex cursor-default select-none items-center gap-2 rounded-sm py-1.5 pl-8 pr-3 text-sm text-ink outline-none',
-        'data-[highlighted]:bg-well data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[state=checked]:font-medium',
+        'data-[highlighted]:bg-acc-tint data-[highlighted]:ring-1 data-[highlighted]:ring-inset data-[highlighted]:ring-control data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[state=checked]:font-medium',
         className,
       )}
       {...rest}
@@ -123,7 +123,7 @@ export const MenuContent = forwardRef<
 });
 
 const ITEM =
-  'relative flex cursor-default select-none items-center gap-2.5 rounded-sm px-2.5 py-1.5 text-sm text-ink outline-none data-[highlighted]:bg-well data-[disabled]:pointer-events-none data-[disabled]:opacity-50';
+  'relative flex cursor-default select-none items-center gap-2.5 rounded-sm px-2.5 py-1.5 text-sm text-ink outline-none data-[highlighted]:bg-acc-tint data-[highlighted]:ring-1 data-[highlighted]:ring-inset data-[highlighted]:ring-control data-[disabled]:pointer-events-none data-[disabled]:opacity-50';
 
 export const MenuItem = forwardRef<
   ElementRef<typeof RadixMenu.Item>,
@@ -359,7 +359,15 @@ export function ConfirmDialog({
 }: ConfirmDialogProps) {
   const blocked = blockedReason !== undefined && blockedReason !== null;
   return (
-    <RadixAlert.Root open={open} onOpenChange={onOpenChange}>
+    // ⛔ Đang xác nhận thì KHÔNG đóng được (Esc, bấm nền, Huỷ): lượt gọi đã đi, đóng hộp lúc này
+    // là người dùng tưởng đã huỷ trong khi thay đổi vẫn được ghi, và lỗi trả về không còn chỗ hiện.
+    <RadixAlert.Root
+      open={open}
+      onOpenChange={(next) => {
+        if (!next && confirming) return;
+        onOpenChange(next);
+      }}
+    >
       <RadixAlert.Portal>
         <RadixAlert.Overlay className={OVERLAY} />
         <RadixAlert.Content
@@ -397,7 +405,9 @@ export function ConfirmDialog({
           )}
           <div className="mt-6 flex flex-wrap justify-end gap-2">
             <RadixAlert.Cancel asChild>
-              <Button variant="ghost">{cancelLabel}</Button>
+              <Button variant="ghost" disabled={confirming}>
+                {cancelLabel}
+              </Button>
             </RadixAlert.Cancel>
             <Button
               variant={tone === 'danger' ? 'danger' : 'primary'}

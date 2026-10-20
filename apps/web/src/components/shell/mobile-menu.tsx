@@ -1,11 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { Button, DialogPrimitive as RadixDialog, IconButton, cn } from '@devops-platform/ds';
 import { t } from '@devops-platform/copy';
-import { isActiveNav, sectionsFor, userMenuItems, type SectionId, type Viewer } from './nav';
+import { activeNavItem, sectionsFor, userMenuItems, type SectionId, type Viewer } from './nav';
 
 /**
  * Điều hướng dưới 1024px: một nút mở tấm phủ toàn màn, liệt kê mọi mục cùng trang con.
@@ -14,8 +14,22 @@ import { isActiveNav, sectionsFor, userMenuItems, type SectionId, type Viewer } 
 export function MobileMenu({ viewer, activeId }: { readonly viewer: Viewer | null; readonly activeId: SectionId | null }) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
+  const search = useSearchParams().toString();
   const sections = sectionsFor(viewer);
   const close = (): void => setOpen(false);
+
+  // Tấm phủ chỉ hiện dưới 1024px. Màn rộng ra lúc nó đang mở (xoay máy tính bảng) thì CSS giấu
+  // nó đi nhưng hộp thoại vẫn mở: trang trơ, cuộn bị khoá, focus kẹt trong một thứ vô hình.
+  useEffect(() => {
+    if (!open) return undefined;
+    const wide = window.matchMedia('(min-width: 1024px)');
+    const onChange = (event: MediaQueryListEvent): void => {
+      if (event.matches) setOpen(false);
+    };
+    if (wide.matches) setOpen(false);
+    wide.addEventListener('change', onChange);
+    return () => wide.removeEventListener('change', onChange);
+  }, [open]);
 
   return (
     <RadixDialog.Root open={open} onOpenChange={setOpen}>
@@ -48,7 +62,9 @@ export function MobileMenu({ viewer, activeId }: { readonly viewer: Viewer | nul
                 <p className="mb-2 mt-1 text-sm text-ink-3">{section.lead}</p>
                 <ul className="flex flex-col">
                   {section.items.map((entry) => {
-                    const active = isActiveNav(pathname, entry.href);
+                    // Một trang hiện tại duy nhất, như thanh mục con: chỉ trong mục đang mở, khớp
+                    // dài nhất kèm query. So tiền tố từng đánh dấu cả /author lẫn /author/problems.
+                    const active = section.id === activeId && activeNavItem(pathname, section.items, search)?.href === entry.href;
                     return (
                       <li key={entry.href}>
                         <Link
@@ -56,10 +72,12 @@ export function MobileMenu({ viewer, activeId }: { readonly viewer: Viewer | nul
                           onClick={close}
                           aria-current={active ? 'page' : undefined}
                           className={cn(
-                            '-mx-2 flex items-center gap-3 rounded-md px-2 py-2.5 text-base transition-colors',
-                            active ? 'bg-acc-wash font-medium text-acc-ink' : 'text-ink-2 hover:bg-well',
+                            'flex items-center gap-2.5 py-2.5 text-base transition-colors',
+                            active ? 'font-medium text-ink' : 'text-ink-2 hover:text-ink',
                           )}
                         >
+                          {/* Dấu trang hiện tại là ô vuông màu mục, như thanh mục con; không mảng nền bo góc. */}
+                          <span aria-hidden className={cn('size-2 shrink-0', active ? 'bg-acc-solid' : 'bg-transparent')} />
                           {entry.label}
                         </Link>
                       </li>

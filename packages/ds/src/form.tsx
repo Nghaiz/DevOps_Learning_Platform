@@ -238,7 +238,7 @@ export const Switch = forwardRef<HTMLButtonElement, SwitchProps>(function Switch
       )}
       {...rest}
     >
-      <RadixSwitch.Thumb className="block size-4 translate-x-0.5 rounded-full bg-paper shadow-lift transition-transform duration-200 ease-out data-[state=checked]:translate-x-[18px]" />
+      <RadixSwitch.Thumb className="block size-4 translate-x-0.5 rounded-full bg-paper shadow-lift transition-transform duration-200 ease-out data-[state=checked]:translate-x-4" />
     </RadixSwitch.Root>
   );
   if (label === undefined) return control;

@@ -44,8 +44,8 @@ export function PaneHandle({ orientation = 'horizontal', label, className }: { o
           vertical ? 'h-px w-full' : 'h-full w-px',
           'group-data-[separator=hover]:bg-acc-mid group-data-[separator=active]:bg-acc-solid group-data-[separator=focus]:bg-focus',
           vertical
-            ? 'group-data-[separator=active]:scale-y-[3] group-data-[separator=hover]:scale-y-[2]'
-            : 'group-data-[separator=active]:scale-x-[3] group-data-[separator=hover]:scale-x-[2]',
+            ? 'group-data-[separator=active]:scale-y-[3] group-data-[separator=focus]:scale-y-[3] group-data-[separator=hover]:scale-y-[2]'
+            : 'group-data-[separator=active]:scale-x-[3] group-data-[separator=focus]:scale-x-[3] group-data-[separator=hover]:scale-x-[2]',
         )}
       />
       <span

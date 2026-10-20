@@ -189,12 +189,21 @@ export function isActiveNav(pathname: string, href: string): boolean {
 }
 
 /** Mục dài nhất khớp với đường dẫn. Mục có query (`?mode=builder`) chỉ khớp khi query trùng. */
+/** Mọi cặp khoá-giá trị của `query` có đúng trong `search`. So chuỗi con thì `?amode=builder` cũng khớp. */
+function queryMatches(query: string, search: string): boolean {
+  const have = new URLSearchParams(search);
+  for (const [key, value] of new URLSearchParams(query)) {
+    if (have.get(key) !== value) return false;
+  }
+  return true;
+}
+
 export function activeNavItem<T extends NavItem>(pathname: string, items: readonly T[], search = ''): T | null {
   let best: T | null = null;
   for (const entry of items) {
     const [base, query] = entry.href.split('?');
     if (base === undefined || !isActiveNav(pathname, base)) continue;
-    if (query !== undefined && !new URLSearchParams(search).toString().includes(query)) continue;
+    if (query !== undefined && !queryMatches(query, search)) continue;
     if (best === null || entry.href.length > best.href.length) best = entry;
   }
   return best;

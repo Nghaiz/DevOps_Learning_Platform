@@ -75,7 +75,7 @@ export const shell = {
   'shell.nav.admin-classes.desc': 'Tạo lớp, thêm sinh viên, xem điểm cả lớp.',
   'shell.nav.admin-exams': 'Kỳ thi',
   'shell.nav.admin-exams.desc': 'Mở kỳ thi, chọn đề, theo dõi bảng điểm.',
-  'shell.nav.admin-sessions': 'Máy đang chạy',
+  'shell.nav.admin-sessions': 'Phiên đang chạy',
   'shell.nav.admin-sessions.desc': 'Mọi sandbox đang mở, dừng được từng máy.',
   'shell.nav.admin-content': 'Nội dung',
   'shell.nav.admin-content.desc': 'Bài của mọi tác giả, lưu trữ khi cần.',

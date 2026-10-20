@@ -265,7 +265,8 @@ function WorkspaceTabButton({
       onClick={() => onActivate(tab)}
       className={cn(
         'group/tab relative flex h-full shrink-0 items-center gap-2 whitespace-nowrap px-3 text-sm outline-none',
-        'transition-colors duration-150 focus-visible:bg-well',
+        // Khoang luôn tối: `bg-well` gần như trùng nền `paper` ở bảng tối (1,03:1), nên cần vòng focus.
+        'transition-colors duration-150 focus-visible:bg-well focus-visible:outline-solid focus-visible:-outline-offset-2',
         active ? 'font-medium text-ink' : 'text-ink-3 hover:text-ink',
       )}
     >
@@ -308,7 +309,9 @@ function useRememberedTab(input: {
     restoredRef.current = true;
     if (key === null) return;
     const saved = readWorkspaceState(key, browserStorage());
-    if (saved === null) return;
+    // ⛔ Chỉ khôi phục Terminal. Có phiên thì mặc định đã là Editor; khôi phục Editor lúc
+    // CHƯA có phiên là giấu khoang terminal, nơi duy nhất có nút Bắt đầu (review PR #183).
+    if (saved === null || saved.activeTab === EDITOR_TAB) return;
     const current = latest.current;
     if (saved.activeTab !== current.activeTab) current.onActivate(saved.activeTab);
   }, [key]);

@@ -111,14 +111,28 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       </Slot.Root>
     );
   }
+  /*
+    ⛔ Đang tải dùng `aria-disabled` + chặn bấm, KHÔNG `disabled`: nút bị `disabled` khi đang giữ
+    focus thì trình duyệt đưa focus về `<body>`. Người dùng bàn phím mất chỗ sau mỗi lần bấm
+    "Trang sau", "Thử lại", và trong ConfirmDialog focus rời khỏi hộp thoại.
+  */
+  const { onClick, ...buttonRest } = rest;
   return (
     <button
       ref={ref}
       type={type ?? 'button'}
       className={classes}
-      disabled={disabled === true || loading}
+      disabled={disabled === true}
+      aria-disabled={loading || undefined}
       aria-busy={loading || undefined}
-      {...rest}
+      {...buttonRest}
+      onClick={
+        loading
+          ? (event) => {
+              event.preventDefault();
+            }
+          : onClick
+      }
     >
       <Content icon={icon} iconRight={iconRight} size={size} loading={loading}>
         {children}

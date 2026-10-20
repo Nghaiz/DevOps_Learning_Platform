@@ -1,4 +1,6 @@
-import { Fragment, type ReactNode } from 'react';
+'use client';
+
+import { Fragment, useMemo, useRef, type ReactNode } from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeSanitize from 'rehype-sanitize';
@@ -68,6 +70,17 @@ function headingTag(markdown: string, level: HeadingLevel): 'h2' | 'h3' | 'h4' |
 export function Markdown({ markdown, labels, resolveAssetUrl, linksInNewTab = false, density = 'reading' }: MarkdownProps) {
   const inline = isMidSentenceFragment(markdown);
   const body = density === 'reading' ? 'text-md' : 'text-sm';
+  /*
+    ⛔ `components` phải GIỮ danh tính giữa các lượt render. react-markdown dùng các hàm trong đó
+    làm kiểu phần tử: dựng lại mỗi lượt là gỡ rồi gắn lại toàn bộ cây bài, người học mất focus ở
+    liên kết, ở vùng cuộn của bảng/khối mã và mất cả đoạn đang bôi đen (lab thăm dò mỗi 2s).
+    `labels` và `resolveAssetUrl` hay đổi danh tính theo cha nên đọc qua ref, không làm khoá.
+  */
+  const labelsRef = useRef(labels);
+  labelsRef.current = labels;
+  const resolveRef = useRef(resolveAssetUrl);
+  resolveRef.current = resolveAssetUrl;
+  const components = useMemo((): Components => {
 
   // Lớp chữ theo CẤP NGUỒN, thẻ theo cấp đã dời: trang đã có h1 của nó nên tiêu đề
   // trong bài bắt đầu từ h2, còn cỡ chữ vẫn giữ thứ bậc tác giả viết.
@@ -77,7 +90,7 @@ export function Markdown({ markdown, labels, resolveAssetUrl, linksInNewTab = fa
       return <Tag className={cn('font-display font-semibold tracking-[-0.01em] text-ink', className)}>{children}</Tag>;
     };
 
-  const components: Components = {
+  return {
     p: inline
       ? ({ children }) => <Fragment>{children}</Fragment>
       : ({ children }) => <p className={cn(body, 'leading-[1.7] text-ink')}>{children}</p>,
@@ -114,7 +127,7 @@ export function Markdown({ markdown, labels, resolveAssetUrl, linksInNewTab = fa
           {external ? (
             <>
               <Icon name="arrow-up-right" size={12} className="self-center" />
-              <span className="sr-only">{labels.opensInNewTab}</span>
+              <span className="sr-only">{labelsRef.current.opensInNewTab}</span>
             </>
           ) : null}
         </a>
@@ -127,7 +140,7 @@ export function Markdown({ markdown, labels, resolveAssetUrl, linksInNewTab = fa
       <div
         tabIndex={0}
         role="group"
-        aria-label={labels.tableRegion}
+        aria-label={labelsRef.current.tableRegion}
         className="relative my-3 overflow-x-auto outline-none focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-focus"
       >
         <table className="w-full border-collapse text-sm">{children}</table>
@@ -143,7 +156,7 @@ export function Markdown({ markdown, labels, resolveAssetUrl, linksInNewTab = fa
       <pre
         tabIndex={0}
         role="group"
-        aria-label={labels.codeRegion('text')}
+        aria-label={labelsRef.current.codeRegion('text')}
         className="relative my-4 overflow-x-auto rounded-md bg-[var(--code-bg)] px-4 py-3 text-[13px] leading-relaxed text-[var(--code-ink)] outline-none focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-focus"
       >
         {children}
@@ -160,9 +173,15 @@ export function Markdown({ markdown, labels, resolveAssetUrl, linksInNewTab = fa
         </code>
       ),
     img: ({ src, alt }) => (
-      <Image src={typeof src === 'string' ? src : undefined} alt={alt} labels={labels} resolveAssetUrl={resolveAssetUrl} />
+      <Image
+        src={typeof src === 'string' ? src : undefined}
+        alt={alt}
+        labels={labelsRef.current}
+        resolveAssetUrl={resolveRef.current}
+      />
     ),
   };
+  }, [markdown, inline, body, linksInNewTab]);
 
   const Wrapper = inline ? 'span' : 'div';
   return (

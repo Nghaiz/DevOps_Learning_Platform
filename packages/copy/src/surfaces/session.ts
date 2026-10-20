@@ -152,6 +152,8 @@ export const session = {
   'session.steps.list': 'Các bước của bài',
   'session.steps.prev': 'Trước',
   'session.steps.next': 'Tiếp',
+  'session.steps.state-done': 'đã đạt',
+  'session.steps.state-failed': 'chưa đạt',
 
   // ── Dải thông báo ────────────────────────────────────────────────────────
   'session.notice.region': 'Thông báo của phiên',
@@ -174,7 +176,7 @@ export const session = {
     `máy chủ trả HTTP ${p.status} cho đường /ide`,
   'session.ide.reason-timeout': (p: { seconds: number }) =>
     `sau ${p.seconds} giây trình soạn thảo vẫn chưa phản hồi`,
-  'session.ide.session-down': 'Máy đã tắt nên trình soạn thảo cũng dừng. Mở máy mới để làm tiếp.',
+  'session.ide.session-down': 'Máy đã tắt nên trình soạn thảo cũng dừng. Sang tab Terminal để mở máy mới.',
   'session.ide.error.probe': (p: { reason: string }) => ({
     what: `Trình soạn thảo chưa mở được: ${p.reason}.`,
     next: 'Bài vẫn làm được bằng terminal, chỉ thiếu trình soạn thảo. Bấm Thử lại, hoặc mở trong tab mới để đọc thông báo thật của máy chủ.',
@@ -328,8 +330,6 @@ export const session = {
 
 /** Nhóm đúng ba khoá anh em, khai tường minh kèm ngày và lý do. Rỗng: không nhóm nào đúng ba. */
 export const sessionIntentionalThree = {
-  'session.steps':
-    '2026-10-20: dải bước của trình học có đúng ba chữ: tên của danh sách bước, nút lùi và nút tiến. Ba vai trò của một điều khiển điều hướng, không phải một danh sách ba ý.',
   'session.launch.body':
     '2026-10-20: đúng ba loại nội dung có máy ảo riêng (bài học, lab, sân chơi), khớp LaunchKind ở components/session/practice-launch.tsx và ba trình học có terminal.',
   'session.mobile.view':

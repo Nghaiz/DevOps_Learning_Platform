@@ -31,7 +31,18 @@ export function CatalogRow(props: {
         </Link>
       }
       description={props.description == null ? undefined : <InlineText text={props.description} />}
-      below={props.below}
+      // Dưới 640px cột trạng thái bên phải ẩn đi; trạng thái ("Đã xong", "Đang học") xuống dưới mô tả
+      // thay vì biến mất với mọi người, kể cả người dùng trình đọc màn hình.
+      below={
+        props.state == null ? (
+          props.below
+        ) : (
+          <>
+            {props.below}
+            <div className="sm:hidden">{props.state}</div>
+          </>
+        )
+      }
       meta={props.meta}
       // Trang truyền `state` (kể cả `undefined` ở dòng không có nhãn) là danh sách CÓ cột nhãn:
       // giữ chỗ rộng cố định ở mọi dòng, không thì dòng thiếu nhãn có cột meta lệch sang phải.

@@ -23,7 +23,10 @@ export interface ResumeMachineInput {
    * hay không chỉ diễn ra MỘT lần, khi lần đầu vừa có dữ liệu vừa được phép.
    */
   readonly ready?: boolean;
-  /** Được gọi ngay trước khi nhận máy (lab gắn lại `attemptId` ở đây). */
+  /**
+   * Có thì được gọi THAY cho `session.adopt` và tự nhận máy (lab gắn lại `attemptId` rồi nhận).
+   * Gọi cả hai từng làm phiên nhận máy hai lần: hai START/CREATED và `connectionKey` nhảy 2.
+   */
   readonly onAdopt?: (machine: ActiveMachine) => void;
   readonly handoff: HandoffState;
 }
@@ -33,7 +36,10 @@ export interface ResumeMachine {
   readonly resumed: boolean;
   /** Số máy KHÁC đang chạy của người này (bài khác, tab khác). */
   readonly others: number;
-  /** Máy có sẵn của trang này (trước khi nhận), để trang biết đang chờ gì. */
+  /**
+   * Chưa quyết định xong có nhận máy cũ không (danh sách máy đang tải, hoặc đã có máy chờ nhận).
+   * Trang khoá nút Bắt đầu lúc này: bấm sớm là mở máy MỚI và bỏ mồ côi máy cũ giữ một khe quota.
+   */
   readonly pending: boolean;
 }
 
@@ -82,8 +88,8 @@ export function useResumeMachine({ session, belongs, ready = true, onAdopt, hand
     const target = mine[0];
     if (target === undefined) return;
     if (session.state.sessionId !== null || session.state.phase !== 'idle') return;
-    onAdopt?.(target);
-    session.adopt(target);
+    if (onAdopt === undefined) session.adopt(target);
+    else onAdopt(target);
     setResumed(true);
   }, [query.isSuccess, ready, mine, session, onAdopt]);
 
@@ -100,5 +106,5 @@ export function useResumeMachine({ session, belongs, ready = true, onAdopt, hand
   // thì có tính, vì đó đúng là máy mồ côi người học nên tắt.
   const primaryId = currentId ?? mine[0]?.id ?? null;
   const others = machines.filter((machine) => machine.id !== primaryId).length;
-  return { resumed, others, pending: !decided.current && mine.length > 0 };
+  return { resumed, others, pending: !decided.current && (query.isPending || mine.length > 0) };
 }

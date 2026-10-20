@@ -1,6 +1,6 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { cn } from './cn.ts';
 import { Icon } from './icons/icon.tsx';
 import type { IconName } from './icons/glyphs.ts';
@@ -56,6 +56,8 @@ export interface StepStripProps {
   readonly activeKey: string;
   readonly onSelect: (key: string) => void;
   readonly label: string;
+  /** Chữ đọc thêm cho trạng thái của bước (dấu xong và màu không đọc được bằng trình đọc màn hình). */
+  readonly stateText?: Partial<Record<StepState, string>>;
   readonly className?: string;
 }
 
@@ -64,9 +66,27 @@ export interface StepStripProps {
  * một nút: số thứ tự (hoặc dấu xong), nhãn ngắn. Bước đang xem nổi lên; bước đã
  * đạt có dấu xanh. Nhiều bước thì hàng tự cuộn ngang và giữ bước đang xem trong tầm.
  */
-export function StepStrip({ steps, activeKey, onSelect, label, className }: StepStripProps) {
+export function StepStrip({ steps, activeKey, onSelect, label, stateText, className }: StepStripProps) {
+  const stripRef = useRef<HTMLOListElement>(null);
+  /*
+    Giữ bước đang xem trong tầm bằng `scrollLeft` của chính dải, và CHỈ khi bước đổi.
+    ⛔ Không `scrollIntoView`: nó dời điểm xuất phát của phím Tab tới nút này, nên Tab đầu
+    tiên của trang bỏ qua cả thanh điều hướng lẫn liên kết bỏ qua nó. Không làm trong callback
+    ref: callback đổi danh tính mỗi lượt render, nên dải bị kéo về sau mỗi lần cha vẽ lại, kể cả
+    lúc người học đang tự cuộn.
+  */
+  useEffect(() => {
+    const strip = stripRef.current;
+    if (strip === null || strip.scrollWidth <= strip.clientWidth) return;
+    const node = strip.querySelector<HTMLElement>('[aria-current="step"]');
+    if (node === null) return;
+    if (node.offsetLeft < strip.scrollLeft) strip.scrollLeft = node.offsetLeft;
+    else if (node.offsetLeft + node.offsetWidth > strip.scrollLeft + strip.clientWidth) {
+      strip.scrollLeft = node.offsetLeft + node.offsetWidth - strip.clientWidth;
+    }
+  }, [activeKey]);
   return (
-    <ol aria-label={label} className={cn('relative flex items-stretch gap-1 overflow-x-auto [scrollbar-width:none]', className)}>
+    <ol ref={stripRef} aria-label={label} className={cn('relative flex items-stretch gap-1 overflow-x-auto [scrollbar-width:none]', className)}>
       {steps.map((step, index) => {
         const active = step.key === activeKey;
         return (
@@ -75,26 +95,16 @@ export function StepStrip({ steps, activeKey, onSelect, label, className }: Step
               type="button"
               aria-current={active ? 'step' : undefined}
               onClick={() => onSelect(step.key)}
-              ref={(node) => {
-                // Giữ bước đang xem trong tầm bằng `scrollLeft` của chính dải, KHÔNG
-                // `scrollIntoView`: cái sau dời điểm xuất phát của phím Tab tới nút này, nên
-                // Tab đầu tiên của trang bỏ qua cả thanh điều hướng lẫn liên kết bỏ qua nó.
-                if (!active || node === null) return;
-                const strip = node.closest('ol');
-                if (strip === null || strip.scrollWidth <= strip.clientWidth) return;
-                if (node.offsetLeft < strip.scrollLeft) strip.scrollLeft = node.offsetLeft;
-                else if (node.offsetLeft + node.offsetWidth > strip.scrollLeft + strip.clientWidth) {
-                  strip.scrollLeft = node.offsetLeft + node.offsetWidth - strip.clientWidth;
-                }
-              }}
               className={cn(
-                'group inline-flex h-8 max-w-[14rem] items-center gap-2 rounded-full border px-2.5 text-sm transition-colors duration-150',
+                // Dải cuộn ngang cắt mọi thứ vẽ ra ngoài: vòng focus vẽ vào trong nút.
+                'group inline-flex h-8 max-w-[14rem] items-center gap-2 rounded-full border px-2.5 text-sm transition-colors duration-150 focus-visible:-outline-offset-2',
                 active
                   ? 'border-acc-mid bg-acc-tint font-medium text-acc-ink'
                   : 'border-transparent text-ink-2 hover:bg-well hover:text-ink',
               )}
             >
               <span
+                aria-hidden
                 className={cn(
                   'grid size-5 shrink-0 place-items-center rounded-full text-[11px] font-semibold tabular-nums',
                   step.state === 'done'
@@ -108,7 +118,9 @@ export function StepStrip({ steps, activeKey, onSelect, label, className }: Step
               >
                 {step.state === 'done' ? <Icon name="check" size={12} strokeWidth={3} /> : index + 1}
               </span>
+              <span className="sr-only">{`${String(index + 1)}. `}</span>
               <span className="truncate">{step.label}</span>
+              {stateText?.[step.state] === undefined ? null : <span className="sr-only">{`, ${stateText[step.state] ?? ''}`}</span>}
             </button>
           </li>
         );

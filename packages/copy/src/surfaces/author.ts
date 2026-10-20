@@ -456,6 +456,11 @@ export const author = {
   'author.problem.publish.heading': 'Xuất bản',
   'author.problem.publish.blocked-title': {
     zero: 'Không còn chỗ nào chặn lượt xuất bản',
+    one: 'Còn 1 điều kiện chưa đạt để xuất bản.',
+    many: (n: number) => `Còn ${String(n)} điều kiện chưa đạt để xuất bản.`,
+  },
+  'author.problem.publish.blocked-rail': {
+    zero: 'Không còn chỗ nào chặn lượt xuất bản',
     one: 'Còn 1 điều kiện chưa đạt để xuất bản. Xem ở chế độ Xuất bản.',
     many: (n: number) => `Còn ${String(n)} điều kiện chưa đạt để xuất bản. Xem ở chế độ Xuất bản.`,
   },
@@ -607,8 +612,8 @@ export const author = {
   'author.draft-form-view-chuan-bi-moi-truong': 'Chuẩn bị môi trường',
   'author.draft-form-view-chay-mot-lan-khi-dung-lab-lab-co-y-khong-co-setup-theo-tung-task-thu-tu-lam':
     'Chạy một lần khi dựng lab. Lab không có setup theo từng task, vì người học làm task theo thứ tự nào cũng được.',
-  'author.draft-form-view-setup-foreground': 'Lệnh chuẩn bị (chạy trước)',
-  'author.draft-form-view-setup-background': 'Lệnh chuẩn bị (chạy nền)',
+  'author.draft-form-view-setup-foreground': 'Lệnh gõ vào terminal của người học',
+  'author.draft-form-view-setup-background': 'Lệnh chuẩn bị chạy ngầm',
   'author.draft-form-view-cac-task': 'Các task',
   'author.draft-form-view-cac-task-ghi-chu':
     'Người học làm task theo thứ tự nào cũng được. Điểm lab tính theo tổng trọng số các task đạt.',
@@ -651,7 +656,7 @@ export const author = {
   'author.draft-meta-fields-bo-trong-neu-chua-uoc-tinh-duoc': 'Bỏ trống nếu chưa ước tính được.',
   'author.draft-meta-fields-tier-sandbox': 'Hạng sandbox',
   'author.draft-meta-fields-cum-hien-chay-sysbox-hai-tier-con-lai-chua-co-node-nao-phuc-vu':
-    'Cụm hiện chạy sysbox; hai tier còn lại chưa có node nào phục vụ.',
+    'Cụm hiện chạy sysbox; hai hạng còn lại chưa có node nào phục vụ.',
   'author.draft-meta-fields-giao-dien': 'Giao diện',
   'author.draft-meta-fields-ide-mo-them-khung-soan-thao-canh-terminal-layout-ide-cua-p6':
     'IDE mở thêm khung soạn thảo cạnh terminal.',
@@ -662,7 +667,7 @@ export const author = {
     'Mặc định không bật gì, sandbox đã có sẵn bộ lệnh thường dùng. Chỉ chọn thứ nội dung bài thật sự gõ tới: mỗi công cụ là một lượt cài trong pod lúc mở phiên.',
   'author.draft-meta-fields-backend-image-id': 'Mã image gốc',
   'author.draft-meta-fields-nguyen-van-imageid-cua-upstream-giu-de-truy-nguyen-no-khong-quyet-dinh-sand':
-    'Nguyên văn imageid của upstream. Giữ để truy nguyên; nó KHÔNG quyết định sandbox chạy gì: phần đó do capability bên dưới.',
+    'Nguyên văn imageid của upstream. Giữ để truy nguyên; nó KHÔNG quyết định sandbox chạy gì: phần đó do năng lực sandbox bên dưới.',
   'author.draft-meta-fields-capability-sandbox-phai-co': 'Năng lực sandbox cần có',
   'author.draft-meta-fields-chon-thieu-thi-nguoi-hoc-gap': 'Chọn thiếu thì người học gặp',
   'author.draft-meta-fields-command-not-found': 'command not found',
@@ -710,7 +715,7 @@ export const author = {
   'author.preview-panel-playground-khong-co-noi-dung-de-xem-truoc':
     'Sân chơi không có nội dung để xem trước',
   'author.preview-panel-nguoi-hoc-nhan-dung-mot-sandbox-trong-voi-tier-capability-va-thoi-han-da-kh':
-    'Người học nhận đúng một sandbox trống với tier, capability và thời hạn đã khai ở tab Soạn. Không có bước nào, không có script chấm nào.',
+    'Người học nhận đúng một sandbox trống với hạng, năng lực sandbox và thời hạn đã khai ở tab Soạn. Không có bước nào, không có script chấm nào.',
   'author.preview-panel-chua-co-gi-de-xem-truoc': 'Chưa có gì để xem trước',
   'author.preview-panel-bai-hoc-chua-co-buoc-nao':
     'Bài học chưa có bước nào, hoặc nguồn nội dung chưa nhận bản nháp. Thêm nội dung ở tab Soạn rồi quay lại đây.',
@@ -772,7 +777,7 @@ export const author = {
   'author.publish-panel-bai-quay-ve-nhap-ma-may-chu-khong-ghi-lai-ly-do-nao-thuong-la-tien-trinh-ch':
     'Bài quay về Nháp mà máy chủ không ghi lại lý do nào. Thường là tiến trình chạy thử bị mất giữa chừng (pod web khởi động lại), hoặc lượt chạy đã quá hạn treo. Bấm Xuất bản lại; nếu lặp lại nhiều lần thì báo người vận hành.',
   'author.publish-panel-bai-nay-khong-co-script-nao-luot-chay-thu-cua-no-la-chinh-viec-sandbox-dung':
-    'Bài này không có script nào. Lượt chạy thử của nó là chính việc sandbox dựng lên được với tier và capability đã khai.',
+    'Bài này không có script nào. Lượt chạy thử của nó là chính việc sandbox dựng lên được với hạng và năng lực sandbox đã khai.',
   'author.publish-panel-chua-chay-lan-nao-day-la-nhung-gi-luot-xuat-ban-se-chay-dung-thu-tu':
     'Chưa chạy lần nào. Đây là những gì lượt xuất bản sẽ chạy, đúng thứ tự:',
   'author.publish-panel-dang-chay-may-chu-khong-phat-tien-do-tung-buoc-nen-moi-dong-duoi-day-con-o':

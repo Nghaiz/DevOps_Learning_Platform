@@ -150,6 +150,13 @@ export function GitGame({
         onPlayTest={setTrial}
         onExit={() => {
           setSandbox(false);
+          // Giữ `mode=builder` thì thanh mục vẫn sáng "Dựng màn Git", và tải lại một màn đã chọn
+          // sau đó mở lại sandbox thay vì màn đó (`sandbox` được xét trước `level`).
+          const url = new URL(window.location.href);
+          if (url.searchParams.has('mode')) {
+            url.searchParams.delete('mode');
+            window.history.replaceState(null, '', url);
+          }
         }}
       />
       </LegacySkin>

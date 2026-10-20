@@ -122,7 +122,7 @@ export function PlaygroundClient({ playgroundId, userId }: { playgroundId: strin
                 kind="playground"
                 startLabel={t('session.controls.start')}
                 onStart={session.start}
-                starting={session.starting}
+                starting={session.starting || resume.pending}
                 tierLabel={tierLabel(playground.tier)}
                 ttlMinutes={ttlMinutes}
                 profile={profile}

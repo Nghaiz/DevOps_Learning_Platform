@@ -61,6 +61,7 @@ export const admin = {
   'admin.capacity.fetched-at': (p: { at: string }) => `Đọc lúc ${p.at}, tự làm mới mỗi 15 giây.`,
   'admin.capacity.fetched-unknown': 'Không rõ thời điểm đọc.',
   'admin.capacity.meter-label': 'Số chỗ đã dùng cho bài thường',
+  'admin.capacity.meter-value': (p: { used: number; total: number }) => `${String(p.used)} trên ${String(p.total)} chỗ đang dùng`,
   'admin.capacity.profiles-note':
     'Bài có IDE hoặc lab Kubernetes tốn tài nguyên hơn nên có trần riêng, thấp hơn số này.',
   'admin.capacity.full': 'Hết chỗ. Phiên mới bị từ chối cho tới khi có phiên đóng hoặc hết hạn.',
@@ -178,7 +179,7 @@ export const admin = {
     'Đây là tài khoản của chính bạn. Tự hạ quyền quản trị sẽ khoá luôn trang /admin và chỉ mở lại được bằng SQL tay trên máy chủ, và máy chủ cũng từ chối việc này. Nhờ một quản trị viên khác đổi giúp.',
 
   // ── /admin/sessions ──────────────────────────────────────────────────────
-  'admin.sessions.title': 'Máy đang chạy',
+  'admin.sessions.title': 'Phiên đang chạy',
   'admin.sessions.lead':
     'Phiên của mọi người đang mở lúc này. Kết thúc một phiên là thu hồi pod ngay, người đang gõ không được báo trước.',
   'admin.sessions.alert-title': 'Danh sách này chỉ có phiên còn chạy',
@@ -302,6 +303,7 @@ export const admin = {
   'admin.audit.col-action': 'Hành động',
   'admin.audit.col-target': 'Đối tượng',
   'admin.audit.col-detail': 'Chi tiết',
+  'admin.audit.table-label': 'Nhật ký quản trị',
   'admin.audit.caption':
     'Cột "Người thực hiện" chỉ có id: bảng nhật ký cố ý không tham chiếu tới bảng người dùng, nên một tài khoản đã xoá vẫn để lại id ở đây.',
   // Hành động lạ (một bản máy chủ mới hơn ghi một `action` FE chưa biết) hiện

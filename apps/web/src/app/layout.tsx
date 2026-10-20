@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from 'next';
 import { headers } from 'next/headers';
 import { Bricolage_Grotesque, Hanken_Grotesk, Intel_One_Mono } from 'next/font/google';
 import { ThemeProvider, Toaster, TooltipProvider } from '@devops-platform/ds';
+import { MotionProvider } from '@devops-platform/motion/provider';
 import { THEME_INIT_SCRIPT } from '@devops-platform/ds/theme-script';
 import { t } from '@devops-platform/copy';
 import { appUrl } from '../server/env';
@@ -95,10 +96,17 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
       </head>
       <body className="min-h-dvh">
         <ThemeProvider>
-          <TooltipProvider delayDuration={350} skipDelayDuration={250}>
-            <AppShell viewer={viewer}>{children}</AppShell>
-            <Toaster />
-          </TooltipProvider>
+          {/*
+            Giảm chuyển động cần CẢ HAI tầng: khối `@media` trong theme.css phủ animation/transition
+            của CSS, còn `MotionProvider` phủ thứ framer-motion ghi thẳng vào style theo từng khung
+            hình (cảnh CI/CD, bản đồ Git). Bản dựng lại từng bỏ sót tầng này.
+          */}
+          <MotionProvider>
+            <TooltipProvider delayDuration={350} skipDelayDuration={250}>
+              <AppShell viewer={viewer}>{children}</AppShell>
+              <Toaster />
+            </TooltipProvider>
+          </MotionProvider>
         </ThemeProvider>
       </body>
     </html>

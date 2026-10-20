@@ -76,7 +76,7 @@ export function AdminAuditClient(): ReactElement {
               : {})}>{t('admin.audit.empty-body')}</Empty>
         ) : (
           <div className="flex flex-col gap-4">
-            <Table label={t('admin.audit.caption')}>
+            <Table label={t('admin.audit.table-label')}>
               <THead>
                 <tr>
                   <TH>{t('admin.audit.col-when')}</TH>
@@ -110,6 +110,7 @@ export function AdminAuditClient(): ReactElement {
               </TBody>
             </Table>
 
+            <AdminNote>{t('admin.audit.caption')}</AdminNote>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <AdminNote>
                 {t('admin.audit.note', {

@@ -52,6 +52,7 @@ export const me = {
     `Lần trước bạn dừng ở bước ${String(p.step)} của bài “${p.title}”.`,
   'me.home.lead-exam': (p: { title: string; until: string }) => `Kỳ thi “${p.title}” đang mở tới ${p.until}.`,
   'me.home.lead-quiet': 'Không có gì đang làm dở. Mở một bài học hoặc một lab để bắt đầu.',
+  'me.home.lead-unknown': 'Chưa đọc được máy, bài và kỳ thi của bạn. Các khối bên dưới có nút thử lại.',
   'me.home.settings': 'Cài đặt',
   'me.home.browse-lessons': 'Xem bài học',
   'me.home.browse-labs': 'Xem lab',
@@ -312,6 +313,10 @@ export const me = {
   'me.error.sessions-load': (p: { reason: string }): ErrorEntry => ({
     what: `Không tải được danh sách phiên: ${p.reason}`,
     next: 'Bấm Thử lại. Phiên đang chạy không bị ảnh hưởng bởi lỗi đọc này.',
+  }),
+  'me.error.exams-load': (p: { reason: string }): ErrorEntry => ({
+    what: `Không tải được kỳ thi của lớp: ${p.reason}`,
+    next: 'Bấm Thử lại, hoặc mở trang Kỳ thi. Kỳ thi đang mở không bị ảnh hưởng bởi lỗi đọc này.',
   }),
   'me.error.history-load': (p: { reason: string }): ErrorEntry => ({
     what: `Không tải được lịch sử: ${p.reason}`,

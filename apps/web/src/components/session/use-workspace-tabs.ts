@@ -109,6 +109,14 @@ export function useWorkspaceTabs(options: WorkspaceTabsOptions): WorkspaceTabsCo
     setChosenTab(tab);
   }, []);
 
+  // Phiên vừa kết thúc: bỏ lựa chọn tab để quay về mặc định, tức Terminal với khung khởi động.
+  // Giữ "Editor" ở đây là giấu nút Bắt đầu ngay sau khi người học bấm Tắt máy.
+  const hadSession = useRef(sessionId !== null);
+  useEffect(() => {
+    if (hadSession.current && sessionId === null) setChosenTab(null);
+    hadSession.current = sessionId !== null;
+  }, [sessionId]);
+
   /**
    * ⛔ Đợi một lượt render rồi mới `focus()`, vì tab vừa được chuyển.
    *

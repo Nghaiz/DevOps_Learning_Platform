@@ -68,7 +68,8 @@ export function SessionControls({
             title={state.message}
             className={cn(
               // `sr-only` chứ không `hidden` dưới xl: `hidden` gỡ câu khỏi cây trợ năng, nên vùng
-              // aria-live không đọc được lý do ở màn dưới 1280px. Người nhìn thấy lý do ở khoang terminal.
+              // aria-live không đọc được lý do ở màn dưới 1280px. Dưới xl, người nhìn thấy đọc lý do lỗi hay hết
+              // hạn ở lớp phủ của khoang terminal; câu "bạn đã kết thúc phiên" thì chỉ nghe được, vì họ tự bấm.
               'sr-only max-w-72 truncate text-xs xl:not-sr-only xl:inline-block',
               failed ? 'text-bad-ink' : 'text-ink-3',
             )}

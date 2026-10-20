@@ -30,6 +30,7 @@ import { PracticeLaunch } from '../../../components/session/practice-launch';
 import { contentLabels } from '../../../components/session/practice-labels';
 import { useResumeMachine } from '../../../components/session/use-resume-machine';
 import { useWorkspaceTabs } from '../../../components/session/use-workspace-tabs';
+import { browserStorage } from '../../../components/session/workspace-tabs';
 import { useCapacity } from '../../../components/shell/use-capacity';
 import { tierLabel } from '../../../components/catalog/catalog-labels';
 import { topicLook } from '../../../lib/topic-look';
@@ -40,6 +41,7 @@ import { buildPhases, canCheck, phaseKeyForStepIndex, type LessonPhase } from '.
 import { summarizeProgress } from './progress';
 import { useLessonSession } from './use-lesson-session';
 import { CheckResultPanel, type CheckOutcome } from './check-result-panel';
+import { assumedSetupPhases, forgetSetupRecord, readSetupRecord, recordSetupRan } from './setup-record';
 
 /**
  * Kết quả chấm GẮN VỚI BƯỚC đã chấm. Một lượt chấm đang bay mà người học bấm sang bước
@@ -104,8 +106,19 @@ export function LessonClient({ scenarioId }: { readonly scenarioId: string }): R
   const checkStep = api.lessons.checkStep.useMutation();
 
   const setupStarted = useRef(new Set<string>());
+  /** Máy đã được nạp cờ "setup đã chạy" từ bản ghi (chỉ làm một lần cho mỗi máy được nhận lại). */
+  const seededFor = useRef<string | null>(null);
   const terminal = session.terminal;
   const sessionId = session.state.sessionId;
+  const progressStepIndex = query.data?.progress.stepIndex ?? 0;
+
+  // Máy tắt (hoặc đổi sang máy khác) thì bản ghi setup của nó vô nghĩa: quên đi.
+  const previousSession = useRef<string | null>(null);
+  useEffect(() => {
+    const previous = previousSession.current;
+    if (previous !== null && previous !== sessionId) forgetSetupRecord(previous, browserStorage());
+    previousSession.current = sessionId;
+  }, [sessionId]);
 
   // Hook gọi TRÊN mọi `return` sớm: số hook không được đổi giữa hai lượt render.
   // ⛔ Có IDE hay không đọc từ `profile` của MÁY CHỦ, không từ `interfaceLayout`: profile
@@ -136,6 +149,17 @@ export function LessonClient({ scenarioId }: { readonly scenarioId: string }): R
     // `foreground` của intro rơi mất, vì lúc lượt gọi về thì chưa có gì để gõ vào.
     if (active === null || sessionId === null || (terminal === null && !setupWithoutTerminal)) return;
 
+    /*
+      ⛔ Máy NHẬN LẠI sau khi tải trang đã chạy setup ở lần mount trước. Chạy lại là ghi đè bài
+      làm (script `background` của nội dung không tự chống chạy lại). Nạp cờ từ bản ghi của
+      trình duyệt này; không có bản ghi thì coi phase đầu và mọi bước tới chỗ đang dở là đã chạy.
+    */
+    if (resume.resumed && seededFor.current !== sessionId) {
+      seededFor.current = sessionId;
+      const ran = readSetupRecord(sessionId, browserStorage()) ?? assumedSetupPhases(phases, progressStepIndex);
+      for (const key of ran) setupStarted.current.add(`${sessionId}:${key}`);
+    }
+
     for (const target of neededSetup) {
       // Khoá gồm cả `sessionId`: cờ của phiên cũ không được sống sót sang pod mới.
       const runKey = `${sessionId}:${target.key}`;
@@ -143,29 +167,43 @@ export function LessonClient({ scenarioId }: { readonly scenarioId: string }): R
       setupStarted.current.add(runKey);
       setSetup((prev) => ({ ...prev, [runKey]: 'running' }));
 
-      runSetup.mutate(
-        { scenarioId, sessionId, phase: target.ref },
-        {
-          onSuccess: (result) => {
-            setSetupError(null);
-            setSetup((prev) => ({ ...prev, [runKey]: 'done' }));
-            // `foreground` của phase ĐANG MỞ mới gõ vào terminal người học đang nhìn. Terminal
-            // ở cửa sổ riêng ⇒ không gõ: gõ lúc lấy terminal về là gõ một lệnh cũ vào giữa việc đang làm.
-            if (result.foreground !== null && target.key === active.key && terminal !== null) {
-              terminal.sendInput(`${result.foreground}\r`);
-            }
-          },
-          onError: (error) => {
-            // ⛔ Setup hỏng PHẢI hiện ra, kèm nút Thử lại, và khoá nút Kiểm tra.
-            setupStarted.current.delete(runKey);
-            setSetup((prev) => ({ ...prev, [runKey]: 'failed' }));
-            setSetupError(describeTrpcError(error));
-          },
+      /*
+        ⛔ `mutateAsync` cho TỪNG phase, không `mutate` kèm callback: gọi `mutate` lần hai trên
+        cùng một mutation thì callback của lần đầu không bao giờ chạy (TanStack Query chỉ báo
+        cho lượt gọi sau cùng). Phase đầu kẹt ở `running` và khoá nút Kiểm tra mãi mãi.
+      */
+      void runSetup.mutateAsync({ scenarioId, sessionId, phase: target.ref }).then(
+        (result) => {
+          recordSetupRan(sessionId, target.key, browserStorage());
+          setSetupError(null);
+          setSetup((prev) => ({ ...prev, [runKey]: 'done' }));
+          // `foreground` của phase ĐANG MỞ mới gõ vào terminal người học đang nhìn. Terminal
+          // ở cửa sổ riêng ⇒ không gõ: gõ lúc lấy terminal về là gõ một lệnh cũ vào giữa việc đang làm.
+          if (result.foreground !== null && target.key === active.key && terminal !== null) {
+            terminal.sendInput(`${result.foreground}\r`);
+          }
+        },
+        (error: unknown) => {
+          // ⛔ Setup hỏng PHẢI hiện ra, kèm nút Thử lại, và khoá nút Kiểm tra.
+          setupStarted.current.delete(runKey);
+          setSetup((prev) => ({ ...prev, [runKey]: 'failed' }));
+          setSetupError(describeTrpcError(error));
         },
       );
     }
     // `runSetup` ngoài deps có chủ ý: danh tính mutation đổi mỗi lượt render.
-  }, [active, neededSetup, sessionId, terminal, setupWithoutTerminal, scenarioId, setupAttempt]);
+  }, [
+    active,
+    neededSetup,
+    sessionId,
+    terminal,
+    setupWithoutTerminal,
+    scenarioId,
+    setupAttempt,
+    resume.resumed,
+    phases,
+    progressStepIndex,
+  ]);
 
   const onSelect = useCallback(
     (key: string) => {
@@ -322,7 +360,13 @@ export function LessonClient({ scenarioId }: { readonly scenarioId: string }): R
   const instructions = (
     <div className="flex h-full min-h-0 flex-col bg-paper">
       <div className="shrink-0 border-b border-rule px-3 py-2">
-        <StepStrip steps={steps} activeKey={active.key} onSelect={onSelect} label={t('session.steps.list')} />
+        <StepStrip
+          steps={steps}
+          activeKey={active.key}
+          onSelect={onSelect}
+          label={t('session.steps.list')}
+          stateText={{ done: t('session.steps.state-done'), failed: t('session.steps.state-failed') }}
+        />
       </div>
       <div className="relative min-h-0 flex-1 overflow-y-auto focus-visible:-outline-offset-2">
         <article className="mx-auto max-w-[70ch] px-5 py-6 md:px-8">
@@ -373,7 +417,7 @@ export function LessonClient({ scenarioId }: { readonly scenarioId: string }): R
       kind="lesson"
       startLabel={t('session.controls.start')}
       onStart={session.start}
-      starting={session.starting}
+      starting={session.starting || resume.pending}
       tierLabel={tierLabel(scenario.tier)}
       profile={profile}
       capacity={describeCapacity(capacity.data, profile)}

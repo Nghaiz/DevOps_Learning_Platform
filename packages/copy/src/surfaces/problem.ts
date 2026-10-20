@@ -359,7 +359,7 @@ export const problem = {
   'problem.statement-fields-ma-bai': 'Mã bài',
   'problem.statement-fields-may-chu-cap-khi-ban-luu-lan-dau-ma-on-dinh-vinh-vien-khong-doi-ke-ca-khi-ba':
     'Máy chủ cấp khi bạn lưu lần đầu. Mã ổn định vĩnh viễn, không đổi kể cả khi bạn sửa đề.',
-  'problem.statement-fields-slug-trong-url': 'Đường dẫn rút gọn',
+  'problem.statement-fields-slug-trong-url': 'Phần đuôi đường dẫn (slug)',
   'problem.statement-fields-chu-thuong-so-va-gach-noi-slug-doi-duoc-khi-sua-ten-bai-khac-ma-bai-la-thu':
     'Chữ thường, số và gạch nối. Xem trước:',
   'problem.statement-fields-trong': '(trống)',

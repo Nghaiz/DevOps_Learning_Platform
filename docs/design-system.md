@@ -159,6 +159,20 @@ Mọi danh sách có đủ bốn trạng thái: đang tải (`RowsSkeleton` đú
 `NativeSelect` thay `Select` khi một lựa chọn là giá trị rỗng (Radix không nhận), hoặc khi danh
 sách ngắn và nên cư xử như ô chọn của trình duyệt.
 
+Vài hành vi dễ đoán sai:
+
+- `Notice tone="bad"` tự mang `role="alert"` (lỗi lưu, lỗi nhập phải được đọc ngay); truyền
+  `role="status"` để hạ xuống.
+- `ConfirmDialog` không đóng được khi `confirming`: Esc, bấm nền và nút Huỷ đều bị khoá, vì lượt
+  gọi đã đi và đóng hộp lúc đó là để người dùng tưởng đã huỷ.
+- `Button loading` dùng `aria-disabled` và chặn bấm, không `disabled`: nút đang giữ focus mà bị
+  `disabled` thì focus rơi về `<body>`.
+- Mục đang chọn của `Menu`, `Select` và `CommandPalette` có nền nhạt màu mục cộng viền trong 1px
+  màu `control`. Chỉ đổi nền thì ở bảng tối mục đó gần như trùng nền hộp (1,03:1).
+- `PageHeader badge` đặt thẻ đếm cạnh h1, không trong h1, để tên của tiêu đề chỉ là tiêu đề.
+- Vòng focus của phần tử sát mép vùng cuộn vẽ vào trong (`focus-visible:-outline-offset-2`), không
+  thì bị cắt mất; `outline-none` phải đi cùng `focus-visible:outline-solid` (`design:check` gác).
+
 ## 8. Chữ trong giao diện
 
 Mọi chuỗi đi qua `packages/copy` (`t('khoá')`); không viết chuỗi tiếng Việt thẳng trong JSX. Giọng

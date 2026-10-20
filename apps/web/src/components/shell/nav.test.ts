@@ -100,7 +100,7 @@ describe('bảng mục', () => {
           ['/admin/users', 'Người dùng', 'users'],
           ['/admin/classes', 'Lớp học', 'classroom'],
           ['/admin/exams', 'Kỳ thi', 'timer'],
-          ['/admin/sessions', 'Máy đang chạy', 'server'],
+          ['/admin/sessions', 'Phiên đang chạy', 'server'],
           ['/admin/content', 'Nội dung', 'layers'],
           ['/admin/audit', 'Nhật ký', 'history'],
         ],

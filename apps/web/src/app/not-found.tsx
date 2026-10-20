@@ -2,10 +2,16 @@ import Link from 'next/link';
 import { Button, EmptyArt, Icon, Page } from '@devops-platform/ds';
 import { t } from '@devops-platform/copy';
 import { NAV_SECTIONS } from '../components/shell/nav';
+import { readRequestSession } from '../server/auth/config';
+import { matchesProtected } from '../proxy';
 
 /** 404 chung: minh hoạ lạc đường, một câu nói thẳng, và lối ra về các mục chính. */
-export default function NotFound() {
-  const exits = NAV_SECTIONS.filter((section) => section.roles === 'everyone');
+export default async function NotFound() {
+  // Khách chưa đăng nhập: bỏ các mục mà proxy chặn, không thì ba trong bốn lối ra đưa về /login.
+  const signedIn = (await readRequestSession()) !== null;
+  const exits = NAV_SECTIONS.filter(
+    (section) => section.roles === 'everyone' && (signedIn || !matchesProtected(section.hub)),
+  );
   return (
     <Page className="flex flex-1 flex-col justify-center py-16 md:py-24">
       <div className="grid items-center gap-12 lg:grid-cols-[minmax(0,1fr)_380px]">

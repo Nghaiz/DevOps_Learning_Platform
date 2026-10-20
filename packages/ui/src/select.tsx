@@ -9,7 +9,11 @@ export const Select = RadixSelect.Root;
 export const SelectValue = RadixSelect.Value;
 export const SelectGroup = RadixSelect.Group;
 
-export function SelectTrigger({ className, children, ...props }: ComponentProps<typeof RadixSelect.Trigger>) {
+export function SelectTrigger({
+  className,
+  children,
+  ...props
+}: ComponentProps<typeof RadixSelect.Trigger>) {
   return (
     <RadixSelect.Trigger
       data-slot="select-trigger"
@@ -32,28 +36,43 @@ export function SelectTrigger({ className, children, ...props }: ComponentProps<
   );
 }
 
-export function SelectContent({ className, children, ...props }: ComponentProps<typeof RadixSelect.Content>) {
+export function SelectContent({
+  className,
+  children,
+  ...props
+}: ComponentProps<typeof RadixSelect.Content>) {
   return (
     <RadixSelect.Portal>
-      <RadixSelect.Content
-        data-slot="select-content"
-        position="popper"
-        sideOffset={4}
-        className={cn(
-          // Lớp nổi: vuông, viền mực, bóng cứng `shadow-float` (design-brief §5).
-          'z-50 max-h-96 min-w-[var(--radix-select-trigger-width)] overflow-hidden rounded-surface border border-ink',
-          'bg-popover text-popover-foreground shadow-float animate-rise [animation-duration:var(--motion-fast)]',
-          className,
-        )}
-        {...props}
-      >
-        <RadixSelect.Viewport className="p-1">{children}</RadixSelect.Viewport>
-      </RadixSelect.Content>
+      {/*
+        Portal gắn vào <body>, ngoài `.legacy-skin` của màn chơi, nên token của legacy.css không tới.
+        Bọc trong một khung `contents` mang lại phạm vi đó; KHÔNG gắn lớp lên chính nội dung: quy tắc
+        `.legacy-skin { color; font-family }` nằm ngoài @layer và sẽ đè lớp chữ của nó.
+      */}
+      <div className="legacy-skin contents">
+        <RadixSelect.Content
+          data-slot="select-content"
+          position="popper"
+          sideOffset={4}
+          className={cn(
+            // Lớp nổi: vuông, viền mực, bóng cứng `shadow-float` (design-brief §5).
+            'z-50 max-h-96 min-w-[var(--radix-select-trigger-width)] overflow-hidden rounded-surface border border-ink',
+            'bg-popover text-popover-foreground shadow-float animate-rise [animation-duration:var(--motion-fast)]',
+            className,
+          )}
+          {...props}
+        >
+          <RadixSelect.Viewport className="p-1">{children}</RadixSelect.Viewport>
+        </RadixSelect.Content>
+      </div>
     </RadixSelect.Portal>
   );
 }
 
-export function SelectItem({ className, children, ...props }: ComponentProps<typeof RadixSelect.Item>) {
+export function SelectItem({
+  className,
+  children,
+  ...props
+}: ComponentProps<typeof RadixSelect.Item>) {
   return (
     <RadixSelect.Item
       data-slot="select-item"

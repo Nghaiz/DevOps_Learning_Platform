@@ -378,8 +378,10 @@ export async function listAuthoredBy(
     .select({ item: contentItems, stepCount: stepCountOf(counts), authorName: users.name, authorEmail: users.email })
     .from(contentItems)
     .leftJoin(counts, eq(counts.contentId, contentItems.id))
-    // Tên + email người soạn cho trang quản trị nội dung (trước đó chỉ có id thô). `leftJoin`:
-    // tài khoản đã xoá thì bài vẫn hiện, chỉ thiếu tên.
+    // Tên + email người soạn cho trang quản trị nội dung (trước đó chỉ có id thô). `authorId` là
+    // NOT NULL và tham chiếu `users` không cascade, nên không xoá được tài khoản còn bài: mỗi bài
+    // luôn có đúng một người soạn. `leftJoin` chỉ để một hàng mồ côi (nếu ràng buộc đổi về sau)
+    // vẫn hiện, thiếu tên, thay vì biến khỏi danh sách.
     .leftJoin(users, eq(users.id, contentItems.authorId))
     // `null` = admin, xem mọi bài. Không phải "không lọc vì quên": caller duy
     // nhất truyền `null` là nhánh admin của `authoring.list`.

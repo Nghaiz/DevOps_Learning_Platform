@@ -21,7 +21,11 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 const DARK_QUERY = '(prefers-color-scheme: dark)';
 const CHANGE_EVENT = 'dlp:theme-change';
 
+/** Lựa chọn khi storage không ghi được: phiên này vẫn đổi theme, chỉ là không nhớ qua lần tải sau. */
+let memoryChoice: ThemeChoice | null = null;
+
 function readChoice(): ThemeChoice {
+  if (memoryChoice !== null) return memoryChoice;
   try {
     const raw = window.localStorage.getItem(THEME_STORAGE_KEY);
     return isThemeChoice(raw) ? raw : 'system';
@@ -64,8 +68,11 @@ export function ThemeProvider({ children }: { readonly children: ReactNode }) {
   const setChoice = useCallback((next: ThemeChoice) => {
     try {
       window.localStorage.setItem(THEME_STORAGE_KEY, next);
+      memoryChoice = null;
     } catch {
-      // Storage bị chặn: theme vẫn đổi trong phiên này qua sự kiện dưới, chỉ không được nhớ.
+      // Storage bị chặn: `readChoice` đọc lại storage sẽ ra `system` và nút như không làm gì.
+      // Giữ lựa chọn trong bộ nhớ để theme vẫn đổi trong phiên này.
+      memoryChoice = next;
     }
     window.dispatchEvent(new Event(CHANGE_EVENT));
   }, []);
