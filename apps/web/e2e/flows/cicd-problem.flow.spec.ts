@@ -55,6 +55,7 @@ import { t } from '@devops-platform/copy';
 import { CICD_PROBLEMS_SEED } from '@devops-platform/games';
 
 import { expect, requireRole, test } from './flow-kit';
+import { trpcQuery } from '../fixtures/api';
 import { openScreen } from '../fixtures/nav';
 
 /** Xuất bản chạy cổng kiểm của chính nó; rộng tay hơn mặc định một chút. */
@@ -73,16 +74,16 @@ const FLOW_TIMEOUT_MS = 4 * 60_000;
 const SEED = CICD_PROBLEMS_SEED.find((p) => p.code === 'CICD-0002');
 
 test.describe('luồng soạn bài CI/CD', { tag: '@flow' }, () => {
-  test('nhập JSON → lưu → xuất bản → làm bài → AC', async ({ page, account }) => {
+  test('nhập JSON → lưu → xuất bản → làm bài → AC → lưu trữ', async ({ page, account, api }) => {
     requireRole(account, 'author');
     test.setTimeout(FLOW_TIMEOUT_MS);
 
     if (SEED === undefined) throw new Error('bộ seed không có CICD-0002');
 
     /*
-     * Slug mang dấu thời gian: luồng này ĐỂ LẠI một bài thật trong DB (không có
-     * API xoá bài nào an toàn để gọi giữa chừng), nên hai lượt chạy liên tiếp
-     * không được đụng nhau ở ràng buộc duy nhất của `slug`.
+     * Slug mang dấu thời gian: luồng này ĐỂ LẠI một bài thật trong DB (bước 5
+     * chỉ lưu trữ nó; xoá thì khoá ngoại của lượt nộp ở bước 4 chặn), nên hai
+     * lượt chạy liên tiếp không được đụng nhau ở ràng buộc duy nhất của `slug`.
      */
     const dauThoiGian = String(Date.now());
     const slug = `e2e-cicd-${dauThoiGian}`;
@@ -200,5 +201,24 @@ test.describe('luồng soạn bài CI/CD', { tag: '@flow' }, () => {
 
     const ketQua = (await page.getByTestId('cicd-oj-result').textContent()) ?? '';
     expect(ketQua, `verdict của bài vừa soạn: ${ketQua}`).toContain('AC');
+
+    // ── 5. Lưu trữ bài vừa soạn ─────────────────────────────────────────────
+    /*
+     * Thiếu bước này thì mỗi lượt nghiệm thu để lại một bài `published` tên
+     * "E2E soạn bài CI/CD …" trong danh mục của người học. Đếm trên cụm lab
+     * 2026-10-20: bốn bài như thế sau một ngày, ba bài đang xuất bản. Lưu trữ là
+     * đường tác giả thật dùng để gỡ bài khỏi danh mục.
+     */
+    await openScreen(page, `/author/problems/${code}`, 'author');
+    await page.getByRole('tab', { name: t('author.problem.tab.publish'), exact: true }).click();
+    const xuatBan = page.getByRole('tabpanel', { name: t('author.problem.tab.publish') });
+    await xuatBan.getByRole('button', { name: t('author.studio.action.archive'), exact: true }).click();
+    const hoi = page.getByRole('alertdialog', { name: t('author.problem.archive.confirm-title', { code }) });
+    await hoi.getByRole('button', { name: t('author.studio.action.archive'), exact: true }).click();
+    // Hộp thoại chỉ đóng khi máy chủ nhận lệnh (`onSuccess`); lỗi thì nó ở lại kèm câu lỗi.
+    await expect(hoi).toHaveCount(0, { timeout: 30_000 });
+    await expect
+      .poll(async () => (await trpcQuery<{ problem: { state: string } }>(api, 'problems.byCode', { code })).problem.state)
+      .toBe('archived');
   });
 });

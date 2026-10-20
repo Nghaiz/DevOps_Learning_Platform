@@ -107,9 +107,39 @@ test.describe('/games, trang chọn game', () => {
       'href',
       '/exams',
     );
+  });
 
-    // Khách không thấy lối của tác giả.
-    await expect(page.getByRole('list', { name: t('games.studio.title') })).toHaveCount(0);
+  /*
+   * Xưởng soạn hiện theo vai trò của phiên (lấy từ server lúc render), nên ô này
+   * đọc vai trò thật của tài khoản lượt chạy rồi khẳng định theo cả hai chiều.
+   * Bản trước khẳng định "khách không thấy" trong khi trang mở bằng phiên của
+   * tài khoản e2e: xanh với tài khoản thường, đỏ với admin của lượt nghiệm thu.
+   */
+  test('Xưởng soạn chỉ hiện cho tác giả và quản trị', async ({ page, account }) => {
+    await openScreen(page, PATH, account.role);
+    await expect(page.getByRole('list', { name: t('games.practice.title') })).toBeVisible();
+    const studio = page.getByRole('list', { name: t('games.studio.title') });
+    if (account.role !== 'author' && account.role !== 'admin') {
+      await expect(studio).toHaveCount(0);
+      return;
+    }
+    for (const [title, href] of [
+      [t('games.studio.problem.title'), '/author/problems/new'],
+      [t('games.studio.builder.title'), '/games/git?mode=builder'],
+      [t('games.studio.lesson.title'), '/author/new'],
+    ] as const) {
+      await expect(studio.getByRole('link', { name: new RegExp(title, 'u') })).toHaveAttribute('href', href);
+    }
+  });
+
+  test.describe('khách chưa đăng nhập', () => {
+    test.use({ storageState: { cookies: [], origins: [] } });
+
+    test('không thấy Xưởng soạn', async ({ page }) => {
+      await openScreen(page, PATH, 'anon');
+      await expect(page.getByRole('list', { name: t('games.practice.title') })).toBeVisible();
+      await expect(page.getByRole('list', { name: t('games.studio.title') })).toHaveCount(0);
+    });
   });
 
   test('tiến độ đã lưu đổi nút thành Chơi tiếp và trỏ vào màn chưa qua', async ({ page }) => {
