@@ -47,17 +47,43 @@ export interface ContentViewProps {
   readonly leadingTitle?: string | undefined;
 }
 
-function normalizeTitle(text: string): string {
-  return text
-    .normalize('NFC')
-    .toLowerCase()
-    .replace(/[*_`]/g, '')
-    .replace(/\s+/g, ' ')
-    .replace(/[.:!?]+$/, '')
-    .trim();
+/**
+ * Cắt dấu câu cuối bằng vòng lặp, không bằng `/[.:!?]+$/`: regex đó thử lại từ mỗi vị
+ * trí trong một dãy dấu chấm nên chạy bậc hai (đo 32 000 dấu chấm ≈ 1 s).
+ */
+function trimTrailingPunctuation(text: string): string {
+  let end = text.length;
+  while (end > 0 && '.:!?'.includes(text.charAt(end - 1))) end -= 1;
+  return text.slice(0, end);
 }
 
-const LEADING_HEADING = /^\s*#{1,2}[ \t]+([^\n]+?)[ \t]*(?:\n|$)/;
+function normalizeTitle(text: string): string {
+  return trimTrailingPunctuation(
+    text
+      .normalize('NFC')
+      .toLowerCase()
+      .replace(/[*_`]/g, '')
+      .replace(/\s+/g, ' '),
+  ).trim();
+}
+
+/**
+ * Dòng `# Tên` / `## Tên` mở đầu nội dung (sau khoảng trắng tuỳ ý): trả tên và số ký
+ * tự phải cắt, kể cả dấu xuống dòng. Quét bằng `indexOf` thay cho regex cũ
+ * `[^\n]+?[ \t]*`: hai nhóm đó cùng nuốt được tab nên regex chạy bậc hai trên một
+ * dòng nhiều tab (CodeQL js/polynomial-redos, đo 32 000 tab ≈ 1,5 s), mà markdown ở
+ * đây do người soạn bài gõ.
+ */
+function leadingHeading(markdown: string): { readonly title: string; readonly length: number } | null {
+  const start = markdown.search(/\S/);
+  if (start === -1) return null;
+  const newline = markdown.indexOf('\n', start);
+  const line = markdown.slice(start, newline === -1 ? markdown.length : newline);
+  const hashes = line.startsWith('##') ? 2 : line.startsWith('#') ? 1 : 0;
+  const separator = line.charAt(hashes);
+  if (hashes === 0 || (separator !== ' ' && separator !== '\t')) return null;
+  return { title: line.slice(hashes).trim(), length: newline === -1 ? markdown.length : newline + 1 };
+}
 
 /** Bỏ dòng tiêu đề đầu nội dung khi nó trùng tên đã in ở trên. Hàm thuần, có test. */
 export function stripLeadingTitle(
@@ -66,10 +92,10 @@ export function stripLeadingTitle(
 ): readonly ContentBlock[] {
   const first = blocks[0];
   if (title === undefined || first === undefined || first.kind !== 'markdown') return blocks;
-  const match = LEADING_HEADING.exec(first.markdown);
-  if (match === null || match[1] === undefined) return blocks;
-  if (normalizeTitle(match[1]) !== normalizeTitle(title)) return blocks;
-  return [{ ...first, markdown: first.markdown.slice(match[0].length) }, ...blocks.slice(1)];
+  const heading = leadingHeading(first.markdown);
+  if (heading === null) return blocks;
+  if (normalizeTitle(heading.title) !== normalizeTitle(title)) return blocks;
+  return [{ ...first, markdown: first.markdown.slice(heading.length) }, ...blocks.slice(1)];
 }
 
 type DiagramBlock = Extract<ContentBlock, { kind: 'diagram' }>;

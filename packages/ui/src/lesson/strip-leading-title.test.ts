@@ -30,4 +30,32 @@ describe('stripLeadingTitle', () => {
     const blocks = [md('### Tên\nx')];
     expect(stripLeadingTitle(blocks, 'Tên')).toBe(blocks);
   });
+
+  it('bỏ cả dòng trống đứng trước, nhận ## và tab làm dấu cách', () => {
+    expect(stripLeadingTitle([md('\n\n  ##\tTên bước\t \nx')], 'Tên bước')[0]).toEqual(md('x'));
+  });
+
+  it('khối chỉ có mỗi dòng tiêu đề thì còn lại chuỗi rỗng', () => {
+    expect(stripLeadingTitle([md('# Tên')], 'Tên')[0]).toEqual(md(''));
+  });
+
+  it('dòng CRLF vẫn khớp, kể cả khi có dấu chấm cuối', () => {
+    expect(stripLeadingTitle([md('# Tên.\r\nx')], 'Tên')[0]).toEqual(md('x'));
+  });
+
+  it('không có dấu cách sau # thì không phải tiêu đề', () => {
+    const blocks = [md('#Tên\nx')];
+    expect(stripLeadingTitle(blocks, 'Tên')).toBe(blocks);
+  });
+
+  // Hai regex cũ chạy bậc hai trên đúng hai dạng này (200 000 ký tự ≈ hàng chục giây).
+  // Bản quét tuyến tính xong trong vài ms, nên trần 1 s không đỏ vì máy chậm.
+  it.each([
+    ['nhiều tab trong dòng tiêu đề', `# a${'\t\t'.repeat(100_000)}b`],
+    ['nhiều dấu chấm cuối tiêu đề', `# a${'.'.repeat(200_000)}x`],
+  ])('không chạy bậc hai: %s', (_name, markdown) => {
+    const started = performance.now();
+    stripLeadingTitle([md(markdown)], 'a');
+    expect(performance.now() - started).toBeLessThan(1_000);
+  });
 });
