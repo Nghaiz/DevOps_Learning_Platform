@@ -55,8 +55,7 @@ export const me = {
   'me.home.settings': 'Cài đặt',
   'me.home.browse-lessons': 'Xem bài học',
   'me.home.browse-labs': 'Xem lab',
-  'me.home.aside': 'Kỳ thi và lối đi nhanh',
-  'me.home.shortcuts': 'Đi tới',
+  'me.home.aside': 'Kỳ thi của lớp',
 
   // ── `/me`: máy đang chạy ──────────────────────────────────────────────────
   'me.machines.title': 'Máy đang chạy',

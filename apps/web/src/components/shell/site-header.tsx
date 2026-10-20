@@ -51,11 +51,12 @@ export function SiteHeader({
                       active ? 'text-ink' : 'text-ink-2 hover:text-ink',
                     )}
                   >
-                    <Icon
-                      name={section.icon}
-                      size={18}
-                      tint="acc"
-                      className={cn('transition-colors duration-150', active ? 'text-acc-ink' : 'text-ink-3 group-hover:text-acc-ink')}
+                    <span
+                      aria-hidden
+                      className={cn(
+                        'size-2 shrink-0 transition-colors duration-150',
+                        active ? 'bg-acc-solid' : 'bg-acc-mid group-hover:bg-acc-solid',
+                      )}
                     />
                     {section.label}
                     <span
@@ -77,7 +78,9 @@ export function SiteHeader({
             type="button"
             onClick={onOpenCommand}
             aria-keyshortcuts="Control+K"
-            className="flex h-9 items-center gap-2 rounded-sm border border-rule-2 bg-paper px-2.5 text-sm text-ink-3 transition-colors duration-150 hover:border-control hover:text-ink-2 sm:w-52 sm:px-3"
+            // Dưới `sm` nút chỉ còn biểu tượng: bỏ khung để cùng kiểu với nút theme và nút menu
+            // đứng cạnh (hai nút đó là nút biểu tượng không viền).
+            className="flex h-9 items-center gap-2 rounded-sm border border-rule-2 bg-paper px-2.5 text-sm text-ink-3 transition-colors duration-150 hover:border-control hover:text-ink-2 max-sm:w-9 max-sm:justify-center max-sm:border-transparent max-sm:bg-transparent max-sm:px-0 max-sm:hover:bg-well sm:w-52 sm:px-3"
           >
             <Icon name="search" size={16} />
             <span className="sr-only sm:not-sr-only">{t('shell.command.open')}</span>

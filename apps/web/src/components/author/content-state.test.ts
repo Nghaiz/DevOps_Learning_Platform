@@ -154,8 +154,8 @@ describe('describeUpdatedAt', () => {
 
   it('quá 7 ngày thì hiện ngày UTC, KHÔNG đổi sang giờ địa phương (test phải chạy được ở mọi TZ)', () => {
     const ref = describeUpdatedAt('2026-08-01T23:59:00.000Z', now);
-    expect(ref.params).toEqual({ date: '2026-08-01' });
-    expect(say(ref)).toBe('Sửa ngày 2026-08-01');
+    expect(ref.params).toEqual({ date: '01/08/2026' });
+    expect(say(ref)).toBe('Sửa ngày 01/08/2026');
   });
 
   it('mốc trong tương lai (đồng hồ máy khách chậm) đọc là "vừa xong", không phải một số âm', () => {

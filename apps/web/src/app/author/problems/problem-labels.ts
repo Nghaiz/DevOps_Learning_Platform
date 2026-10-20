@@ -1,5 +1,5 @@
 import type { StaticTextKey } from '@devops-platform/copy';
-import { PROBLEM_TOPIC_LABELS, type ProblemState, type ProblemTopicId } from '@devops-platform/games';
+import { PROBLEM_TOPIC_LABELS, problemTopicLabels, type GameId, type ProblemState, type ProblemTopicId } from '@devops-platform/games';
 
 /**
  * Nhãn cho trạng thái của bài OJ và bộ lọc trạng thái ở danh sách đề. Độ khó vẽ bằng
@@ -83,6 +83,12 @@ export function filterLabelKey(filter: StateFilter): StaticTextKey {
  */
 const TOPIC_LABELS: Readonly<Record<string, string>> = PROBLEM_TOPIC_LABELS;
 
-export function joinTopicLabels(topics: readonly ProblemTopicId[]): string {
-  return topics.map((topic) => TOPIC_LABELS[topic] ?? topic).join(', ');
+/**
+ * Nhãn chủ đề của một đề, tra theo GAME của đề. Bảng chung `PROBLEM_TOPIC_LABELS` chỉ có chủ đề
+ * K8s, nên đề CI/CD từng hiện khoá thô ("graph", "tradeoff") ở danh sách soạn đề trong khi trang
+ * sửa đề hiện đúng nhãn tiếng Việt (rà ảnh 2026-10-20).
+ */
+export function joinTopicLabels(topics: readonly ProblemTopicId[], gameId: GameId): string {
+  const labels: Readonly<Record<string, string>> = problemTopicLabels(gameId);
+  return topics.map((topic) => labels[topic] ?? TOPIC_LABELS[topic] ?? topic).join(', ');
 }

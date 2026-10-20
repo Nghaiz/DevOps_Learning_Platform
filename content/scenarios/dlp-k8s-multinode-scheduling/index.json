@@ -1,6 +1,6 @@
 {
-  "title": "Kubernetes hai node: nhan, nodeSelector va DaemonSet",
-  "description": "Ba buoc tren mot cum k3s HAI node chay that trong sandbox: nhin thay ca hai node, ghim mot Pod xuong dung node phu bang nhan + nodeSelector, roi dung DaemonSet de chung minh 'moi node mot ban sao' la mot con so quan sat duoc chu khong phai mot loi hua.",
+  "title": "Kubernetes hai node: nhãn, nodeSelector và DaemonSet",
+  "description": "Ba bước trên một cụm k3s HAI node chạy thật trong sandbox: nhìn thấy cả hai node, ghim một Pod xuống đúng node phụ bằng nhãn và nodeSelector, rồi dùng DaemonSet để chứng minh 'mỗi node một bản sao' là một con số quan sát được chứ không phải một lời hứa.",
   "details": {
     "intro": {
       "text": "intro.md",
@@ -8,17 +8,17 @@
     },
     "steps": [
       {
-        "title": "Hai node, khong phai mot",
+        "title": "Hai node, không phải một",
         "text": "step1.md",
         "verify": "step1/verify.sh"
       },
       {
-        "title": "Nhan + nodeSelector - ghim Pod xuong node ban chon",
+        "title": "Nhãn và nodeSelector: ghim Pod xuống node bạn chọn",
         "text": "step2.md",
         "verify": "step2/verify.sh"
       },
       {
-        "title": "DaemonSet - moi node mot ban sao",
+        "title": "DaemonSet: mỗi node một bản sao",
         "text": "step3.md",
         "verify": "step3/verify.sh"
       }

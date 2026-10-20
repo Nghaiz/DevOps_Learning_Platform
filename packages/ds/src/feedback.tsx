@@ -67,11 +67,15 @@ export function Kbd({ className, children }: { className?: string; children: Rea
 }
 
 // ── Notice: thông báo trong khối ────────────────────────────────────────────
-const NOTICE: Record<'info' | 'ok' | 'warn' | 'bad', { box: string; icon: IconName }> = {
-  info: { box: 'bg-info-wash text-info-ink', icon: 'info' },
-  ok: { box: 'bg-ok-wash text-ok-ink', icon: 'success' },
-  warn: { box: 'bg-warn-wash text-warn-ink', icon: 'warning' },
-  bad: { box: 'bg-bad-wash text-bad-ink', icon: 'danger' },
+//
+// Khối phản hồi của hệ (Notice, Empty, ErrorBlock) cùng một hình: khung kẻ 1px góc vuông,
+// không tô nền. Sắc thái nằm ở dải 2px mép TRÊN, ở biểu tượng và ở màu tiêu đề; không bao giờ
+// ở viền trái (lệnh cấm của chủ dự án) và không phải một mảng màu bo góc.
+const NOTICE: Record<'info' | 'ok' | 'warn' | 'bad', { box: string; ink: string; icon: IconName }> = {
+  info: { box: 'border-t-info-mid', ink: 'text-info-ink', icon: 'info' },
+  ok: { box: 'border-t-ok-mid', ink: 'text-ok-ink', icon: 'success' },
+  warn: { box: 'border-t-warn-mid', ink: 'text-warn-ink', icon: 'warning' },
+  bad: { box: 'border-t-bad-mid', ink: 'text-bad-ink', icon: 'danger' },
 };
 
 export interface NoticeProps {
@@ -87,10 +91,10 @@ export interface NoticeProps {
 export function Notice({ tone = 'info', title, children, action, className, role }: NoticeProps) {
   const spec = NOTICE[tone];
   return (
-    <div role={role} className={cn('flex items-start gap-3 rounded-md px-4 py-3 text-sm', spec.box, className)}>
-      <Icon name={spec.icon} size={18} className="mt-px" />
+    <div role={role} className={cn('flex items-start gap-3 border border-t-2 border-rule bg-paper px-4 py-3 text-sm', spec.box, className)}>
+      <Icon name={spec.icon} size={18} className={cn('mt-px', spec.ink)} />
       <div className="flex min-w-0 flex-1 flex-col gap-1">
-        {title === undefined ? null : <p className="font-medium">{title}</p>}
+        {title === undefined ? null : <p className={cn('font-medium', spec.ink)}>{title}</p>}
         {children === undefined ? null : <div className="text-ink-2 [&_a]:text-current [&_a]:underline">{children}</div>}
       </div>
       {action === undefined ? null : <div className="shrink-0 self-center">{action}</div>}
@@ -113,7 +117,7 @@ export function Empty({ title, children, action, art, className, size = 'md' }: 
     <div
       data-slot="empty-state"
       className={cn(
-        'flex items-center gap-6 rounded-lg bg-acc-wash',
+        'flex items-center gap-6 border border-rule bg-paper',
         size === 'sm' ? 'px-5 py-4' : 'px-6 py-7',
         className,
       )}
@@ -154,7 +158,7 @@ export function ErrorBlock({ title, children, onRetry, retryLabel, retrying = fa
       </button>
     );
   return (
-    <div role="alert" className={cn('flex flex-wrap items-start gap-3 rounded-lg bg-bad-wash px-5 py-4', className)}>
+    <div role="alert" className={cn('flex flex-wrap items-start gap-3 border border-t-2 border-rule border-t-bad-mid bg-paper px-5 py-4', className)}>
       <Icon name="unplug" size={20} className="mt-0.5 text-bad-ink" />
       <div className="flex min-w-0 flex-1 basis-60 flex-col gap-1">
         <p className="font-medium text-bad-ink">{title}</p>
@@ -261,9 +265,11 @@ export function LoadingLine({ label, className }: { label: string; className?: s
 // ── Segments: tiến độ theo từng phần (bước, nhiệm vụ) ───────────────────────
 export type SegmentState = 'done' | 'current' | 'failed' | 'todo';
 
+// `current` chỉ có viền màu mục, KHÔNG tô đặc: tô đặc đọc ra như "đã xong" (rà ảnh 2026-10-20:
+// lộ trình "Đã đạt 0/3 phần" mà đoạn đầu tô kín).
 const SEGMENT: Record<SegmentState, string> = {
   done: 'bg-ok-solid',
-  current: 'bg-acc-solid',
+  current: 'bg-paper ring-1 ring-inset ring-acc-solid',
   failed: 'bg-bad-solid',
   todo: 'bg-well-2',
 };

@@ -162,8 +162,10 @@ export interface RowProps {
 }
 
 /**
- * Một dòng của danh sách. Cả dòng bấm được (link phủ qua lớp `::after` của tiêu đề),
- * rê vào thì nền ngả màu mục và tiêu đề đổi màu. Không mũi tên, không nâng bóng.
+ * Một dòng của danh sách. Cả dòng bấm được (link phủ qua lớp `::after` của tiêu đề), rê vào
+ * thì tiêu đề đổi sang màu mục. Dòng phẳng: chỉ đường kẻ 1px ở đáy, thẳng mép với cột nội dung,
+ * không bo góc, không nền, không bóng. Dòng `current` (màn tiếp, bài đang làm) có ô vuông màu
+ * mục trước tiêu đề, cùng dấu với mục đang mở trên thanh điều hướng.
  */
 export function Row({ title, description, below, leading, meta, trailing, topic, className, link, current = false, dense = false }: RowProps) {
   return (
@@ -171,22 +173,24 @@ export function Row({ title, description, below, leading, meta, trailing, topic,
       data-topic={topic}
       data-current={current || undefined}
       className={cn(
-        'group relative flex items-center gap-4 border-b border-rule px-3 transition-colors duration-150',
-        '-mx-3 rounded-md hover:bg-acc-wash has-[a:focus-visible]:bg-acc-wash data-[current]:bg-acc-wash',
+        'group relative flex items-center gap-4 border-b border-rule transition-colors duration-150',
         dense ? 'py-2.5' : 'py-3.5',
         className,
       )}
     >
       {leading === undefined ? null : <div className="shrink-0">{leading}</div>}
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <div
-          className={cn(
-            'min-w-0 truncate font-medium text-ink transition-colors group-hover:text-acc-ink',
-            '[&_a]:outline-none [&_a]:after:absolute [&_a]:after:inset-0 [&_a]:after:rounded-md [&_a:focus-visible]:after:outline-2 [&_a:focus-visible]:after:outline-focus',
-            dense ? 'text-sm' : 'text-base',
-          )}
-        >
-          {link ?? title}
+        <div className="flex min-w-0 items-baseline gap-2">
+          {current ? <span aria-hidden className="size-2 shrink-0 -translate-y-px self-center bg-acc-solid" /> : null}
+          <div
+            className={cn(
+              'line-clamp-2 min-w-0 font-medium text-ink transition-colors group-hover:text-acc-ink group-data-[current]:text-acc-ink',
+              '[&_a]:outline-none [&_a]:after:absolute [&_a]:after:inset-0 [&_a:focus-visible]:after:outline-2 [&_a:focus-visible]:after:outline-focus',
+              dense ? 'text-sm' : 'text-base',
+            )}
+          >
+            {link ?? title}
+          </div>
         </div>
         {description === undefined ? null : <p className="line-clamp-2 text-sm text-ink-2">{description}</p>}
         {below === undefined ? null : <div className="pt-1.5">{below}</div>}

@@ -56,7 +56,7 @@ export function ArenaPreview(props: {
           {props.saveStatus !== 'saved' && (
             <Notice tone="warn" title={t('author.problem.arena.stale-title')} className="animate-enter">{t('author.problem.arena.stale-body')}</Notice>
           )}
-          <div className="relative flex flex-wrap items-center gap-5 overflow-hidden rounded-lg bg-tp-wash p-5">
+          <div className="relative flex flex-wrap items-center gap-5 overflow-hidden border border-rule bg-paper p-5">
             {art === undefined ? null : <GameArt kind={art} width={120} className="hidden sm:block" />}
             <p className="relative min-w-0 flex-1">
               <span className="block text-sm text-tp-ink">{GAME_NAME[props.gameId]}</span>

@@ -101,8 +101,10 @@ layout.tsx và legacy-fonts.ts: thêm một font mà quên subset là đỏ.
 
 ## 5. Hình và chuyển động
 
-- **Bo góc**: `xs` 3px, `sm` 5px (ô nhập, nút), `md` 8px, `lg` 12px (khối thông báo, popover),
-  `xl` 16px (hộp thoại). Không có thẻ bo góc xếp lưới; khối nội dung phân cách bằng đường kẻ.
+- **Bo góc**: `xs` 3px, `sm` 5px (ô nhập, nút), `md` 8px, `lg` 12px (popover, toast),
+  `xl` 16px (hộp thoại). Khối trong trang thì vuông: không có thẻ bo góc, dòng danh sách phẳng chỉ
+  có đường kẻ đáy, khối phản hồi (`Notice`, `Empty`, `ErrorBlock`) là khung kẻ 1px góc vuông với
+  dải màu 2px ở mép trên báo sắc thái.
 - **Bóng** chỉ cho thứ nổi: `shadow-pop` (menu, popover, hộp thoại, toast), `shadow-lift`. Khối
   nằm trong trang không có bóng.
 - **Chuyển động** phục vụ thao tác: `animate-enter` (260ms, khối vào trang, xếp lượt bằng `--i`),
@@ -116,10 +118,16 @@ layout.tsx và legacy-fonts.ts: thêm một font mà quên subset là đỏ.
 
 ## 6. Biểu tượng và minh hoạ
 
-Bộ glyph riêng ở `src/icons/glyphs.ts`: nét 1.75 trên lưới 24, hai lớp (nét + lớp tô 18% màu nét,
-lớp `.ds-ic-t`). Dùng `<Icon name="terminal" size={18} />`; thêm `label` khi biểu tượng mang nghĩa
-một mình, bỏ trống khi đã có chữ đi kèm (khi đó nó `aria-hidden`). Cần biểu tượng mới thì thêm
-path vào `glyphs.ts`, không kéo thư viện ngoài vào.
+Bộ glyph riêng ở `src/icons/glyphs.ts`, vẽ trên lưới 24 với nét 2, đầu nét vuông, góc nối nhọn, và
+một lớp tô in LỆCH xuống phải 1.6 đơn vị bằng màu nhấn của mục (`.ds-ic-t`, như hai lượt in chồng
+không khít). Đó là thứ làm bộ glyph không đọc ra như một bộ icon nét đều dựng sẵn; rà ảnh
+2026-10-20 xếp kiểu nét mảnh đầu tròn cũ vào lệnh cấm "icon đại trà". Dùng
+`<Icon name="terminal" size={18} />`; `tint` đổi màu lớp tô (`acc` mặc định, `topic`, `neutral`,
+`none`). Thêm `label` khi biểu tượng mang nghĩa một mình, bỏ trống khi đã có chữ đi kèm (khi đó nó
+`aria-hidden`). Cần biểu tượng mới thì thêm path vào `glyphs.ts`, không kéo thư viện ngoài vào.
+
+Icon dùng tiết kiệm: thanh điều hướng trên cùng và thanh mục con chỉ có chữ (mục đang mở có ô vuông
+màu của mục và vạch dưới), vì chữ đã đủ nghĩa.
 
 Minh hoạ vẽ bằng SVG nét, tô theo token nên tự đổi theo theme:
 
@@ -184,7 +192,7 @@ thoát ra và kéo trang dài thêm (đã gặp: tài liệu cao 6977px cho nộ
 
 | Lệnh | Gác |
 |---|---|
-| `pnpm design:check` | Kit cũ (`@devops-platform/ui`), bộ icon đại trà, loader quay vòng, viền trái dày, lớp và biến của legacy.css ngoài vùng giữ nguyên; `.ds-island` phủ đủ tên bị khai đè. Tên lớp cũ đọc từ chính legacy.css. Danh sách vùng giữ nguyên (`LEGACY_ZONES`) đỏ cả khi một dòng không còn che vi phạm nào. |
+| `pnpm design:check` | Kit cũ (`@devops-platform/ui`), bộ icon đại trà, loader quay vòng, viền trái dày, vùng cuộn thiếu `relative` (nhãn sr-only thoát ra kéo dài trang), lớp và biến của legacy.css ngoài vùng giữ nguyên; `.ds-island` phủ đủ tên bị khai đè. Tên lớp cũ đọc từ chính legacy.css. Danh sách vùng giữ nguyên (`LEGACY_ZONES`) đỏ cả khi một dòng không còn che vi phạm nào. |
 | `pnpm tokens:check` | Màu cứng trong JSX |
 | `pnpm bundle:check` (sau build) | xterm chỉ vào route có terminal; trần byte của nền chung |
 | `packages/ds` `palette.test.ts` | Khối @palette khớp bảng sinh; mọi cặp tương phản đạt |

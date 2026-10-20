@@ -56,7 +56,7 @@ export function Door({ href, icon, title, description, stat, note, section }: Do
     <li data-section={section} className="border-b border-rule">
       <Link
         href={href}
-        className="group/door -mx-4 flex items-center gap-5 rounded-lg px-4 py-5 transition-colors duration-150 hover:bg-acc-wash sm:gap-6"
+        className="group/door flex items-center gap-5 py-5 sm:gap-6"
       >
         <Icon
           name={icon}

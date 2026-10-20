@@ -29,7 +29,7 @@ export const TabsList = forwardRef<
       data-look={look}
       className={cn(
         look === 'line'
-          ? 'flex items-end gap-5 overflow-x-auto border-b border-rule [scrollbar-width:none]'
+          ? 'scroll-shadow-x relative flex items-end gap-5 overflow-x-auto border-b border-rule [scrollbar-width:none]'
           : 'inline-flex items-center gap-0.5 rounded-md bg-well-2 p-0.5',
         className,
       )}

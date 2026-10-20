@@ -359,7 +359,7 @@ export const problem = {
   'problem.statement-fields-ma-bai': 'Mã bài',
   'problem.statement-fields-may-chu-cap-khi-ban-luu-lan-dau-ma-on-dinh-vinh-vien-khong-doi-ke-ca-khi-ba':
     'Máy chủ cấp khi bạn lưu lần đầu. Mã ổn định vĩnh viễn, không đổi kể cả khi bạn sửa đề.',
-  'problem.statement-fields-slug-trong-url': 'Slug trong URL',
+  'problem.statement-fields-slug-trong-url': 'Đường dẫn rút gọn',
   'problem.statement-fields-chu-thuong-so-va-gach-noi-slug-doi-duoc-khi-sua-ten-bai-khac-ma-bai-la-thu':
     'Chữ thường, số và gạch nối. Xem trước:',
   'problem.statement-fields-trong': '(trống)',
@@ -508,7 +508,7 @@ export const problem = {
   'problem.oj.filter.region': 'Lọc bài tập',
   'problem.oj.filter.game': 'Chọn game',
   'problem.oj.filter.search': 'Tìm theo mã hoặc tên bài',
-  'problem.oj.filter.search-placeholder': 'K8S-0042 hoặc pod treo',
+  'problem.oj.filter.search-placeholder': 'Mã hoặc tên đề',
   'problem.oj.filter.search-submit': 'Tìm',
   'problem.oj.filter.order': 'Sắp theo',
   'problem.oj.filter.direction': 'Chiều sắp',

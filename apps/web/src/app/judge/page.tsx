@@ -57,7 +57,7 @@ export default async function JudgeHubPage() {
                 <li key={game.id} data-topic={look.topic} className="border-b border-rule last:border-b-0">
                   <Link
                     href={`/problems?game=${encodeURIComponent(game.gameId)}`}
-                    className="group/game -mx-3 flex items-center gap-4 rounded-md px-3 py-3.5 transition-colors duration-150 hover:bg-tp-wash"
+                    className="group/game flex items-center gap-4 py-3.5"
                   >
                     <Icon
                       name={look.icon}
@@ -66,7 +66,7 @@ export default async function JudgeHubPage() {
                       className="shrink-0 text-tp-ink transition-transform duration-300 ease-out group-hover/game:rotate-6"
                     />
                     <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                      <span className="font-medium text-ink group-hover/game:text-tp-ink">
+                      <span className="font-medium text-ink transition-colors duration-150 group-hover/game:text-tp-ink">
                         {t('hub.judge.game-open', { game: game.title })}
                       </span>
                       <span className="line-clamp-2 text-sm text-ink-2">{game.description}</span>

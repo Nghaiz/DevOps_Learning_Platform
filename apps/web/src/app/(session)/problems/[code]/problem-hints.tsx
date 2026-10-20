@@ -99,7 +99,7 @@ export function ProblemHints(props: {
                 được gợi ý mình vừa viết.
               */}
               {open ? (
-                <p className="max-w-[64ch] animate-enter rounded-md bg-warn-wash px-4 py-3 text-sm leading-relaxed text-ink">
+                <p className="max-w-[64ch] animate-enter border border-t-2 border-rule border-t-warn-mid bg-paper px-4 py-3 text-sm leading-relaxed text-ink">
                   {hint.text}
                 </p>
               ) : (

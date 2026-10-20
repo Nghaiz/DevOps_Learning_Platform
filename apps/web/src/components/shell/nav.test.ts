@@ -97,7 +97,7 @@ describe('bảng mục', () => {
         icon: 'panel',
         roles: ['admin'],
         items: [
-          ['/admin/users', 'Tài khoản', 'users'],
+          ['/admin/users', 'Người dùng', 'users'],
           ['/admin/classes', 'Lớp học', 'classroom'],
           ['/admin/exams', 'Kỳ thi', 'timer'],
           ['/admin/sessions', 'Máy đang chạy', 'server'],

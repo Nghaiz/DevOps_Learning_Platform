@@ -1,7 +1,8 @@
 /**
  * Bộ biểu tượng riêng của hệ `ds`. Không dùng bộ icon dựng sẵn nào.
  *
- * Lưới 24×24, nét 1.75, đầu nét và góc nối bo tròn. Mỗi glyph là danh sách nét:
+ * Lưới 24×24, nét 2, đầu nét vuông, góc nối nhọn (miter, giới hạn 2). Lớp tô in lệch
+ * xuống phải 1.6 đơn vị so với nét (icon.tsx). Mỗi glyph là danh sách nét:
  *   ['p', d]                 đường (nét)
  *   ['c', cx, cy, r]         tròn (nét)
  *   ['r', x, y, w, h, rx]    chữ nhật (nét)
@@ -20,7 +21,7 @@ export type Glyph = readonly GlyphPrim[];
 
 const p = (d: string, k: GlyphKind = 's'): GlyphPrim => ['p', d, k];
 const c = (cx: number, cy: number, r: number, k: GlyphKind = 's'): GlyphPrim => ['c', cx, cy, r, k];
-const r = (x: number, y: number, w: number, h: number, rx = 1.75, k: GlyphKind = 's'): GlyphPrim => [
+const r = (x: number, y: number, w: number, h: number, rx = 0.75, k: GlyphKind = 's'): GlyphPrim => [
   'r',
   x,
   y,
@@ -31,7 +32,7 @@ const r = (x: number, y: number, w: number, h: number, rx = 1.75, k: GlyphKind =
 ];
 /** Một hình vừa làm lớp tô vừa làm nét. */
 const pp = (d: string): GlyphPrim[] => [p(d, 't'), p(d)];
-const rr = (x: number, y: number, w: number, h: number, rx = 1.75): GlyphPrim[] => [
+const rr = (x: number, y: number, w: number, h: number, rx = 0.75): GlyphPrim[] => [
   r(x, y, w, h, rx, 't'),
   r(x, y, w, h, rx),
 ];

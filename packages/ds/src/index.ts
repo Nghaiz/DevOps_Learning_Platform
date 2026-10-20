@@ -89,6 +89,7 @@ export {
 } from './feedback.tsx';
 export { Page, PageHeader, BackLink, Section, SummaryList, RowList, Row, RowMeta, TopicGlyph, type RowProps } from './layout.tsx';
 export { Table, THead, TBody, TR, TH, TD } from './table.tsx';
+export { InlineText } from './inline-text.tsx';
 export { Pager, type PagerProps } from './pager.tsx';
 export { Toaster, toast } from './toast.tsx';
 export { LogoMark, Wordmark, StepStrip, BootLog, Stamp, type StepItem, type StepState, type BootLine, type BootState } from './marks.tsx';

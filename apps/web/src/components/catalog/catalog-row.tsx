@@ -2,7 +2,7 @@ import Link from 'next/link';
 import type { ReactElement, ReactNode } from 'react';
 import type { ScenarioDifficulty } from '@devops-platform/shared-types/scenario';
 import { t } from '@devops-platform/copy';
-import { Icon, LevelBars, Pill, Row, RowMeta, TopicGlyph } from '@devops-platform/ds';
+import { Icon, InlineText, LevelBars, Pill, Row, RowMeta, TopicGlyph } from '@devops-platform/ds';
 import { topicLook, type TopicInput } from '../../lib/topic-look';
 import { DIFFICULTY_LEVEL, difficultyLabel, progressStatusLabel } from './catalog-labels';
 
@@ -25,11 +25,17 @@ export function CatalogRow(props: {
       topic={look.topic}
       leading={<TopicGlyph topic={look.topic} icon={look.icon} size={30} />}
       title={props.title}
-      link={<Link href={props.href}>{props.title}</Link>}
-      description={props.description ?? undefined}
+      link={
+        <Link href={props.href}>
+          <InlineText text={props.title} />
+        </Link>
+      }
+      description={props.description == null ? undefined : <InlineText text={props.description} />}
       below={props.below}
       meta={props.meta}
-      trailing={props.state === null || props.state === undefined ? undefined : <div className="hidden sm:block">{props.state}</div>}
+      // Trang truyền `state` (kể cả `undefined` ở dòng không có nhãn) là danh sách CÓ cột nhãn:
+      // giữ chỗ rộng cố định ở mọi dòng, không thì dòng thiếu nhãn có cột meta lệch sang phải.
+      trailing={'state' in props ? <div className="hidden w-36 justify-end sm:flex">{props.state ?? null}</div> : undefined}
     />
   );
 }

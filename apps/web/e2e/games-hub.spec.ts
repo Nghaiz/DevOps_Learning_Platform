@@ -144,7 +144,9 @@ test.describe('/games, trang chọn game', () => {
     });
     await openScreen(page, PATH, 'anon');
     await page.getByRole('button', { name: t('shell.theme.label'), exact: true }).click();
-    await page.getByRole('menuitem', { name: t('shell.theme.choice.dark'), exact: true }).click();
+    // Ba lựa chọn theme là MỘT nhóm chọn-một (`MenuRadioItem`), nên vai trò là `menuitemradio`,
+    // không phải `menuitem`: trình đọc màn hình đọc được lựa chọn nào đang bật.
+    await page.getByRole('menuitemradio', { name: t('shell.theme.choice.dark'), exact: true }).click();
     await expect(page.locator('html')).toHaveClass(/\bdark\b/u);
     await noHorizontalOverflow(page);
   });

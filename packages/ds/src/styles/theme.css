@@ -324,9 +324,18 @@
  * ── Màu nhấn theo mục ─────────────────────────────────────────────────────
  * Vỏ ứng dụng gắn `data-section` lên khung trang; mọi thứ bên trong đọc `--acc-*`.
  * Không có mục (trang cá nhân, đăng nhập) thì dùng màu của mục Học.
+ *
+ * ⚠ Mỗi khối cũng áp cho `.dark` LỒNG bên trong mục (khoang máy của khu thực hành ép tối
+ * trong khi trang theo theme sáng). Biến tham chiếu biến khác được tính ở chính phần tử khai
+ * nó: `--acc-solid` tính ở khung trang bằng bảng màu SÁNG, rồi kế thừa nguyên giá trị đó vào
+ * vùng tối, trong khi `--on-solid` ở vùng tối đã là màu tối. Nút chính trong khoang máy vì vậy
+ * mang chữ tối trên nền nhấn sáng (axe color-contrast, 2026-10-20). Áp lại ở `.dark` là tính
+ * lại ánh xạ bằng bảng màu tối của chính vùng đó. Cùng lý do cho `--tp-*` bên dưới.
  */
 :root,
-[data-section='learn'] {
+:root .dark,
+[data-section='learn'],
+[data-section='learn'] .dark {
   --acc-wash: var(--s-learn-wash);
   --acc-tint: var(--s-learn-tint);
   --acc-soft: var(--s-learn-soft);
@@ -334,7 +343,8 @@
   --acc-solid: var(--s-learn-solid);
   --acc-ink: var(--s-learn-ink);
 }
-[data-section='practice'] {
+[data-section='practice'],
+[data-section='practice'] .dark {
   --acc-wash: var(--s-practice-wash);
   --acc-tint: var(--s-practice-tint);
   --acc-soft: var(--s-practice-soft);
@@ -342,7 +352,8 @@
   --acc-solid: var(--s-practice-solid);
   --acc-ink: var(--s-practice-ink);
 }
-[data-section='judge'] {
+[data-section='judge'],
+[data-section='judge'] .dark {
   --acc-wash: var(--s-judge-wash);
   --acc-tint: var(--s-judge-tint);
   --acc-soft: var(--s-judge-soft);
@@ -350,7 +361,8 @@
   --acc-solid: var(--s-judge-solid);
   --acc-ink: var(--s-judge-ink);
 }
-[data-section='games'] {
+[data-section='games'],
+[data-section='games'] .dark {
   --acc-wash: var(--s-games-wash);
   --acc-tint: var(--s-games-tint);
   --acc-soft: var(--s-games-soft);
@@ -358,7 +370,8 @@
   --acc-solid: var(--s-games-solid);
   --acc-ink: var(--s-games-ink);
 }
-[data-section='studio'] {
+[data-section='studio'],
+[data-section='studio'] .dark {
   --acc-wash: var(--s-studio-wash);
   --acc-tint: var(--s-studio-tint);
   --acc-soft: var(--s-studio-soft);
@@ -366,7 +379,8 @@
   --acc-solid: var(--s-studio-solid);
   --acc-ink: var(--s-studio-ink);
 }
-[data-section='admin'] {
+[data-section='admin'],
+[data-section='admin'] .dark {
   --acc-wash: var(--s-admin-wash);
   --acc-tint: var(--s-admin-tint);
   --acc-soft: var(--s-admin-soft);
@@ -380,7 +394,9 @@
  * `data-topic` trên dòng/biểu tượng; đọc `--tp-*`. Mặc định là xám-xanh trung tính.
  */
 :root,
-[data-topic='general'] {
+:root .dark,
+[data-topic='general'],
+[data-topic='general'] .dark {
   --tp-wash: var(--t-general-wash);
   --tp-tint: var(--t-general-tint);
   --tp-soft: var(--t-general-soft);
@@ -388,7 +404,8 @@
   --tp-solid: var(--t-general-solid);
   --tp-ink: var(--t-general-ink);
 }
-[data-topic='security'] {
+[data-topic='security'],
+[data-topic='security'] .dark {
   --tp-wash: var(--t-security-wash);
   --tp-tint: var(--t-security-tint);
   --tp-soft: var(--t-security-soft);
@@ -396,7 +413,8 @@
   --tp-solid: var(--t-security-solid);
   --tp-ink: var(--t-security-ink);
 }
-[data-topic='git'] {
+[data-topic='git'],
+[data-topic='git'] .dark {
   --tp-wash: var(--t-git-wash);
   --tp-tint: var(--t-git-tint);
   --tp-soft: var(--t-git-soft);
@@ -404,7 +422,8 @@
   --tp-solid: var(--t-git-solid);
   --tp-ink: var(--t-git-ink);
 }
-[data-topic='iac'] {
+[data-topic='iac'],
+[data-topic='iac'] .dark {
   --tp-wash: var(--t-iac-wash);
   --tp-tint: var(--t-iac-tint);
   --tp-soft: var(--t-iac-soft);
@@ -412,7 +431,8 @@
   --tp-solid: var(--t-iac-solid);
   --tp-ink: var(--t-iac-ink);
 }
-[data-topic='linux'] {
+[data-topic='linux'],
+[data-topic='linux'] .dark {
   --tp-wash: var(--t-linux-wash);
   --tp-tint: var(--t-linux-tint);
   --tp-soft: var(--t-linux-soft);
@@ -420,7 +440,8 @@
   --tp-solid: var(--t-linux-solid);
   --tp-ink: var(--t-linux-ink);
 }
-[data-topic='bash'] {
+[data-topic='bash'],
+[data-topic='bash'] .dark {
   --tp-wash: var(--t-bash-wash);
   --tp-tint: var(--t-bash-tint);
   --tp-soft: var(--t-bash-soft);
@@ -428,7 +449,8 @@
   --tp-solid: var(--t-bash-solid);
   --tp-ink: var(--t-bash-ink);
 }
-[data-topic='cicd'] {
+[data-topic='cicd'],
+[data-topic='cicd'] .dark {
   --tp-wash: var(--t-cicd-wash);
   --tp-tint: var(--t-cicd-tint);
   --tp-soft: var(--t-cicd-soft);
@@ -436,7 +458,8 @@
   --tp-solid: var(--t-cicd-solid);
   --tp-ink: var(--t-cicd-ink);
 }
-[data-topic='networking'] {
+[data-topic='networking'],
+[data-topic='networking'] .dark {
   --tp-wash: var(--t-networking-wash);
   --tp-tint: var(--t-networking-tint);
   --tp-soft: var(--t-networking-soft);
@@ -444,7 +467,8 @@
   --tp-solid: var(--t-networking-solid);
   --tp-ink: var(--t-networking-ink);
 }
-[data-topic='docker'] {
+[data-topic='docker'],
+[data-topic='docker'] .dark {
   --tp-wash: var(--t-docker-wash);
   --tp-tint: var(--t-docker-tint);
   --tp-soft: var(--t-docker-soft);
@@ -452,7 +476,8 @@
   --tp-solid: var(--t-docker-solid);
   --tp-ink: var(--t-docker-ink);
 }
-[data-topic='kubernetes'] {
+[data-topic='kubernetes'],
+[data-topic='kubernetes'] .dark {
   --tp-wash: var(--t-kubernetes-wash);
   --tp-tint: var(--t-kubernetes-tint);
   --tp-soft: var(--t-kubernetes-soft);
@@ -460,7 +485,8 @@
   --tp-solid: var(--t-kubernetes-solid);
   --tp-ink: var(--t-kubernetes-ink);
 }
-[data-topic='observability'] {
+[data-topic='observability'],
+[data-topic='observability'] .dark {
   --tp-wash: var(--t-observability-wash);
   --tp-tint: var(--t-observability-tint);
   --tp-soft: var(--t-observability-soft);
@@ -826,6 +852,20 @@
   }
 }
 
+/*
+ * Vùng cuộn ngang (bảng, dải tab ở màn hẹp): bóng mờ hiện ở mép nào còn nội dung bị che, và tự
+ * tắt khi đã cuộn tới mép đó. Hai lớp phủ màu nền cuộn THEO nội dung (`local`) và che bóng ở
+ * mép đã hết; hai lớp bóng đứng yên (`scroll`). Nền khác `canvas` thì đặt `--scroll-bg`.
+ * Thiếu nó thì một bảng bị cắt ở mép 390px trông như bảng đã hết cột (rà ảnh 2026-10-20).
+ */
+@utility scroll-shadow-x {
+  background:
+    linear-gradient(to right, var(--scroll-bg, var(--canvas)) 30%, transparent) left center / 40px 100% no-repeat local,
+    linear-gradient(to left, var(--scroll-bg, var(--canvas)) 30%, transparent) right center / 40px 100% no-repeat local,
+    radial-gradient(farthest-side at 0 50%, color-mix(in oklch, var(--ink) 18%, transparent), transparent) left center / 14px 100% no-repeat scroll,
+    radial-gradient(farthest-side at 100% 50%, color-mix(in oklch, var(--ink) 18%, transparent), transparent) right center / 14px 100% no-repeat scroll;
+}
+
 /* Đang kéo tay nắm chia khoang: iframe (IDE) không được nuốt sự kiện chuột. */
 body:has([data-separator='active']) iframe {
   pointer-events: none;
@@ -833,11 +873,11 @@ body:has([data-separator='active']) iframe {
 
 /*
  * ── Biểu tượng ────────────────────────────────────────────────────────────
- * Lớp tô (`.ds-ic-t`) mặc định là 18% màu nét; trong một mục hay một chủ đề thì
- * đặt `--ic-tint` để lớp tô lấy màu của mục/chủ đề đó.
+ * Lớp tô (`.ds-ic-t`) in lệch xuống phải so với nét (xem icon.tsx) và mặc định lấy màu nhấn
+ * của mục (`--acc-tint`); `<Icon tint>` đặt `--ic-tint` để lấy màu chủ đề, xám, hoặc bỏ lớp tô.
  */
 .ds-ic-t {
-  fill: var(--ic-tint, color-mix(in oklch, currentColor 18%, transparent));
+  fill: var(--ic-tint, var(--acc-tint));
   stroke: none;
 }
 .ds-ic-f {

@@ -87,7 +87,8 @@ function HealthBody({
     <div className="flex flex-col gap-8">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex max-w-prose flex-col gap-1">
-          <p className="text-base text-ink">{summary.headline}</p>
+          {/* Có sự cố thì câu tóm tắt nằm trong thông báo ngay dưới; in thêm ở đây là nói hai lần. */}
+          {summary.tone === 'ok' ? <p className="text-base text-ink">{summary.headline}</p> : null}
           {at === null ? null : <p className="text-xs tabular-nums text-ink-3">{t('admin.health.fetched-at', { at })}</p>}
         </div>
         <Button variant="secondary" size="sm" icon="refresh" onClick={onRefetch} loading={fetching}>

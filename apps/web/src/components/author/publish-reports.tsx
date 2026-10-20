@@ -30,7 +30,7 @@ export function CheckReport(props: {
             {t('author.publish-panel-bai-qua-dung-schema-ma-luot-xuat-ban-se-dung')}
           </Notice>
       ) : (
-        <div className="flex flex-col gap-2 rounded-lg bg-bad-wash px-4 py-3">
+        <div className="flex flex-col gap-2 border border-t-2 border-rule border-t-bad-mid bg-paper px-4 py-3">
           <p className="text-sm font-semibold text-bad-ink">
             {t('author.publish.check.blocked')}
           </p>

@@ -116,7 +116,7 @@ export function ClassPicker(props: {
         <p className="text-sm text-ink-2">{t('admin.exams.form.class-none')}</p>
       ) : (
         <>
-          <div id={listId} className={cn('overflow-y-auto rounded-md border border-rule-2 bg-paper', VISIBLE_ROWS_CLASS)}>
+          <div id={listId} className={cn('relative overflow-y-auto rounded-md border border-rule-2 bg-paper', VISIBLE_ROWS_CLASS)}>
             {matches.length === 0 ? (
               <p className="p-3 text-sm text-ink-2">
                 {t('admin.exams.form.class-no-match', { query: query.trim() })}
@@ -183,7 +183,7 @@ function ClassesError({
 }): ReactElement {
   const failure = err('admin.error.exam-classes', { reason });
   return (
-    <div role="alert" className="flex flex-col items-start gap-2 rounded-md bg-bad-wash p-3 text-sm">
+    <div role="alert" className="flex flex-col items-start gap-2 border border-t-2 border-rule border-t-bad-mid bg-paper p-3 text-sm">
       <p className="text-bad-ink">{failure.what}</p>
       <p className="text-ink">{failure.next}</p>
       <Button type="button" variant="secondary" size="sm" onClick={onRetry} loading={retrying}>

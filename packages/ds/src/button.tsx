@@ -17,20 +17,20 @@ export const buttonVariants = cva(
   [
     'relative inline-flex shrink-0 select-none items-center justify-center gap-2 overflow-hidden whitespace-nowrap',
     'rounded-sm font-medium transition-[background-color,border-color,color,box-shadow,transform] duration-150 ease-out',
-    'motion-safe:active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50',
+    // Khoá (không phải đang tải): nền xám trung tính, chữ xám, không bóng. Làm mờ màu nhấn đọc
+    // ra như nút hỏng (rà ảnh 2026-10-20). Đang tải cũng `disabled` nhưng giữ màu, có vạch quét.
+    'motion-safe:active:scale-[0.97] disabled:pointer-events-none [&:disabled:not([aria-busy=true])]:shadow-none',
     'aria-busy:cursor-progress',
   ],
   {
     variants: {
       variant: {
-        primary:
-          'bg-acc-solid text-on-solid shadow-lift hover:bg-[color-mix(in_oklch,var(--acc-solid),var(--ink)_14%)]',
-        ink: 'bg-ink text-canvas shadow-lift hover:bg-[color-mix(in_oklch,var(--ink),var(--canvas)_18%)]',
-        secondary:
-          'border border-rule-2 bg-paper text-ink shadow-lift hover:border-control hover:bg-well',
-        ghost: 'text-ink-2 hover:bg-well hover:text-ink',
-        danger: 'border border-[color-mix(in_oklch,var(--st-bad-mid),transparent_45%)] bg-paper text-bad-ink hover:bg-bad-wash',
-        link: 'h-auto px-0 text-acc-ink underline-offset-4 hover:underline active:scale-100',
+        primary: 'bg-acc-solid text-on-solid shadow-lift hover:bg-[color-mix(in_oklch,var(--acc-solid),var(--ink)_14%)] [&:disabled:not([aria-busy=true])]:bg-well-2 [&:disabled:not([aria-busy=true])]:text-ink-3',
+        ink: 'bg-ink text-canvas shadow-lift hover:bg-[color-mix(in_oklch,var(--ink),var(--canvas)_18%)] [&:disabled:not([aria-busy=true])]:bg-well-2 [&:disabled:not([aria-busy=true])]:text-ink-3',
+        secondary: 'border border-rule-2 bg-paper text-ink shadow-lift hover:border-control hover:bg-well [&:disabled:not([aria-busy=true])]:border-rule [&:disabled:not([aria-busy=true])]:bg-well [&:disabled:not([aria-busy=true])]:text-ink-3',
+        ghost: 'text-ink-2 hover:bg-well hover:text-ink [&:disabled:not([aria-busy=true])]:text-ink-3',
+        danger: 'border border-[color-mix(in_oklch,var(--st-bad-mid),transparent_45%)] bg-paper text-bad-ink hover:bg-bad-wash [&:disabled:not([aria-busy=true])]:border-rule [&:disabled:not([aria-busy=true])]:text-ink-3',
+        link: 'h-auto px-0 text-acc-ink underline-offset-4 hover:underline active:scale-100 [&:disabled:not([aria-busy=true])]:text-ink-3',
       },
       size: {
         sm: 'h-8 px-3 text-sm',
@@ -90,18 +90,24 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
   if (asChild) {
     // `Slottable` để biểu tượng chui VÀO trong phần tử con (thường là `<Link>`), không
     // đứng cạnh nó: `<Button asChild icon="book"><Link/></Button>` ra một `<a>` có icon.
+    //
+    // ⛔ Ba con phải là con TRỰC TIẾP của `Slot.Root`, không bọc trong Fragment. Slot tìm
+    // `Slottable` bằng `Children.toArray`, hàm này không duỗi Fragment: bọc vào là Slot không
+    // thấy `Slottable`, đem clone chính cái Fragment, và mọi lớp CSS rơi mất. Đã gặp
+    // 2026-10-20: mọi nút-link có icon mất nền, mất `inline-flex`, icon rớt thành dòng riêng.
+    if (icon === undefined && iconRight === undefined) {
+      return (
+        <Slot.Root ref={ref} className={classes} {...rest}>
+          {children}
+        </Slot.Root>
+      );
+    }
     const glyph = size === 'lg' ? 20 : size === 'sm' || size === 'icon-sm' ? 16 : 18;
     return (
       <Slot.Root ref={ref} className={classes} {...rest}>
-        {icon === undefined && iconRight === undefined ? (
-          children
-        ) : (
-          <>
-            {icon === undefined ? null : <Icon name={icon} size={glyph} />}
-            <Slot.Slottable>{children}</Slot.Slottable>
-            {iconRight === undefined ? null : <Icon name={iconRight} size={glyph} />}
-          </>
-        )}
+        {icon === undefined ? null : <Icon name={icon} size={glyph} />}
+        <Slot.Slottable>{children}</Slot.Slottable>
+        {iconRight === undefined ? null : <Icon name={iconRight} size={glyph} />}
       </Slot.Root>
     );
   }

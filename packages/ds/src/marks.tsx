@@ -66,7 +66,7 @@ export interface StepStripProps {
  */
 export function StepStrip({ steps, activeKey, onSelect, label, className }: StepStripProps) {
   return (
-    <ol aria-label={label} className={cn('flex items-stretch gap-1 overflow-x-auto [scrollbar-width:none]', className)}>
+    <ol aria-label={label} className={cn('relative flex items-stretch gap-1 overflow-x-auto [scrollbar-width:none]', className)}>
       {steps.map((step, index) => {
         const active = step.key === activeKey;
         return (

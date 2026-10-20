@@ -10,7 +10,7 @@ export const common = {
   // ── Trang không tìm thấy và trang lỗi ───────────────────────────────────
   'common.not-found.code': '404',
   'common.not-found.title': 'Không tìm thấy trang này',
-  'common.not-found.body': 'Đường dẫn có thể gõ sai, hoặc nội dung đã bị gỡ. Chọn một mục bên dưới để đi tiếp.',
+  'common.not-found.body': 'Đường dẫn có thể gõ sai, hoặc nội dung đã bị gỡ. Chọn một mục trong danh sách để đi tiếp.',
   'common.not-found.home': 'Về trang đầu',
   'common.crash.title': 'Trang này vừa gặp lỗi',
   'common.crash.body': 'Lỗi nằm ở phía hệ thống, không phải do bạn bấm sai. Thử tải lại; nếu vẫn lỗi, gửi mã bên dưới cho giảng viên.',

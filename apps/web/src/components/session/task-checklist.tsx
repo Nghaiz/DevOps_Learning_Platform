@@ -58,9 +58,9 @@ export function TaskChecklist({ items, selectedId, onSelect, children }: TaskChe
       {items.map((item, index) => {
         const selected = item.id === selectedId;
         return (
-          <li key={item.id} className={cn('border-b border-rule last:border-b-0', selected && 'bg-acc-wash/60')}>
+          <li key={item.id} className="border-b border-rule last:border-b-0">
             <TaskChecklistRow item={item} index={index + 1} selected={selected} onSelect={onSelect} />
-            {selected && children !== undefined ? <div className="animate-enter px-3 pb-5 pt-1">{children}</div> : null}
+            {selected && children !== undefined ? <div className="animate-enter pb-5 pl-9 pt-1">{children}</div> : null}
           </li>
         );
       })}
@@ -88,23 +88,27 @@ function TaskChecklistRow({
       aria-current={selected ? 'true' : undefined}
       aria-expanded={selected}
       className={cn(
-        'flex min-h-12 w-full items-start gap-3 px-3 py-3 text-left outline-none',
-        'transition-colors duration-150 focus-visible:bg-acc-wash',
-        selected ? '' : 'hover:bg-well',
+        'flex min-h-12 w-full items-start gap-3 py-3 text-left outline-none',
+        'transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-focus',
+        'hover:[&_[data-task-title]]:text-acc-ink',
       )}
     >
       <span
         aria-hidden="true"
         className={cn(
           'mt-0.5 grid size-6 shrink-0 place-items-center rounded-full text-xs font-semibold tabular-nums',
-          item.state === 'passed' ? 'bg-ok-solid text-on-solid' : selected ? 'bg-acc-solid text-on-solid' : 'bg-well-2 text-ink-2',
+          // Xanh lá CHỈ cho "đã đạt". Nhiệm vụ đang mở dùng màu trung tính đậm: màu mục ở khu
+          // thực hành là xanh lá, và một vòng xanh trên nhiệm vụ chưa chấm đọc ra như đã xong.
+          item.state === 'passed' ? 'bg-ok-solid text-on-solid' : selected ? 'bg-ink text-canvas' : 'bg-well-2 text-ink-2',
         )}
       >
         {item.state === 'passed' ? <Icon name="check" size={13} strokeWidth={3} /> : index}
       </span>
       <span className="min-w-0 flex-1">
         <span className="sr-only">{index}</span>
-        <span className={cn('block text-ink', selected ? 'font-display text-md font-semibold' : 'text-sm font-medium')}>{item.title}</span>
+        <span data-task-title="" className={cn('block text-ink transition-colors', selected ? 'font-display text-md font-semibold' : 'text-sm font-medium')}>
+          {item.title}
+        </span>
         {/* Nhãn trạng thái là CHỮ, không chỉ là một biểu tượng có `title`. */}
         <span className={cn('mt-1 flex items-center gap-1.5 text-xs', tone)}>
           <Icon

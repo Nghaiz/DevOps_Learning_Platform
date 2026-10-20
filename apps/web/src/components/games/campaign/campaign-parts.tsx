@@ -5,6 +5,7 @@ import {
   BackLink,
   GameArt,
   Icon,
+  InlineText,
   LevelBars,
   Page,
   PageHeader,
@@ -125,7 +126,7 @@ export function ChapterStrip({ chapters }: { readonly chapters: readonly Chapter
   return (
     <nav aria-label={t('games.k8s.campaign.chapters')} className="border-b border-rule">
       <Page>
-        <ul className="-mx-1 flex gap-1 overflow-x-auto py-3 [scrollbar-width:none]">
+        <ul className="relative -mx-1 flex gap-1 overflow-x-auto py-3 [scrollbar-width:none]">
           {chapters.map((chapter) => {
             const complete = chapter.done === chapter.total && chapter.total > 0;
             return (
@@ -212,16 +213,24 @@ export function LevelRow(props: LevelRowProps): ReactElement {
       title={props.title}
       link={
         onClick === undefined ? (
-          <Link href={props.href}>{props.title}</Link>
+          <Link href={props.href}>
+            <InlineText text={props.title} />
+          </Link>
         ) : (
           <a href={props.href} onClick={onClick}>
-            {props.title}
+            <InlineText text={props.title} />
           </a>
         )
       }
-      description={props.description}
+      description={typeof props.description === 'string' ? <InlineText text={props.description} /> : props.description}
       meta={props.meta}
-      trailing={<LevelStatusMark status={props.status} />}
+      // Cột trạng thái rộng cố định: pill "Màn tiếp" rộng hơn chữ "Chưa chơi", và một cột co
+      // theo nội dung đẩy cả hàng meta lệch so với các dòng dưới.
+      trailing={
+        <span className="flex w-28 justify-end">
+          <LevelStatusMark status={props.status} />
+        </span>
+      }
     />
   );
 }

@@ -178,7 +178,7 @@ export const admin = {
     'Đây là tài khoản của chính bạn. Tự hạ quyền quản trị sẽ khoá luôn trang /admin và chỉ mở lại được bằng SQL tay trên máy chủ, và máy chủ cũng từ chối việc này. Nhờ một quản trị viên khác đổi giúp.',
 
   // ── /admin/sessions ──────────────────────────────────────────────────────
-  'admin.sessions.title': 'Phiên đang chạy',
+  'admin.sessions.title': 'Máy đang chạy',
   'admin.sessions.lead':
     'Phiên của mọi người đang mở lúc này. Kết thúc một phiên là thu hồi pod ngay, người đang gõ không được báo trước.',
   'admin.sessions.alert-title': 'Danh sách này chỉ có phiên còn chạy',

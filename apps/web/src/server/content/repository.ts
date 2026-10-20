@@ -18,7 +18,7 @@ import {
   type ListPageOptions,
 } from '@devops-platform/scenario';
 import type { Database, DbOrTx } from '../db/client';
-import { contentItems, contentSteps, type ContentItemRecord } from '../db/schema';
+import { contentItems, contentSteps, users, type ContentItemRecord } from '../db/schema';
 
 /**
  * Hiện thực Postgres của port `ContentRepository` (P9 9.C).
@@ -370,17 +370,27 @@ export async function loadBodyForWrite(db: DbOrTx, id: string): Promise<ContentB
 export async function listAuthoredBy(
   db: DbOrTx,
   authorId: string | null,
-): Promise<readonly { record: ContentItemRecord; stepCount: number }[]> {
+): Promise<
+  readonly { record: ContentItemRecord; stepCount: number; authorName: string | null; authorEmail: string | null }[]
+> {
   const counts = stepCountSubquery(db);
   const rows = await db
-    .select({ item: contentItems, stepCount: stepCountOf(counts) })
+    .select({ item: contentItems, stepCount: stepCountOf(counts), authorName: users.name, authorEmail: users.email })
     .from(contentItems)
     .leftJoin(counts, eq(counts.contentId, contentItems.id))
+    // Tên + email người soạn cho trang quản trị nội dung (trước đó chỉ có id thô). `leftJoin`:
+    // tài khoản đã xoá thì bài vẫn hiện, chỉ thiếu tên.
+    .leftJoin(users, eq(users.id, contentItems.authorId))
     // `null` = admin, xem mọi bài. Không phải "không lọc vì quên": caller duy
     // nhất truyền `null` là nhánh admin của `authoring.list`.
     .where(authorId === null ? undefined : eq(contentItems.authorId, authorId))
     .orderBy(asc(contentItems.id));
-  return rows.map((row) => ({ record: row.item, stepCount: row.stepCount }));
+  return rows.map((row) => ({
+    record: row.item,
+    stepCount: row.stepCount,
+    authorName: row.authorName ?? null,
+    authorEmail: row.authorEmail ?? null,
+  }));
 }
 
 /** Đếm bài đang giữ một id — dùng để từ chối trùng id NGAY khi tạo, không đợi tới publish. */

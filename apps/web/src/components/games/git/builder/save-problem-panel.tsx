@@ -176,14 +176,14 @@ export function SaveProblemPanel({ draft }: { readonly draft: LevelDraft }): Rea
       />
 
       <div
-        className="flex items-baseline justify-between gap-3 border-y border-rule py-2.5"
+        className="flex flex-col gap-1 border-y border-rule py-2.5"
         data-testid="git-builder-save-slug"
       >
-        <span className="shrink-0 text-xs font-medium text-ink-2">
+        <span className="text-sm font-medium text-ink">
           {t('author.builder.save.slug')}
         </span>
         {slug === '' ? (
-          <span className="text-sm text-ink-2">
+          <span className="text-sm text-ink-3">
             {t('author.builder.save.slug-empty')}
           </span>
         ) : (

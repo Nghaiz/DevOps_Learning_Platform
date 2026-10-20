@@ -137,8 +137,15 @@ export function Markdown({ markdown, labels, resolveAssetUrl, linksInNewTab = fa
       <th className="border-b border-rule-2 px-3 py-2 text-left text-xs font-medium text-ink-3">{children}</th>
     ),
     td: ({ children }) => <td className="border-b border-rule px-3 py-2 text-ink">{children}</td>,
+    // `tabIndex`: khối mã dài cuộn ngang, và vùng cuộn phải tới được bằng bàn phím (axe
+    // scrollable-region-focusable). Cùng cách với bảng ngay trên.
     pre: ({ children }) => (
-      <pre className="my-4 overflow-x-auto rounded-md bg-[var(--code-bg)] px-4 py-3 text-[13px] leading-relaxed text-[var(--code-ink)]">
+      <pre
+        tabIndex={0}
+        role="group"
+        aria-label={labels.codeRegion('text')}
+        className="relative my-4 overflow-x-auto rounded-md bg-[var(--code-bg)] px-4 py-3 text-[13px] leading-relaxed text-[var(--code-ink)] outline-none focus-visible:outline-2 focus-visible:outline-focus"
+      >
         {children}
       </pre>
     ),

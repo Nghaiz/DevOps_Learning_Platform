@@ -166,7 +166,7 @@ export function WorkspacePanel({
             role="tablist"
             aria-label={t('session.workspace.tablist')}
             aria-orientation="horizontal"
-            className="flex h-full min-w-0 items-stretch overflow-x-auto"
+            className="relative flex h-full min-w-0 items-stretch overflow-x-auto"
             onKeyDown={handleTablistKeyDown}
           >
             {tabs.map((tab) => (

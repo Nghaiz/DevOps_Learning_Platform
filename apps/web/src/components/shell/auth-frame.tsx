@@ -33,8 +33,9 @@ export function AuthFrame({
   readonly children: ReactNode;
 }) {
   return (
-    <div className="grid flex-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-      <div className="flex flex-col justify-center px-4 py-12 sm:px-8 lg:px-16 lg:py-16">
+    <div data-full-bleed="" className="grid flex-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      {/* Neo form theo mép TRÊN, cùng khoảng đệm ở cả ba trang: căn giữa dọc làm tiêu đề nhảy chỗ giữa đăng nhập, đăng ký và quên mật khẩu. */}
+      <div className="flex flex-col px-4 py-12 sm:px-8 lg:px-16 lg:pt-20 lg:pb-16">
         <div className="mx-auto w-full max-w-md animate-enter">
           <h1 className="font-display text-3xl font-semibold tracking-[-0.02em] text-balance text-ink">{title}</h1>
           <p className="mt-2 text-md text-ink-2">{description}</p>

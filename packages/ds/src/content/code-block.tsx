@@ -112,7 +112,7 @@ export function CodeBlock({ code, language, action, inline, labels, onExec, exec
         tabIndex={0}
         role="group"
         aria-label={labels.codeRegion(language ?? 'text')}
-        className="overflow-x-auto px-4 py-3 text-[13px] leading-relaxed outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
+        className="relative overflow-x-auto px-4 py-3 text-[13px] leading-relaxed outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
       >
         <code className="block whitespace-pre font-mono">{code}</code>
       </pre>

@@ -22,7 +22,6 @@ import {
   TabsList,
   TabsTrigger,
   TopicGlyph,
-  cn,
 } from '@devops-platform/ds';
 import { ContentView } from '@devops-platform/ds/content';
 import {
@@ -350,14 +349,14 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
     <div className="flex flex-col gap-5 px-4 py-5 md:px-6">
       {lab.description === null ? null : <p className="max-w-[68ch] text-sm text-ink-2">{lab.description}</p>}
 
-      {/* Bảng điểm: MỘT chỗ khẳng định điểm trong cả trang. */}
-      <div
-        role="status"
-        className={cn('flex flex-col gap-2.5 rounded-md p-4', summary.tone === 'success' ? 'bg-ok-wash' : summary.tone === 'warning' ? 'bg-warn-wash' : 'bg-well')}
-      >
-        <div className="flex items-baseline justify-between gap-3">
-          <p className="font-display text-3xl font-semibold tabular-nums text-ink">{summary.score.percent}%</p>
-          <p className="text-xs text-ink-3">{t('session.lab.score-label')}</p>
+      {/*
+        Bảng điểm: MỘT chỗ khẳng định điểm trong cả trang. Một dòng phẳng giữa hai đường kẻ, không
+        phải ô số liệu tô nền: màu đạt/chưa đạt nằm ở thước, chữ nói điều thước nói.
+      */}
+      <div role="status" className="flex flex-col gap-2 border-y border-rule py-3">
+        <div className="flex items-baseline gap-3">
+          <p className="font-display text-2xl font-semibold tabular-nums text-ink">{summary.score.percent}%</p>
+          <p className="text-sm text-ink-2">{t('session.lab.score-label')}</p>
         </div>
         <ProgressLine
           role="meter"
@@ -451,7 +450,7 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
   const restartAttempt = attemptId === null ? undefined : { label: t('session.controls.restart'), onSelect: requestRestart };
 
   const content = (
-    <div className="h-full overflow-y-auto bg-paper">
+    <div className="relative h-full overflow-y-auto bg-paper">
       {lab.leaderboard ? (
         <Tabs defaultValue="tasks" className="flex flex-col">
           <div className="sticky top-0 z-10 border-b border-rule bg-paper px-4 md:px-6">
@@ -502,7 +501,7 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
             <ProgressLine
               value={summary.taskCount === 0 ? 0 : summary.passedCount / summary.taskCount}
               label={t('session.lab.progress-label')}
-              caption={`${String(summary.passedCount)}/${String(summary.taskCount)}`}
+              caption={t('session.lab.progress-caption', { passed: summary.passedCount, total: summary.taskCount })}
               size="xs"
             />
           }

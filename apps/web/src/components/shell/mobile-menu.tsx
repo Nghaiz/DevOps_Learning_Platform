@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Button, DialogPrimitive as RadixDialog, Icon, IconButton, cn } from '@devops-platform/ds';
+import { Button, DialogPrimitive as RadixDialog, IconButton, cn } from '@devops-platform/ds';
 import { t } from '@devops-platform/copy';
 import { isActiveNav, sectionsFor, userMenuItems, type SectionId, type Viewer } from './nav';
 
@@ -33,7 +33,7 @@ export function MobileMenu({ viewer, activeId }: { readonly viewer: Viewer | nul
               <IconButton icon="close" label={t('shell.menu.close')} variant="ghost" />
             </RadixDialog.Close>
           </div>
-          <nav aria-label={t('shell.nav.aria-collapsed')} className="min-h-0 flex-1 overflow-y-auto px-4 pb-10 pt-2">
+          <nav aria-label={t('shell.nav.aria-collapsed')} className="relative min-h-0 flex-1 overflow-y-auto px-4 pb-10 pt-2">
             {sections.map((section) => (
               <div key={section.id} data-section={section.id} className="border-b border-rule py-4">
                 <Link
@@ -42,7 +42,7 @@ export function MobileMenu({ viewer, activeId }: { readonly viewer: Viewer | nul
                   aria-current={section.id === activeId ? 'true' : undefined}
                   className="flex items-center gap-2.5 py-1 font-display text-lg font-semibold text-ink"
                 >
-                  <Icon name={section.icon} size={22} tint="acc" className="text-acc-ink" />
+                  <span aria-hidden className="size-2.5 shrink-0 bg-acc-solid" />
                   {section.label}
                 </Link>
                 <p className="mb-2 mt-1 text-sm text-ink-3">{section.lead}</p>
@@ -60,7 +60,6 @@ export function MobileMenu({ viewer, activeId }: { readonly viewer: Viewer | nul
                             active ? 'bg-acc-wash font-medium text-acc-ink' : 'text-ink-2 hover:bg-well',
                           )}
                         >
-                          <Icon name={entry.icon} size={18} className={active ? 'text-acc-ink' : 'text-ink-3'} />
                           {entry.label}
                         </Link>
                       </li>
@@ -91,7 +90,6 @@ export function MobileMenu({ viewer, activeId }: { readonly viewer: Viewer | nul
                     onClick={close}
                     className="-mx-2 flex items-center gap-3 rounded-md px-2 py-2.5 text-base text-ink-2 hover:bg-well"
                   >
-                    <Icon name={entry.icon} size={18} className="text-ink-3" />
                     {entry.label}
                   </Link>
                 ))

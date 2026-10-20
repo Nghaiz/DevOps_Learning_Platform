@@ -95,14 +95,13 @@ export function AuthorNewClient(): ReactElement {
     <StudioEditorFrame
       crumbs={[{ href: '/author', label: t('shell.nav.author') }, { label: t('author.new.title') }]}
       title={t('author.new.title')}
-      actions={
-        <Button variant="ghost" asChild>
-          <Link href="/author">{t('common.action.cancel')}</Link>
-        </Button>
-      }
       toolbar={
         <>
           <SaveState status={status} />
+          {/* "Huỷ" đứng CÙNG nhóm với nút tạo, như trang sửa bài, chứ không tách lên đầu trang. */}
+          <Button variant="ghost" asChild>
+            <Link href="/author">{t('common.action.cancel')}</Link>
+          </Button>
           <Button variant="primary" icon="plus" onClick={onSubmit} loading={create.isPending}>
             {t('author.new.submit')}
           </Button>

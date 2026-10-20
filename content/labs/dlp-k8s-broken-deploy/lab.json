@@ -1,7 +1,7 @@
 {
   "id": "dlp-k8s-broken-deploy",
   "title": "Sửa một Deployment Kubernetes hỏng",
-  "description": "Năm lỗi triển khai Kubernetes độc lập, đúng kiểu bạn gặp thật ngoài đời: tag image sai, ConfigMap thiếu, Service không chọn đúng Pod, readiness probe sai đường dẫn, và Service gõ nhầm cổng. Mỗi lỗi nằm trên một Deployment/Service RIÊNG — làm theo thứ tự tuỳ ý, trên cụm k3s một-node chạy thật trong sandbox của bạn (P7).",
+  "description": "Năm lỗi triển khai Kubernetes độc lập, đúng kiểu bạn gặp thật ngoài đời: tag image sai, ConfigMap thiếu, Service không chọn đúng Pod, readiness probe sai đường dẫn, và Service gõ nhầm cổng. Mỗi lỗi nằm trên một Deployment/Service RIÊNG: làm theo thứ tự tuỳ ý, trên cụm k3s một node chạy thật trong sandbox của bạn.",
   "difficulty": "intermediate",
   "topic": "kubernetes",
   "estimatedMinutes": 40,

@@ -182,7 +182,7 @@ export function QuizClient({ quizId }: { quizId: string }): React.ReactElement {
       </PageHeader>
 
       {/* Quy tắc chấm đứng TRƯỚC câu hỏi đầu tiên, không phải sau khi nộp. */}
-      <section aria-labelledby="quiz-grading" className="flex gap-3 rounded-md bg-acc-wash p-4">
+      <section aria-labelledby="quiz-grading" className="flex gap-3 border border-t-2 border-rule border-t-acc-mid bg-paper p-4">
         <Icon name="info" size={20} tint="acc" className="mt-0.5 shrink-0 text-acc-ink" />
         <div className="flex flex-col gap-1 text-sm text-ink-2">
           <h2 id="quiz-grading" className="font-medium text-ink">
@@ -225,9 +225,13 @@ export function QuizClient({ quizId }: { quizId: string }): React.ReactElement {
         <div
           role="region"
           aria-label={t('catalog.quiz.sheet')}
-          className="sticky bottom-0 z-20 mt-12 -mx-4 border-t border-rule bg-canvas/95 px-4 py-4 backdrop-blur sm:-mx-6 sm:px-6"
+          className="sticky bottom-0 z-20 mt-12 -mx-4 border-t border-rule bg-canvas/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6 md:py-4"
         >
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          {/*
+            Trên điện thoại thanh chỉ còn MỘT hàng: số câu đã làm và nút Nộp. Lưới nhảy câu và thước
+            ẩn đi; bản đầy đủ cao gần 200px, che đáp án của câu đang đọc (rà ảnh 2026-10-20).
+          */}
+          <div className="flex items-center justify-between gap-4">
             <div className="flex min-w-0 flex-col gap-2">
               <p role="status" className="text-sm tabular-nums text-ink-2">
                 {renderCopy(progress.label)}
@@ -236,9 +240,9 @@ export function QuizClient({ quizId }: { quizId: string }): React.ReactElement {
                 value={quiz.questions.length === 0 ? 0 : answeredCount / quiz.questions.length}
                 label={t('catalog.quiz.sheet')}
                 size="xs"
-                className="w-56 max-w-full"
+                className="w-56 max-w-full max-md:hidden"
               />
-              <ol className="flex flex-wrap gap-1">
+              <ol className="flex flex-wrap gap-1 max-md:hidden">
                 {quiz.questions.map((question) => {
                   const answered = (selected[question.id] ?? []).length > 0;
                   return (
@@ -262,7 +266,7 @@ export function QuizClient({ quizId }: { quizId: string }): React.ReactElement {
                   );
                 })}
               </ol>
-              {progress.caveat === null ? null : <p className="text-xs text-ink-3">{renderCopy(progress.caveat)}</p>}
+              {progress.caveat === null ? null : <p className="text-xs text-ink-3 max-md:hidden">{renderCopy(progress.caveat)}</p>}
             </div>
             <Button size="lg" variant="primary" icon="send" onClick={onSubmit} loading={submit.isPending} className="shrink-0">
               {t('catalog.quiz.submit')}

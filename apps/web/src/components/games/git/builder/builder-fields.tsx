@@ -44,9 +44,10 @@ function FieldHint({
   );
 }
 
-function FieldLabel({ id, label, mono }: Pick<FieldBase, 'id' | 'label' | 'mono'>) {
+/** Nhãn luôn là chữ thường, kể cả ô `mono`: chỉ GIÁ TRỊ (mã, lệnh, JSON) mới viết mono. */
+function FieldLabel({ id, label }: Pick<FieldBase, 'id' | 'label'>) {
   return (
-    <Label htmlFor={id} className={cn('leading-snug', mono === true && 'font-mono font-medium')}>
+    <Label htmlFor={id} className="leading-snug">
       {label}
     </Label>
   );
@@ -72,7 +73,7 @@ export function TextField({
   const hintId = hintIdOf(id, hint);
   return (
     <div className="flex flex-col gap-1.5">
-      <FieldLabel id={id} label={label} mono={mono} />
+      <FieldLabel id={id} label={label} />
       <Input
         id={id}
         type={type}

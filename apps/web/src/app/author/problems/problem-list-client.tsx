@@ -114,7 +114,7 @@ export function ProblemListClient(): ReactElement {
         filter={filter}
         onFilterChange={changeFilter}
         searchLabel={t('author.studio.list.search-label')}
-        searchPlaceholder={t('author.studio.list.search-placeholder')}
+        searchPlaceholder={t('author.studio.problems.search-placeholder')}
         search={search}
         onSearchChange={setSearch}
       >
@@ -199,7 +199,7 @@ function ProblemRow(props: { readonly row: AuthorProblemRow }): ReactElement {
             `joinTopicLabels` chứ không tra thẳng bảng: `topics` là chuỗi mờ theo game, và
             một phép tra hụt đi qua `join` sẽ in chữ "undefined".
           */}
-          {problem.topics.length > 0 ? <span>{joinTopicLabels(problem.topics)}</span> : null}
+          {problem.topics.length > 0 ? <span>{joinTopicLabels(problem.topics, problem.gameId)}</span> : null}
           <span>
             {stats.attemptCount === 0
               ? t('author.problem.list.row-untried')

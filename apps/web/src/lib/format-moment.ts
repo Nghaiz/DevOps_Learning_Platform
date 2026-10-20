@@ -21,6 +21,8 @@
  * tại chỗ gọi thay vì hỏng âm thầm lúc chạy.
  */
 
+const TIME = new Intl.DateTimeFormat('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false });
+
 /** `null` và chuỗi không đọc được đều thành "không rõ", không phải "Invalid Date". */
 function parseMoment(iso: string | null): Date | null {
   if (iso === null) {
@@ -30,9 +32,13 @@ function parseMoment(iso: string | null): Date | null {
   return Number.isNaN(at.getTime()) ? null : at;
 }
 
-/** Ngày + giờ. Dùng cho phiên, nhật ký, lịch sử — thứ mà "lúc mấy giờ" có nghĩa. */
+/**
+ * Ngày + giờ. Dùng cho phiên, nhật ký, lịch sử — thứ mà "lúc mấy giờ" có nghĩa. Giờ:phút,
+ * KHÔNG có giây: giây không giúp ai đọc lịch kỳ thi hay nhật ký, chỉ làm cột dài ra.
+ */
 export function formatMoment(iso: string | null): string {
-  return parseMoment(iso)?.toLocaleString('vi-VN') ?? 'không rõ';
+  const at = parseMoment(iso);
+  return at === null ? 'không rõ' : `${TIME.format(at)} ${at.toLocaleDateString('vi-VN')}`;
 }
 
 /**
@@ -47,7 +53,6 @@ export function formatDay(iso: string | null): string {
   return parseMoment(iso)?.toLocaleDateString('vi-VN') ?? 'không rõ';
 }
 
-const TIME = new Intl.DateTimeFormat('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false });
 const DAY_MONTH = new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: '2-digit' });
 const FULL_DAY = new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
 

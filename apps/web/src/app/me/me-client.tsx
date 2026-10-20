@@ -2,11 +2,10 @@
 
 import Link from 'next/link';
 import type { ReactElement } from 'react';
-import { Button, Icon, Page, SectionArt, Skeleton } from '@devops-platform/ds';
+import { Button, Page, SectionArt, Skeleton } from '@devops-platform/ds';
 import { t } from '@devops-platform/copy';
 import { api } from '../../lib/trpc-react';
 import { formatWhen } from '../../lib/format-moment';
-import { sectionsFor } from '../../components/shell/nav';
 import { useViewer } from '../../components/shell/viewer-context';
 import { ClassExams } from '../../components/me/class-exams';
 import { ContinueLearning } from '../../components/me/continue-learning';
@@ -137,40 +136,9 @@ export function MeClient(): ReactElement {
         </div>
         <aside className="flex flex-col gap-12" aria-label={t('me.home.aside')}>
           <ClassExams />
-          <Shortcuts />
         </aside>
       </div>
     </Page>
   );
 }
 
-/** Lối đi nhanh tới từng mục lớn, mỗi mục giữ màu riêng của nó. */
-function Shortcuts(): ReactElement {
-  const viewer = useViewer();
-  return (
-    <section className="flex flex-col gap-3">
-      <h2 className="flex items-center gap-2 font-display text-xl font-semibold text-ink">
-        <Icon name="target" size={20} tint="acc" className="text-acc-ink" />
-        {t('me.home.shortcuts')}
-      </h2>
-      <ul className="flex flex-col">
-        {sectionsFor(viewer).map((section) => (
-          <li key={section.id} data-section={section.id} className="border-b border-rule last:border-b-0">
-            <Link
-              href={section.hub}
-              className="group/sc -mx-3 flex items-center gap-3 rounded-md px-3 py-2.5 transition-colors duration-150 hover:bg-acc-wash"
-            >
-              <Icon
-                name={section.icon}
-                size={22}
-                tint="acc"
-                className="shrink-0 text-acc-ink transition-transform duration-200 ease-out group-hover/sc:-rotate-6"
-              />
-              <span className="min-w-0 flex-1 font-medium text-ink group-hover/sc:text-acc-ink">{section.label}</span>
-            </Link>
-          </li>
-        ))}
-      </ul>
-    </section>
-  );
-}

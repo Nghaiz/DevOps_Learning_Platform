@@ -230,7 +230,9 @@ export const Switch = forwardRef<HTMLButtonElement, SwitchProps>(function Switch
       ref={ref}
       id={switchId}
       className={cn(
-        'relative inline-flex h-5 w-9 shrink-0 items-center rounded-full border border-transparent bg-rule-2 transition-colors duration-200',
+        // Rãnh tắt dùng `control` (bảng màu bảo đảm ≥3:1 với nền), không phải `rule-2` (đường kẻ trang trí,
+        // dưới 3:1): ở theme tối công tắc tắt từng chìm vào nền (rà ảnh 2026-10-20).
+        'relative inline-flex h-5 w-9 shrink-0 items-center rounded-full border border-transparent bg-control transition-colors duration-200',
         'data-[state=checked]:bg-acc-solid disabled:cursor-not-allowed disabled:opacity-50',
         className,
       )}

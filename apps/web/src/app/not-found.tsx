@@ -27,7 +27,7 @@ export default function NotFound() {
             <li key={section.id} data-section={section.id} className="border-b border-rule">
               <Link
                 href={section.hub}
-                className="group/exit -mx-3 flex items-center gap-3 rounded-md px-3 py-3.5 transition-colors duration-150 hover:bg-acc-wash"
+                className="group/exit flex items-start gap-3 py-3.5"
               >
                 <Icon
                   name={section.icon}
@@ -36,8 +36,8 @@ export default function NotFound() {
                   className="shrink-0 text-acc-ink transition-transform duration-200 ease-out group-hover/exit:-rotate-6"
                 />
                 <span className="flex min-w-0 flex-col">
-                  <span className="font-medium text-ink group-hover/exit:text-acc-ink">{section.label}</span>
-                  <span className="line-clamp-1 text-sm text-ink-3">{section.lead}</span>
+                  <span className="font-medium text-ink transition-colors duration-150 group-hover/exit:text-acc-ink">{section.label}</span>
+                  <span className="text-sm text-ink-3">{section.lead}</span>
                 </span>
               </Link>
             </li>

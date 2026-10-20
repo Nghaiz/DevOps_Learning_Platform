@@ -8,11 +8,14 @@ import { Icon } from './icons/icon.tsx';
  *
  * Khung bọc PHẢI `relative`: nhãn `sr-only` trong `<th>` là `position:absolute`, khung
  * tĩnh thì nó thoát vùng cuộn ngang và kéo cả trang trôi sang phải ở 390px.
+ *
+ * Dưới `sm` bảng giữ bề rộng tối thiểu và cuộn ngang, có bóng ở mép còn cột bị che: bóp bảng
+ * vừa 390px làm cột chữ còn vài chục px và nút thao tác lọt ra ngoài mà không ai biết.
  */
 export function Table({ className, children, label }: { className?: string; children: ReactNode; label?: string }) {
   return (
-    <div className="relative w-full overflow-x-auto">
-      <table aria-label={label} className={cn('w-full border-collapse text-sm', className)}>
+    <div className="scroll-shadow-x relative w-full overflow-x-auto">
+      <table aria-label={label} className={cn('w-full min-w-[36rem] border-collapse text-sm sm:min-w-0', className)}>
         {children}
       </table>
     </div>

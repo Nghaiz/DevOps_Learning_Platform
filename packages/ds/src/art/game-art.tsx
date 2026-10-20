@@ -61,8 +61,20 @@ function Git() {
         <circle cx="148" cy="48" r="7" className="fill-(--t-git-tint) stroke-(--t-git-ink)" strokeWidth={2} strokeDasharray="3 3" />
       </g>
       <path d="M150 58l6 13" className="stroke-rule-2" {...S} />
-      <path d="M160 24h22l-5 6 5 6h-22z" className="fill-[var(--mark)] stroke-ink" strokeWidth={1.6} strokeLinejoin="round" />
-      <path d="M160 24v22" className="stroke-ink" {...S} />
+      {/*
+        Nhãn nhánh và con trỏ HEAD, không phải cờ đích: một đường thẳng nối các vòng tròn kết
+        thúc bằng lá cờ đọc ra như tuyến tàu và ga cuối (rà ảnh 2026-10-20), thứ hệ này tránh.
+      */}
+      <text x="28" y="100" className="fill-ink-3 font-mono text-[10px]">
+        main
+      </text>
+      <text x="92" y="32" className="fill-(--t-git-ink) font-mono text-[10px]">
+        feature
+      </text>
+      <rect x="140" y="92" width="32" height="15" rx="2" className="fill-ink" />
+      <text x="156" y="103" textAnchor="middle" className="fill-canvas font-mono text-[9px] font-semibold">
+        HEAD
+      </text>
     </>
   );
 }

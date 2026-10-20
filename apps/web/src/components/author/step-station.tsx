@@ -63,7 +63,8 @@ export function StepStation(props: {
         >
           {ordinal}
         </span>
-        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        {/* `basis-56`: ở màn hẹp ba nút Lên/Xuống/Xoá xuống dòng thay vì bóp tên bước còn "Bư…". */}
+        <div className="flex min-w-0 flex-1 basis-56 flex-col gap-0.5">
           <h3 id={headingId} className="text-xs font-medium text-acc-ink">
             {heading}
           </h3>

@@ -301,7 +301,7 @@ export const DialogContent = forwardRef<ElementRef<typeof RadixDialog.Content>, 
               </RadixDialog.Close>
             )}
           </div>
-          <div className="min-h-0 overflow-y-auto px-6 pb-6 pt-4">{children}</div>
+          <div className="relative min-h-0 overflow-y-auto px-6 pb-6 pt-4">{children}</div>
         </RadixDialog.Content>
       </RadixDialog.Portal>
     );
@@ -475,7 +475,7 @@ export const SheetContent = forwardRef<ElementRef<typeof RadixDialog.Content>, S
               </Button>
             </RadixDialog.Close>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">{children}</div>
+          <div className="relative min-h-0 flex-1 overflow-y-auto px-6 py-5">{children}</div>
           {footer === undefined ? null : (
             <div className="flex flex-wrap items-center justify-end gap-2 border-t border-rule px-6 py-3">
               {footer}

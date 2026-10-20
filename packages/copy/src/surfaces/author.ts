@@ -135,7 +135,7 @@ export const author = {
   'author.new.kind.label': 'Loại nội dung',
   'author.new.kind.hint':
     'Bài học dẫn từng bước. Lab giao việc rồi chấm. Sân chơi là sandbox trống. Không đổi được sau khi tạo.',
-  'author.new.id.label': 'Id',
+  'author.new.id.label': 'Mã định danh',
   'author.new.id.placeholder': 'dlp-chan-doan-cpu',
   'author.new.id.hint':
     'Chỉ [a-z0-9-], 3 tới 63 ký tự. Id đi vào bảng tiến độ và điểm của người học nên nó là vĩnh viễn: đổi id sau này sẽ làm tiến độ cũ mồ côi.',
@@ -215,7 +215,7 @@ export const author = {
   'author.studio.save.saving': 'Đang lưu',
   'author.studio.save.error': 'Không lưu được',
   'author.studio.rail.issues': 'Ô cần sửa',
-  'author.studio.rail.issues-clean': 'Chưa thấy ô nào sai. Máy chủ vẫn kiểm lại lúc lưu và lúc xuất bản.',
+  'author.studio.rail.issues-clean': 'Các ô đã nhập không có lỗi. Máy chủ vẫn kiểm lại lúc lưu và lúc xuất bản.',
   'author.studio.rail.readiness': 'Xuất bản',
   'author.studio.publish.save-first.title': 'Lưu trước khi xuất bản',
   'author.studio.publish.save-first.body':
@@ -231,6 +231,7 @@ export const author = {
   'author.studio.list.filter-label': 'Lọc theo trạng thái',
   'author.studio.list.search-label': 'Tìm theo tên hoặc mã',
   'author.studio.list.search-placeholder': 'Tên bài hoặc mã',
+  'author.studio.problems.search-placeholder': 'Tên đề hoặc mã',
   'author.studio.list.loading': 'Đang tải danh sách',
   'author.studio.list.no-match': (p: { query: string }) =>
     `Không có bài nào khớp "${p.query}". Thử từ khác, hoặc xoá ô tìm.`,
@@ -455,8 +456,8 @@ export const author = {
   'author.problem.publish.heading': 'Xuất bản',
   'author.problem.publish.blocked-title': {
     zero: 'Không còn chỗ nào chặn lượt xuất bản',
-    one: 'Còn 1 chỗ phải sửa trước khi xuất bản được',
-    many: (n: number) => `Còn ${String(n)} chỗ phải sửa trước khi xuất bản được`,
+    one: 'Còn 1 điều kiện chưa đạt để xuất bản. Xem ở chế độ Xuất bản.',
+    many: (n: number) => `Còn ${String(n)} điều kiện chưa đạt để xuất bản. Xem ở chế độ Xuất bản.`,
   },
   'author.problem.publish.ok-title': 'Bài đã đủ điều kiện xuất bản',
   'author.problem.publish.ok-body':
@@ -606,8 +607,8 @@ export const author = {
   'author.draft-form-view-chuan-bi-moi-truong': 'Chuẩn bị môi trường',
   'author.draft-form-view-chay-mot-lan-khi-dung-lab-lab-co-y-khong-co-setup-theo-tung-task-thu-tu-lam':
     'Chạy một lần khi dựng lab. Lab không có setup theo từng task, vì người học làm task theo thứ tự nào cũng được.',
-  'author.draft-form-view-setup-foreground': 'Setup foreground',
-  'author.draft-form-view-setup-background': 'Setup background',
+  'author.draft-form-view-setup-foreground': 'Lệnh chuẩn bị (chạy trước)',
+  'author.draft-form-view-setup-background': 'Lệnh chuẩn bị (chạy nền)',
   'author.draft-form-view-cac-task': 'Các task',
   'author.draft-form-view-cac-task-ghi-chu':
     'Người học làm task theo thứ tự nào cũng được. Điểm lab tính theo tổng trọng số các task đạt.',
@@ -648,21 +649,21 @@ export const author = {
   'author.draft-meta-fields-chua-chon': 'Chưa chọn',
   'author.draft-meta-fields-thoi-luong-uoc-tinh-phut': 'Thời lượng ước tính (phút)',
   'author.draft-meta-fields-bo-trong-neu-chua-uoc-tinh-duoc': 'Bỏ trống nếu chưa ước tính được.',
-  'author.draft-meta-fields-tier-sandbox': 'Tier sandbox',
+  'author.draft-meta-fields-tier-sandbox': 'Hạng sandbox',
   'author.draft-meta-fields-cum-hien-chay-sysbox-hai-tier-con-lai-chua-co-node-nao-phuc-vu':
     'Cụm hiện chạy sysbox; hai tier còn lại chưa có node nào phục vụ.',
   'author.draft-meta-fields-giao-dien': 'Giao diện',
   'author.draft-meta-fields-ide-mo-them-khung-soan-thao-canh-terminal-layout-ide-cua-p6':
-    'IDE mở thêm khung soạn thảo cạnh terminal (layout ide của P6).',
+    'IDE mở thêm khung soạn thảo cạnh terminal.',
   'author.draft-meta-fields-terminal-thuong': 'Terminal thường',
   'author.draft-meta-fields-ide-noi-dung-editor-terminal': 'IDE (nội dung | editor | terminal)',
   'author.draft-meta-fields-bo-cong-cu-them-cho-bai-nay': 'Bộ công cụ thêm cho bài này',
   'author.draft-meta-fields-mac-dinh-khong-bat-gi-sandbox-da-co-san-bo-lenh-thuong-dung-chi-chon-thu-no':
     'Mặc định không bật gì, sandbox đã có sẵn bộ lệnh thường dùng. Chỉ chọn thứ nội dung bài thật sự gõ tới: mỗi công cụ là một lượt cài trong pod lúc mở phiên.',
-  'author.draft-meta-fields-backend-image-id': 'Backend image id',
+  'author.draft-meta-fields-backend-image-id': 'Mã image gốc',
   'author.draft-meta-fields-nguyen-van-imageid-cua-upstream-giu-de-truy-nguyen-no-khong-quyet-dinh-sand':
     'Nguyên văn imageid của upstream. Giữ để truy nguyên; nó KHÔNG quyết định sandbox chạy gì: phần đó do capability bên dưới.',
-  'author.draft-meta-fields-capability-sandbox-phai-co': 'Capability sandbox phải có',
+  'author.draft-meta-fields-capability-sandbox-phai-co': 'Năng lực sandbox cần có',
   'author.draft-meta-fields-chon-thieu-thi-nguoi-hoc-gap': 'Chọn thiếu thì người học gặp',
   'author.draft-meta-fields-command-not-found': 'command not found',
   'author.draft-meta-fields-giua-bai-chon-thua-thi-bai-chiem-mot-sandbox-nang-hon-muc-can':

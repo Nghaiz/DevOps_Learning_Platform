@@ -69,7 +69,7 @@ export const shell = {
   'shell.nav.author-problems.desc': 'Ra đề cho hệ chấm: trạng thái đầu, mục tiêu, gợi ý.',
   'shell.nav.level-builder': 'Dựng màn Git',
   'shell.nav.level-builder.desc': 'Dựng màn chơi bằng chính lệnh git rồi lưu thành đề.',
-  'shell.nav.admin-users': 'Tài khoản',
+  'shell.nav.admin-users': 'Người dùng',
   'shell.nav.admin-users.desc': 'Tìm người dùng, đổi vai trò.',
   'shell.nav.admin-classes': 'Lớp học',
   'shell.nav.admin-classes.desc': 'Tạo lớp, thêm sinh viên, xem điểm cả lớp.',

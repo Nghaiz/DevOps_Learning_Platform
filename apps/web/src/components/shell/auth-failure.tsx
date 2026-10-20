@@ -30,7 +30,7 @@ export function authFailureFor(
  */
 export function AuthFailure({ entry, id }: { readonly entry: ErrorEntry; readonly id?: string | undefined }) {
   return (
-    <div id={id} role="alert" className="flex animate-enter items-start gap-2.5 rounded-md bg-bad-wash px-3 py-2.5 text-sm">
+    <div id={id} role="alert" className="flex animate-enter items-start gap-2.5 border border-t-2 border-rule border-t-bad-mid bg-paper px-3 py-2.5 text-sm">
       <Icon name="warning" size={16} className="mt-0.5 shrink-0 text-bad-ink" />
       <p className="flex flex-col gap-0.5">
         <span className="font-medium text-bad-ink">{entry.what}</span>

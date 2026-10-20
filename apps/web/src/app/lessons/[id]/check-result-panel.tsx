@@ -39,7 +39,7 @@ export function CheckResultPanel({ outcome, caption }: CheckResultPanelProps): R
 
   if (outcome.kind === 'error') {
     return (
-      <div role="alert" className="mt-4 flex items-start gap-3 rounded-md bg-warn-wash p-3.5 text-sm">
+      <div role="alert" className="mt-4 flex items-start gap-3 border border-t-2 border-rule border-t-warn-mid bg-paper p-3.5 text-sm">
         <Icon name="unplug" size={18} className="mt-0.5 shrink-0 text-warn-ink" />
         <div className="min-w-0">
           <p className="font-medium text-ink">{t('session.task.state.infra')}</p>
@@ -90,7 +90,7 @@ export function CheckResultPanel({ outcome, caption }: CheckResultPanelProps): R
         <pre
           tabIndex={0}
           aria-label={t('session.task.result-title')}
-          className="max-h-48 overflow-auto rounded-sm bg-[var(--code-bg)] px-3 py-2 font-mono text-xs text-[var(--code-ink)] outline-none focus-visible:outline-2 focus-visible:outline-focus"
+          className="relative max-h-48 overflow-auto rounded-sm bg-[var(--code-bg)] px-3 py-2 font-mono text-xs text-[var(--code-ink)] outline-none focus-visible:outline-2 focus-visible:outline-focus"
         >
           {notes}
         </pre>

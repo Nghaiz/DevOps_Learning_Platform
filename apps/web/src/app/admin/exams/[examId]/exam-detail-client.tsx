@@ -119,7 +119,7 @@ function ExamDetail({ exam }: { readonly exam: Exam }): ReactElement {
 
 function ExamFacts({ exam }: { readonly exam: Exam }): ReactElement {
   return (
-    <dl className="grid gap-x-8 gap-y-5 sm:grid-cols-[minmax(0,12rem)_minmax(0,1fr)]">
+    <dl className="flex flex-col gap-5">
       <Fact label={t('admin.exams.field.class')}>
         <Link
           href={`/admin/classes/${exam.classId}`}
@@ -167,12 +167,17 @@ function ExamFacts({ exam }: { readonly exam: Exam }): ReactElement {
   );
 }
 
+/**
+ * Một cặp nhãn và giá trị, bọc riêng: ở màn hẹp nhãn nằm sát ngay trên giá trị (gap-1) còn các
+ * cặp cách nhau gap-5. Lưới chung cho mọi ô từng cho nhãn-giá trị và cặp-cặp cùng một khoảng, nên
+ * không đọc ra giá trị nào thuộc nhãn nào (rà ảnh 2026-10-20).
+ */
 function Fact({ label, children }: { readonly label: string; readonly children: ReactNode }): ReactElement {
   return (
-    <>
+    <div className="grid gap-1 sm:grid-cols-[minmax(0,12rem)_minmax(0,1fr)] sm:gap-x-8">
       <dt className="pt-0.5 text-sm text-ink-3">{label}</dt>
       <dd className="min-w-0 text-ink">{children}</dd>
-    </>
+    </div>
   );
 }
 

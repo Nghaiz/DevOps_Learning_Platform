@@ -121,6 +121,15 @@ const STATIC_RULES = [
       String.raw`|border-(?:left|inline-start)(?:-width)?\s*:\s*[2-9](?:\.\d+)?px` +
       String.raw`|inset_[2-9]px_0(?![\d.])`,
   },
+  {
+    id: 'cuộn-thiếu-relative',
+    why:
+      'vùng cuộn phải là khung định vị: nhãn sr-only (position:absolute) bên trong thoát ra và kéo ' +
+      'trang dài/trôi (đã gặp ba lần: bảng 390px, bảng sandbox Git 6977px, khoang đọc lab 1723px)',
+    // Theo DÒNG: có tiện ích cuộn mà cùng dòng không có relative/absolute/fixed/sticky. Lớp
+    // tách nhiều dòng trong cn(...) thì đặt `relative` cùng dòng với overflow là xong.
+    src: String.raw`^(?!.*(?<![\w-])(?:[a-z0-9-]+:)*(?:relative|absolute|fixed|sticky)(?![\w-])).*?(?<![\w-])(?:[a-z0-9-]+:)*overflow-(?:x-|y-)?(?:auto|scroll)(?![\w-])`,
+  },
 ];
 
 // ─────────────────────────────────────────── luật sinh từ legacy.css
@@ -320,6 +329,8 @@ const DIRTY = [
   ['lớp-cũ-tuyến', '<span className="bg-line-k8s text-line-k8s-foreground">K8s</span>'],
   ['biến-cũ', "style={{ color: 'var(--line-git-ink)' }}"],
   ['biến-cũ-tw4', '<div className="bg-(--card)">'],
+  ['cuộn-thiếu-relative', '<div className="h-full overflow-y-auto bg-paper">'],
+  ['cuộn-thiếu-relative-biến-thể', "className={cn('md:overflow-x-auto', open && 'p-2')}"],
 ];
 
 const CLEAN = [
@@ -339,6 +350,9 @@ const CLEAN = [
   "style={{ width: 'var(--measure-inline)' }}",
   'transform: rotate(180deg);',
   "<p className=\"text-sm text-ok-ink\">{t('author.builder.issues.ready')}</p>",
+  '<div className="relative h-full overflow-y-auto bg-paper">',
+  '<aside className="lg:sticky lg:top-32 lg:overflow-y-auto">',
+  '  overflow-y: auto;',
 ];
 
 function selfTest(rules) {
@@ -432,7 +446,7 @@ if (deadZones.length > 0) {
 if (hits.length === 0) {
   const c = generated.counts;
   console.log(
-    `✓ không có kit cũ, icon đại trà, loader vòng, viền trái hay lớp/biến cũ ngoài vùng giữ nguyên — ` +
+    `✓ không có kit cũ, icon đại trà, loader vòng, viền trái, vùng cuộn thiếu relative hay lớp/biến cũ ngoài vùng giữ nguyên — ` +
       `đã quét ${files} file trong ${ROOTS.length} vùng; luật sinh từ legacy.css: ${c.colors} màu, ` +
       `${c.shadows} bóng, ${c.radii} bo góc, ${c.utilities} tiện ích, ${c.vars} biến; ` +
       `${LEGACY_ZONES.length} vùng giữ nguyên; .ds-island phủ đủ ${island.required} tên legacy.css khai đè.`,

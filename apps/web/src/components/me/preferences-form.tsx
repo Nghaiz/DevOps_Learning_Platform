@@ -3,23 +3,7 @@
 import { useEffect, useState, type ReactElement } from 'react';
 import { err, t } from '@devops-platform/copy';
 import { THEMES, THEME_NAMES, type ThemeName } from '@devops-platform/terminal/themes';
-import {
-  Button,
-  Field,
-  Icon,
-  Label,
-  Notice,
-  RadioGroup,
-  Section,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-  RadioItem,
-  Switch,
-  cn,
-} from '@devops-platform/ds';
+import { Button, Field, Label, NativeSelect, Notice, RadioGroup, RadioItem, Section, Switch } from '@devops-platform/ds';
 import { api } from '../../lib/trpc-react';
 import { describeTrpcError } from '../../lib/trpc';
 import { saveStateOf } from './account-sections';
@@ -103,25 +87,24 @@ export function PreferencesForm(props: PreferencesFormProps): ReactElement {
   return (
     <Section title={t('me.preferences.title')} description={t('me.preferences.description')} icon="sliders">
       <div className="flex flex-col gap-8">
-        <Field label={t('me.preferences.shell-label')}>
-          <Select
+        {/*
+          `NativeSelect`, không `Select` của Radix: nút mở của Radix không đọc ngữ cảnh `Field`,
+          nên nhãn không gắn được vào nó và axe báo `button-name` (critical) trên trang này.
+        */}
+        <Field label={t('me.preferences.shell-label')} className="sm:max-w-xs">
+          <NativeSelect
             value={shell}
-            onValueChange={(value) => {
-              setShell(value as ShellName);
+            onChange={(event) => {
+              setShell(event.target.value as ShellName);
               setSaved(false);
             }}
           >
-            <SelectTrigger className="max-w-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {SHELL_OPTIONS.map((option) => (
-                <SelectItem key={option} value={option}>
-                  {shellLabel(option)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            {SHELL_OPTIONS.map((option) => (
+              <option key={option} value={option}>
+                {shellLabel(option)}
+              </option>
+            ))}
+          </NativeSelect>
         </Field>
         <NoticeText notice={describeShellPreference({ shell, activeSessionCount, moreSessions })} />
 
@@ -133,7 +116,7 @@ export function PreferencesForm(props: PreferencesFormProps): ReactElement {
               setTheme(value === DEFAULT_CHOICE ? null : (value as ThemeName));
               setSaved(false);
             }}
-            className="grid gap-2 sm:grid-cols-2"
+            className="flex flex-col gap-0 border-t border-rule"
           >
             <ThemeOption value={DEFAULT_CHOICE} name="dlp-dark" label={t('me.preferences.theme-follow')} />
             {THEME_NAMES.map((name) => (
@@ -191,12 +174,17 @@ export function PreferencesForm(props: PreferencesFormProps): ReactElement {
 function ThemeOption({ value, name, label }: { value: string; name: ThemeName; label: string }): ReactElement {
   const palette = THEMES[name];
   return (
-    <Label className="block cursor-pointer">
-      <span className="group/opt flex items-center gap-3 rounded-md border border-rule-2 bg-paper p-2 pr-3 transition-colors duration-150 hover:border-control has-[[data-state=checked]]:border-acc-solid has-[[data-state=checked]]:bg-acc-wash has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-focus">
-        <RadioItem value={value} className="peer sr-only" aria-label={label} />
-        <span
-          aria-hidden="true"
-          className="grid w-28 shrink-0 gap-0.5 rounded-sm px-2 py-1.5 font-mono text-[10px] leading-tight"
+    <Label className="flex cursor-pointer items-center gap-3 border-b border-rule py-2.5">
+      <RadioItem
+        value={value}
+        aria-label={label}
+        className="group/radio grid size-[18px] shrink-0 place-items-center rounded-full border border-control bg-paper transition-colors duration-150 hover:border-ink-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus data-[state=checked]:border-acc-solid"
+      >
+        <span aria-hidden className="hidden size-2 rounded-full bg-acc-solid group-data-[state=checked]/radio:block" />
+      </RadioItem>
+      <span
+        aria-hidden="true"
+        className="grid w-28 shrink-0 gap-0.5 border border-rule-2 px-2 py-1.5 font-mono text-[10px] leading-tight"
           style={{ backgroundColor: palette.background, color: palette.foreground }}
         >
           <span>
@@ -214,13 +202,7 @@ function ThemeOption({ value, name, label }: { value: string; name: ThemeName; l
             <span className="inline-block h-2.5 w-1.5" style={{ backgroundColor: palette.cursor }} />
           </span>
         </span>
-        <span className="min-w-0 flex-1 text-sm font-medium text-ink">{label}</span>
-        <Icon
-          name="check"
-          size={16}
-          className={cn('shrink-0 text-acc-ink opacity-0 transition-opacity duration-150 group-has-[[data-state=checked]]/opt:opacity-100')}
-        />
-      </span>
+      <span className="min-w-0 flex-1 text-sm text-ink">{label}</span>
     </Label>
   );
 }

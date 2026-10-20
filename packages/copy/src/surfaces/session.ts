@@ -60,9 +60,10 @@ export const session = {
   'session.terminal.escape-hint-suffix': 'để rời khỏi terminal',
 
   // ── Màn chờ trước khi mở máy (`practice-launch.tsx`) ─────────────────────
+  'session.lab.progress-caption': (p: { passed: number; total: number }) => `${p.passed}/${p.total} nhiệm vụ`,
   'session.launch.title': 'Máy của bạn chưa chạy',
   'session.launch.body.lesson':
-    'Bấm Bắt đầu để dựng một máy Linux riêng. Hướng dẫn ở bên cạnh, terminal mở ngay tại đây.',
+    'Bấm Bắt đầu để dựng một máy Linux riêng. Làm theo hướng dẫn của bài, terminal mở ngay tại đây.',
   'session.launch.body.lab':
     'Bấm Bắt đầu để mở một lần thử. Máy chấm từng nhiệm vụ ngay trên máy này, không cần nộp file nào.',
   'session.launch.body.playground': 'Một máy trống để thử lệnh. Cài gì, phá gì cũng được, máy tự tắt khi hết giờ.',

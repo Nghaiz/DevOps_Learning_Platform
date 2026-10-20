@@ -71,7 +71,7 @@ export function TrialReport(props: {
           <p>
             {t('author.publish-panel-noi-dung-bai-co-the-da-doi-sau-luot-xuat-ban-do-day-la-nguyen-van-loi-may-c')}
           </p>
-          <pre className="mt-2 max-h-60 overflow-auto whitespace-pre-wrap font-mono text-xs">
+          <pre className="relative mt-2 max-h-60 overflow-auto whitespace-pre-wrap font-mono text-xs">
             {props.publishError ?? (props.phase.kind === 'failed' ? props.phase.error : '')}
           </pre>
         </Notice>
@@ -87,7 +87,7 @@ export function TrialReport(props: {
             {t('author.publish-panel-output-cua')} <code className="font-mono">{failure.label}</code>{' '}
             {t('author.publish-panel-exit')} {failure.exitCode})
           </p>
-          <pre className="max-h-60 overflow-auto bg-ink p-3 font-mono text-xs text-canvas">
+          <pre className="relative max-h-60 overflow-auto bg-ink p-3 font-mono text-xs text-canvas">
             {failure.output}
           </pre>
         </div>

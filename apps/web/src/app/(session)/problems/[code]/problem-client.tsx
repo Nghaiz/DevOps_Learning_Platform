@@ -261,7 +261,7 @@ export function ProblemClient({ code }: { readonly code: string }): ReactElement
 
 function TimeLimitNote({ children }: { readonly children: ReactNode }): ReactElement {
   return (
-    <p className="mt-4 flex items-start gap-2.5 rounded-md bg-warn-wash px-4 py-3 text-sm text-ink">
+    <p className="mt-4 flex items-start gap-2.5 border border-t-2 border-rule border-t-warn-mid bg-paper px-4 py-3 text-sm text-ink">
       {/* Màu cảnh báo ở biểu tượng, chữ là mực: chữ vàng trên nền vàng nhạt không đủ tương phản. */}
       <Icon name="timer" size={18} className="mt-px shrink-0 text-warn-ink" />
       {children}

@@ -26,10 +26,10 @@ export type RailTone = 'plain' | 'accent' | 'ok' | 'warn' | 'bad';
 
 const RAIL_BOX: Readonly<Record<RailTone, string>> = {
   plain: 'border-t border-rule pt-4',
-  accent: 'rounded-lg bg-acc-wash px-4 py-4',
-  ok: 'rounded-lg bg-ok-wash px-4 py-4',
-  warn: 'rounded-lg bg-warn-wash px-4 py-4',
-  bad: 'rounded-lg bg-bad-wash px-4 py-4',
+  accent: 'border border-t-2 border-rule border-t-acc-mid bg-paper px-4 py-4',
+  ok: 'border border-t-2 border-rule border-t-ok-mid bg-paper px-4 py-4',
+  warn: 'border border-t-2 border-rule border-t-warn-mid bg-paper px-4 py-4',
+  bad: 'border border-t-2 border-rule border-t-bad-mid bg-paper px-4 py-4',
 };
 
 const RAIL_ICON: Readonly<Record<RailTone, { readonly name: IconName; readonly tone: string }>> = {

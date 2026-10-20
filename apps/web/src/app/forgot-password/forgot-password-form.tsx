@@ -68,7 +68,7 @@ export function ForgotPasswordForm() {
       </form>
 
       {submitted === null ? null : (
-        <div role="status" className="flex animate-enter gap-4 rounded-lg bg-ok-wash px-5 py-4">
+        <div role="status" className="flex animate-enter gap-4 border border-t-2 border-rule border-t-ok-mid bg-paper px-5 py-4">
           <span className="grid size-10 shrink-0 place-items-center rounded-full bg-ok-tint text-ok-ink">
             <Icon name="mail" size={20} />
           </span>

@@ -10,6 +10,7 @@ import {
   EmptyArt,
   ErrorBlock,
   Icon,
+  InlineText,
   Notice,
   Page,
   PageHeader,
@@ -115,7 +116,7 @@ export function PathClient({ pathId }: { pathId: string }): React.ReactElement {
       <PageHeader
         back={back}
         title={path.title}
-        {...(path.description === null ? {} : { lead: path.description })}
+        {...(path.description === null ? {} : { lead: <InlineText text={path.description} /> })}
       >
         <div className="flex flex-wrap items-center gap-2">
           <Pill icon="layers">{t('catalog.meta.parts', { n: path.itemCount })}</Pill>
@@ -163,7 +164,7 @@ export function PathClient({ pathId }: { pathId: string }): React.ReactElement {
 
           <aside className="flex flex-col gap-4 lg:sticky lg:top-24 lg:self-start">
             {next !== null && progress.nextLabel !== null ? (
-              <section data-topic={next.topic} className="flex flex-col gap-3 rounded-md bg-tp-wash p-5">
+              <section data-topic={next.topic} className="flex flex-col gap-3 border border-t-2 border-rule border-t-acc-solid bg-paper p-5">
                 <p className="flex items-center gap-2 text-sm text-tp-ink">
                   <Icon name={next.icon} size={18} tint="topic" />
                   {next.kindLabel}

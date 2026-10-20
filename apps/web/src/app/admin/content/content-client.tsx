@@ -194,9 +194,20 @@ function ContentRow({ item }: { readonly item: ContentItem }): ReactElement {
       <TD>
         <Pill tone={contentStateTone(item.state)}>{describeContentState(item.state)}</Pill>
       </TD>
-      <TD className="font-mono text-xs text-ink-2">{item.authorId}</TD>
+      <TD>
+        {item.authorName === null ? (
+          <span className="font-mono text-xs text-ink-3">{item.authorId}</span>
+        ) : (
+          <div className="flex flex-col gap-0.5">
+            <span className="text-sm text-ink">{item.authorName}</span>
+            <span className="text-xs text-ink-3">{item.authorEmail}</span>
+          </div>
+        )}
+      </TD>
       <TD className="whitespace-nowrap text-xs tabular-nums text-ink-2">{formatMoment(item.updatedAt)}</TD>
       <TD numeric>
+        {/* Bài đã lưu trữ không có gì để lưu trữ nữa: ô trạng thái đã nói điều đó. */}
+        {item.state === 'archived' ? null : (
         <Button
           variant="secondary"
           size="sm"
@@ -208,6 +219,7 @@ function ContentRow({ item }: { readonly item: ContentItem }): ReactElement {
         >
           {t('admin.content.archive-button')}
         </Button>
+        )}
 
         <ConfirmDialog
           open={open}

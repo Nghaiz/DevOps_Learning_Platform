@@ -78,7 +78,7 @@ export function CommandPalette({ open, onOpenChange, label, placeholder, emptyTe
         />
         <Kbd>Esc</Kbd>
       </div>
-      <Command.List className="max-h-[min(60vh,26rem)] overflow-y-auto overscroll-contain p-2">
+      <Command.List className="relative max-h-[min(60vh,26rem)] overflow-y-auto overscroll-contain p-2">
         <Command.Empty className="px-3 py-8 text-center text-sm text-ink-2">{emptyText}</Command.Empty>
         {groups.map((group) => (
           <Command.Group

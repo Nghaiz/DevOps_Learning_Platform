@@ -17,7 +17,9 @@ export interface PagerProps {
 
 /**
  * Phân trang theo con trỏ: đầu, trước, sau. Nút nào không có hàm thì bị khoá chứ
- * không biến mất, để hàng nút không nhảy chỗ khi lật trang.
+ * không biến mất, để hàng nút không nhảy chỗ khi lật trang. Danh sách chỉ có một trang
+ * (không trước, không sau, không đang tải) thì chỉ còn dòng trạng thái: hai nút khoá ở đó
+ * không lật được gì mà vẫn trông như bấm được.
  */
 export function Pager({
   status,
@@ -33,6 +35,7 @@ export function Pager({
   return (
     <nav aria-label={typeof status === 'string' ? status : undefined} className={cn('flex flex-wrap items-center justify-between gap-3 pt-4', className)}>
       <p className="text-sm tabular-nums text-ink-3">{status}</p>
+      {onPrevious === undefined && onNext === undefined && onFirst === undefined && !loading ? null : (
       <div className="flex items-center gap-2">
         {firstLabel === undefined ? null : (
           <Button variant="ghost" size="sm" onClick={onFirst} disabled={onFirst === undefined || loading}>
@@ -53,6 +56,7 @@ export function Pager({
           {nextLabel}
         </Button>
       </div>
+      )}
     </nav>
   );
 }
