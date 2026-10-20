@@ -1,29 +1,19 @@
 'use client';
 
-import { useCallback, useState, type FormEvent, type ReactElement } from 'react';
-import { UserPlus } from 'lucide-react';
-import type { inferRouterOutputs } from '@trpc/server';
-import { err, t } from '@devops-platform/copy';
 import {
-  Button,
-  CursorPager,
-  EmptyState,
-  ErrorState,
-  Input,
-  Label,
-  Num,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-  useToast,
-} from '@devops-platform/ui';
+  useCallback,
+  useState,
+  type FormEvent,
+  type ReactElement } from 'react';
+import type { inferRouterOutputs } from '@trpc/server';
+import { err,
+  t } from '@devops-platform/copy';
 import type { AppRouter } from '../../../../server/trpc/routers/app-router';
-import { Split, numSlot, WithNums } from '../../../../components/kit';
+import { numSlot, WithNums } from '../../../../components/admin/with-nums';
+import { InlineNum } from '../../../../components/admin/inline-num';
 import { api } from '../../../../lib/trpc-react';
-import { describeTrpcError, trpcErrorCode } from '../../../../lib/trpc';
+import { describeTrpcError,
+  trpcErrorCode } from '../../../../lib/trpc';
 import {
   AdminDetailPage,
   AdminNote,
@@ -31,16 +21,18 @@ import {
   FirstPageButton,
   LedgerError,
   LedgerSkeleton,
+  AdminPager,
 } from '../../../../components/admin/admin-page';
-import { ConfirmDialog } from '../../../../components/kit/confirm-dialog';
 import {
   FIRST_PAGE,
   currentCursor,
   pageNumber,
+  popCursor,
   pushCursor,
   type CursorStack,
 } from '../../../../lib/cursor-stack';
 import { formatDay, formatMoment } from '../../../../lib/format-moment';
+import { Button, ConfirmDialog, Empty, ErrorBlock, Input, Label, Section, Table, TBody, TD, TH, THead, TR, toast } from '@devops-platform/ds';
 
 type Outputs = inferRouterOutputs<AppRouter>;
 type ClassMember = Outputs['classes']['members']['items'][number];
@@ -74,7 +66,7 @@ export function AdminClassDetailClient({ classId }: { readonly classId: string }
   if (detail.isPending || detail.isError) {
     return (
       <AdminDetailPage crumbs={crumbs} title={t('admin.classes.detail-title')}>
-        <div className="pt-10">
+        <div>
           {detail.isPending ? (
             <LedgerSkeleton rows={4} />
           ) : (
@@ -96,26 +88,22 @@ export function AdminClassDetailClient({ classId }: { readonly classId: string }
       crumbs={[...crumbs, { label: detail.data.name }]}
       title={detail.data.name}
     >
-      <p className="max-w-prose pt-6 text-base text-foreground">
+      <p className="max-w-prose text-lg text-ink">
         <WithNums
           text={t('admin.classes.detail-lead', { owner: detail.data.ownerEmail, count: numSlot(0) })}
-          nums={[<Num key="count">{detail.data.memberCount}</Num>]}
+          nums={[<InlineNum key="count" tone="acc">{detail.data.memberCount}</InlineNum>]}
         />
       </p>
       {detail.data.description === null ? null : (
-        <p className="max-w-prose pt-2 text-sm text-muted-foreground">{detail.data.description}</p>
+        <p className="max-w-prose pt-2 text-sm text-ink-2">{detail.data.description}</p>
       )}
-      <div className="pt-6">
-        <Split index="01" title={t('admin.classes.members-title')} aside={t('admin.classes.members-description')}>
+      <div className="flex flex-col gap-14 pt-10">
+        <Section title={t('admin.classes.members-title')} description={t('admin.classes.members-description')} icon="users">
           <MembersPanel classId={classId} />
-        </Split>
-        <Split
-          index="02"
-          title={t('admin.classes.scoreboard-title')}
-          aside={t('admin.classes.scoreboard-description')}
-        >
+        </Section>
+        <Section title={t('admin.classes.scoreboard-title')} description={t('admin.classes.scoreboard-description')} icon="award">
           <ScoreboardPanel classId={classId} />
-        </Split>
+        </Section>
       </div>
     </AdminDetailPage>
   );
@@ -140,6 +128,7 @@ function MembersPanel({ classId }: { readonly classId: string }): ReactElement {
         onRetry={() => void query.refetch()}
         onNext={() => setStack((prev) => pushCursor(prev, query.data?.nextCursor ?? null))}
         onFirst={() => setStack(FIRST_PAGE)}
+        onPrevious={() => setStack(popCursor)}
       />
     </div>
   );
@@ -148,18 +137,13 @@ function MembersPanel({ classId }: { readonly classId: string }): ReactElement {
 function AddMemberForm(props: { readonly classId: string; readonly onAdded: () => void }): ReactElement {
   const [email, setEmail] = useState('');
   const [serverError, setServerError] = useState<string | null>(null);
-  const { toast } = useToast();
   const utils = api.useUtils();
 
   const add = api.classes.addMember.useMutation({
     onSuccess: (added) => {
       setEmail('');
       setServerError(null);
-      toast({
-        variant: 'success',
-        title: t('admin.classes.added-toast-title', { email: added.email }),
-        description: t('admin.classes.added-toast-body'),
-      });
+      toast.success(t('admin.classes.added-toast-title', { email: added.email }), { description: t('admin.classes.added-toast-body') });
       void utils.classes.members.invalidate();
       void utils.classes.scoreboard.invalidate();
       void utils.classes.get.invalidate();
@@ -209,17 +193,17 @@ function AddMemberForm(props: { readonly classId: string; readonly onAdded: () =
             required
           />
         </div>
-        <Button
+        <Button variant="primary"
           type="submit"
           loading={add.isPending}
           disabled={email.trim() === ''}
-          iconLeft={<UserPlus aria-hidden="true" />}
+          icon="user-plus"
         >
           {t('admin.classes.add-submit')}
         </Button>
       </div>
       {serverError === null ? null : (
-        <p role="alert" className="text-sm text-destructive">
+        <p role="alert" className="text-sm text-bad-ink">
           {serverError}
         </p>
       )}
@@ -238,6 +222,7 @@ function MembersBody(props: {
   readonly onRetry: () => void;
   readonly onNext: () => void;
   readonly onFirst: () => void;
+  readonly onPrevious: () => void;
 }): ReactElement {
   if (props.pending) {
     return <LedgerSkeleton rows={4} />;
@@ -258,29 +243,25 @@ function MembersBody(props: {
   const items = props.items ?? [];
   if (items.length === 0) {
     return (
-      <EmptyState
-        title={t('admin.classes.members-empty-title')}
-        description={t('admin.classes.members-empty-body')}
-        {...(props.page > 1 ? { action: <FirstPageButton page={props.page} onFirst={props.onFirst} /> } : {})}
-      />
+      <Empty title={t('admin.classes.members-empty-title')} {...(props.page > 1 ? { action: <FirstPageButton page={props.page} onFirst={props.onFirst} /> } : {})}>{t('admin.classes.members-empty-body')}</Empty>
     );
   }
 
   return (
     <div className="flex flex-col gap-4">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>{t('admin.classes.member-col-student')}</TableHead>
-            <TableHead>{t('admin.classes.member-col-joined')}</TableHead>
-            <TableHead className="text-right">{t('admin.classes.col-actions')}</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
+      <Table label={t('admin.classes.members-title')}>
+        <THead>
+          <tr>
+            <TH>{t('admin.classes.member-col-student')}</TH>
+            <TH>{t('admin.classes.member-col-joined')}</TH>
+            <TH numeric>{t('admin.classes.col-actions')}</TH>
+          </tr>
+        </THead>
+        <TBody>
           {items.map((member) => (
             <MemberRow key={member.userId} classId={props.classId} member={member} />
           ))}
-        </TableBody>
+        </TBody>
       </Table>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -288,13 +269,7 @@ function MembersBody(props: {
           {t('admin.classes.members-note', { count: items.length, page: props.page })}
           {props.hasNext ? t('admin.classes.note-more') : '.'}
         </AdminNote>
-        <CursorPager
-          hasNext={props.hasNext}
-          onNext={props.onNext}
-          onReset={props.onFirst}
-          page={props.page}
-          loading={props.fetching}
-        />
+        <AdminPager page={props.page} hasNext={props.hasNext} loading={props.fetching} onNext={props.onNext} onFirst={props.onFirst} onPrevious={props.onPrevious} />
       </div>
     </div>
   );
@@ -309,18 +284,13 @@ function MemberRow({
 }): ReactElement {
   const [open, setOpen] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
-  const { toast } = useToast();
   const utils = api.useUtils();
 
   const remove = api.classes.removeMember.useMutation({
     onSuccess: () => {
       setOpen(false);
       setServerError(null);
-      toast({
-        variant: 'success',
-        title: t('admin.classes.removed-toast-title', { name: member.name }),
-        description: t('admin.classes.removed-toast-body'),
-      });
+      toast.success(t('admin.classes.removed-toast-title', { name: member.name }), { description: t('admin.classes.removed-toast-body') });
       void utils.classes.members.invalidate();
       void utils.classes.scoreboard.invalidate();
       void utils.classes.get.invalidate();
@@ -334,17 +304,17 @@ function MemberRow({
   });
 
   return (
-    <TableRow>
-      <TableCell>
+    <TR>
+      <TD>
         <div className="flex flex-col gap-0.5">
-          <span className="font-semibold text-foreground">{member.name}</span>
-          <span className="font-mono text-xs text-muted-foreground">{member.email}</span>
+          <span className="font-medium text-ink">{member.name}</span>
+          <span className="font-mono text-xs text-ink-2">{member.email}</span>
         </div>
-      </TableCell>
-      <TableCell className="font-mono text-xs text-muted-foreground">{formatDay(member.joinedAt)}</TableCell>
-      <TableCell className="text-right">
+      </TD>
+      <TD className="font-mono text-xs text-ink-2">{formatDay(member.joinedAt)}</TD>
+      <TD numeric>
         <Button
-          variant="outline"
+          variant="secondary"
           size="sm"
           onClick={() => {
             setServerError(null);
@@ -370,11 +340,12 @@ function MemberRow({
           blockedReason={null}
           error={serverError}
           confirmLabel={t('admin.classes.remove-confirm')}
+          cancelLabel={t('common.action.cancel')}
           confirming={remove.isPending}
           onConfirm={() => remove.mutate({ classId, userId: member.userId })}
         />
-      </TableCell>
-    </TableRow>
+      </TD>
+    </TR>
   );
 }
 
@@ -406,60 +377,51 @@ function ScoreboardBody(props: {
   if (props.error !== null) {
     const failure = err('admin.error.class-scoreboard', { reason: props.error });
     return (
-      <ErrorState
-        title={failure.what}
-        message={failure.next}
-        onRetry={props.onRetry}
-        retrying={props.fetching}
-        retryLabel={t('admin.reload')}
-      />
+      <ErrorBlock title={failure.what} onRetry={props.onRetry} retrying={props.fetching} retryLabel={t('admin.reload')}>{failure.next}</ErrorBlock>
     );
   }
 
   const rows = props.rows ?? [];
   if (rows.length === 0) {
     return (
-      <EmptyState
-        title={t('admin.classes.score-empty-title')}
-        description={t('admin.classes.score-empty-body')}
-      />
+      <Empty title={t('admin.classes.score-empty-title')}>{t('admin.classes.score-empty-body')}</Empty>
     );
   }
 
   return (
     <div className="flex flex-col gap-4">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>{t('admin.classes.score-col-student')}</TableHead>
-            <TableHead className="text-right">{t('admin.classes.score-col-attempted')}</TableHead>
-            <TableHead className="text-right">{t('admin.classes.score-col-solved')}</TableHead>
-            <TableHead className="text-right">{t('admin.classes.score-col-total')}</TableHead>
-            <TableHead>{t('admin.classes.score-col-last')}</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
+      <Table label={t('admin.classes.scoreboard-title')}>
+        <THead>
+          <tr>
+            <TH>{t('admin.classes.score-col-student')}</TH>
+            <TH numeric>{t('admin.classes.score-col-attempted')}</TH>
+            <TH numeric>{t('admin.classes.score-col-solved')}</TH>
+            <TH numeric>{t('admin.classes.score-col-total')}</TH>
+            <TH>{t('admin.classes.score-col-last')}</TH>
+          </tr>
+        </THead>
+        <TBody>
           {rows.map((row) => (
-            <TableRow key={row.userId}>
-              <TableCell>
+            <TR key={row.userId}>
+              <TD>
                 <div className="flex flex-col gap-0.5">
-                  <span className="font-semibold text-foreground">{row.name}</span>
-                  <span className="font-mono text-xs text-muted-foreground">{row.email}</span>
+                  <span className="font-medium text-ink">{row.name}</span>
+                  <span className="font-mono text-xs text-ink-2">{row.email}</span>
                 </div>
-              </TableCell>
-              <TableCell className="text-right font-mono tabular-nums">{row.attemptedCount}</TableCell>
-              <TableCell className="text-right font-mono tabular-nums">{row.solvedCount}</TableCell>
-              <TableCell className="text-right font-mono font-semibold tabular-nums">
+              </TD>
+              <TD numeric>{row.attemptedCount}</TD>
+              <TD numeric>{row.solvedCount}</TD>
+              <TD numeric className="font-semibold">
                 {row.bestScoreTotal}
-              </TableCell>
-              <TableCell className="font-mono text-xs text-muted-foreground">
+              </TD>
+              <TD className="font-mono text-xs text-ink-2">
                 {row.lastSubmittedAt === null
                   ? t('admin.classes.never-submitted')
                   : formatMoment(row.lastSubmittedAt)}
-              </TableCell>
-            </TableRow>
+              </TD>
+            </TR>
           ))}
-        </TableBody>
+        </TBody>
       </Table>
       <AdminNote>{t('admin.classes.score-note')}</AdminNote>
     </div>

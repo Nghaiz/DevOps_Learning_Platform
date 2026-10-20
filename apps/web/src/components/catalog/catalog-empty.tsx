@@ -3,13 +3,13 @@
 import type { ReactElement, ReactNode } from 'react';
 import Link from 'next/link';
 import { renderCopy, t } from '@devops-platform/copy';
-import { Button, EmptyState } from '@devops-platform/ui';
+import { Button, Empty, EmptyArt } from '@devops-platform/ds';
 import { describeCatalogEmpty, type CatalogKind } from './catalog-labels';
 
 /**
- * Trạng thái rỗng của danh mục: thứ đang thiếu + một việc làm tiếp. Câu chữ và
- * hành động chọn ở `describeCatalogEmpty` (hàm thuần, có test); file này chỉ nối
- * hành động vào nút.
+ * Trạng thái rỗng của danh mục: thứ đang thiếu + một việc làm tiếp. Câu chữ và hành
+ * động chọn ở `describeCatalogEmpty` (hàm thuần, có test); file này chỉ nối hành động
+ * vào nút và chọn hình minh hoạ hợp với ca rỗng.
  */
 export function CatalogEmptyState(props: {
   readonly kind: CatalogKind;
@@ -37,46 +37,45 @@ export function CatalogEmptyState(props: {
   switch (empty.action.kind) {
     case 'clear-filter':
       action = (
-        <Button variant="outline" onClick={props.onClearFilters}>
+        <Button variant="secondary" icon="close" onClick={props.onClearFilters}>
           {t('catalog.action.clear-filter')}
         </Button>
       );
       break;
     case 'clear-search':
       action = (
-        <Button variant="outline" onClick={props.onClearSearch}>
+        <Button variant="secondary" icon="close" onClick={props.onClearSearch}>
           {t('catalog.action.clear-search')}
         </Button>
       );
       break;
     case 'first-page':
       action = (
-        <Button variant="outline" onClick={props.onFirstPage}>
+        <Button variant="secondary" icon="refresh" onClick={props.onFirstPage}>
           {t('catalog.action.first-page')}
         </Button>
       );
       break;
     case 'author':
       action = (
-        <Button variant="primary" asChild>
-          <Link href="/author">{t('catalog.action.author')}</Link>
+        <Button variant="primary" icon="pen" asChild>
+          <Link href="/studio">{t('catalog.action.author')}</Link>
         </Button>
       );
       break;
     case 'browse':
       action = (
-        <Button variant="outline" asChild>
+        <Button variant="secondary" asChild>
           <Link href={empty.action.href}>{renderCopy({ key: empty.action.labelKey })}</Link>
         </Button>
       );
       break;
   }
 
+  const art = empty.action.kind === 'clear-filter' || empty.action.kind === 'clear-search' ? 'search' : 'nothing';
   return (
-    <EmptyState
-      title={renderCopy(empty.title)}
-      description={renderCopy(empty.description)}
-      action={action}
-    />
+    <Empty art={<EmptyArt kind={art} width={110} />} title={renderCopy(empty.title)} action={action}>
+      {renderCopy(empty.description)}
+    </Empty>
   );
 }

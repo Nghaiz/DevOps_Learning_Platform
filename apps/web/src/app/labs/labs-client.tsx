@@ -4,12 +4,17 @@ import type { inferRouterOutputs } from '@trpc/server';
 import { t } from '@devops-platform/copy';
 import type { AppRouter } from '../../server/trpc/routers/app-router';
 import { api } from '../../lib/trpc-react';
-import { BoardMeta, BoardRow, PageContainer } from '../../components/kit';
-import { CatalogPoster } from '../../components/catalog/catalog-poster';
+import { Page, Pill } from '@devops-platform/ds';
+import { CatalogHeader } from '../../components/catalog/catalog-header';
 import { CatalogToolbar } from '../../components/catalog/catalog-toolbar';
 import { CatalogResults } from '../../components/catalog/catalog-results';
-import { LeaderboardFlag, RowDifficulty, contentLine } from '../../components/catalog/catalog-row';
-import { describeLoadedScope, tierLabel } from '../../components/catalog/catalog-labels';
+import {
+  CatalogRow,
+  RowDifficulty,
+  RowFact,
+  contentTopic,
+} from '../../components/catalog/catalog-row';
+import { describeLoadedScope } from '../../components/catalog/catalog-labels';
 import { buildCatalogListInput } from '../../components/catalog/catalog-input';
 import { combineCatalogPages } from '../../components/catalog/catalog-pages';
 import { searchPage } from '../../components/catalog/catalog-search';
@@ -43,7 +48,8 @@ function labSearchFields(item: LabRow): readonly (string | null)[] {
  * sandbox ở server, tìm và sắp xếp trên phần đã tải.
  *
  * Lab không có tiến độ trong payload danh sách, nên dòng không có trạng thái
- * học; cờ "Có xếp hạng" đứng ở khe trạng thái.
+ * học; cờ "Có xếp hạng" đứng ở khe trạng thái. Ngưỡng đạt và hạng sandbox nằm ở
+ * trang chi tiết: trên danh sách chúng là hai cột mà gần như dòng nào cũng giống nhau.
  */
 export function LabsClient({
   canAuthor,
@@ -65,67 +71,71 @@ export function LabsClient({
   const hasNext = pages.status === 'success' && pages.hasNext;
 
   return (
-    <>
-      <CatalogPoster kind="labs" count={total} />
-      <PageContainer className="py-10 md:py-12">
-        <CatalogToolbar
+    <Page className="pb-14">
+      <CatalogHeader kind="labs" count={total} />
+      <CatalogToolbar
+        kind="labs"
+        fields={['topic', 'difficulty', 'tier']}
+        filters={controls.filters}
+        onTopic={controls.setTopic}
+        onDifficulty={controls.setDifficulty}
+        onTier={controls.setTier}
+        onClearFilters={controls.clearFilters}
+        sortKey={controls.sortKey}
+        sortOptions={SORT_OPTIONS}
+        onSort={controls.setSortKey}
+        search={controls.search}
+        onSearch={controls.setSearch}
+        scopeNote={describeLoadedScope({
+          kind: 'labs',
+          loaded: loaded.length,
+          hasNext,
+          searching: controls.hasSearch,
+          sorting: controls.isSorted,
+        })}
+        disabled={pages.status === 'pending'}
+      />
+      <div className="pt-2">
+        <CatalogResults
           kind="labs"
-          fields={['topic', 'difficulty', 'tier']}
-          filters={controls.filters}
-          onTopic={controls.setTopic}
-          onDifficulty={controls.setDifficulty}
-          onTier={controls.setTier}
-          onClearFilters={controls.clearFilters}
-          sortKey={controls.sortKey}
-          sortOptions={SORT_OPTIONS}
-          onSort={controls.setSortKey}
-          search={controls.search}
-          onSearch={controls.setSearch}
-          scopeNote={describeLoadedScope({
-            kind: 'labs',
-            loaded: loaded.length,
-            hasNext,
-            searching: controls.hasSearch,
-            sorting: controls.isSorted,
-          })}
-          disabled={pages.status === 'pending'}
-        />
-        <div className="mt-8">
-          <CatalogResults
-            kind="labs"
-            pages={pages}
-            shown={items.length}
-            controls={controls}
-            canAuthor={canAuthor}
-            onRetry={(index) => void results[index]?.refetch()}
-            isFetching={(index) => results[index]?.isFetching ?? false}
-          >
-            {items.map((item, index) => (
-              <BoardRow
-                key={item.id}
-                href={`/labs/${item.id}`}
-                index={index + 1}
-                order={index}
-                line={contentLine(item)}
-                title={item.title}
-                sub={item.description ?? undefined}
-                meta={
-                  <>
-                    <RowDifficulty level={item.difficulty} />
-                    <BoardMeta>{t('unit.task', { n: item.taskCount })}</BoardMeta>
-                    <BoardMeta>{t('catalog.meta.threshold', { percent: item.passThresholdPercent })}</BoardMeta>
-                    {item.estimatedMinutes !== null && (
-                      <BoardMeta>{t('catalog.meta.duration', { minutes: item.estimatedMinutes })}</BoardMeta>
-                    )}
-                    <BoardMeta>{tierLabel(item.tier)}</BoardMeta>
-                  </>
-                }
-                state={item.leaderboard ? <LeaderboardFlag /> : undefined}
-              />
-            ))}
-          </CatalogResults>
-        </div>
-      </PageContainer>
-    </>
+          pages={pages}
+          shown={items.length}
+          controls={controls}
+          canAuthor={canAuthor}
+          onRetry={(index) => void results[index]?.refetch()}
+          isFetching={(index) => results[index]?.isFetching ?? false}
+        >
+          {items.map((item) => (
+            <CatalogRow
+              key={item.id}
+              href={`/labs/${item.id}`}
+              topic={contentTopic(item)}
+              title={item.title}
+              description={item.description}
+              meta={
+                <>
+                  <RowDifficulty level={item.difficulty} />
+                  <RowFact icon="target" width="w-28">
+                    {t('unit.task', { n: item.taskCount })}
+                  </RowFact>
+                  <RowFact icon="clock" width="w-24">
+                    {item.estimatedMinutes === null
+                      ? null
+                      : t('catalog.meta.duration', { minutes: item.estimatedMinutes })}
+                  </RowFact>
+                </>
+              }
+              state={
+                item.leaderboard ? (
+                  <Pill tone="acc" icon="award">
+                    {t('catalog.flag.leaderboard')}
+                  </Pill>
+                ) : undefined
+              }
+            />
+          ))}
+        </CatalogResults>
+      </div>
+    </Page>
   );
 }

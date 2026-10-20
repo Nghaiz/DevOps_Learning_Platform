@@ -2,10 +2,10 @@
 
 import type { ReactElement } from 'react';
 import { t } from '@devops-platform/copy';
-import { Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Textarea } from '@devops-platform/ui';
 import type { ProblemArgSpec } from '@devops-platform/games';
 import { Field, issueFor } from '../../../components/author/field';
 import type { FieldIssue } from './cluster-form';
+import { Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Textarea } from '@devops-platform/ds';
 
 /** Hai giá trị `argBoolean` đọc. Là GIÁ TRỊ của engine, không phải chữ cho người đọc. */
 const BOOLEAN_VALUES = ['true', 'false'] as const;

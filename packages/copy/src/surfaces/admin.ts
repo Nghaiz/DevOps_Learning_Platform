@@ -32,10 +32,10 @@ export const admin = {
   'admin.crumb.root': 'Quản trị',
   // Một động từ cho việc "lấy lại dữ liệu" ở mọi màn quản trị.
   'admin.reload': 'Tải lại',
+  'admin.loading': 'Đang tải',
   'admin.pager.first': 'Về đầu',
 
   // ── /admin, tổng quan ────────────────────────────────────────────────────
-  'admin.overview.kicker': 'Quản trị · số đọc trực tiếp từ cụm',
   'admin.overview.title': 'Tổng quan',
   'admin.overview.lead':
     'Còn bao nhiêu chỗ, có đủ pod chờ sẵn không, và ai vừa bấm gì trong trang quản trị.',
@@ -61,6 +61,7 @@ export const admin = {
   'admin.capacity.fetched-at': (p: { at: string }) => `Đọc lúc ${p.at}, tự làm mới mỗi 15 giây.`,
   'admin.capacity.fetched-unknown': 'Không rõ thời điểm đọc.',
   'admin.capacity.meter-label': 'Số chỗ đã dùng cho bài thường',
+  'admin.capacity.meter-value': (p: { used: number; total: number }) => `${String(p.used)} trên ${String(p.total)} chỗ đang dùng`,
   'admin.capacity.profiles-note':
     'Bài có IDE hoặc lab Kubernetes tốn tài nguyên hơn nên có trần riêng, thấp hơn số này.',
   'admin.capacity.full': 'Hết chỗ. Phiên mới bị từ chối cho tới khi có phiên đóng hoặc hết hạn.',
@@ -133,7 +134,6 @@ export const admin = {
   'admin.health.metric.neg-inf': 'âm vô cực (-Inf)',
 
   // ── /admin/users ─────────────────────────────────────────────────────────
-  'admin.users.kicker': 'Quản trị · tài khoản và vai trò',
   'admin.users.title': 'Người dùng',
   'admin.users.lead':
     'Tìm theo email hoặc tên rồi đổi vai trò. Mỗi lần đổi ghi một dòng nhật ký kèm tên bạn.',
@@ -179,7 +179,6 @@ export const admin = {
     'Đây là tài khoản của chính bạn. Tự hạ quyền quản trị sẽ khoá luôn trang /admin và chỉ mở lại được bằng SQL tay trên máy chủ, và máy chủ cũng từ chối việc này. Nhờ một quản trị viên khác đổi giúp.',
 
   // ── /admin/sessions ──────────────────────────────────────────────────────
-  'admin.sessions.kicker': 'Quản trị · sandbox đang sống',
   'admin.sessions.title': 'Phiên đang chạy',
   'admin.sessions.lead':
     'Phiên của mọi người đang mở lúc này. Kết thúc một phiên là thu hồi pod ngay, người đang gõ không được báo trước.',
@@ -233,7 +232,6 @@ export const admin = {
   'admin.terminate.confirm': 'Kết thúc phiên',
 
   // ── /admin/content ───────────────────────────────────────────────────────
-  'admin.content.kicker': 'Quản trị · bài của mọi người soạn',
   'admin.content.title': 'Nội dung',
   'admin.content.lead':
     'Bài học, lab và playground của mọi tác giả, ở mọi trạng thái kể cả nháp. Lưu trữ làm bài biến khỏi danh mục, không xoá.',
@@ -294,7 +292,6 @@ export const admin = {
     `${p.what} đang trong lượt chạy thử xuất bản.`,
 
   // ── /admin/audit ─────────────────────────────────────────────────────────
-  'admin.audit.kicker': 'Quản trị · chỉ ghi thêm, không sửa',
   'admin.audit.title': 'Nhật ký quản trị',
   'admin.audit.lead':
     'Ai đã đổi vai trò, kết thúc phiên, sửa lớp hay kỳ thi, mới nhất trước. Không dòng nào sửa hay xoá được.',
@@ -306,6 +303,7 @@ export const admin = {
   'admin.audit.col-action': 'Hành động',
   'admin.audit.col-target': 'Đối tượng',
   'admin.audit.col-detail': 'Chi tiết',
+  'admin.audit.table-label': 'Nhật ký quản trị',
   'admin.audit.caption':
     'Cột "Người thực hiện" chỉ có id: bảng nhật ký cố ý không tham chiếu tới bảng người dùng, nên một tài khoản đã xoá vẫn để lại id ở đây.',
   // Hành động lạ (một bản máy chủ mới hơn ghi một `action` FE chưa biết) hiện
@@ -356,7 +354,6 @@ export const admin = {
   //
   // Người trong lớp là "sinh viên", không phải "thành viên": bảng
   // `class_members` theo định nghĩa chỉ chứa sinh viên, chủ lớp là cột riêng.
-  'admin.classes.kicker': 'Quản trị · lớp, sĩ số, bảng điểm',
   'admin.classes.title': 'Lớp học',
   'admin.classes.lead':
     'Tạo lớp, thêm sinh viên bằng email, xem bảng điểm bài tập. Lớp thuộc về tài khoản quản trị đã tạo nó.',
@@ -429,7 +426,6 @@ export const admin = {
   'admin.classes.score-note': 'Mỗi bài tính điểm cao nhất của người đó, không cộng dồn các lượt nộp lại.',
 
   // ── /admin/exams ─────────────────────────────────────────────────────────
-  'admin.exams.kicker': 'Quản trị · đề, giờ thi, bảng điểm',
   'admin.exams.title': 'Kỳ thi',
   'admin.exams.lead':
     'Mỗi kỳ thi thuộc một lớp. Ra đề bằng mã bài, đặt giờ mở và đóng, rồi theo dõi bảng điểm từng người.',

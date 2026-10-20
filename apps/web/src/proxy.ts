@@ -59,6 +59,12 @@ const PROTECTED_PATHS = [
   '/settings',
   '/author',
   '/admin',
+  // Trang tổng quan của các mục (bản dựng lại 2026-10). `/games` cố ý KHÔNG có ở đây:
+  // game chạy trong trình duyệt, không cần đăng nhập.
+  '/learn',
+  '/practice',
+  '/judge',
+  '/studio',
 ];
 const AUTH_ONLY_PATHS = ['/login'];
 

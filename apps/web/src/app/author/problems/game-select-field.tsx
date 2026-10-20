@@ -1,21 +1,18 @@
 'use client';
 
-import { useId, type CSSProperties, type ReactElement } from 'react';
-import { Boxes, Check, GitBranch, Workflow, type LucideIcon } from 'lucide-react';
+import { useId, type ReactElement } from 'react';
 import { t } from '@devops-platform/copy';
 import type { GameId } from '@devops-platform/games';
-import { Alert, AlertDescription, AlertTitle, cn } from '@devops-platform/ui';
 import { fieldPathProps } from '../../../components/author/studio';
-import { lineFillClass, lineForTopic } from '../../../components/kit';
+import { topicLook } from '../../../lib/topic-look';
 import { AUTHORABLE_GAMES, pluginViewFor } from './game-plugin-view';
+import { cn, Icon, Notice } from '@devops-platform/ds';
 
 /**
  * Bốn phím radio gốc dùng để dời lựa chọn. Cả bốn: trình duyệt cho đi theo cả
  * hai trục bất kể nhóm bày theo chiều nào, chặn hai mà quên hai là hở một nửa.
  */
 const ARROW_KEYS: ReadonlySet<string> = new Set(['ArrowDown', 'ArrowUp', 'ArrowRight', 'ArrowLeft']);
-
-const GAME_ICON: Partial<Record<GameId, LucideIcon>> = { git: GitBranch, cicd: Workflow };
 
 /**
  * Ô chọn game: NHÓM RADIO GỐC cùng một `name`, không phải `<select>`.
@@ -25,8 +22,8 @@ const GAME_ICON: Partial<Record<GameId, LucideIcon>> = { git: GitBranch, cicd: W
  * hay `onKeyDown` nào. Input ẩn bằng `sr-only` (KHÔNG `display:none`) để vẫn
  * nhận focus; khung `label` hiện vòng focus qua `has-[:focus-visible]`.
  *
- * Mỗi ô tô màu tuyến của game (`lineForTopic`): K8s chàm, Git cam, CI/CD xanh.
- * Màu không phải kênh duy nhất: ô đang chọn đảo sang khối mực và có dấu tích.
+ * Mỗi ô mang màu và biểu tượng chủ đề của game (`topicLook`). Màu không phải kênh duy
+ * nhất: ô đang chọn có nền màu, viền đậm hơn và dấu tích.
  */
 export function GameSelectField(props: {
   readonly gameId: GameId;
@@ -38,21 +35,21 @@ export function GameSelectField(props: {
   return (
     <div className="flex flex-col gap-4">
       <fieldset aria-describedby={hintId} className="flex flex-col gap-3" {...fieldPathProps('gameId')}>
-        {/* Nhãn hiện ở cột trái của khối Split; `legend` vẫn đặt tên cho nhóm. */}
+        {/* Nhãn hiện ở tiêu đề khối; `legend` vẫn đặt tên cho nhóm. */}
         <legend className="sr-only">{t('author.problem.game.label')}</legend>
         <div className="grid gap-2 sm:grid-cols-3">
-          {AUTHORABLE_GAMES.map((game, index) => {
+          {AUTHORABLE_GAMES.map((game) => {
             const selected = props.gameId === game.gameId;
-            const Icon = GAME_ICON[game.gameId] ?? Boxes;
+            const look = topicLook({ gameId: game.gameId });
             return (
               <label
                 key={game.gameId}
-                style={{ '--i': index } as CSSProperties}
+                data-topic={look.topic}
                 className={cn(
-                  'stagger animate-rise group flex min-h-16 items-center gap-3 border p-3 transition-[background-color,border-color,color] duration-150 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-background',
-                  selected ? 'border-ink bg-ink text-ink-foreground' : 'border-border bg-background',
+                  'group flex min-h-16 items-center gap-3 rounded-md border p-3 transition-[background-color,border-color,color] duration-150 has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-focus',
+                  selected ? 'border-tp-mid bg-tp-tint text-tp-ink' : 'border-rule-2 bg-paper text-ink',
                   props.canChange ? 'cursor-pointer' : 'cursor-not-allowed',
-                  props.canChange && !selected && 'hover:border-foreground hover:bg-muted',
+                  props.canChange && !selected && 'hover:border-rule-2 hover:bg-well',
                   !props.canChange && !selected && 'opacity-60',
                 )}
               >
@@ -80,33 +77,27 @@ export function GameSelectField(props: {
                     if (ARROW_KEYS.has(event.key)) event.preventDefault();
                   }}
                 />
-                <span
-                  aria-hidden="true"
-                  className={cn(
-                    'inline-flex size-10 shrink-0 items-center justify-center transition-transform duration-150 group-hover:-translate-y-0.5',
-                    lineFillClass(lineForTopic({ gameId: game.gameId })),
-                  )}
-                >
-                  <Icon className="size-5" />
-                </span>
+                <Icon
+                  name={look.icon}
+                  size={28}
+                  tint="neutral"
+                  className="text-tp-ink transition-transform duration-150 group-hover:-translate-y-0.5"
+                />
                 <span className="flex min-w-0 flex-1 flex-col">
                   <span className="font-semibold">{game.label}</span>
-                  <span className="font-mono text-xs opacity-75">{game.codePrefix}</span>
+                  <span className="font-mono text-xs">{game.codePrefix}</span>
                 </span>
-                {selected && <Check aria-hidden="true" className="size-4 shrink-0 animate-rise" />}
+                {selected && <Icon name="check" size={16} className="shrink-0 animate-enter" />}
               </label>
             );
           })}
         </div>
-        <p id={hintId} className="text-sm text-muted-foreground">
+        <p id={hintId} className="text-sm text-ink-2">
           {props.canChange ? t('author.problem.game.hint') : t('author.problem.game.locked')}
         </p>
       </fieldset>
       {view === null && (
-        <Alert variant="warning">
-          <AlertTitle>{t('author.problem.game.no-plugin-title')}</AlertTitle>
-          <AlertDescription>{t('author.problem.game.no-plugin-body')}</AlertDescription>
-        </Alert>
+        <Notice tone="warn" title={t('author.problem.game.no-plugin-title')}>{t('author.problem.game.no-plugin-body')}</Notice>
       )}
     </div>
   );

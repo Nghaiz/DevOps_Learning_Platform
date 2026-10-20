@@ -1,13 +1,13 @@
 # Xong
 
-Ban vua dung ba thu chi co nghia khi cum co nhieu hon mot node:
+Bạn vừa dùng ba thứ chỉ có nghĩa khi cụm có nhiều hơn một node:
 
-- **`kubectl get nodes`** — so node la mot con so quan sat duoc, khong phai gia dinh.
-- **nhan + `nodeSelector`** — ghim workload xuong dung cho ban chon. Tren cum mot
-  node, dong YAML nay khong lam gi ca va ban se khong bao gio biet no sai.
-- **DaemonSet + `tolerations`** — "moi node mot ban sao" la mot phep dem; va
-  taint cua control-plane la ly do pho bien nhat khien phep dem ay ra thieu.
+- **`kubectl get nodes`**: số node là một con số quan sát được, không phải giả định.
+- **nhãn và `nodeSelector`**: ghim workload xuống đúng chỗ bạn chọn. Trên cụm một
+  node, dòng YAML này không làm gì cả và bạn sẽ không bao giờ biết nó sai.
+- **DaemonSet và `tolerations`**: "mỗi node một bản sao" là một phép đếm; và
+  taint của control-plane là lý do phổ biến nhất khiến phép đếm ấy ra thiếu.
 
-Dieu dang mang di: rat nhieu cau hinh Kubernetes **trong dung** tren cum mot
-node. Cach duy nhat de biet chung co dung khong la chay tren cum nhieu node -
-dung viec ban vua lam.
+Điều đáng mang đi: rất nhiều cấu hình Kubernetes **trông đúng** trên cụm một
+node. Cách duy nhất để biết chúng có đúng không là chạy trên cụm nhiều node,
+đúng việc bạn vừa làm.

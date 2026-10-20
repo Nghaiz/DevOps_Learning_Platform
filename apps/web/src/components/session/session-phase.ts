@@ -1,6 +1,6 @@
 import { t } from '@devops-platform/copy';
 import type { SessionPhase } from '@devops-platform/terminal';
-import type { BadgeVariant } from '@devops-platform/ui';
+import type { Tone } from '@devops-platform/ds';
 
 /**
  * Nhãn tiếng Việt cho từng pha của `session-machine.ts`.
@@ -26,36 +26,27 @@ export const SESSION_PHASE_LABEL: Record<SessionPhase, string> = {
 };
 
 /**
- * Tập biến thể badge mà MỘT PHA phiên có thể sinh ra — hẹp hơn `BadgeVariant`.
- *
- * Vì sao không trả thẳng `BadgeVariant`: bảng màu của `Badge` nay có 13 biến
- * thể (thêm `difficulty-*` và `status-*` cho danh mục), mà một pha phiên không
- * bao giờ là "độ khó trung cấp". Khai rộng buộc mọi bảng tra khoá theo kiểu trả
- * về phải liệt kê đủ 13 dòng, trong đó 9 dòng không thể xảy ra — và một bảng
- * đầy dòng chết thì không ai đọc nữa.
- *
- * Hẹp lại giữ đúng cái bảo đảm cần giữ: thêm một PHA mới trả về một biến thể
- * chưa có trong tập này ⇒ đỏ typecheck tại `TONE_CLASS` của `session-status`,
- * đúng chỗ cần đỏ. Thêm một biến thể badge cho danh mục thì không đụng gì ở đây.
+ * Sắc của viên trạng thái theo pha. `Record` để thêm một pha vào máy trạng thái mà
+ * quên sắc là đỏ typecheck.
  */
-export type PhaseBadgeVariant = Extract<
-  BadgeVariant,
-  'success' | 'warning' | 'destructive' | 'secondary'
->;
+const PHASE_TONE: Record<SessionPhase, Tone> = {
+  idle: 'neutral',
+  creating: 'info',
+  connecting: 'info',
+  ready: 'ok',
+  reconnecting: 'warn',
+  exited: 'neutral',
+  expired: 'bad',
+  error: 'bad',
+};
 
-/** Màu badge theo pha. Chỉ dùng token C1 (qua variant của `Badge`). */
-export function phaseBadgeVariant(phase: SessionPhase): PhaseBadgeVariant {
-  switch (phase) {
-    case 'ready':
-      return 'success';
-    case 'reconnecting':
-      return 'warning';
-    case 'error':
-    case 'expired':
-      return 'destructive';
-    default:
-      return 'secondary';
-  }
+export function phaseTone(phase: SessionPhase): Tone {
+  return PHASE_TONE[phase];
+}
+
+/** Pha nào đang "chờ một thứ gì đó xảy ra": chấm nhịp thở, không có vòng xoay. */
+export function phaseIsWaiting(phase: SessionPhase): boolean {
+  return phase === 'creating' || phase === 'connecting' || phase === 'reconnecting';
 }
 
 /** Ngưỡng hiện đồng hồ TTL — dưới 10 phút mới đáng nói (C5). */

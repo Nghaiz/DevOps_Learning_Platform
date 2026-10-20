@@ -1,7 +1,7 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
-import { Check, CircleDashed, RotateCcw, X } from 'lucide-react';
 import type {
   QuizAttemptResult,
   QuizForLearner,
@@ -9,33 +9,34 @@ import type {
   QuizQuestionResult,
 } from '@devops-platform/shared-types/quiz';
 import {
-  Alert,
-  AlertDescription,
+  BackLink,
   Button,
   Checkbox,
-  ErrorState,
-  MarkdownView,
-  Meter,
+  ErrorBlock,
+  Icon,
+  Notice,
+  Page,
+  PageHeader,
+  Pill,
+  ProgressLine,
   RadioGroup,
-  RadioGroupItem,
+  RadioItem,
+  RowsSkeleton,
   Skeleton,
+  Stamp,
   cn,
-} from '@devops-platform/ui';
+} from '@devops-platform/ds';
+import { Markdown } from '@devops-platform/ds/content';
 import { renderCopy, t, type StaticTextKey } from '@devops-platform/copy';
-import { PageContainer, ToolHeader } from '../../../components/kit';
 import { api } from '../../../lib/trpc-react';
 import { describeTrpcError } from '../../../lib/trpc';
-import {
-  MULTIPLE_ANSWER_RULE_KEYS,
-  choiceReveal,
-  summarizeAnswers,
-  type ChoiceReveal,
-} from './answer-view';
+import { contentLabels } from '../../../components/session/practice-labels';
+import { MULTIPLE_ANSWER_RULE_KEYS, choiceReveal, summarizeAnswers, type ChoiceReveal } from './answer-view';
 
 /**
- * Làm một bộ câu hỏi, bố cục đề thi: câu đánh số, lựa chọn là những hàng vuông
- * lớn bấm được, phiếu trả lời dính đáy trang, nộp xong thì điểm + từng lựa chọn
- * được đánh dấu bằng icon VÀ chữ (không chỉ màu) + giải thích.
+ * Làm một bộ câu hỏi: câu đánh số, lựa chọn là những hàng bấm được, phiếu trả lời
+ * dính đáy trang, nộp xong thì điểm + từng lựa chọn được đánh dấu bằng biểu tượng VÀ
+ * chữ (không chỉ màu) + giải thích.
  *
  * ## Hai tính chất của file này là ô AC, không phải lựa chọn giao diện
  *
@@ -45,36 +46,34 @@ import {
  * 2. **Quy tắc chấm hiện TRƯỚC khi làm**, câu chữ lấy TỪ PAYLOAD
  *    (`quiz.multipleAnswerRule`).
  *
- * Câu hỏi, lựa chọn và giải thích là MARKDOWN và đi qua `MarkdownView` (bản cũ in
- * thô ra chữ, nên `**pod**` hiện nguyên hai dấu sao). Quiz không có route phục vụ
- * ảnh, nên `resolveAssetUrl` trả `null` và `MarkdownView` tự vẽ ô "không tải được
- * ảnh" thay vì một ảnh vỡ.
- *
- * Quiz không cần sandbox, nên trang này không có khung phiên: không có phiên nào
- * để bắt đầu, kết thúc hay thêm giờ.
+ * Câu hỏi, lựa chọn và giải thích là MARKDOWN. Quiz không có route phục vụ ảnh, nên
+ * `resolveAssetUrl` trả `null` và khối nội dung tự vẽ ô "không tải được ảnh".
  */
 
 const NO_ASSETS = (): string | null => null;
+const LABELS = contentLabels();
 
-/** Viền và nền của một lựa chọn sau khi nộp. Chỉ token. */
+/** Viền và nền của một lựa chọn sau khi nộp. */
 const REVEAL_ROW: Record<ChoiceReveal, string> = {
-  none: 'border-border',
-  correct: 'border-success bg-success/10',
+  none: 'border-rule-2',
+  correct: 'border-ok-mid bg-ok-wash',
   // Bỏ lỡ một đáp án đúng ≠ chọn sai: hai chuyện khác nhau, hai hình khác nhau.
-  missed: 'border-dashed border-success',
-  'wrong-pick': 'border-destructive bg-destructive/10',
+  missed: 'border-dashed border-ok-mid',
+  'wrong-pick': 'border-bad-mid bg-bad-wash',
 };
 
-const REVEAL_TONE: Record<ChoiceReveal, string> = {
-  none: '',
-  correct: 'text-success',
-  missed: 'text-success',
-  'wrong-pick': 'text-destructive',
+const REVEAL_TONE: Record<ChoiceReveal, 'ok' | 'bad' | 'neutral'> = {
+  none: 'neutral',
+  correct: 'ok',
+  missed: 'ok',
+  'wrong-pick': 'bad',
 };
+
+const REVEAL_ICON = { none: null, correct: 'check', missed: 'circle', 'wrong-pick': 'close' } as const;
 
 /**
- * Nhãn chữ của ba vai trò lộ ra SAU khi nộp. `none` không có nhãn, và đó là cổng
- * chứ không phải chỗ chưa viết: trước khi nộp mọi lựa chọn đều là `none`.
+ * Nhãn chữ của ba vai trò lộ ra SAU khi nộp. `none` không có nhãn, và đó là cổng chứ
+ * không phải chỗ chưa viết: trước khi nộp mọi lựa chọn đều là `none`.
  */
 const REVEAL_NOTE: Record<ChoiceReveal, StaticTextKey | null> = {
   none: null,
@@ -82,13 +81,6 @@ const REVEAL_NOTE: Record<ChoiceReveal, StaticTextKey | null> = {
   missed: 'catalog.quiz.reveal.missed',
   'wrong-pick': 'catalog.quiz.reveal.wrong-pick',
 };
-
-function RevealIcon({ reveal }: { readonly reveal: ChoiceReveal }): React.ReactElement | null {
-  if (reveal === 'correct') return <Check aria-hidden="true" className="size-4" strokeWidth={3} />;
-  if (reveal === 'missed') return <CircleDashed aria-hidden="true" className="size-4" />;
-  if (reveal === 'wrong-pick') return <X aria-hidden="true" className="size-4" strokeWidth={3} />;
-  return null;
-}
 
 function questionAnchor(question: QuizQuestionForLearner): string {
   return `quiz-q-${question.id}`;
@@ -108,40 +100,37 @@ export function QuizClient({ quizId }: { quizId: string }): React.ReactElement {
 
   // Nộp xong thì đưa focus (và mắt) lên khối kết quả: nó là thứ vừa thay đổi.
   useEffect(() => {
-    if (result !== null) {
-      resultRef.current?.focus();
-    }
+    if (result !== null) resultRef.current?.focus();
   }, [result]);
+
+  const back = (
+    <BackLink asChild>
+      <Link href="/quiz">{t('catalog.quiz.back')}</Link>
+    </BackLink>
+  );
 
   if (query.isPending) {
     return (
-      <>
-        <ToolHeader crumbs={[{ href: '/quiz', label: t('catalog.quiz.back') }]} title={t('catalog.quiz.loading-title')} />
-        <PageContainer width="read" className="py-10">
-          <div role="status" aria-busy="true" className="flex flex-col gap-4">
-            <span className="sr-only">{t('catalog.quiz.loading-sr')}</span>
-            <Skeleton className="h-16 w-full" />
-            <Skeleton className="h-40 w-full" />
-            <Skeleton className="h-40 w-full" />
-          </div>
-        </PageContainer>
-      </>
+      <Page width="text" className="pb-14">
+        <PageHeader back={back} title={<Skeleton className="h-9 w-[20ch] max-w-full" />} />
+        <RowsSkeleton rows={4} label={t('catalog.quiz.loading-sr')} />
+      </Page>
     );
   }
 
   if (query.isError) {
     return (
-      <>
-        <ToolHeader crumbs={[{ href: '/quiz', label: t('catalog.quiz.back') }]} title={t('catalog.title.quiz')} />
-        <PageContainer width="read" className="py-10">
-          <ErrorState
-            title={t('catalog.quiz.error-title')}
-            message={describeTrpcError(query.error)}
-            onRetry={() => void query.refetch()}
-            retrying={query.isFetching}
-          />
-        </PageContainer>
-      </>
+      <Page width="text" className="pb-14">
+        <PageHeader back={back} title={t('catalog.title.quiz')} />
+        <ErrorBlock
+          title={t('catalog.quiz.error-title')}
+          retryLabel={t('common.action.retry')}
+          retrying={query.isFetching}
+          onRetry={() => void query.refetch()}
+        >
+          {describeTrpcError(query.error)}
+        </ErrorBlock>
+      </Page>
     );
   }
 
@@ -149,18 +138,15 @@ export function QuizClient({ quizId }: { quizId: string }): React.ReactElement {
   const progress = summarizeAnswers(quiz, selected);
   const graded = result !== null;
   const resultByQuestion = new Map((result?.questions ?? []).map((entry) => [entry.questionId, entry]));
+  const answeredCount = quiz.questions.filter((question) => (selected[question.id] ?? []).length > 0).length;
 
   const toggle = (question: QuizQuestionForLearner, choiceId: string): void => {
     setSelected((previous) => {
       const current = previous[question.id] ?? [];
-      if (question.kind === 'single') {
-        return { ...previous, [question.id]: [choiceId] };
-      }
+      if (question.kind === 'single') return { ...previous, [question.id]: [choiceId] };
       return {
         ...previous,
-        [question.id]: current.includes(choiceId)
-          ? current.filter((id) => id !== choiceId)
-          : [...current, choiceId],
+        [question.id]: current.includes(choiceId) ? current.filter((id) => id !== choiceId) : [...current, choiceId],
       };
     });
   };
@@ -182,115 +168,115 @@ export function QuizClient({ quizId }: { quizId: string }): React.ReactElement {
     window.scrollTo({ top: 0 });
   };
 
-  const kicker = [
-    t('catalog.meta.questions', { n: quiz.questions.length }),
-    t('catalog.meta.threshold', { percent: quiz.passThresholdPercent }),
-  ].join(' · ');
-
   return (
-    <>
-      <ToolHeader crumbs={[{ href: '/quiz', label: t('catalog.quiz.back') }]} kicker={kicker} title={quiz.title} />
+    <Page width="text" className="pb-0">
+      <PageHeader
+        back={back}
+        title={quiz.title}
+        {...(quiz.description === null ? {} : { lead: quiz.description })}
+      >
+        <div className="flex flex-wrap items-center gap-2">
+          <Pill icon="quiz">{t('catalog.meta.questions', { n: quiz.questions.length })}</Pill>
+          <Pill icon="target">{t('catalog.meta.threshold', { percent: quiz.passThresholdPercent })}</Pill>
+        </div>
+      </PageHeader>
 
-      <PageContainer width="read" className="pt-8 pb-0">
-        {quiz.description !== null && <p className="type-lead text-muted-foreground">{quiz.description}</p>}
-
-        {/* Quy tắc chấm đứng TRƯỚC câu hỏi đầu tiên, không phải sau khi nộp. */}
-        <section aria-labelledby="quiz-grading" className="mt-6 border-y border-border py-5">
-          <h2 id="quiz-grading" className="type-label text-muted-foreground">
+      {/* Quy tắc chấm đứng TRƯỚC câu hỏi đầu tiên, không phải sau khi nộp. */}
+      <section aria-labelledby="quiz-grading" className="flex gap-3 border border-t-2 border-rule border-t-acc-mid bg-paper p-4">
+        <Icon name="info" size={20} tint="acc" className="mt-0.5 shrink-0 text-acc-ink" />
+        <div className="flex flex-col gap-1 text-sm text-ink-2">
+          <h2 id="quiz-grading" className="font-medium text-ink">
             {t('catalog.quiz.grading-title')}
           </h2>
-          <p className="mt-2 text-sm">{renderCopy({ key: MULTIPLE_ANSWER_RULE_KEYS[quiz.multipleAnswerRule] })}</p>
-          <p className="mt-1 text-sm">{t('catalog.quiz.threshold', { percent: quiz.passThresholdPercent })}</p>
-        </section>
+          <p>{renderCopy({ key: MULTIPLE_ANSWER_RULE_KEYS[quiz.multipleAnswerRule] })}</p>
+          <p>{t('catalog.quiz.threshold', { percent: quiz.passThresholdPercent })}</p>
+        </div>
+      </section>
 
-        {result !== null && (
-          <ScoreBlock
-            ref={resultRef}
-            result={result}
-            quiz={quiz}
-            threshold={quiz.passThresholdPercent}
-            onRestart={onRestart}
+      {result === null ? null : (
+        <ScoreBlock ref={resultRef} result={result} quiz={quiz} threshold={quiz.passThresholdPercent} onRestart={onRestart} />
+      )}
+
+      <ol className="mt-10 flex flex-col gap-12">
+        {quiz.questions.map((question) => (
+          <QuestionBlock
+            key={question.id}
+            question={question}
+            selectedChoiceIds={selected[question.id] ?? []}
+            outcome={resultByQuestion.get(question.id) ?? null}
+            locked={graded}
+            onToggle={(choiceId) => toggle(question, choiceId)}
           />
-        )}
+        ))}
+      </ol>
 
-        <ol className="mt-10 flex flex-col gap-12">
-          {quiz.questions.map((question) => (
-            <QuestionBlock
-              key={question.id}
-              question={question}
-              selectedChoiceIds={selected[question.id] ?? []}
-              outcome={resultByQuestion.get(question.id) ?? null}
-              locked={graded}
-              onToggle={(choiceId) => {
-                toggle(question, choiceId);
-              }}
-            />
-          ))}
-        </ol>
+      {submit.isError ? (
+        <Notice tone="bad" role="alert" className="mt-8" title={t('catalog.quiz.submit-failed', { reason: describeTrpcError(submit.error) })}>
+          {t('catalog.quiz.submit-failed-note')}
+        </Notice>
+      ) : null}
 
-        {submit.isError && (
-          <Alert variant="destructive" className="mt-8">
-            <AlertDescription className="text-foreground">
-              {t('catalog.quiz.submit-failed', { reason: describeTrpcError(submit.error) })}{' '}
-              {t('catalog.quiz.submit-failed-note')}
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {/*
-          Phiếu trả lời: tiến độ TRẢ LỜI (không phải tiến độ đúng), một ô cho mỗi
-          câu, và nút Nộp bài DUY NHẤT của trang. Chỉ có trước khi nộp; sau khi nộp
-          nó vô nghĩa, và khối kết quả ở trên thay chỗ nó.
-        */}
-        {!graded ? (
-          <div
-            role="region"
-            aria-label={t('catalog.quiz.sheet')}
-            className="sticky bottom-0 z-20 mt-12 -mx-5 border-t-2 border-foreground bg-background px-5 py-4 md:-mx-8 md:px-8"
-          >
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-              <div className="min-w-0">
-                <p role="status" className="font-mono text-sm tabular-nums">
-                  {renderCopy(progress.label)}
-                </p>
-                <ol className="mt-2 flex flex-wrap gap-1">
-                  {quiz.questions.map((question) => {
-                    const answered = (selected[question.id] ?? []).length > 0;
-                    return (
-                      <li key={question.id}>
-                        <a
-                          href={`#${questionAnchor(question)}`}
-                          aria-label={t('catalog.quiz.sheet-cell', {
-                            n: question.ordinal + 1,
-                            state: answered ? t('catalog.quiz.cell.answered') : t('catalog.quiz.cell.blank'),
-                          })}
-                          className={cn(
-                            'grid size-8 place-items-center border font-mono text-xs tabular-nums transition-colors',
-                            answered
-                              ? 'border-foreground bg-ink text-ink-foreground'
-                              : 'border-border text-muted-foreground hover:border-foreground',
-                          )}
-                        >
-                          {question.ordinal + 1}
-                        </a>
-                      </li>
-                    );
-                  })}
-                </ol>
-                {progress.caveat !== null && (
-                  <p className="mt-2 text-xs text-muted-foreground">{renderCopy(progress.caveat)}</p>
-                )}
-              </div>
-              <Button size="lg" onClick={onSubmit} loading={submit.isPending} className="shrink-0">
-                {t('catalog.quiz.submit')}
-              </Button>
+      {/*
+        Phiếu trả lời: tiến độ TRẢ LỜI (không phải tiến độ đúng), một ô cho mỗi câu, và
+        nút Nộp bài DUY NHẤT của trang. Chỉ có trước khi nộp; sau khi nộp khối kết quả
+        ở trên thay chỗ nó.
+      */}
+      {!graded ? (
+        <div
+          role="region"
+          aria-label={t('catalog.quiz.sheet')}
+          className="sticky bottom-0 z-20 mt-12 -mx-4 border-t border-rule bg-canvas/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6 md:py-4"
+        >
+          {/*
+            Trên điện thoại thanh chỉ còn MỘT hàng: số câu đã làm và nút Nộp. Lưới nhảy câu và thước
+            ẩn đi; bản đầy đủ cao gần 200px, che đáp án của câu đang đọc (rà ảnh 2026-10-20).
+          */}
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex min-w-0 flex-col gap-2">
+              <p role="status" className="text-sm tabular-nums text-ink-2">
+                {renderCopy(progress.label)}
+              </p>
+              <ProgressLine
+                value={quiz.questions.length === 0 ? 0 : answeredCount / quiz.questions.length}
+                label={t('catalog.quiz.sheet')}
+                size="xs"
+                className="w-56 max-w-full max-md:hidden"
+              />
+              <ol className="flex flex-wrap gap-1 max-md:hidden">
+                {quiz.questions.map((question) => {
+                  const answered = (selected[question.id] ?? []).length > 0;
+                  return (
+                    <li key={question.id}>
+                      <a
+                        href={`#${questionAnchor(question)}`}
+                        aria-label={t('catalog.quiz.sheet-cell', {
+                          n: question.ordinal + 1,
+                          state: answered ? t('catalog.quiz.cell.answered') : t('catalog.quiz.cell.blank'),
+                        })}
+                        className={cn(
+                          'grid size-8 place-items-center rounded-sm border text-xs font-medium tabular-nums transition-colors duration-150',
+                          answered
+                            ? 'border-acc-solid bg-acc-solid text-on-solid'
+                            : 'border-rule-2 text-ink-3 hover:border-control hover:text-ink',
+                        )}
+                      >
+                        {question.ordinal + 1}
+                      </a>
+                    </li>
+                  );
+                })}
+              </ol>
+              {progress.caveat === null ? null : <p className="text-xs text-ink-3 max-md:hidden">{renderCopy(progress.caveat)}</p>}
             </div>
+            <Button size="lg" variant="primary" icon="send" onClick={onSubmit} loading={submit.isPending} className="shrink-0">
+              {t('catalog.quiz.submit')}
+            </Button>
           </div>
-        ) : (
-          <div className="h-16" />
-        )}
-      </PageContainer>
-    </>
+        </div>
+      ) : (
+        <div className="h-16" />
+      )}
+    </Page>
   );
 }
 
@@ -314,45 +300,44 @@ function QuestionBlock({
   const choices = question.choices.map((choice) => {
     const reveal = choiceReveal(outcome, choice.id, selectedChoiceIds);
     const note = REVEAL_NOTE[reveal];
+    const icon = REVEAL_ICON[reveal];
     const checked = selectedChoiceIds.includes(choice.id);
     const controlId = `${question.id}--${choice.id}`;
     return (
       /*
-        Cả hàng là `<label>` nên bấm vào đâu trên hàng cũng chọn đúng ô. Ô chọn
-        là Radix `RadioGroupItem`/`Checkbox` (nút có role), nên bấm thẳng vào nó
-        không kích hoạt hai lần.
+        Cả hàng là `<label>` nên bấm vào đâu trên hàng cũng chọn đúng ô. Ô chọn là nút
+        Radix có role, nên bấm thẳng vào nó không kích hoạt hai lần.
       */
       <label
         key={choice.id}
         htmlFor={controlId}
         className={cn(
-          'flex items-start gap-4 border px-4 py-4 text-base transition-[border-color,background-color] duration-(--motion-fast)',
-          locked ? 'cursor-default' : 'cursor-pointer hover:border-foreground',
-          reveal === 'none' && checked ? 'border-foreground bg-muted' : REVEAL_ROW[reveal],
+          'flex items-start gap-3.5 rounded-md border bg-paper px-4 py-3.5 transition-[border-color,background-color] duration-150',
+          locked ? 'cursor-default' : 'cursor-pointer hover:border-control',
+          reveal === 'none' && checked ? 'border-acc-solid bg-acc-wash' : REVEAL_ROW[reveal],
         )}
       >
         <span className="pt-0.5">
           {single ? (
-            <RadioGroupItem value={choice.id} id={controlId} disabled={locked} />
-          ) : (
-            <Checkbox
+            <RadioItem
+              value={choice.id}
               id={controlId}
-              checked={checked}
               disabled={locked}
-              onCheckedChange={() => {
-                onToggle(choice.id);
-              }}
-            />
+              className="grid size-[18px] place-items-center rounded-full border border-control bg-paper data-[state=checked]:border-acc-solid"
+            >
+              <span className={cn('size-2 rounded-full bg-acc-solid', checked ? 'block' : 'hidden')} />
+            </RadioItem>
+          ) : (
+            <Checkbox id={controlId} checked={checked} disabled={locked} onCheckedChange={() => onToggle(choice.id)} />
           )}
         </span>
-        <span className="min-w-0 flex-1">
-          <MarkdownView markdown={choice.markdown} resolveAssetUrl={NO_ASSETS} />
+        <span className="min-w-0 flex-1 text-ink">
+          <Markdown markdown={choice.markdown} labels={LABELS} resolveAssetUrl={NO_ASSETS} density="compact" />
         </span>
-        {note !== null && (
-          <span className={cn('inline-flex shrink-0 items-center gap-1.5 type-label', REVEAL_TONE[reveal])}>
-            <RevealIcon reveal={reveal} />
+        {note === null ? null : (
+          <Pill tone={REVEAL_TONE[reveal]} {...(icon === null ? {} : { icon })} className="shrink-0">
             {renderCopy({ key: note })}
-          </span>
+          </Pill>
         )}
       </label>
     );
@@ -362,68 +347,56 @@ function QuestionBlock({
     <li id={questionAnchor(question)} data-testid="quiz-question" className="scroll-mt-24">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-baseline gap-3">
-          <h2 id={headingId} className="type-title tabular-nums">
+          <h2 id={headingId} className="font-display text-lg font-semibold tabular-nums text-ink">
             {t('catalog.quiz.question', { n: question.ordinal + 1 })}
           </h2>
-          <span className="type-label text-muted-foreground">
-            {single ? t('catalog.quiz.pick-one') : t('catalog.quiz.pick-many')}
-          </span>
+          <span className="text-sm text-ink-3">{single ? t('catalog.quiz.pick-one') : t('catalog.quiz.pick-many')}</span>
         </div>
-        {outcome !== null && (
-          <span
-            className={cn(
-              'inline-flex items-center gap-1.5 type-label',
-              outcome.correct ? 'text-success' : 'text-destructive',
-            )}
-          >
-            {outcome.correct ? (
-              <Check aria-hidden="true" className="size-4" strokeWidth={3} />
-            ) : (
-              <X aria-hidden="true" className="size-4" strokeWidth={3} />
-            )}
+        {outcome === null ? null : (
+          <Pill tone={outcome.correct ? 'ok' : 'bad'} icon={outcome.correct ? 'check' : 'close'}>
             {outcome.correct ? t('catalog.quiz.answer-correct') : t('catalog.quiz.answer-wrong')}
-          </span>
+          </Pill>
         )}
       </div>
 
-      <div id={promptId} className="mt-3 text-lg">
-        <MarkdownView markdown={question.markdown} resolveAssetUrl={NO_ASSETS} />
+      <div id={promptId} className="mt-3 text-md text-ink">
+        <Markdown markdown={question.markdown} labels={LABELS} resolveAssetUrl={NO_ASSETS} />
       </div>
 
       {/*
         ⛔ KHÔNG chen `<ul>/<li>` giữa `RadioGroup` và các ô chọn: Radix đặt
-        `role="radiogroup"`, và axe đòi con cháu mang `role="radio"`; một `<li>`
-        chen vào giữa làm quan hệ đó gãy. `<label>` không mang role nên nó trong
-        suốt với phép kiểm. Nhánh nhiều đáp án dùng cùng khuôn.
+        `role="radiogroup"`, và axe đòi con cháu mang `role="radio"`; một `<li>` chen
+        vào giữa làm quan hệ đó gãy. `<label>` không mang role nên nó trong suốt với
+        phép kiểm. Nhánh nhiều đáp án dùng cùng khuôn.
       */}
       {single ? (
         <RadioGroup
           value={selectedChoiceIds[0] ?? ''}
           disabled={locked}
           aria-labelledby={`${headingId} ${promptId}`}
-          className="mt-5 flex flex-col gap-2"
-          onValueChange={(value) => {
-            onToggle(value);
-          }}
+          className="mt-4 flex flex-col gap-2"
+          onValueChange={(value) => onToggle(value)}
         >
           {choices}
         </RadioGroup>
       ) : (
-        <div role="group" aria-labelledby={`${headingId} ${promptId}`} className="mt-5 flex flex-col gap-2">
+        <div role="group" aria-labelledby={`${headingId} ${promptId}`} className="mt-4 flex flex-col gap-2">
           {choices}
         </div>
       )}
 
       {/*
-        Giải thích chỉ tới CÙNG kết quả: trước khi nộp nó không có trong payload,
-        và nó thường tiết lộ đáp án nên đó là rào thứ hai chứ không phải chi tiết
-        thừa.
+        Giải thích chỉ tới CÙNG kết quả: trước khi nộp nó không có trong payload, và nó
+        thường tiết lộ đáp án nên đó là rào thứ hai chứ không phải chi tiết thừa.
       */}
-      {outcome?.explanation != null && (
-        <div data-testid="quiz-explanation" className="mt-4 bg-muted p-4 text-sm">
-          <p className="type-label text-muted-foreground">{t('catalog.quiz.explanation')}</p>
-          <div className="mt-2">
-            <MarkdownView markdown={outcome.explanation} resolveAssetUrl={NO_ASSETS} />
+      {outcome?.explanation == null ? null : (
+        <div data-testid="quiz-explanation" className="mt-4 flex gap-3 rounded-md bg-well p-4 text-sm">
+          <Icon name="lightbulb" size={18} className="mt-0.5 shrink-0 text-ink-3" />
+          <div className="min-w-0">
+            <p className="font-medium text-ink">{t('catalog.quiz.explanation')}</p>
+            <div className="mt-1 text-ink-2">
+              <Markdown markdown={outcome.explanation} labels={LABELS} resolveAssetUrl={NO_ASSETS} density="compact" />
+            </div>
           </div>
         </div>
       )}
@@ -451,45 +424,38 @@ function ScoreBlock({
       ref={ref}
       tabIndex={-1}
       aria-labelledby="quiz-result"
-      className="animate-rise mt-8 border-2 border-foreground p-6 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="mt-8 flex flex-col gap-4 border-y border-rule py-6 outline-none animate-enter"
     >
-      <h2 id="quiz-result" className="type-label text-muted-foreground">
-        {t('catalog.quiz.result-title')}
-      </h2>
-      <p className="mt-3 type-display tabular-nums">
-        {t('catalog.quiz.score', {
-          correct: result.score.correctCount,
-          total: result.score.questionCount,
-          percent: result.score.percent,
-        })}
-      </p>
-      <Meter
-        value={result.score.correctCount}
-        max={result.score.questionCount}
-        segments={Math.min(Math.max(result.score.questionCount, 1), 30)}
-        tone={passed ? 'success' : 'warning'}
-        label={t('catalog.quiz.score-meter')}
-        className="mt-4 h-3"
-      />
-      <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2">
-        {/* Mốc đi kèm điểm: "60%" một mình không nói được đạt hay chưa. */}
-        <span
-          role="status"
-          className={cn('inline-flex items-center gap-1.5 font-semibold', passed ? 'text-success' : 'text-warning')}
-        >
-          {passed ? (
-            <Check aria-hidden="true" className="size-4" strokeWidth={3} />
-          ) : (
-            <X aria-hidden="true" className="size-4" strokeWidth={3} />
-          )}
-          {passed ? t('catalog.quiz.verdict-pass', { threshold }) : t('catalog.quiz.verdict-fail', { threshold })}
-        </span>
-        <span className="type-label text-muted-foreground">
-          {t('catalog.quiz.attempt-number', { n: result.attemptNumber })}
-        </span>
+      <div className="flex flex-wrap items-center gap-5">
+        <Stamp tone={passed ? 'ok' : 'bad'} className="h-11 px-3.5 text-lg">
+          {passed ? t('catalog.quiz.stamp-pass') : t('catalog.quiz.stamp-fail')}
+        </Stamp>
+        <div className="flex flex-col gap-1">
+          <h2 id="quiz-result" className="text-sm text-ink-3">
+            {t('catalog.quiz.result-title')}
+          </h2>
+          <p className="font-display text-3xl font-semibold tabular-nums text-ink">
+            {t('catalog.quiz.score', {
+              correct: result.score.correctCount,
+              total: result.score.questionCount,
+              percent: result.score.percent,
+            })}
+          </p>
+          {/* Mốc đi kèm điểm: "60%" một mình không nói được đạt hay chưa. */}
+          <p role="status" className={cn('font-medium', passed ? 'text-ok-ink' : 'text-warn-ink')}>
+            {passed ? t('catalog.quiz.verdict-pass', { threshold }) : t('catalog.quiz.verdict-fail', { threshold })}
+          </p>
+          <p className="text-sm text-ink-3">{t('catalog.quiz.attempt-number', { n: result.attemptNumber })}</p>
+        </div>
       </div>
-
-      <ol aria-label={t('catalog.quiz.sheet')} className="mt-5 flex flex-wrap gap-1">
+      <ProgressLine
+        value={result.score.questionCount === 0 ? 0 : result.score.correctCount / result.score.questionCount}
+        label={t('catalog.quiz.score-meter')}
+        tone={passed ? 'ok' : 'warn'}
+        size="sm"
+        className="max-w-md"
+      />
+      <ol aria-label={t('catalog.quiz.sheet')} className="flex flex-wrap gap-1">
         {quiz.questions.map((question) => {
           const correct = byQuestion.get(question.id)?.correct ?? false;
           return (
@@ -501,25 +467,22 @@ function ScoreBlock({
                   state: correct ? t('catalog.quiz.answer-correct') : t('catalog.quiz.answer-wrong'),
                 })}
                 className={cn(
-                  'flex h-8 items-center gap-1 border px-2 font-mono text-xs tabular-nums',
-                  correct ? 'border-success text-success' : 'border-destructive text-destructive',
+                  'flex h-8 items-center gap-1 rounded-sm px-2 text-xs font-medium tabular-nums',
+                  correct ? 'bg-ok-tint text-ok-ink' : 'bg-bad-tint text-bad-ink',
                 )}
               >
-                {correct ? (
-                  <Check aria-hidden="true" className="size-3" strokeWidth={3} />
-                ) : (
-                  <X aria-hidden="true" className="size-3" strokeWidth={3} />
-                )}
+                <Icon name={correct ? 'check' : 'close'} size={12} />
                 {question.ordinal + 1}
               </a>
             </li>
           );
         })}
       </ol>
-
-      <Button variant="outline" className="mt-6" onClick={onRestart} iconLeft={<RotateCcw aria-hidden="true" className="size-4" />}>
-        {t('catalog.quiz.restart')}
-      </Button>
+      <div>
+        <Button variant="secondary" icon="undo" onClick={onRestart}>
+          {t('catalog.quiz.restart')}
+        </Button>
+      </div>
     </section>
   );
 }

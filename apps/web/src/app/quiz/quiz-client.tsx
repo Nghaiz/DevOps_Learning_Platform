@@ -4,8 +4,9 @@ import type { inferRouterOutputs } from '@trpc/server';
 import { t } from '@devops-platform/copy';
 import type { AppRouter } from '../../server/trpc/routers/app-router';
 import { api } from '../../lib/trpc-react';
-import { BoardMeta, BoardRow, PageContainer, lineForTopic } from '../../components/kit';
-import { CatalogPoster } from '../../components/catalog/catalog-poster';
+import { Page } from '@devops-platform/ds';
+import { CatalogHeader } from '../../components/catalog/catalog-header';
+import { CatalogRow, RowFact } from '../../components/catalog/catalog-row';
 import { CatalogToolbar } from '../../components/catalog/catalog-toolbar';
 import { CatalogResults } from '../../components/catalog/catalog-results';
 import { describeLoadedScope } from '../../components/catalog/catalog-labels';
@@ -40,7 +41,7 @@ function quizSearchFields(item: QuizRow): readonly (string | null)[] {
  * Trang danh sách `/quiz`. Cùng khuôn với `/lessons`, không có bộ lọc:
  * `quiz.list` nhận đúng cursor và `.strict()` từ chối mọi field lọc.
  *
- * Tuyến màu suy từ mã bộ câu hỏi (`dlp-quiz-docker-co-ban` ⇒ docker): payload
+ * Màu chủ đề suy từ mã bộ câu hỏi (`dlp-quiz-docker-co-ban` ⇒ docker): payload
  * danh sách không có trường chủ đề.
  */
 export function QuizClient({
@@ -63,61 +64,61 @@ export function QuizClient({
   const hasNext = pages.status === 'success' && pages.hasNext;
 
   return (
-    <>
-      <CatalogPoster kind="quiz" count={total} />
-      <PageContainer className="py-10 md:py-12">
-        <CatalogToolbar
+    <Page className="pb-14">
+      <CatalogHeader kind="quiz" count={total} />
+      <CatalogToolbar
+        kind="quiz"
+        fields={[]}
+        filters={controls.filters}
+        onTopic={controls.setTopic}
+        onDifficulty={controls.setDifficulty}
+        onTier={controls.setTier}
+        onClearFilters={controls.clearFilters}
+        sortKey={controls.sortKey}
+        sortOptions={SORT_OPTIONS}
+        onSort={controls.setSortKey}
+        search={controls.search}
+        onSearch={controls.setSearch}
+        scopeNote={describeLoadedScope({
+          kind: 'quiz',
+          loaded: loaded.length,
+          hasNext,
+          searching: controls.hasSearch,
+          sorting: controls.isSorted,
+        })}
+        disabled={pages.status === 'pending'}
+      />
+      <div className="pt-2">
+        <CatalogResults
           kind="quiz"
-          fields={[]}
-          filters={controls.filters}
-          onTopic={controls.setTopic}
-          onDifficulty={controls.setDifficulty}
-          onTier={controls.setTier}
-          onClearFilters={controls.clearFilters}
-          sortKey={controls.sortKey}
-          sortOptions={SORT_OPTIONS}
-          onSort={controls.setSortKey}
-          search={controls.search}
-          onSearch={controls.setSearch}
-          scopeNote={describeLoadedScope({
-            kind: 'quiz',
-            loaded: loaded.length,
-            hasNext,
-            searching: controls.hasSearch,
-            sorting: controls.isSorted,
-          })}
-          disabled={pages.status === 'pending'}
-        />
-        <div className="mt-8">
-          <CatalogResults
-            kind="quiz"
-            pages={pages}
-            shown={items.length}
-            controls={controls}
-            canAuthor={canAuthor}
-            onRetry={(index) => void results[index]?.refetch()}
-            isFetching={(index) => results[index]?.isFetching ?? false}
-          >
-            {items.map((item, index) => (
-              <BoardRow
-                key={item.id}
-                href={`/quiz/${item.id}`}
-                index={index + 1}
-                order={index}
-                line={lineForTopic({ id: item.id })}
-                title={item.title}
-                sub={item.description ?? undefined}
-                meta={
-                  <>
-                    <BoardMeta>{t('catalog.meta.questions', { n: item.questionCount })}</BoardMeta>
-                    <BoardMeta>{t('catalog.meta.threshold', { percent: item.passThresholdPercent })}</BoardMeta>
-                  </>
-                }
-              />
-            ))}
-          </CatalogResults>
-        </div>
-      </PageContainer>
-    </>
+          pages={pages}
+          shown={items.length}
+          controls={controls}
+          canAuthor={canAuthor}
+          onRetry={(index) => void results[index]?.refetch()}
+          isFetching={(index) => results[index]?.isFetching ?? false}
+        >
+          {items.map((item) => (
+            <CatalogRow
+              key={item.id}
+              href={`/quiz/${item.id}`}
+              topic={{ id: item.id }}
+              title={item.title}
+              description={item.description}
+              meta={
+                <>
+                  <RowFact icon="quiz" width="w-20">
+                    {t('catalog.meta.questions', { n: item.questionCount })}
+                  </RowFact>
+                  <RowFact icon="target" width="w-28">
+                    {t('catalog.meta.threshold', { percent: item.passThresholdPercent })}
+                  </RowFact>
+                </>
+              }
+            />
+          ))}
+        </CatalogResults>
+      </div>
+    </Page>
   );
 }

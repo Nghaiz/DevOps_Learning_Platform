@@ -1,13 +1,12 @@
 'use client';
 
 import { useState, type ReactElement } from 'react';
-import { Copy, Download, FileInput } from 'lucide-react';
-import { Alert, AlertDescription, AlertTitle, Button, Textarea, useToast } from '@devops-platform/ui';
 import { Field } from '../../../components/author/field';
-import { Split } from '../../../components/kit';
+import { FormBlock } from '../../../components/author/studio';
 import { t } from '@devops-platform/copy';
 import type { ProblemFormState } from './problem-form';
 import { exportFileName, exportProblemJson, importProblemJson } from './problem-json';
+import { Button, Notice, Textarea, toast } from '@devops-platform/ds';
 
 /**
  * Xuất và nhập bài dưới dạng JSON — đường chuyển bài giữa các môi trường.
@@ -37,7 +36,6 @@ export function JsonTransfer(props: {
   readonly nextKey: () => string;
   readonly onImport: (form: ProblemFormState) => void;
 }): ReactElement {
-  const { toast } = useToast();
   const [text, setText] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [dropped, setDropped] = useState<readonly string[]>([]);
@@ -71,13 +69,13 @@ export function JsonTransfer(props: {
     setError(null);
     setDropped(result.dropped);
     props.onImport(result.form);
-    toast({ title: t('author.problem.toast.imported'), description: t('author.problem.toast.imported-body') });
+    toast(t('author.problem.toast.imported'), { description: t('author.problem.toast.imported-body') });
   };
 
   const copy = (): void => {
     try {
       void navigator.clipboard.writeText(exportProblemJson(props.form, props.code));
-      toast({ title: t('author.problem.toast.json-copied') });
+      toast(t('author.problem.toast.json-copied'));
       setError(null);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : t('author.problem.json.copy-failed'));
@@ -86,18 +84,18 @@ export function JsonTransfer(props: {
 
   return (
     <>
-      <Split index="01" title={t('author.problem.json.export-heading')} aside={t('author.problem.json.export-lead')}>
+      <FormBlock title={t('author.problem.json.export-heading')} note={t('author.problem.json.export-lead')}>
         <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="outline" iconLeft={<Download aria-hidden className="size-4" />} onClick={download}>
+          <Button type="button" variant="secondary" icon="download" onClick={download}>
             {t('author.problem.json.download')}
           </Button>
-          <Button type="button" variant="outline" iconLeft={<Copy aria-hidden className="size-4" />} onClick={copy}>
+          <Button type="button" variant="secondary" icon="copy" onClick={copy}>
             {t('author.problem.json.copy')}
           </Button>
         </div>
-      </Split>
+      </FormBlock>
 
-      <Split index="02" title={t('author.problem.json.import-heading')} aside={t('author.problem.json.import-lead')}>
+      <FormBlock title={t('author.problem.json.import-heading')} note={t('author.problem.json.import-lead')}>
         <div className="flex flex-col gap-4">
           <Field label={t('author.problem.json.textarea-label')}>
             {({ id }) => (
@@ -119,7 +117,7 @@ export function JsonTransfer(props: {
               type="button"
               variant="ink"
               disabled={text.trim() === ''}
-              iconLeft={<FileInput aria-hidden className="size-4" />}
+              icon="upload"
               onClick={runImport}
             >
               {t('author.problem.json.import')}
@@ -127,26 +125,20 @@ export function JsonTransfer(props: {
           </div>
 
           {error !== null && (
-            <Alert variant="destructive" className="animate-rise">
-              <AlertTitle>{t('author.problem.json.import-error-title')}</AlertTitle>
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
+            <Notice tone="bad" title={t('author.problem.json.import-error-title')} className="animate-enter">{error}</Notice>
           )}
 
           {dropped.length > 0 && (
-            <Alert variant="warning" className="animate-rise">
-              <AlertTitle>{t('author.problem.json.dropped-title', { n: dropped.length })}</AlertTitle>
-              <AlertDescription>
+            <Notice tone="warn" title={t('author.problem.json.dropped-title', { n: dropped.length })} className="animate-enter">
                 <ul className="mt-2 flex list-disc flex-col gap-1 pl-5">
                   {dropped.map((line) => (
                     <li key={line}>{line}</li>
                   ))}
                 </ul>
-              </AlertDescription>
-            </Alert>
+              </Notice>
           )}
         </div>
-      </Split>
+      </FormBlock>
     </>
   );
 }

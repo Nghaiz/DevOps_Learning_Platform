@@ -27,7 +27,7 @@ describe('summarizeLessonProgress', () => {
     });
 
     expect(summary.label).toBe('Đã xong');
-    expect(summary.variant).toBe('success');
+    expect(summary.variant).toBe('ok');
     expect(summary.detail).toBeNull();
   });
 });

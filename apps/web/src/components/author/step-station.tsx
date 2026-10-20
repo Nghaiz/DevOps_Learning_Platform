@@ -1,25 +1,24 @@
 'use client';
 
 import { t } from '@devops-platform/copy';
-import { useId, type CSSProperties, type ReactElement } from 'react';
-import { ArrowDown, ArrowUp, Trash2 } from 'lucide-react';
-import { Button } from '@devops-platform/ui';
+import { useId, type ReactElement } from 'react';
 import type { ContentKind } from '@devops-platform/shared-types/authoring';
 import type { FieldIssue, StepFormState } from './draft-form';
 import { TextAreaField, TextField, issueFor } from './field';
 import { MarkdownHint } from './phase-fields';
+import { Button } from '@devops-platform/ds';
 
 /**
- * Một bước (bài học) hoặc một task (lab): một "trạm" trên tuyến.
+ * Một bước (bài học) hoặc một task (lab) trong danh sách của trình soạn.
  *
  * Là `<section aria-labelledby>` có `<h3>` đúng bằng `Bước N` / `Task N`, nên
  * vùng này có tên truy cập và e2e tìm được nó bằng
- * `getByRole('region', { name: 'Bước 1', exact: true })`. Số trên ô màu xanh
+ * `getByRole('region', { name: 'Bước 1', exact: true })`. Số trên ô tròn
  * chỉ để mắt nhìn (`aria-hidden`), tên vùng không lặp số hai lần.
  *
- * Không phải thẻ: chỉ vạch mảnh ngăn trạm, và khi con trỏ đang ở trong trạm
- * thì vạch trên đầu quét màu tuyến CI/CD từ trái sang (không dùng viền trái làm
- * dấu hiệu đang chọn, luật §0.3 của design brief).
+ * Không phải thẻ: chỉ vạch mảnh ngăn các bước, và khi con trỏ đang ở trong một bước
+ * thì vạch trên đầu quét màu nhấn từ trái sang (không dùng viền trái làm dấu hiệu
+ * đang chọn).
  *
  * Đường dữ liệu ô: `steps[N].<field>` cho bài học, `task[N].<field>` cho lab,
  * N là vị trí 0-based trong mảng, khớp `toDraftInput` của `draft-form.ts`.
@@ -47,37 +46,37 @@ export function StepStation(props: {
   return (
     <section
       aria-labelledby={headingId}
-      className="group/station stagger relative animate-rise border-t border-border pt-5"
-      style={{ '--i': index } as CSSProperties}
+      className="group/station relative animate-enter border-t border-rule pt-5"
     >
       <span
         aria-hidden
-        className="absolute inset-x-0 -top-px h-0.5 origin-left scale-x-0 bg-line-cicd transition-transform duration-200 ease-out group-focus-within/station:scale-x-100"
+        className="absolute inset-x-0 -top-px h-0.5 origin-left scale-x-0 bg-acc-solid transition-transform duration-200 ease-out group-focus-within/station:scale-x-100"
       />
       <header className="flex flex-wrap items-center gap-x-4 gap-y-3">
         <span
           aria-hidden
           className={
             hasIssue
-              ? 'grid size-11 shrink-0 place-items-center bg-destructive font-mono text-sm font-bold tabular-nums text-destructive-foreground transition-colors'
-              : 'grid size-11 shrink-0 place-items-center bg-line-cicd font-mono text-sm font-bold tabular-nums text-line-cicd-foreground transition-[transform,background-color] duration-200 group-focus-within/station:-translate-y-0.5'
+              ? 'grid size-10 shrink-0 place-items-center rounded-full bg-bad-solid text-sm font-semibold tabular-nums text-on-solid transition-colors'
+              : 'grid size-10 shrink-0 place-items-center rounded-full bg-acc-tint text-sm font-semibold tabular-nums text-acc-ink transition-[transform,background-color,color] duration-200 group-focus-within/station:-translate-y-0.5 group-focus-within/station:bg-acc-solid group-focus-within/station:text-on-solid'
           }
         >
-          {ordinal.padStart(2, '0')}
+          {ordinal}
         </span>
-        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <h3 id={headingId} className="font-mono text-xs font-medium tracking-wide text-line-cicd-ink">
+        {/* `basis-56`: ở màn hẹp ba nút Lên/Xuống/Xoá xuống dòng thay vì bóp tên bước còn "Bư…". */}
+        <div className="flex min-w-0 flex-1 basis-56 flex-col gap-0.5">
+          <h3 id={headingId} className="text-xs font-medium text-acc-ink">
             {heading}
           </h3>
-          <p className={step.title === '' ? 'truncate text-sm text-muted-foreground' : 'truncate type-title'}>
+          <p className={step.title === '' ? 'truncate text-sm text-ink-2' : 'truncate font-display text-lg font-semibold text-ink'}>
             {step.title === '' ? t('author.step-list-fields-chua-dat-ten') : step.title}
           </p>
         </div>
         <div className="flex flex-wrap gap-1.5">
           <Button
-            variant="outline"
+            variant="secondary"
             size="sm"
-            iconLeft={<ArrowUp aria-hidden />}
+            icon="arrow-up"
             disabled={disabled === true || index === 0}
             onClick={() => {
               props.onMove(-1);
@@ -86,9 +85,9 @@ export function StepStation(props: {
             {t('author.step-list-fields-len')}
           </Button>
           <Button
-            variant="outline"
+            variant="secondary"
             size="sm"
-            iconLeft={<ArrowDown aria-hidden />}
+            icon="arrow-down"
             disabled={disabled === true || index === total - 1}
             onClick={() => {
               props.onMove(1);
@@ -97,9 +96,9 @@ export function StepStation(props: {
             {t('author.step-list-fields-xuong')}
           </Button>
           <Button
-            variant="destructive"
+            variant="danger"
             size="sm"
-            iconLeft={<Trash2 aria-hidden />}
+            icon="trash"
             disabled={disabled}
             onClick={props.onRemove}
           >

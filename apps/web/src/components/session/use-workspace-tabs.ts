@@ -92,16 +92,30 @@ export function useWorkspaceTabs(options: WorkspaceTabsOptions): WorkspaceTabsCo
     Suy ra ở mỗi lượt render thì không có nhịp nào để lệch: bài chưa tải xong ⇒
     tab Terminal (đúng, chưa có editor); tải xong ⇒ tab Editor; người dùng bấm
     một lần ⇒ lựa chọn của họ thắng từ đó.
+
+    ⛔ CHƯA CÓ PHIÊN thì mặc định vẫn là Terminal, kể cả ở bài IDE. Khung khởi động với
+    nút "Bắt đầu" là phần chờ của khoang terminal; khoang IDE lúc chưa có máy chỉ có
+    một câu "Bấm Bắt đầu…". Mặc định Editor ở bài IDE từng giấu mất nút duy nhất mở
+    được máy (khảo sát flow e2e 2026-10-20). Có phiên rồi thì về Editor như cũ.
   */
   const [chosenTab, setChosenTab] = useState<WorkspaceTabId | null>(null);
   // `resolveActiveTab` kẹp thêm một lần ở đây, không chỉ trong panel: `popOutUrl`
   // ngay dưới rẽ nhánh theo tab, và một `editor` sót lại ở bài không có editor sẽ
   // trỏ nút mở-cửa-sổ-riêng vào một Theia không tồn tại.
-  const activeTab = resolveActiveTab(chosenTab ?? (hasEditor ? EDITOR_TAB : TERMINAL_TAB), hasEditor);
+  const defaultTab = hasEditor && sessionId !== null ? EDITOR_TAB : TERMINAL_TAB;
+  const activeTab = resolveActiveTab(chosenTab ?? defaultTab, hasEditor);
 
   const onActivate = useCallback((tab: WorkspaceTabId) => {
     setChosenTab(tab);
   }, []);
+
+  // Phiên vừa kết thúc: bỏ lựa chọn tab để quay về mặc định, tức Terminal với khung khởi động.
+  // Giữ "Editor" ở đây là giấu nút Bắt đầu ngay sau khi người học bấm Tắt máy.
+  const hadSession = useRef(sessionId !== null);
+  useEffect(() => {
+    if (hadSession.current && sessionId === null) setChosenTab(null);
+    hadSession.current = sessionId !== null;
+  }, [sessionId]);
 
   /**
    * ⛔ Đợi một lượt render rồi mới `focus()`, vì tab vừa được chuyển.

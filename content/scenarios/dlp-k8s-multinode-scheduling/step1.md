@@ -1,21 +1,21 @@
-# Hai node, khong phai mot
+# Hai node, không phải một
 
-Xem cum cua ban co gi:
+Xem cụm của bạn có gì:
 
 ```
 kubectl get nodes -o wide
 ```
 
-Ban se thay **hai** dong. Mot node mang vai tro `control-plane` (noi apiserver,
-scheduler va controller-manager chay), mot node khong mang vai tro do — do la
-node phu, noi workload thuong duoc dat xuong.
+Bạn sẽ thấy **hai** dòng. Một node mang vai trò `control-plane` (nơi apiserver,
+scheduler và controller-manager chạy), một node không mang vai trò đó. Đó là
+node phụ, nơi workload thường được đặt xuống.
 
-Loc rieng node KHONG phai control-plane:
+Lọc riêng node KHÔNG phải control-plane:
 
 ```
 kubectl get nodes -l '!node-role.kubernetes.io/control-plane'
 ```
 
-**Buoc nay dat khi ca hai node deu `Ready`.** Khong can tao gi.
+**Bước này đạt khi cả hai node đều `Ready`.** Không cần tạo gì.
 
-> Neu chi thay mot node: node phu chua dang ky xong. Cho them roi bam Kiem tra.
+> Nếu chỉ thấy một node: node phụ chưa đăng ký xong. Chờ thêm rồi bấm Kiểm tra.

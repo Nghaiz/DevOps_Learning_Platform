@@ -37,11 +37,9 @@
  */
 
 import { useCallback, useMemo, useState, type ReactElement } from 'react';
-import { CircleCheck, Save, TriangleAlert } from 'lucide-react';
 
 import { t } from '@devops-platform/copy';
 import { problemTopicLabels, type LevelDraft } from '@devops-platform/games';
-import { Button } from '@devops-platform/ui';
 
 import { parseTags } from '../../../../app/author/problems/text-tools';
 import { SAVE_ISSUE_TEXT, SAVE_LOSS_TEXT } from './builder-copy';
@@ -59,6 +57,7 @@ import {
   TopicPicker,
   VisibilityList,
 } from './save-problem-fields';
+import { Button, Icon } from '@devops-platform/ds';
 
 type SaveStatus =
   | { readonly kind: 'idle' }
@@ -142,7 +141,7 @@ export function SaveProblemPanel({ draft }: { readonly draft: LevelDraft }): Rea
 
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-sm leading-relaxed text-foreground" data-testid="git-builder-save-scope">
+      <p className="text-sm leading-relaxed text-ink" data-testid="git-builder-save-scope">
         {t('author.builder.save.scope')}
       </p>
 
@@ -177,18 +176,18 @@ export function SaveProblemPanel({ draft }: { readonly draft: LevelDraft }): Rea
       />
 
       <div
-        className="flex items-baseline justify-between gap-3 border-y border-border py-2.5"
+        className="flex flex-col gap-1 border-y border-rule py-2.5"
         data-testid="git-builder-save-slug"
       >
-        <span className="type-label shrink-0 text-muted-foreground">
+        <span className="text-sm font-medium text-ink">
           {t('author.builder.save.slug')}
         </span>
         {slug === '' ? (
-          <span className="text-sm text-muted-foreground">
+          <span className="text-sm text-ink-3">
             {t('author.builder.save.slug-empty')}
           </span>
         ) : (
-          <code className="min-w-0 truncate font-mono text-sm text-foreground">{slug}</code>
+          <code className="min-w-0 truncate font-mono text-sm text-ink">{slug}</code>
         )}
       </div>
 
@@ -197,15 +196,15 @@ export function SaveProblemPanel({ draft }: { readonly draft: LevelDraft }): Rea
           {issues.map((issue) => (
             <li
               key={`${issue.code}-${issue.detail ?? ''}`}
-              className="flex animate-rise gap-2.5 text-sm leading-relaxed text-destructive"
+              className="flex animate-enter gap-2.5 text-sm leading-relaxed text-bad-ink"
             >
-              <span aria-hidden className="mt-2 size-2 shrink-0 bg-destructive" />
+              <span aria-hidden className="mt-2 size-2 shrink-0 bg-bad-solid" />
               <span>
                 {t(SAVE_ISSUE_TEXT[issue.code])}
                 {issue.detail !== undefined && (
                   <>
                     {' '}
-                    <code className="bg-muted px-1 font-mono text-xs">{issue.detail}</code>
+                    <code className="bg-well px-1 font-mono text-xs">{issue.detail}</code>
                   </>
                 )}
               </span>
@@ -215,10 +214,10 @@ export function SaveProblemPanel({ draft }: { readonly draft: LevelDraft }): Rea
       )}
 
       {losses.length > 0 && (
-        <ul className="flex flex-col gap-1.5 bg-muted p-3" data-testid="git-builder-save-losses">
+        <ul className="flex flex-col gap-1.5 bg-well p-3" data-testid="git-builder-save-losses">
           {losses.map((loss) => (
-            <li key={loss.code} className="flex gap-2.5 text-sm leading-relaxed text-warning">
-              <TriangleAlert aria-hidden className="mt-0.5 size-4 shrink-0" />
+            <li key={loss.code} className="flex gap-2.5 text-sm leading-relaxed text-warn-ink">
+              <Icon name="warning" size={16} className="mt-0.5 shrink-0" />
               <span>
                 {t(SAVE_LOSS_TEXT[loss.code])}
                 {loss.detail !== undefined && (
@@ -234,9 +233,9 @@ export function SaveProblemPanel({ draft }: { readonly draft: LevelDraft }): Rea
       )}
 
       <div>
-        <Button
+        <Button variant="primary"
           data-testid="git-builder-save-problem"
-          iconLeft={<Save aria-hidden />}
+          icon="save"
           loading={status.kind === 'saving'}
           disabled={issues.length > 0}
           onClick={() => {
@@ -256,9 +255,9 @@ export function SaveProblemPanel({ draft }: { readonly draft: LevelDraft }): Rea
         <p
           role="status"
           data-testid="git-builder-save-done"
-          className="flex animate-rise gap-2 text-sm leading-relaxed text-success"
+          className="flex animate-enter gap-2 text-sm leading-relaxed text-ok-ink"
         >
-          <CircleCheck aria-hidden className="mt-0.5 size-4 shrink-0" />
+          <Icon name="success" size={16} className="mt-0.5 shrink-0" />
           <span>{t('author.builder.save.done', { code: status.code })}</span>
         </p>
       )}
@@ -266,9 +265,9 @@ export function SaveProblemPanel({ draft }: { readonly draft: LevelDraft }): Rea
         <p
           role="alert"
           data-testid="git-builder-save-error"
-          className="flex animate-rise gap-2 text-sm leading-relaxed text-destructive"
+          className="flex animate-enter gap-2 text-sm leading-relaxed text-bad-ink"
         >
-          <TriangleAlert aria-hidden className="mt-0.5 size-4 shrink-0" />
+          <Icon name="warning" size={16} className="mt-0.5 shrink-0" />
           <span>{status.message}</span>
         </p>
       )}

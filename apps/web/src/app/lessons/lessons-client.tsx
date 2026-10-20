@@ -4,12 +4,18 @@ import type { inferRouterOutputs } from '@trpc/server';
 import { t } from '@devops-platform/copy';
 import type { AppRouter } from '../../server/trpc/routers/app-router';
 import { api } from '../../lib/trpc-react';
-import { BoardMeta, BoardRow, PageContainer } from '../../components/kit';
-import { CatalogPoster } from '../../components/catalog/catalog-poster';
+import { Page } from '@devops-platform/ds';
+import { CatalogHeader } from '../../components/catalog/catalog-header';
 import { CatalogToolbar } from '../../components/catalog/catalog-toolbar';
 import { CatalogResults } from '../../components/catalog/catalog-results';
-import { ProgressState, RowDifficulty, contentLine } from '../../components/catalog/catalog-row';
-import { describeLoadedScope, progressMarker, tierLabel } from '../../components/catalog/catalog-labels';
+import {
+  CatalogRow,
+  ProgressState,
+  RowDifficulty,
+  RowFact,
+  contentTopic,
+} from '../../components/catalog/catalog-row';
+import { describeLoadedScope } from '../../components/catalog/catalog-labels';
 import { buildCatalogListInput } from '../../components/catalog/catalog-input';
 import { combineCatalogPages } from '../../components/catalog/catalog-pages';
 import { searchPage } from '../../components/catalog/catalog-search';
@@ -39,7 +45,7 @@ function lessonSearchFields(item: LessonRow): readonly (string | null)[] {
 }
 
 /**
- * Trang danh sách `/lessons`: bảng tuyến các bài học.
+ * Trang danh sách `/lessons`.
  *
  * ## ⛔ `useQueries`, KHÔNG `useInfiniteQuery`, ràng buộc cứng
  *
@@ -64,7 +70,9 @@ export function LessonsClient({
 }): React.ReactElement {
   const controls = useCatalogControls();
   const results = api.useQueries((q) =>
-    controls.cursors.map((cursor) => q.lessons.list(buildCatalogListInput(controls.filters, cursor))),
+    controls.cursors.map((cursor) =>
+      q.lessons.list(buildCatalogListInput(controls.filters, cursor)),
+    ),
   );
   const pages = combineCatalogPages(results);
   const loaded = pages.status === 'success' ? pages.items : [];
@@ -75,67 +83,65 @@ export function LessonsClient({
   const hasNext = pages.status === 'success' && pages.hasNext;
 
   return (
-    <>
-      <CatalogPoster kind="lessons" count={total} />
-      <PageContainer className="py-10 md:py-12">
-        <CatalogToolbar
+    <Page className="pb-14">
+      <CatalogHeader kind="lessons" count={total} />
+      <CatalogToolbar
+        kind="lessons"
+        fields={['topic', 'difficulty', 'tier']}
+        filters={controls.filters}
+        onTopic={controls.setTopic}
+        onDifficulty={controls.setDifficulty}
+        onTier={controls.setTier}
+        onClearFilters={controls.clearFilters}
+        sortKey={controls.sortKey}
+        sortOptions={SORT_OPTIONS}
+        onSort={controls.setSortKey}
+        search={controls.search}
+        onSearch={controls.setSearch}
+        scopeNote={describeLoadedScope({
+          kind: 'lessons',
+          loaded: loaded.length,
+          hasNext,
+          searching: controls.hasSearch,
+          sorting: controls.isSorted,
+        })}
+        disabled={pages.status === 'pending'}
+      />
+      <div className="pt-2">
+        <CatalogResults
           kind="lessons"
-          fields={['topic', 'difficulty', 'tier']}
-          filters={controls.filters}
-          onTopic={controls.setTopic}
-          onDifficulty={controls.setDifficulty}
-          onTier={controls.setTier}
-          onClearFilters={controls.clearFilters}
-          sortKey={controls.sortKey}
-          sortOptions={SORT_OPTIONS}
-          onSort={controls.setSortKey}
-          search={controls.search}
-          onSearch={controls.setSearch}
-          scopeNote={describeLoadedScope({
-            kind: 'lessons',
-            loaded: loaded.length,
-            hasNext,
-            searching: controls.hasSearch,
-            sorting: controls.isSorted,
-          })}
-          disabled={pages.status === 'pending'}
-        />
-        <div className="mt-8">
-          <CatalogResults
-            kind="lessons"
-            pages={pages}
-            shown={items.length}
-            controls={controls}
-            canAuthor={canAuthor}
-            onRetry={(index) => void results[index]?.refetch()}
-            isFetching={(index) => results[index]?.isFetching ?? false}
-          >
-            {items.map((item, index) => (
-              <BoardRow
-                key={item.id}
-                href={`/lessons/${item.id}`}
-                index={index + 1}
-                order={index}
-                line={contentLine(item)}
-                lineState={progressMarker(item.progress.status)}
-                title={item.title}
-                sub={item.description ?? undefined}
-                meta={
-                  <>
-                    <RowDifficulty level={item.difficulty} />
-                    <BoardMeta>{t('unit.step', { n: item.stepCount })}</BoardMeta>
-                    {item.estimatedMinutes !== null && (
-                      <BoardMeta>{t('catalog.meta.duration', { minutes: item.estimatedMinutes })}</BoardMeta>
-                    )}
-                    <BoardMeta>{tierLabel(item.tier)}</BoardMeta>
-                  </>
-                }
-                state={<ProgressState status={item.progress.status} />}
-              />
-            ))}
-          </CatalogResults>
-        </div>
-      </PageContainer>
-    </>
+          pages={pages}
+          shown={items.length}
+          controls={controls}
+          canAuthor={canAuthor}
+          onRetry={(index) => void results[index]?.refetch()}
+          isFetching={(index) => results[index]?.isFetching ?? false}
+        >
+          {items.map((item) => (
+            <CatalogRow
+              key={item.id}
+              href={`/lessons/${item.id}`}
+              topic={contentTopic(item)}
+              title={item.title}
+              description={item.description}
+              meta={
+                <>
+                  <RowDifficulty level={item.difficulty} />
+                  <RowFact icon="stairs" width="w-20">
+                    {t('unit.step', { n: item.stepCount })}
+                  </RowFact>
+                  <RowFact icon="clock" width="w-24">
+                    {item.estimatedMinutes === null
+                      ? null
+                      : t('catalog.meta.duration', { minutes: item.estimatedMinutes })}
+                  </RowFact>
+                </>
+              }
+              state={<ProgressState status={item.progress.status} />}
+            />
+          ))}
+        </CatalogResults>
+      </div>
+    </Page>
   );
 }

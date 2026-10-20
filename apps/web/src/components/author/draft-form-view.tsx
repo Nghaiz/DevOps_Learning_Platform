@@ -1,10 +1,9 @@
 'use client';
 
 import { t } from '@devops-platform/copy';
-import type { CSSProperties, ReactElement, ReactNode } from 'react';
-import { Alert, AlertDescription } from '@devops-platform/ui';
+import type { ReactElement, ReactNode } from 'react';
 import type { ContentKind } from '@devops-platform/shared-types/authoring';
-import { Split } from '../kit';
+import { FormBlock } from './studio';
 import { AssetDirectiveFields } from './asset-directive-fields';
 import { DraftMetaFields } from './draft-meta-fields';
 import { DraftSandboxFields } from './draft-sandbox-fields';
@@ -12,9 +11,10 @@ import { emptyStep, type DraftFormState, type FieldIssue } from './draft-form';
 import { issueFor, TextAreaField } from './field';
 import { PhaseSection } from './phase-fields';
 import { StepListFields } from './step-list-fields';
+import { Notice } from '@devops-platform/ds';
 
 /**
- * Toàn bộ phần SOẠN của một bài: các mục xếp chồng, mỗi mục một `Split` đánh số.
+ * Toàn bộ phần SOẠN của một bài: các mục xếp chồng, mỗi mục một `FormBlock`.
  *
  * Số mục (`01`, `02`, ...) đếm từ danh sách mục THỰC SỰ hiện cho loại bài này,
  * không gõ tay: bài học có phần mở đầu/kết thúc, lab có phần chuẩn bị môi
@@ -39,17 +39,11 @@ export function DraftFormView(props: {
 }): ReactElement {
   const sections = sectionsFor(props);
   return (
-    <div className="flex flex-col">
-      {sections.map((section, index) => (
-        <div
-          key={section.key}
-          className="stagger animate-rise"
-          style={{ '--i': index } as CSSProperties}
-        >
-          <Split index={String(index + 1).padStart(2, '0')} title={section.title} aside={section.note}>
-            <div className="@container flex flex-col gap-6">{section.body}</div>
-          </Split>
-        </div>
+    <div className="flex flex-col gap-10">
+      {sections.map((section) => (
+        <FormBlock key={section.key} title={section.title} {...(section.note === undefined ? {} : { note: section.note })}>
+          <div className="@container flex flex-col gap-6">{section.body}</div>
+        </FormBlock>
       ))}
     </div>
   );
@@ -94,13 +88,9 @@ function sectionsFor(props: Parameters<typeof DraftFormView>[0]): readonly Draft
         key: 'playground',
         title: t('author.draft-form-view-noi-dung'),
         body: (
-          <Alert>
-            <AlertDescription>
-              {t(
-                'author.draft-form-view-playground-la-mot-sandbox-trong-khong-co-buoc-khong-co-script-cham-nguoi-ho',
-              )}
-            </AlertDescription>
-          </Alert>
+          <Notice tone="info">
+            {t('author.draft-form-view-playground-la-mot-sandbox-trong-khong-co-buoc-khong-co-script-cham-nguoi-ho')}
+          </Notice>
         ),
       },
     ];

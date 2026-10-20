@@ -1,22 +1,22 @@
 import type { ReactElement } from 'react';
 import { t } from '@devops-platform/copy';
-import { StatusDot, type StatusDotTone } from '@devops-platform/ui';
+import { Pill, type Tone } from '@devops-platform/ds';
 import type { SaveState } from './account-sections';
 
 const VIEW: Readonly<
   Record<
     Exclude<SaveState, 'idle'>,
-    { key: 'me.save.dirty' | 'me.save.saving' | 'me.save.saved' | 'me.save.failed'; tone: StatusDotTone }
+    { key: 'me.save.dirty' | 'me.save.saving' | 'me.save.saved' | 'me.save.failed'; tone: Tone; live: boolean }
   >
 > = {
-  dirty: { key: 'me.save.dirty', tone: 'warn' },
-  saving: { key: 'me.save.saving', tone: 'live' },
-  saved: { key: 'me.save.saved', tone: 'ok' },
-  failed: { key: 'me.save.failed', tone: 'bad' },
+  dirty: { key: 'me.save.dirty', tone: 'warn', live: false },
+  saving: { key: 'me.save.saving', tone: 'info', live: true },
+  saved: { key: 'me.save.saved', tone: 'ok', live: false },
+  failed: { key: 'me.save.failed', tone: 'bad', live: false },
 };
 
 /**
- * Nhãn trạng thái lưu của MỘT khối trên `/settings`, nằm ở cột nhãn của `Split`.
+ * Trạng thái lưu của MỘT khối trên `/settings`, đứng cạnh nút Lưu.
  *
  * Vùng `role="status"` luôn có mặt (kể cả lúc `idle`) để trình đọc màn hình nghe
  * được lúc chữ bên trong đổi; một vùng sống chỉ chèn vào DOM khi có chữ thì
@@ -25,13 +25,12 @@ const VIEW: Readonly<
 export function SaveStatus({ state }: { readonly state: SaveState }): ReactElement {
   const view = state === 'idle' ? null : VIEW[state];
   return (
-    <p role="status" className="mt-3 min-h-6">
-      {view !== null && (
-        <span className="inline-flex animate-rise items-center gap-2 type-label text-foreground">
-          <StatusDot tone={view.tone} />
+    <span role="status" className="inline-flex min-h-6 items-center">
+      {view === null ? null : (
+        <Pill key={state} tone={view.tone} dot live={view.live} className="animate-fade">
           {t(view.key)}
-        </span>
+        </Pill>
       )}
-    </p>
+    </span>
   );
 }

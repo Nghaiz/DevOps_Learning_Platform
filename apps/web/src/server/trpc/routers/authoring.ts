@@ -287,11 +287,13 @@ export const authoringRouter = createTRPCRouter({
   list: authorProcedure.query(async ({ ctx }) => {
     const rows = await listAuthoredBy(ctx.db, ctx.user.role === 'admin' ? null : ctx.user.id);
     const now = new Date();
-    return rows.map(({ record, stepCount }) => ({
+    return rows.map(({ record, stepCount, authorName, authorEmail }) => ({
       id: record.id,
       kind: record.kind,
       state: reportedState(record, now),
       authorId: record.authorId,
+      authorName,
+      authorEmail,
       title: record.title,
       stepCount,
       publishError: record.publishError,

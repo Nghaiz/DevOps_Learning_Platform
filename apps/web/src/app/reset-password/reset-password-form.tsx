@@ -2,8 +2,7 @@
 
 import { useEffect, useId, useState, type FormEvent } from 'react';
 import Link from 'next/link';
-import { ArrowRight, KeyRound } from 'lucide-react';
-import { Button } from '@devops-platform/ui';
+import { Button, Icon } from '@devops-platform/ds';
 import { err, t } from '@devops-platform/copy';
 import type { ErrorEntry } from '@devops-platform/copy/types';
 import { AUTH_LINK, AuthField } from '../../components/shell/auth-failure';
@@ -65,18 +64,15 @@ export function ResetPasswordForm() {
   if (submitted) {
     return (
       <div className="flex flex-col gap-8">
-        <div role="status" className="flex animate-rise gap-4 border-t-4 border-success bg-card p-5">
-          <KeyRound aria-hidden="true" className="size-6 shrink-0 text-success" />
-          <div className="flex flex-col gap-2">
-            <p className="type-title">{t('auth.reset.success-title')}</p>
-            <p className="text-sm text-muted-foreground">{t('auth.reset.success-body')}</p>
+        <div role="status" className="flex animate-enter gap-4 border border-t-2 border-rule border-t-ok-mid bg-paper px-5 py-4">
+          <Icon name="key" size={28} tint="neutral" className="mt-0.5 text-ok-ink" />
+          <div className="flex flex-col gap-1.5">
+            <p className="font-display text-lg font-semibold text-ink">{t('auth.reset.success-title')}</p>
+            <p className="text-sm text-ink-2">{t('auth.reset.success-body')}</p>
           </div>
         </div>
-        <Button asChild size="lg" className="h-12 self-start">
-          <Link href="/login">
-            {t('auth.reset.to-login')}
-            <ArrowRight aria-hidden="true" />
-          </Link>
+        <Button asChild variant="primary" size="lg" iconRight="arrow-right" className="self-start">
+          <Link href="/login">{t('auth.reset.to-login')}</Link>
         </Button>
       </div>
     );
@@ -138,12 +134,12 @@ export function ResetPasswordForm() {
           disabled={pending}
           failure={formFailure}
         />
-        <Button type="submit" size="lg" className="h-12 w-full" disabled={!hydrated || pending}>
+        <Button type="submit" variant="primary" size="lg" className="w-full" loading={pending} disabled={!hydrated || pending}>
           {t(pending ? 'auth.reset.pending' : 'auth.reset.submit')}
         </Button>
       </form>
       <div className="flex flex-col gap-2 text-sm">
-        <p className="text-muted-foreground">
+        <p className="text-ink-2">
           {t('auth.reset.no-code')}{' '}
           <Link href="/forgot-password" className={AUTH_LINK}>
             {t('auth.reset.request-code')}

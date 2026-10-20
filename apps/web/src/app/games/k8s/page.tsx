@@ -6,6 +6,7 @@ import { t } from '@devops-platform/copy';
 // typecheck lẫn `next build`.
 import { ArenaEntry } from '../../../components/k8s-arena/arena-entry';
 import { K8sCampaign } from '../../../components/games/k8s/k8s-campaign';
+import { LegacySkin } from '../../../components/games/legacy-skin';
 
 export const metadata: Metadata = {
   title: t('games.k8s.meta-title'),
@@ -42,11 +43,10 @@ export default async function K8sArenaPage({
   const problemCode = typeof raw === 'string' && raw.length > 0 ? raw : null;
 
   if (problemCode !== null) {
-    // z-[45]: trên thanh đầu trang, dưới portal Radix. Xem `k8s-campaign.tsx`.
     return (
-      <div className="fixed inset-0 z-[45] bg-ink">
+      <LegacySkin dark overlay>
         <ArenaEntry problemCode={problemCode} />
-      </div>
+      </LegacySkin>
     );
   }
 

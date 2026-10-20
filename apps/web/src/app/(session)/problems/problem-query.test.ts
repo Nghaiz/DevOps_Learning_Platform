@@ -81,17 +81,17 @@ describe('problem-query', () => {
     // một tầng thư viện tự chèn. Ghim đúng tập khoá thay vì chỉ ghim giá trị.
     expect(Object.keys(input).sort()).toEqual(['direction', 'filter', 'limit', 'orderBy']);
     expect(input.limit).toBe(PROBLEM_PAGE_SIZE);
-    // Trang chưa lọc gì vẫn chỉ xin bài của game đang chọn.
-    expect(input.filter).toEqual({ gameId: DEFAULT_PROBLEM_QUERY.game });
+    // Mặc định là "Tất cả game": không có `gameId` nào trong bộ lọc gửi đi.
+    expect(input.filter).toEqual({});
   });
 
   it('input mang lọc của người dùng cùng game, và mang `cursor` khi không ở trang đầu', () => {
-    const query = parseProblemQuery(new URLSearchParams('difficulty=easy'));
+    const query = parseProblemQuery(new URLSearchParams('game=k8s&difficulty=easy'));
     const input = buildProblemListInput(query, 'K8S-0007');
 
     expect(Object.keys(input).sort()).toEqual(['cursor', 'direction', 'filter', 'limit', 'orderBy']);
     expect(input.cursor).toBe('K8S-0007');
-    expect(input.filter).toEqual({ difficulty: ['easy'], gameId: DEFAULT_PROBLEM_QUERY.game });
+    expect(input.filter).toEqual({ difficulty: ['easy'], gameId: 'k8s' });
   });
 
   it('đổi game là đổi tập bài xin về, nhưng KHÔNG tính là một bộ lọc đang bật', () => {

@@ -1,22 +1,10 @@
 'use client';
 
 import { t } from '@devops-platform/copy';
-import { useId, useState, type CSSProperties, type ReactElement } from 'react';
-import { Check, Copy, ImageOff, Trash2 } from 'lucide-react';
-import {
-  Button,
-  EmptyState,
-  ErrorState,
-  Skeleton,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@devops-platform/ui';
+import { useId, useState, type ReactElement } from 'react';
 import type { ContentAsset } from '@devops-platform/shared-types/authoring';
 import { assetMarkdownSnippet } from './asset-upload';
+import { Button, Empty, ErrorBlock, Icon, RowsSkeleton, Table, TBody, TD, TH, THead, TR } from '@devops-platform/ds';
 
 /** Trạng thái của truy vấn `authoring.listAssets`, tách khỏi hook để sổ không biết tRPC. */
 export interface AssetListState {
@@ -48,70 +36,53 @@ export function AssetList(props: {
 
   return (
     <section aria-labelledby={headingId} className="flex flex-col gap-4">
-      <h2 id={headingId} className="type-label text-muted-foreground">
+      <h2 id={headingId} className="font-display text-lg font-semibold text-ink">
         {t('author.asset-manager-tep-da-tai-len')}
       </h2>
 
       {status === 'pending' && (
-        <div className="flex flex-col gap-px border-y border-border">
-          {[0, 1, 2].map((row) => (
-            <Skeleton key={row} className="h-12 w-full" />
-          ))}
-        </div>
+        <RowsSkeleton rows={3} label={t('author.asset-manager-tep-da-tai-len')} />
       )}
 
       {status === 'error' && (
-        <ErrorState
-          title={t('author.asset-manager-khong-tai-duoc-danh-sach-tep')}
-          message={props.state.errorMessage ?? ''}
-          onRetry={props.state.onRetry}
-          retrying={props.state.retrying}
-        />
+        <ErrorBlock title={t('author.asset-manager-khong-tai-duoc-danh-sach-tep')} retryLabel={t('common.action.retry')} onRetry={props.state.onRetry} retrying={props.state.retrying}>{props.state.errorMessage ?? ''}</ErrorBlock>
       )}
 
       {status === 'success' && assets.length === 0 && (
-        <EmptyState
-          glyph={<ImageOff aria-hidden className="size-10" />}
-          title={t('author.asset-manager-chua-co-tep-nao')}
-          description={t(
+        <Empty art={<Icon name="image" size={40} />} title={t('author.asset-manager-chua-co-tep-nao')}>{t(
             'author.asset-manager-tai-mot-anh-len-roi-dan-doan-markdown-vao-o-noi-dung-cua-buoc-de-nhung-no',
-          )}
-        />
+          )}</Empty>
       )}
 
       {assets.length > 0 && (
         <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>{t('author.asset-manager-ten-tep')}</TableHead>
-              <TableHead>{t('author.asset-manager-doan-markdown-de-nhung')}</TableHead>
-              <TableHead>{t('author.asset-manager-tai-len')}</TableHead>
-              <TableHead className="text-right">{t('author.asset-manager-hanh-dong')}</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {assets.map((asset, index) => {
+          <THead>
+            <tr>
+              <TH>{t('author.asset-manager-ten-tep')}</TH>
+              <TH>{t('author.asset-manager-doan-markdown-de-nhung')}</TH>
+              <TH>{t('author.asset-manager-tai-len')}</TH>
+              <TH numeric>{t('author.asset-manager-hanh-dong')}</TH>
+            </tr>
+          </THead>
+          <TBody>
+            {assets.map((asset) => {
               const snippet = assetMarkdownSnippet(asset);
               const copied = copiedKey === asset.storageKey;
               return (
-                <TableRow
-                  key={asset.storageKey}
-                  className="stagger animate-rise"
-                  style={{ '--i': index } as CSSProperties}
-                >
-                  <TableCell className="font-medium break-all">{asset.filename}</TableCell>
-                  <TableCell>
-                    <code className="font-mono text-xs break-all text-line-cicd-ink select-all">{snippet}</code>
-                  </TableCell>
-                  <TableCell className="font-mono text-xs whitespace-nowrap text-muted-foreground tabular-nums">
+                <TR key={asset.storageKey} className="animate-enter">
+                  <TD className="font-medium break-all">{asset.filename}</TD>
+                  <TD>
+                    <code className="font-mono text-xs break-all text-acc-ink select-all">{snippet}</code>
+                  </TD>
+                  <TD className="font-mono text-xs whitespace-nowrap text-ink-2 tabular-nums">
                     {asset.uploadedAt.slice(0, 10)}
-                  </TableCell>
-                  <TableCell>
+                  </TD>
+                  <TD>
                     <div className="flex justify-end gap-1.5">
                       <Button
-                        variant={copied ? 'secondary' : 'outline'}
+                        variant={copied ? 'ghost' : 'secondary'}
                         size="sm"
-                        iconLeft={copied ? <Check aria-hidden /> : <Copy aria-hidden />}
+                        icon={copied ? 'check' : 'copy'}
                         onClick={() => {
                           void navigator.clipboard.writeText(snippet).then(
                             () => {
@@ -124,9 +95,9 @@ export function AssetList(props: {
                         {copied ? t('author.asset-manager-da-chep') : t('author.asset-manager-chep')}
                       </Button>
                       <Button
-                        variant="destructive"
+                        variant="danger"
                         size="sm"
-                        iconLeft={<Trash2 aria-hidden />}
+                        icon="trash"
                         disabled={props.removing}
                         title={t('author.asset-manager-xoa-that-markdown-con-tham-chieu-tep-nay-se-hien-anh-hong')}
                         onClick={() => {
@@ -136,11 +107,11 @@ export function AssetList(props: {
                         {t('common.action.delete')}
                       </Button>
                     </div>
-                  </TableCell>
-                </TableRow>
+                  </TD>
+                </TR>
               );
             })}
-          </TableBody>
+          </TBody>
         </Table>
       )}
     </section>

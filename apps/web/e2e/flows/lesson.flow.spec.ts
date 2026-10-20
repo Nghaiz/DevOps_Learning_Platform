@@ -95,10 +95,6 @@ async function loadKnownLesson(api: APIRequestContext): Promise<LessonDetail> {
   }
 }
 
-function escapeRegExp(text: string): string {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
 test.afterEach(async ({ page }) => {
   if (await releaseSandboxQuietly(page)) {
     test.info().annotations.push({
@@ -148,26 +144,18 @@ test.describe('luồng 1 — bài học', { tag: '@flow' }, () => {
     // ── 2. Vào danh mục bằng mega menu của header ──────────────────────────
     /*
       Đi bằng điều hướng của vỏ, không `goto('/lessons')`: một link nav hỏng là
-      lỗi thật mà `goto` đi vòng qua. Từ bản dựng lại, "Bài học" không còn là link
-      trên thanh: section "Học" trỏ thẳng tới trang con ĐẦU (`/paths`), còn các
-      trang con nằm trong mega menu mở bằng nút mũi tên cạnh nó
-      (`components/shell/site-header.tsx`). Panel nằm NGOÀI `<nav>`, nên tìm nó
-      qua `aria-controls` của chính nút mở, không qua cây của nav.
+      lỗi thật mà `goto` đi vòng qua. Từ bản dựng lại 2026-10, mục "Học" trên thanh
+      trên cùng trỏ tới trang tổng quan `/learn`, và các trang con nằm trên thanh mục
+      con ngay dưới (`components/shell/section-bar.tsx`).
     */
     const mainNav = page.getByRole('navigation', { name: t('shell.nav.aria'), exact: true });
-    const learnToggle = mainNav.getByRole('button', {
-      name: t('shell.menu.section-open', { section: t('shell.section.learn') }),
+    await mainNav.getByRole('link', { name: t('shell.section.learn'), exact: true }).click();
+    await page.waitForURL('**/learn');
+    const learnBar = page.getByRole('navigation', {
+      name: t('shell.subnav.aria', { section: t('shell.section.learn') }),
       exact: true,
     });
-    await learnToggle.click();
-    await expect(learnToggle).toHaveAttribute('aria-expanded', 'true');
-    const panelId = (await learnToggle.getAttribute('aria-controls')) ?? '';
-    expect(panelId, 'Nút mở mega menu không trỏ `aria-controls` vào panel nào.').not.toBe('');
-    // Tên link = nhãn + câu mô tả (link không có aria-label), nên neo vào ĐẦU tên.
-    await page
-      .locator(`[id="${panelId}"]`)
-      .getByRole('link', { name: new RegExp(`^${escapeRegExp(t('shell.nav.lessons'))}`) })
-      .click();
+    await learnBar.getByRole('link', { name: t('shell.nav.lessons'), exact: true }).click();
     await page.waitForURL('**/lessons');
     await expect(
       page.getByRole('heading', { level: 1, name: t('catalog.title.lessons'), exact: true }),
@@ -199,14 +187,14 @@ test.describe('luồng 1 — bài học', { tag: '@flow' }, () => {
     const firstStep = stepList.getByRole('button', { name: firstStepTitle ?? '' });
     await firstStep.click();
     await expect(firstStep).toHaveAttribute('aria-current', 'step');
-    const firstStepItem = stepList
-      .getByRole('listitem')
-      .filter({ has: page.getByRole('button', { name: firstStepTitle ?? '' }) });
+    // Từ bản dựng lại 2026-10, dải bước chỉ còn nút chọn bước; nút Kiểm tra, lý do khoá và kết
+    // quả chấm nằm cuối khoang đọc (`<article>` của bước đang xem).
+    const lessonPane = page.getByRole('article');
 
-    const check = firstStepItem.getByRole('button', { name: t('session.lesson.check'), exact: true });
+    const check = lessonPane.getByRole('button', { name: t('session.lesson.check'), exact: true });
     await expect(check, 'Bước 1 có script chấm nhưng không có nút "Kiểm tra".').toBeVisible();
     await expect(check).toBeDisabled();
-    await expect(firstStepItem.getByText(t('session.check.blocked-no-session'))).toBeVisible();
+    await expect(lessonPane.getByText(t('session.check.blocked-no-session'))).toBeVisible();
 
     await expect(
       terminalSurface(page),
@@ -221,7 +209,7 @@ test.describe('luồng 1 — bài học', { tag: '@flow' }, () => {
     // ── 5. Mở phiên, terminal chạy lệnh ─────────────────────────────────────
     const { sessionId } = await startSandbox(page, 'lessons.startSession', rateLimited);
 
-    // Bài IDE mở ở tab Editor; hàng terminal mang `hidden` cho tới khi đổi tab.
+    // Có phiên thì bài IDE về tab Editor; hàng terminal mang `hidden` cho tới khi đổi tab.
     await workspaceTab(page, 'terminal').click();
     await expectTerminalLive(page, traffic);
     await typeInTerminal(page, SHELL_MARKER_CMD);
@@ -261,7 +249,7 @@ test.describe('luồng 1 — bài học', { tag: '@flow' }, () => {
     // Nút Kiểm tra chỉ mở ở pha ready (M6): chờ theo mốc pha phiên.
     await expect(check).toBeEnabled({ timeout: SESSION_READY_TIMEOUT_MS });
     expect(
-      await runCheck(page, check, firstStepItem, 'lessons.checkStep'),
+      await runCheck(page, check, lessonPane, 'lessons.checkStep'),
       'Chấm TRƯỚC khi sửa mà đã "Đạt": phép chấm không phân biệt đúng sai, nên lượt "Đạt" ' +
         'sau khi sửa sẽ không chứng minh được gì.',
     ).toBe('failed');
@@ -275,7 +263,7 @@ test.describe('luồng 1 — bài học', { tag: '@flow' }, () => {
       `Đã gõ \`${FIX_PORT}\` nhưng terminal không đọc ra PORT_IS_8080: lệnh sửa không tới shell.`,
     );
     expect(
-      await runCheck(page, check, firstStepItem, 'lessons.checkStep'),
+      await runCheck(page, check, lessonPane, 'lessons.checkStep'),
       'File đã có port=8080 (terminal vừa đọc ra) mà phép chấm bước 1 vẫn trượt.',
     ).toBe('passed');
 
@@ -291,7 +279,7 @@ test.describe('luồng 1 — bài học', { tag: '@flow' }, () => {
 
     // ── 10. Sang bước kế bằng nút "Tiếp" ────────────────────────────────────
     if (nextStepTitle !== null) {
-      await firstStepItem.getByRole('button', { name: t('session.steps.next'), exact: true }).click();
+      await page.getByRole('button', { name: t('session.steps.next'), exact: true }).click();
       await expect(stepList.getByRole('button', { name: nextStepTitle })).toHaveAttribute('aria-current', 'step');
     }
 

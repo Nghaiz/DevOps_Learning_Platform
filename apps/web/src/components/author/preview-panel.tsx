@@ -1,12 +1,15 @@
 'use client';
 
 import { renderCopy, t } from '@devops-platform/copy';
-import { useState, type CSSProperties, type ReactElement } from 'react';
-import { BoxSelect, Eye, FileQuestion } from 'lucide-react';
-import { ContentView, EmptyState, cn } from '@devops-platform/ui';
+import { useState, type ReactElement } from 'react';
+import { ContentView } from '@devops-platform/ds/content';
 import { parseContentBlocks } from '@devops-platform/scenario/content-blocks';
 import type { PreviewPayload } from './draft-from-preview';
 import { previewPhases, resolveContentAssetUrl } from './preview-phases';
+import { cn, Empty, EmptyArt, Icon } from '@devops-platform/ds';
+import { contentLabels } from '../session/practice-labels';
+
+const LABELS = contentLabels();
 
 /**
  * Xem trước bài, **qua đúng cây component người học thấy** (13.F task 21).
@@ -29,36 +32,26 @@ export function PreviewPanel(props: {
 
   if (props.payload.kind === 'playground') {
     return (
-      <EmptyState
-        className="animate-rise"
-        glyph={<BoxSelect aria-hidden className="size-10" />}
-        title={t('author.preview-panel-playground-khong-co-noi-dung-de-xem-truoc')}
-        description={t(
+      <Empty className="animate-enter" art={<EmptyArt kind="nothing" />} title={t('author.preview-panel-playground-khong-co-noi-dung-de-xem-truoc')}>{t(
           'author.preview-panel-nguoi-hoc-nhan-dung-mot-sandbox-trong-voi-tier-capability-va-thoi-han-da-kh',
-        )}
-      />
+        )}</Empty>
     );
   }
 
   if (active === null) {
     return (
-      <EmptyState
-        className="animate-rise"
-        glyph={<FileQuestion aria-hidden className="size-10" />}
-        title={t('author.preview-panel-chua-co-gi-de-xem-truoc')}
-        description={
+      <Empty className="animate-enter" art={<EmptyArt kind="search" />} title={t('author.preview-panel-chua-co-gi-de-xem-truoc')}>{
           props.payload.kind === 'lab'
             ? t('author.preview-panel-lab-chua-co-task-nao')
             : t('author.preview-panel-bai-hoc-chua-co-buoc-nao')
-        }
-      />
+        }</Empty>
     );
   }
 
   return (
     <div className="flex flex-col gap-5">
-      <p className="flex items-start gap-2 text-sm text-muted-foreground">
-        <Eye aria-hidden className="mt-0.5 size-4 shrink-0 text-line-cicd-ink" />
+      <p className="flex items-start gap-2 text-sm text-ink-2">
+        <Icon name="eye" size={16} className="mt-0.5 shrink-0 text-acc-ink" />
         <span>
           {t(
             'author.preview-panel-day-la-chinh-khung-noi-dung-cua-trinh-hoc-nut-chay-tren-khoi-code-bi-vo-hie',
@@ -70,7 +63,7 @@ export function PreviewPanel(props: {
         <div
           role="group"
           aria-label={t('author.preview-panel-chon-phan')}
-          className="flex flex-wrap gap-px border border-border bg-border"
+          className="flex flex-wrap gap-1.5"
         >
           {phases.map((phase, index) => {
             const isActive = phase.key === active.key;
@@ -82,20 +75,13 @@ export function PreviewPanel(props: {
                 onClick={() => {
                   setActiveKey(phase.key);
                 }}
-                style={{ '--i': index } as CSSProperties}
                 className={cn(
-                  'stagger flex min-h-10 min-w-0 flex-1 animate-rise items-center gap-2 px-3 py-2 text-left text-sm transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
-                  isActive ? 'bg-ink text-ink-foreground' : 'bg-background text-foreground hover:bg-muted',
+                  'flex min-h-9 min-w-0 items-center gap-2 rounded-full border px-3.5 py-1.5 text-left text-sm outline-none focus-visible:outline-solid transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-focus',
+                  isActive ? 'border-acc-mid bg-acc-tint text-acc-ink' : 'border-rule-2 bg-paper text-ink-2 hover:border-control hover:text-ink',
                 )}
               >
-                <span
-                  aria-hidden
-                  className={cn(
-                    'font-mono text-xs tabular-nums',
-                    isActive ? 'text-line-cicd' : 'text-muted-foreground',
-                  )}
-                >
-                  {String(index + 1).padStart(2, '0')}
+                <span aria-hidden className="text-xs tabular-nums">
+                  {index + 1}
                 </span>
                 <span className="truncate">
                   {typeof phase.label === 'string' ? phase.label : renderCopy(phase.label)}
@@ -107,8 +93,9 @@ export function PreviewPanel(props: {
       )}
 
       {/* Khoá theo phần đang xem: đổi phần là trang giấy mới trượt lên, không phải chữ nhảy tại chỗ. */}
-      <div key={active.key} className="animate-rise border border-border bg-card px-5 py-6 md:px-8 md:py-8">
+      <div key={active.key} className="animate-enter rounded-lg border border-rule bg-paper px-5 py-6 md:px-8 md:py-8">
         <ContentView
+          labels={LABELS}
           blocks={parseContentBlocks(active.markdown)}
           resolveAssetUrl={(relative) => resolveContentAssetUrl(props.contentId, relative)}
           onExec={NO_SANDBOX_IN_PREVIEW}

@@ -1,5 +1,5 @@
 import { t } from '@devops-platform/copy';
-import type { BadgeVariant } from '@devops-platform/ui';
+import type { Tone } from '@devops-platform/ds';
 
 /**
  * Đọc `admin.health` (C4) thành câu tiếng Việt cho bảng sức khoẻ của `/admin`.
@@ -48,7 +48,7 @@ export interface HealthReading {
   readonly tone: HealthTone;
   /** Nhãn ngắn cho badge. */
   readonly label: string;
-  readonly badgeVariant: BadgeVariant;
+  readonly pillTone: Tone;
   /** Chuyện gì đã xảy ra + làm gì tiếp. */
   readonly detail: string;
   readonly seriesCount: number;
@@ -90,7 +90,7 @@ export function describeHealthSource(source: HealthSourceView): HealthReading {
     return {
       tone: 'unreachable',
       label: t('admin.health.state.unreachable-label'),
-      badgeVariant: 'warning',
+      pillTone: 'warn',
       detail: t('admin.health.state.unreachable-detail', { who, reason: reason(source.error) }),
       seriesCount: 0,
       hasReadings: false,
@@ -101,7 +101,7 @@ export function describeHealthSource(source: HealthSourceView): HealthReading {
     return {
       tone: 'unhealthy',
       label: t('admin.health.state.unhealthy-label'),
-      badgeVariant: 'destructive',
+      pillTone: 'bad',
       detail: t('admin.health.state.unhealthy-detail', { who, reason: reason(source.error) }),
       seriesCount: source.series.length,
       hasReadings: source.series.length > 0,
@@ -111,7 +111,7 @@ export function describeHealthSource(source: HealthSourceView): HealthReading {
   return {
     tone: 'ok',
     label: t('admin.health.state.ok-label'),
-    badgeVariant: 'success',
+    pillTone: 'ok',
     detail: t('admin.health.state.ok-detail', { who, count: source.series.length }),
     seriesCount: source.series.length,
     hasReadings: source.series.length > 0,

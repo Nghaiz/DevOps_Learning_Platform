@@ -1,26 +1,9 @@
 import type { StaticTextKey } from '@devops-platform/copy';
-import type { BadgeVariant } from '@devops-platform/ui';
-import {
-  PROBLEM_TOPIC_LABELS,
-  type ProblemDifficulty,
-  type ProblemState,
-  type ProblemTopicId,
-} from '@devops-platform/games';
+import { PROBLEM_TOPIC_LABELS, problemTopicLabels, type GameId, type ProblemState, type ProblemTopicId } from '@devops-platform/games';
 
 /**
- * Nhãn và màu cho hai enum của bài OJ.
- *
- * ## ⚠ Bẫy tên — KHÔNG ghép chuỗi để suy ra biến thể badge
- *
- * Token màu mang tên theo thang BA bậc của hệ nội dung cũ
- * (`basic|intermediate|advanced`, cộng `expert` mới thêm), còn
- * `PROBLEM_DIFFICULTIES` là `easy|medium|hard|expert`. Bốn giá trị, bốn biến
- * thể, nhưng chỉ MỘT tên trùng nhau. `` `difficulty-${difficulty}` `` sẽ sinh ra
- * `difficulty-easy` — một class Tailwind không tồn tại, nên badge vẫn render và
- * chỉ mất màu. Không lỗi, không cảnh báo, và không ai để ý cho tới khi nhìn ảnh
- * chụp màn hình.
- *
- * Ánh xạ tường minh, và `satisfies Record<…>` bắt nó phải đủ bốn bậc.
+ * Nhãn cho trạng thái của bài OJ và bộ lọc trạng thái ở danh sách đề. Độ khó vẽ bằng
+ * `ProblemDifficultyMark` (dùng chung với kho đề của người học), không có bảng màu riêng.
  *
  * ## Chữ không còn ở đây, chỉ còn KHOÁ (P16 / 16.G2)
  *
@@ -34,28 +17,11 @@ import {
  * Đó là `ContentState` (bốn giá trị, có `publishing`); đây là `ProblemState`
  * (ba giá trị). Chúng trùng chữ ở hai mục và không trùng miền.
  */
-export const DIFFICULTY_BADGE = {
-  easy: 'difficulty-basic',
-  medium: 'difficulty-intermediate',
-  hard: 'difficulty-advanced',
-  expert: 'difficulty-expert',
-} satisfies Record<ProblemDifficulty, BadgeVariant>;
-
 export const STATE_KEYS: Readonly<Record<ProblemState, StaticTextKey>> = {
   draft: 'author.problem.state.draft',
   published: 'author.problem.state.published',
   archived: 'author.problem.state.archived',
 };
-
-/**
- * `draft` dùng `outline` chứ không `secondary`: bản nháp là trạng thái CHƯA tới
- * đích, và một badge tô đặc đọc ra như một trạng thái đã xong.
- */
-export const STATE_BADGE = {
-  draft: 'outline',
-  published: 'status-done',
-  archived: 'secondary',
-} satisfies Record<ProblemState, BadgeVariant>;
 
 /** Bộ lọc trạng thái ở trang danh sách. `all` không phải một `ProblemState`. */
 export const STATE_FILTERS = ['all', 'draft', 'published', 'archived'] as const;
@@ -117,6 +83,12 @@ export function filterLabelKey(filter: StateFilter): StaticTextKey {
  */
 const TOPIC_LABELS: Readonly<Record<string, string>> = PROBLEM_TOPIC_LABELS;
 
-export function joinTopicLabels(topics: readonly ProblemTopicId[]): string {
-  return topics.map((topic) => TOPIC_LABELS[topic] ?? topic).join(', ');
+/**
+ * Nhãn chủ đề của một đề, tra theo GAME của đề. Bảng chung `PROBLEM_TOPIC_LABELS` chỉ có chủ đề
+ * K8s, nên đề CI/CD từng hiện khoá thô ("graph", "tradeoff") ở danh sách soạn đề trong khi trang
+ * sửa đề hiện đúng nhãn tiếng Việt (rà ảnh 2026-10-20).
+ */
+export function joinTopicLabels(topics: readonly ProblemTopicId[], gameId: GameId): string {
+  const labels: Readonly<Record<string, string>> = problemTopicLabels(gameId);
+  return topics.map((topic) => labels[topic] ?? TOPIC_LABELS[topic] ?? topic).join(', ');
 }

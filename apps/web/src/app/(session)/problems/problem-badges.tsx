@@ -1,25 +1,11 @@
 import type { ReactElement } from 'react';
-import { Circle, CircleCheck, CircleDot } from 'lucide-react';
-import { Difficulty, cn } from '@devops-platform/ui';
-import {
-  PROBLEM_DIFFICULTY_LABELS,
-  type ProblemDifficulty,
-  type ProblemViewerStatus,
-} from '@devops-platform/games';
+import { Icon, LevelBars, cn, type IconName } from '@devops-platform/ds';
+import { PROBLEM_DIFFICULTY_LABELS, type ProblemDifficulty, type ProblemViewerStatus } from '@devops-platform/games';
 import { PROBLEM_DIFFICULTY_LEVEL, PROBLEM_VIEWER_STATUS_LABELS } from './problem-labels';
 
 /**
- * Hai dấu hiệu dùng ở CẢ trang danh sách và trang chi tiết. Để chung một chỗ vì
- * chúng phải trông giống hệt nhau ở hai nơi: hai bản sao sẽ lệch ở lần đầu tiên
- * ai đó chỉnh một bên.
- *
- * Không `'use client'`: cả hai là component trình bày thuần, chạy được ở cả hai
- * phía và không kéo thêm gì vào bundle trình duyệt.
- */
-
-/**
- * Độ khó: glyph bốn vạch + chữ. Không mang màu (màu dành cho tuyến chủ đề), nên
- * hai bậc phân biệt nhau bằng SỐ VẠCH và bằng chữ, kể cả khi in đen trắng.
+ * Hai dấu dùng chung của màn bài tập: độ khó (bốn vạch + chữ) và kết quả của chính
+ * người xem (biểu tượng + chữ, không chỉ màu).
  */
 export function ProblemDifficultyMark({
   value,
@@ -28,60 +14,62 @@ export function ProblemDifficultyMark({
   readonly value: ProblemDifficulty;
   readonly className?: string;
 }): ReactElement {
-  return (
-    <Difficulty
-      level={PROBLEM_DIFFICULTY_LEVEL[value]}
-      label={PROBLEM_DIFFICULTY_LABELS[value]}
-      showLabel
-      className={className}
-    />
-  );
+  return <LevelBars level={PROBLEM_DIFFICULTY_LEVEL[value]} max={4} label={PROBLEM_DIFFICULTY_LABELS[value]} className={className} />;
 }
 
-const STATUS_ICON = {
-  solved: CircleCheck,
-  attempted: CircleDot,
-  untouched: Circle,
-} as const satisfies Record<ProblemViewerStatus, unknown>;
-
-const STATUS_TONE: Readonly<Record<ProblemViewerStatus, string>> = {
-  solved: 'text-success',
-  attempted: 'text-warning',
-  untouched: 'text-muted-foreground',
+const STATUS_ICON: Readonly<Record<ProblemViewerStatus, IconName>> = {
+  solved: 'success',
+  attempted: 'circle-dot',
+  untouched: 'circle',
 };
 
-/**
- * Kết quả của người đang xem: biểu tượng + chữ, không bao giờ chỉ màu.
- *
- * `null` (máy chủ không biết người xem là ai) ⇒ KHÔNG render gì. "Chưa làm" cho
- * người chưa đăng nhập là một câu khẳng định về họ mà máy chủ chưa từng nói:
- * `untouched` nghĩa là "đã kiểm tra và bạn chưa thử", không phải "không biết".
- *
- * "Chưa qua" chứ không "WA": `attempted` gộp mọi lượt chưa AC, kể cả lượt không
- * chạy tới nơi (CE). Gọi nó là WA là kết luận thay máy chủ một điều nó không nói.
- */
+const STATUS_TONE: Readonly<Record<ProblemViewerStatus, string>> = {
+  solved: 'text-ok-ink',
+  attempted: 'text-warn-ink',
+  untouched: 'text-ink-3',
+};
+
+/** `null` = chưa đăng nhập hoặc máy chủ không trả trạng thái: không vẽ gì, không đoán. */
 export function ViewerStatusMark({
   value,
   className,
+  compact = false,
 }: {
   readonly value: ProblemViewerStatus | null;
   readonly className?: string;
+  /** Chỉ biểu tượng (nhãn vẫn đọc được bằng trình đọc màn hình). */
+  readonly compact?: boolean;
 }): ReactElement | null {
-  if (value === null) {
-    return null;
-  }
-  const Icon = STATUS_ICON[value];
+  if (value === null) return null;
   return (
     <span
       data-status={value}
-      className={cn(
-        'inline-flex items-center gap-1.5 font-mono text-xs font-medium whitespace-nowrap',
-        STATUS_TONE[value],
-        className,
-      )}
+      title={compact ? PROBLEM_VIEWER_STATUS_LABELS[value] : undefined}
+      className={cn('inline-flex items-center gap-1.5 whitespace-nowrap text-sm', STATUS_TONE[value], className)}
     >
-      <Icon aria-hidden className="size-4 shrink-0" />
-      {PROBLEM_VIEWER_STATUS_LABELS[value]}
+      <Icon name={STATUS_ICON[value]} size={18} className="shrink-0" />
+      <span className={compact ? 'sr-only' : undefined}>{PROBLEM_VIEWER_STATUS_LABELS[value]}</span>
     </span>
   );
 }
+
+/** Chỉ biểu tượng kết quả, cho chip lọc vốn đã có chữ (không đọc lại nhãn hai lần). */
+export function ViewerStatusGlyph({ value }: { readonly value: ProblemViewerStatus }): ReactElement {
+  return <Icon name={STATUS_ICON[value]} size={16} className={cn('shrink-0', STATUS_TONE[value])} />;
+}
+
+/** Chỉ các vạch độ khó, cho chip lọc vốn đã có chữ. */
+export function DifficultyBars({ value }: { readonly value: ProblemDifficulty }): ReactElement {
+  const level = PROBLEM_DIFFICULTY_LEVEL[value];
+  return (
+    <span aria-hidden="true" className="flex items-end gap-[2px]">
+      {[1, 2, 3, 4].map((step, index) => (
+        <span
+          key={step}
+          className={cn('w-[3px] rounded-[1px]', ['h-1.5', 'h-2', 'h-2.5', 'h-3.5'][index], step <= level ? 'bg-acc-solid' : 'bg-rule-2')}
+        />
+      ))}
+    </span>
+  );
+}
+

@@ -1,14 +1,26 @@
 'use client';
 
 import { useState, type ReactElement } from 'react';
-import { CalendarClock } from 'lucide-react';
+import Link from 'next/link';
 import { renderCopy, t } from '@devops-platform/copy';
-import { Chip, EmptyState, ErrorState, StatusDot, cn } from '@devops-platform/ui';
+import {
+  Button,
+  Empty,
+  EmptyArt,
+  ErrorBlock,
+  Icon,
+  Pill,
+  Row,
+  RowList,
+  RowsSkeleton,
+  Segmented,
+  type IconName,
+  type Tone,
+} from '@devops-platform/ds';
 
 import { api } from '../../../lib/trpc-react';
 import { describeTrpcError } from '../../../lib/trpc';
 import { formatMoment } from '../../../lib/format-moment';
-import { Board, BoardRow, BoardSkeleton, PageContainer } from '../../../components/kit';
 import {
   ATTEMPT_PHASE_KEYS,
   EXAM_FILTERS,
@@ -25,17 +37,17 @@ import {
 } from './exam-status';
 
 /**
- * `/exams` (§18.G.4): kỳ thi của người học, dạng bảng giờ tàu.
+ * `/exams`: kỳ thi của người học, một dòng một kỳ thi.
  *
  * ## Không phân trang, và đó là một giả định phải nói ra
  *
- * `examSitting.list` trả hết một lượt: một sinh viên ở vài lớp có vài kỳ thi.
- * Nếu một ngày một tài khoản có hàng trăm kỳ thi thì ĐÂY là chỗ thêm keyset, và
- * khoá sắp hiện tại (`created_at`) không duy nhất nên sẽ phải kèm `id` phá hoà.
+ * `examSitting.list` trả hết một lượt: một sinh viên ở vài lớp có vài kỳ thi. Nếu
+ * một ngày một tài khoản có hàng trăm kỳ thi thì ĐÂY là chỗ thêm keyset, và khoá
+ * sắp hiện tại (`created_at`) không duy nhất nên sẽ phải kèm `id` phá hoà.
  *
  * ## Hai trục trạng thái trên mỗi dòng
  *
- * Cửa sổ của kỳ thi (sắp mở / đang mở / đã đóng, so với `serverNow` của máy chủ)
+ * Cửa sổ của kỳ thi (chưa mở / đang mở / đã đóng, so với `serverNow` của máy chủ)
  * và lượt làm của bạn (`closed` của máy chủ). Lý do không suy ở client nằm ở
  * `exam-status.ts`.
  */
@@ -50,135 +62,140 @@ export function ExamsClient(): ReactElement {
   const shown = rows.filter((row) => matchesExamFilter(filter, row.finished));
 
   return (
-    <PageContainer className="py-10 md:py-14">
-      <div
-        role="group"
-        aria-label={t('exam.filter-label')}
-        className="mb-6 flex flex-wrap items-center gap-2 border-t-2 border-ink pt-5"
-      >
-        {EXAM_FILTERS.map((value) => (
-          <Chip
-            key={value}
-            selected={filter === value}
-            onClick={() => {
-              setFilter(value);
-            }}
-            {...(query.isSuccess
-              ? { count: rows.filter((row) => matchesExamFilter(value, row.finished)).length }
-              : {})}
-          >
-            {t(EXAM_FILTER_KEYS[value])}
-          </Chip>
-        ))}
-      </div>
+    <div className="flex flex-col gap-6 pb-16">
+      <Segmented
+        label={t('exam.filter-label')}
+        value={filter}
+        onValueChange={setFilter}
+        className="self-start"
+        options={EXAM_FILTERS.map((value) => ({
+          value,
+          label: t(EXAM_FILTER_KEYS[value]),
+          ...(query.isSuccess ? { count: rows.filter((row) => matchesExamFilter(value, row.finished)).length } : {}),
+        }))}
+      />
 
-      {query.isPending && <BoardSkeleton rows={3} label={t('exam.loading')} />}
+      {query.isPending ? <RowsSkeleton rows={3} label={t('exam.loading')} /> : null}
 
-      {query.isError && (
-        <ErrorState
+      {query.isError ? (
+        <ErrorBlock
           title={t('exam.error-title')}
-          message={describeTrpcError(query.error)}
+          retryLabel={t('common.action.retry')}
           retrying={query.isFetching}
           onRetry={() => void query.refetch()}
-        />
-      )}
+        >
+          {describeTrpcError(query.error)}
+        </ErrorBlock>
+      ) : null}
 
-      {query.isSuccess && rows.length === 0 && (
-        <EmptyState title={t('exam.empty-title')} description={t('exam.empty-body')} />
-      )}
+      {query.isSuccess && rows.length === 0 ? (
+        <Empty title={t('exam.empty-title')} art={<EmptyArt kind="waiting" />}>
+          {t('exam.empty-body')}
+        </Empty>
+      ) : null}
 
-      {query.isSuccess && rows.length > 0 && shown.length === 0 && (
-        <EmptyState
+      {query.isSuccess && rows.length > 0 && shown.length === 0 ? (
+        <Empty
+          size="sm"
           title={t('exam.filter-empty-title')}
-          description={t('exam.filter-empty-body')}
           action={
-            <Chip
-              selected={false}
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={() => {
                 setFilter('all');
               }}
             >
               {t('exam.filter-all')}
-            </Chip>
+            </Button>
           }
-        />
-      )}
+        >
+          {t('exam.filter-empty-body')}
+        </Empty>
+      ) : null}
 
-      {shown.length > 0 && (
-        <Board label={t('exam.board-label')}>
-          {shown.map(({ item, slot, phase }, order) => (
-            <BoardRow
+      {shown.length > 0 ? (
+        <RowList label={t('exam.board-label')} className="border-t border-rule">
+          {shown.map(({ item, slot, phase }) => (
+            <Row
               key={item.id}
-              href={`/exams/${item.id}`}
-              index={order + 1}
-              order={order}
-              lineState={phase === 'submitted' ? 'done' : phase === 'in-progress' ? 'current' : 'todo'}
+              current={phase === 'in-progress'}
+              leading={<WindowGlyph slot={slot} />}
               title={item.title}
-              sub={t('exam.summary', {
+              link={<Link href={`/exams/${item.id}`}>{item.title}</Link>}
+              description={t('exam.summary', {
                 name: item.className,
                 count: item.problemCodes.length,
                 minutes: item.durationMinutes,
               })}
-              meta={
-                <>
-                  <WindowMark slot={slot} />
-                  <span className="flex items-center gap-1.5 font-mono text-xs tabular-nums">
-                    <CalendarClock aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
+              below={
+                <span className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                  <WindowPill slot={slot} />
+                  <PhasePill phase={phase} />
+                  <span className="inline-flex items-center gap-1.5 text-xs tabular-nums text-ink-3">
+                    <Icon name="calendar" size={14} />
                     {renderCopy(examWhen(item, formatMoment))}
                   </span>
-                </>
+                </span>
               }
-              state={<PhaseMark phase={phase} />}
             />
           ))}
-        </Board>
-      )}
-    </PageContainer>
+        </RowList>
+      ) : null}
+    </div>
   );
 }
 
-const WINDOW_DOT = {
-  upcoming: 'warn',
-  open: 'live',
-  closed: 'idle',
-} as const satisfies Record<ExamWindow, 'warn' | 'live' | 'idle'>;
-
-/** Cửa sổ của kỳ thi: chấm trạng thái + chữ. "Đang mở" là chấm sống duy nhất. */
-function WindowMark({ slot }: { readonly slot: ExamWindow }): ReactElement {
-  return (
-    <span
-      className={cn(
-        'inline-flex h-6 w-24 items-center gap-2 px-2 font-mono text-xs font-medium',
-        // Chữ mực trên nền nhạt; màu trạng thái nằm ở chấm. Chữ `text-success`
-        // trên chính nền `success/10` của nó chỉ đạt ~4.0:1, dưới AA.
-        slot === 'open' && 'bg-success/10 text-foreground',
-        slot === 'upcoming' && 'bg-signal text-signal-foreground',
-        slot === 'closed' && 'bg-muted text-muted-foreground',
-      )}
-    >
-      <StatusDot tone={WINDOW_DOT[slot]} />
-      {t(EXAM_WINDOW_KEYS[slot])}
-    </span>
-  );
-}
-
-const PHASE_TONE: Readonly<Record<AttemptPhase, string>> = {
-  'not-started': 'text-muted-foreground',
-  'in-progress': 'bg-primary text-primary-foreground',
-  submitted: 'text-success',
-  expired: 'text-warning',
+const WINDOW_GLYPH: Readonly<Record<ExamWindow, { readonly icon: IconName; readonly tone: string }>> = {
+  upcoming: { icon: 'hourglass', tone: 'text-warn-ink' },
+  open: { icon: 'exam', tone: 'text-ok-ink' },
+  closed: { icon: 'lock', tone: 'text-ink-3' },
 };
 
-/** Lượt làm của bạn. "Đang làm" là khối đỏ PTIT: đó là chỗ bạn đang đứng. */
-function PhaseMark({ phase }: { readonly phase: AttemptPhase }): ReactElement {
+/**
+ * Hình đầu dòng theo cửa sổ của kỳ thi. Chữ đi kèm ở `WindowPill`, hình chỉ để quét mắt.
+ * Glyph trần như ở khung kỳ thi của trang tổng quan, sắc thái nằm ở màu nét và lớp tô; không
+ * đặt trong đĩa tròn tô màu (rà ảnh 2026-10-20: cùng một kỳ thi từng có hai cách vẽ).
+ */
+function WindowGlyph({ slot }: { readonly slot: ExamWindow }): ReactElement {
+  const spec = WINDOW_GLYPH[slot];
+  return <Icon name={spec.icon} size={26} tint="neutral" className={spec.tone} />;
+}
+
+const WINDOW_TONE: Readonly<Record<ExamWindow, Tone>> = {
+  upcoming: 'warn',
+  open: 'ok',
+  closed: 'neutral',
+};
+
+/** Cửa sổ của kỳ thi. "Đang mở" là chấm sống duy nhất trên trang. */
+function WindowPill({ slot }: { readonly slot: ExamWindow }): ReactElement {
   return (
-    <span
-      className={cn(
-        'inline-flex h-6 w-28 items-center justify-center px-2 font-mono text-xs font-semibold',
-        PHASE_TONE[phase],
-      )}
-    >
+    <Pill tone={WINDOW_TONE[slot]} dot live={slot === 'open'}>
+      {t(EXAM_WINDOW_KEYS[slot])}
+    </Pill>
+  );
+}
+
+const PHASE_TONE: Readonly<Record<AttemptPhase, Tone>> = {
+  'not-started': 'neutral',
+  'in-progress': 'acc',
+  submitted: 'ok',
+  expired: 'warn',
+};
+
+const PHASE_ICON: Readonly<Record<AttemptPhase, IconName>> = {
+  'not-started': 'circle',
+  'in-progress': 'play',
+  submitted: 'success',
+  expired: 'timer',
+};
+
+/** Lượt làm của bạn, tách khỏi cửa sổ: kỳ thi đang mở vẫn có thể chứa một lượt đã hết giờ. */
+export function PhasePill({ phase }: { readonly phase: AttemptPhase }): ReactElement {
+  return (
+    <Pill tone={PHASE_TONE[phase]} icon={PHASE_ICON[phase]}>
       {t(ATTEMPT_PHASE_KEYS[phase])}
-    </span>
+    </Pill>
   );
 }

@@ -1,28 +1,26 @@
 import type { ReactElement } from 'react';
 import { t } from '@devops-platform/copy';
-import { Badge, type BadgeVariant } from '@devops-platform/ui';
+import { Pill, type Tone } from '@devops-platform/ds';
 import type { ExamWindowState } from './exam-form-model';
 
-const VARIANT: Readonly<Record<ExamWindowState, BadgeVariant>> = {
-  upcoming: 'outline',
-  open: 'success',
-  closed: 'outline',
+const TONE: Readonly<Record<ExamWindowState, Tone>> = {
+  upcoming: 'warn',
+  open: 'ok',
+  closed: 'neutral',
 };
 
 /**
- * Nhãn "Chưa mở / Đang mở / Đã đóng" của một kỳ thi, dùng ở ledger và ở trang
- * chi tiết. Phán quyết vùng nằm ở `examWindowState` (dùng lại `isExamOpen` của
- * máy chủ); ở đây chỉ chọn chữ và sắc.
+ * Nhãn "Chưa mở / Đang mở / Đã đóng" của một kỳ thi, dùng ở bảng và ở trang chi tiết.
+ * Phán quyết vùng nằm ở `examWindowState` (dùng lại `isExamOpen` của máy chủ); ở đây chỉ
+ * chọn chữ và sắc.
  *
- * Chữ là bộ `exam.window.*` dùng chung với màn của sinh viên. "Đã đóng" là
- * `outline` với chữ muted (không còn `secondary`, token cũ chỉ giữ cho game):
- * nó tách khỏi "Chưa mở" bằng độ đậm của chữ, và cặp `muted-foreground` trên
- * nền trang đã qua cổng tương phản.
+ * Chữ là bộ `exam.window.*` dùng chung với màn của sinh viên, và sắc cũng vậy: "Đang mở"
+ * là chấm sống duy nhất, giống danh sách kỳ thi phía người học.
  */
 export function ExamStateBadge({ state }: { readonly state: ExamWindowState }): ReactElement {
   return (
-    <Badge variant={VARIANT[state]} className={state === 'closed' ? 'text-muted-foreground' : undefined}>
+    <Pill tone={TONE[state]} dot live={state === 'open'}>
       {t(`exam.window.${state}`)}
-    </Badge>
+    </Pill>
   );
 }

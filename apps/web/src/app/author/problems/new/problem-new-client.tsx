@@ -3,7 +3,6 @@
 import { useCallback, useMemo, useRef, useState, type ReactElement } from 'react';
 import { useRouter } from 'next/navigation';
 import { count, t } from '@devops-platform/copy';
-import { useToast } from '@devops-platform/ui';
 import { RailSection, saveStatusOf } from '../../../../components/author/studio';
 import { api } from '../../../../lib/trpc-react';
 import { describeTrpcError } from '../../../../lib/trpc';
@@ -13,6 +12,7 @@ import { toProblemDraft } from '../problem-draft';
 import { ProblemEditor } from '../problem-editor';
 import { publishIssues } from '../problem-validate';
 import { SaveToolbar } from '../save-toolbar';
+import { toast } from '@devops-platform/ds';
 
 /**
  * `/author/problems/new`: soạn một bài mới. Luôn ra một bản NHÁP.
@@ -35,7 +35,6 @@ import { SaveToolbar } from '../save-toolbar';
  */
 export function ProblemNewClient(): ReactElement {
   const router = useRouter();
-  const { toast } = useToast();
   const utils = api.useUtils();
 
   const keyCounter = useRef(0);
@@ -51,11 +50,7 @@ export function ProblemNewClient(): ReactElement {
   const create = api.problems.create.useMutation({
     onSuccess: (problem) => {
       void utils.problems.mine.invalidate();
-      toast({
-        title: t('author.problem.new.created-title', { code: problem.code }),
-        description: t('author.problem.new.created-body'),
-        variant: 'success',
-      });
+      toast.success(t('author.problem.new.created-title', { code: problem.code }), { description: t('author.problem.new.created-body') });
       router.push(`/author/problems/${encodeURIComponent(problem.code)}`);
     },
   });
@@ -103,7 +98,7 @@ export function ProblemNewClient(): ReactElement {
         <RailSection title={t('author.studio.rail.readiness')} tone={gateCount > 0 ? 'warn' : 'accent'}>
           <p>{t('author.problem.new.submit-hint')}</p>
           {gateCount > 0 && (
-            <p className="text-muted-foreground">{count('author.problem.publish.blocked-title', gateCount)}</p>
+            <p className="text-ink-2">{count('author.problem.publish.blocked-title', gateCount)}</p>
           )}
         </RailSection>
       )}

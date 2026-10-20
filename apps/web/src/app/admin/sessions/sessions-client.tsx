@@ -1,35 +1,23 @@
 'use client';
 
-import { useState, type ReactElement } from 'react';
-import type { inferRouterOutputs } from '@trpc/server';
-import { err, t } from '@devops-platform/copy';
 import {
-  Alert,
-  AlertDescription,
-  AlertTitle,
-  Button,
-  CursorPager,
-  EmptyState,
-  StatusDot,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-  useToast,
-} from '@devops-platform/ui';
+  useState,
+  type ReactElement } from 'react';
+import type { inferRouterOutputs } from '@trpc/server';
+import { err,
+  t } from '@devops-platform/copy';
 import type { AppRouter } from '../../../server/trpc/routers/app-router';
 import { api } from '../../../lib/trpc-react';
-import { describeTrpcError, trpcErrorCode } from '../../../lib/trpc';
+import { describeTrpcError,
+  trpcErrorCode } from '../../../lib/trpc';
 import {
   AdminNote,
   AdminPage,
   FirstPageButton,
   LedgerError,
   LedgerSkeleton,
+  AdminPager,
 } from '../../../components/admin/admin-page';
-import { ConfirmDialog } from '../../../components/kit/confirm-dialog';
 import {
   describeExpiry,
   describeSessionOwner,
@@ -42,9 +30,11 @@ import {
   FIRST_PAGE,
   currentCursor,
   pageNumber,
+  popCursor,
   pushCursor,
   type CursorStack,
 } from '../../../lib/cursor-stack';
+import { Button, ConfirmDialog, Empty, Notice, Pill, Table, TBody, TD, TH, THead, TR, toast } from '@devops-platform/ds';
 
 type AdminSession = inferRouterOutputs<AppRouter>['admin']['sessions']['list']['items'][number];
 
@@ -67,16 +57,9 @@ export function AdminSessionsClient({ viewerId }: { readonly viewerId: string })
   const query = api.admin.sessions.list.useQuery(cursor === undefined ? {} : { cursor });
 
   return (
-    <AdminPage
-      kicker={t('admin.sessions.kicker')}
-      title={t('admin.sessions.title')}
-      lead={t('admin.sessions.lead')}
-    >
-      <div className="flex flex-col gap-6 pt-10">
-        <Alert>
-          <AlertTitle as="h2">{t('admin.sessions.alert-title')}</AlertTitle>
-          <AlertDescription>{t('admin.sessions.alert-body')}</AlertDescription>
-        </Alert>
+    <AdminPage title={t('admin.sessions.title')} lead={t('admin.sessions.lead')}>
+      <div className="flex flex-col gap-6">
+        <Notice tone="info" title={t('admin.sessions.alert-title')}>{t('admin.sessions.alert-body')}</Notice>
 
         {query.isPending ? (
           <LedgerSkeleton />
@@ -89,30 +72,26 @@ export function AdminSessionsClient({ viewerId }: { readonly viewerId: string })
             onFirst={() => setStack(FIRST_PAGE)}
           />
         ) : query.data.items.length === 0 ? (
-          <EmptyState
-            title={t('admin.sessions.empty-title')}
-            description={t('admin.sessions.empty-body')}
-            {...(pageNumber(stack) > 1
+          <Empty title={t('admin.sessions.empty-title')} {...(pageNumber(stack) > 1
               ? { action: <FirstPageButton page={pageNumber(stack)} onFirst={() => setStack(FIRST_PAGE)} /> }
-              : {})}
-          />
+              : {})}>{t('admin.sessions.empty-body')}</Empty>
         ) : (
           <div className="flex flex-col gap-4">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t('admin.sessions.col-session')}</TableHead>
-                  <TableHead>{t('admin.sessions.col-owner')}</TableHead>
-                  <TableHead>{t('admin.sessions.col-status')}</TableHead>
-                  <TableHead>{t('admin.sessions.col-expiry')}</TableHead>
-                  <TableHead className="text-right">{t('admin.sessions.col-actions')}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+            <Table label={t('admin.sessions.title')}>
+              <THead>
+                <tr>
+                  <TH>{t('admin.sessions.col-session')}</TH>
+                  <TH>{t('admin.sessions.col-owner')}</TH>
+                  <TH>{t('admin.sessions.col-status')}</TH>
+                  <TH>{t('admin.sessions.col-expiry')}</TH>
+                  <TH numeric>{t('admin.sessions.col-actions')}</TH>
+                </tr>
+              </THead>
+              <TBody>
                 {query.data.items.map((session) => (
                   <SessionRow key={session.id} session={session} viewerId={viewerId} />
                 ))}
-              </TableBody>
+              </TBody>
             </Table>
 
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -123,13 +102,7 @@ export function AdminSessionsClient({ viewerId }: { readonly viewerId: string })
                 })}
                 {query.data.nextCursor != null ? t('admin.sessions.note-more') : '.'}
               </AdminNote>
-              <CursorPager
-                hasNext={query.data.nextCursor != null}
-                onNext={() => setStack((prev) => pushCursor(prev, query.data.nextCursor))}
-                onReset={() => setStack(FIRST_PAGE)}
-                page={pageNumber(stack)}
-                loading={query.isFetching}
-              />
+              <AdminPager page={pageNumber(stack)} hasNext={query.data.nextCursor != null} loading={query.isFetching} onNext={() => setStack((prev) => pushCursor(prev, query.data.nextCursor))} onFirst={() => setStack(FIRST_PAGE)} onPrevious={() => setStack(popCursor)} />
             </div>
           </div>
         )}
@@ -147,7 +120,6 @@ function SessionRow({
 }): ReactElement {
   const [open, setOpen] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
-  const { toast } = useToast();
   const utils = api.useUtils();
 
   const status = describeSessionStatus(session.status);
@@ -161,11 +133,7 @@ function SessionRow({
     onSuccess: () => {
       setOpen(false);
       setServerError(null);
-      toast({
-        variant: 'success',
-        title: t('admin.sessions.toast-title'),
-        description: t('admin.sessions.toast-body', { owner: session.userId }),
-      });
+      toast.success(t('admin.sessions.toast-title'), { description: t('admin.sessions.toast-body', { owner: session.userId }) });
       void utils.admin.sessions.list.invalidate();
       void utils.admin.audit.list.invalidate();
       // Sức chứa vừa đổi; số "còn N chỗ" của vỏ tự đọc lại sau tối đa 15s.
@@ -177,43 +145,43 @@ function SessionRow({
   });
 
   return (
-    <TableRow>
-      <TableCell>
+    <TR>
+      <TD>
         <div className="flex flex-col gap-0.5">
-          <span className="font-mono text-xs text-foreground">{session.id}</span>
-          <span className="font-mono text-xs text-muted-foreground">
+          <span className="font-mono text-xs text-ink">{session.id}</span>
+          <span className="font-mono text-xs text-ink-2">
             {t('admin.sessions.pod-line', {
               pod: session.podName === '' ? t('admin.sessions.pod-unassigned') : session.podName,
               at: formatMoment(session.createdAt),
             })}
           </span>
         </div>
-      </TableCell>
-      <TableCell className="font-mono text-xs">
+      </TD>
+      <TD className="font-mono text-xs">
         {describeSessionOwner(session.userId, viewerId)}
-      </TableCell>
-      <TableCell>
+      </TD>
+      <TD>
         {/*
           Chấm sống (nhấp nháy) chỉ cho phiên chưa vào trạng thái cuối:
           `describeSessionStatus().live` là phán quyết đã có test, không phải
           một so sánh chép tay ở đây.
         */}
-        <span className="flex items-center gap-2 text-sm">
-          <StatusDot tone={status.live ? 'live' : 'idle'} />
+        <Pill tone={status.tone} dot live={status.live}>
           {status.label}
-        </span>
-      </TableCell>
-      <TableCell className="font-mono text-xs text-muted-foreground">
+        </Pill>
+      </TD>
+      <TD className="text-xs tabular-nums text-ink-2">
         {/*
           `Date.now()` đọc ở CHỖ GỌI, không trong hàm nhãn: một hàm phụ thuộc
           đồng hồ là một test không xác định.
         */}
         {describeExpiry(session.expiresAt, Date.now())}
-      </TableCell>
-      <TableCell className="text-right">
+      </TD>
+      <TD numeric>
         <Button
-          variant="outline"
+          variant="danger"
           size="sm"
+          icon="power"
           onClick={() => {
             setServerError(null);
             setOpen(true);
@@ -238,10 +206,11 @@ function SessionRow({
           blockedReason={null}
           error={serverError}
           confirmLabel={plan.confirmLabel}
+          cancelLabel={t('common.action.cancel')}
           confirming={terminate.isPending}
           onConfirm={() => terminate.mutate({ sessionId: session.id })}
         />
-      </TableCell>
-    </TableRow>
+      </TD>
+    </TR>
   );
 }

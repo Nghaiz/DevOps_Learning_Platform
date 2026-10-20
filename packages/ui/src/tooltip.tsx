@@ -15,25 +15,32 @@ export function TooltipContent({
 }: ComponentProps<typeof RadixTooltip.Content>) {
   return (
     <RadixTooltip.Portal>
-      <RadixTooltip.Content
-        data-slot="tooltip-content"
-        sideOffset={sideOffset}
-        className={cn(
-          /*
-           * Khối mực đảo màu (design-brief §2.1). Viền `border-ink` không phải
-           * trang trí: Windows High Contrast bỏ hẳn `box-shadow`, nên một lớp nổi
-           * chỉ tách khỏi trang bằng bóng sẽ biến mất với người bật chế độ đó.
-           *
-           * Bo góc `control` chứ không `surface`: trong `.arena-root` của game
-           * K8s hai biến này ra bo cũ, và tooltip cao 28px đeo bo 12px thì đọc
-           * ra viên thuốc. Trong app cả hai là 0.
-           */
-          'z-50 max-w-xs rounded-control border border-ink bg-ink px-3 py-1.5 text-xs text-ink-foreground',
-          'shadow-float animate-rise [animation-duration:var(--motion-fast)]',
-          className,
-        )}
-        {...props}
-      />
+      {/*
+        Portal gắn vào <body>, ngoài `.legacy-skin` của màn chơi, nên token của legacy.css không tới.
+        Bọc trong một khung `contents` mang lại phạm vi đó; KHÔNG gắn lớp lên chính nội dung: quy tắc
+        `.legacy-skin { color; font-family }` nằm ngoài @layer và sẽ đè lớp chữ của nó.
+      */}
+      <div className="legacy-skin contents">
+        <RadixTooltip.Content
+          data-slot="tooltip-content"
+          sideOffset={sideOffset}
+          className={cn(
+            /*
+             * Khối mực đảo màu (design-brief §2.1). Viền `border-ink` không phải
+             * trang trí: Windows High Contrast bỏ hẳn `box-shadow`, nên một lớp nổi
+             * chỉ tách khỏi trang bằng bóng sẽ biến mất với người bật chế độ đó.
+             *
+             * Bo góc `control` chứ không `surface`: trong `.arena-root` của game
+             * K8s hai biến này ra bo cũ, và tooltip cao 28px đeo bo 12px thì đọc
+             * ra viên thuốc. Trong app cả hai là 0.
+             */
+            'z-50 max-w-xs rounded-control border border-ink bg-ink px-3 py-1.5 text-xs text-ink-foreground',
+            'shadow-float animate-rise [animation-duration:var(--motion-fast)]',
+            className,
+          )}
+          {...props}
+        />
+      </div>
     </RadixTooltip.Portal>
   );
 }

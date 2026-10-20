@@ -1,14 +1,14 @@
-# Mot cum hai node, chay that
+# Một cụm hai node, chạy thật
 
-Sandbox cua ban dang chay mot cum Kubernetes **hai node** — mot `server` va mot
-`agent`, moi node la mot container rieng, noi voi nhau bang mot mang rieng.
+Sandbox của bạn đang chạy một cụm Kubernetes **hai node**: một `server` và một
+`agent`, mỗi node là một container riêng, nối với nhau bằng một mạng riêng.
 
-Vi sao dieu do dang de co mot bai rieng: rat nhieu thu trong Kubernetes **trong
-nhu dung** tren cum mot node roi hong khi len cum that. `nodeSelector` khong ghim
-gi ca khi chi co mot cho de ghim. Mot DaemonSet "chay tren moi node" ma chi co
-mot node thi khong phan biet duoc voi mot Deployment `replicas: 1`.
+Vì sao điều đó đáng có một bài riêng: rất nhiều thứ trong Kubernetes **trông
+như đúng** trên cụm một node rồi hỏng khi lên cụm thật. `nodeSelector` không ghim
+gì cả khi chỉ có một chỗ để ghim. Một DaemonSet "chạy trên mọi node" mà chỉ có
+một node thì không phân biệt được với một Deployment `replicas: 1`.
 
-Ba buoc duoi day deu **cho ra ket qua khac** neu cum chi co mot node. Do la chu
-dich: bai nay chi co nghia khi co node thu hai.
+Ba bước dưới đây đều **cho ra kết quả khác** nếu cụm chỉ có một node. Đó là chủ
+đích: bài này chỉ có nghĩa khi có node thứ hai.
 
-Cum can khoang mot phut de ca hai node bao `Ready`. Terminal se cho giup ban.
+Cụm cần khoảng một phút để cả hai node báo `Ready`. Terminal sẽ chờ giúp bạn.

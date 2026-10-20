@@ -24,7 +24,7 @@ describe('Label', () => {
 });
 
 /**
- * Bảng 4 trạng thái ở `docs/design-system.md` §4a khai `Label` → disabled =
+ * Bảng 4 trạng thái ở `docs/design-system-legacy.md` §4a khai `Label` → disabled =
  * "theo `peer-disabled` của control liên kết". Đó là một khẳng định về CODE,
  * nên nó phải có một phép kiểm — nếu không, bảng đang nói nhiều hơn thứ
  * `packages/ui` thật sự làm, và mục "n/a có lý do" mất hết giá trị vì không

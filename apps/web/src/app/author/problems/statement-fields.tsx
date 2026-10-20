@@ -1,13 +1,16 @@
 'use client';
 
 import { useRef, useState, type ReactElement } from 'react';
-import { Bold, Code2, Heading2, List, RefreshCw, type LucideIcon } from 'lucide-react';
 import { t } from '@devops-platform/copy';
-import { Button, MarkdownView, Meter, Tabs, TabsContent, TabsList, TabsTrigger } from '@devops-platform/ui';
+import { Markdown } from '@devops-platform/ds/content';
+import { contentLabels } from '../../../components/session/practice-labels';
 import { TextAreaField, TextField, issueFor } from '../../../components/author/field';
 import type { FieldIssue } from './cluster-form';
 import type { ProblemFormState } from './problem-form';
 import { STATEMENT_WORD_LIMIT, countWords, toSlug } from './text-tools';
+import { Button, IconButton, ProgressLine, Tabs, TabsContent, TabsList, TabsTrigger, type IconName } from '@devops-platform/ds';
+
+const LABELS = contentLabels();
 
 const WRITE = 'viet';
 const PREVIEW = 'xem';
@@ -62,19 +65,19 @@ export function StatementFields(props: {
 
       <div className="grid gap-6 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
         <div className="flex flex-col gap-1.5">
-          <p className="text-[13px] font-semibold text-foreground">{t('problem.statement-fields-ma-bai')}</p>
+          <p className="text-[13px] font-semibold text-ink">{t('problem.statement-fields-ma-bai')}</p>
           {props.code === null ? (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-ink-2">
               {t(
                 'problem.statement-fields-may-chu-cap-khi-ban-luu-lan-dau-ma-on-dinh-vinh-vien-khong-doi-ke-ca-khi-ba',
               )}
             </p>
           ) : (
             <>
-              <code className="inline-flex h-10 w-fit items-center bg-muted px-3 font-mono text-sm text-foreground">
+              <code className="inline-flex h-10 w-fit items-center bg-well px-3 font-mono text-sm text-ink">
                 {props.code}
               </code>
-              <p className="text-xs text-muted-foreground">{t('author.problem.code-note')}</p>
+              <p className="text-xs text-ink-2">{t('author.problem.code-note')}</p>
             </>
           )}
         </div>
@@ -92,7 +95,7 @@ export function StatementFields(props: {
                 {t(
                   'problem.statement-fields-chu-thuong-so-va-gach-noi-slug-doi-duoc-khi-sua-ten-bai-khac-ma-bai-la-thu',
                 )}{' '}
-                <code className="font-mono text-foreground">
+                <code className="font-mono text-ink">
                   {slugPreview === '' ? t('problem.statement-fields-trong') : slugPreview}
                 </code>
               </>
@@ -104,7 +107,7 @@ export function StatementFields(props: {
               variant="ghost"
               size="sm"
               disabled={form.title.trim() === ''}
-              iconLeft={<RefreshCw aria-hidden className="size-4" />}
+              icon="refresh"
               onClick={() => {
                 props.onChange({ slug: toSlug(form.title) });
               }}
@@ -125,13 +128,13 @@ export function StatementFields(props: {
             <div
               role="group"
               aria-label={t('author.problem.markdown.toolbar')}
-              className="flex flex-wrap items-center gap-1 border-b border-border pb-2"
+              className="flex flex-wrap items-center gap-1 border-b border-rule pb-2"
             >
-              <ToolButton icon={Heading2} label={t('author.problem.markdown.heading')} onClick={() => insert('\n## ', '\n', t('author.problem.markdown.seed-heading'))} />
-              <ToolButton icon={Bold} label={t('author.problem.markdown.bold')} onClick={() => insert('**', '**', t('author.problem.markdown.seed-bold'))} />
-              <ToolButton icon={List} label={t('author.problem.markdown.list')} onClick={() => insert('\n- ', '\n', t('author.problem.markdown.seed-list'))} />
-              <ToolButton icon={Code2} label={t('author.problem.markdown.code')} onClick={() => insert('\n```\n', '\n```\n', t('author.problem.markdown.seed-code'))} />
-              <span className="ml-auto type-label text-muted-foreground">{t('author.problem.markdown.badge')}</span>
+              <ToolButton icon="heading" label={t('author.problem.markdown.heading')} onClick={() => insert('\n## ', '\n', t('author.problem.markdown.seed-heading'))} />
+              <ToolButton icon="bold" label={t('author.problem.markdown.bold')} onClick={() => insert('**', '**', t('author.problem.markdown.seed-bold'))} />
+              <ToolButton icon="list" label={t('author.problem.markdown.list')} onClick={() => insert('\n- ', '\n', t('author.problem.markdown.seed-list'))} />
+              <ToolButton icon="code" label={t('author.problem.markdown.code')} onClick={() => insert('\n```\n', '\n```\n', t('author.problem.markdown.seed-code'))} />
+              <span className="ml-auto text-xs font-medium text-ink-3">{t('author.problem.markdown.badge')}</span>
             </div>
             <TextAreaField
               label={t('problem.statement-fields-de-bai-markdown')}
@@ -150,11 +153,11 @@ export function StatementFields(props: {
           </div>
         </TabsContent>
         <TabsContent value={PREVIEW} className="focus-visible:outline-none">
-          <div className="min-h-48 border-t-2 border-foreground bg-card px-5 py-4">
+          <div className="min-h-48 rounded-lg border border-rule bg-paper px-5 py-4">
             {form.statement.trim() === '' ? (
-              <p className="text-sm text-muted-foreground">{t('problem.statement-fields-chua-co-gi-de-xem-truoc')}</p>
+              <p className="text-sm text-ink-2">{t('problem.statement-fields-chua-co-gi-de-xem-truoc')}</p>
             ) : (
-              <MarkdownView markdown={form.statement} resolveAssetUrl={() => null} />
+              <Markdown markdown={form.statement} labels={LABELS} resolveAssetUrl={() => null} />
             )}
           </div>
         </TabsContent>
@@ -164,13 +167,8 @@ export function StatementFields(props: {
   );
 }
 
-function ToolButton(props: { readonly icon: LucideIcon; readonly label: string; readonly onClick: () => void }): ReactElement {
-  const Icon = props.icon;
-  return (
-    <Button type="button" variant="ghost" size="icon" aria-label={props.label} onClick={props.onClick}>
-      <Icon aria-hidden className="size-4" />
-    </Button>
-  );
+function ToolButton(props: { readonly icon: IconName; readonly label: string; readonly onClick: () => void }): ReactElement {
+  return <IconButton type="button" icon={props.icon} label={props.label} size="icon-sm" onClick={props.onClick} />;
 }
 
 function WordMeter({ words }: { readonly words: number }): ReactElement {
@@ -178,17 +176,15 @@ function WordMeter({ words }: { readonly words: number }): ReactElement {
   const over = remaining < 0;
   const near = !over && words >= STATEMENT_WORD_LIMIT * 0.8;
   const count = `${String(words)}/${String(STATEMENT_WORD_LIMIT)} ${t('problem.statement-fields-tu')}`;
-  // `text-warning`, KHÔNG `text-warning-foreground`: cái sau là màu chữ đặt TRÊN
-  // nền `--warning`, đặt trên nền trang thì gần như trắng trên trắng.
-  const tone = over ? 'text-destructive' : near ? 'text-warning' : 'text-muted-foreground';
+  const tone = over ? 'text-bad-ink' : near ? 'text-warn-ink' : 'text-ink-2';
   return (
     <div className="flex flex-col gap-1.5">
-      <Meter
-        value={Math.min(words, STATEMENT_WORD_LIMIT)}
-        max={STATEMENT_WORD_LIMIT}
-        segments={15}
-        tone={over ? 'destructive' : near ? 'warning' : 'cicd'}
+      <ProgressLine
+        value={Math.min(words, STATEMENT_WORD_LIMIT) / STATEMENT_WORD_LIMIT}
+        role="meter"
+        tone={over ? 'bad' : near ? 'warn' : 'acc'}
         label={count}
+        className="max-w-sm"
       />
       <p className={`text-xs ${tone}`} aria-live="polite">
         {count}{' '}

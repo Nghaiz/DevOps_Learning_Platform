@@ -143,15 +143,14 @@ test.describe('luồng 7 — sân chơi', { tag: '@flow' }, () => {
 
     /*
       AC 13.D mục 15, nửa đầu: TTL đọc được NGAY TRÊN DÒNG, trước cả khi mở sân
-      chơi ra (`catalog.meta.ttl`). `BoardRow` vẽ phần meta HAI lần (một bản cho
-      màn hẹp `md:hidden`, một bản cho màn rộng), nên lọc bản đang hiện, nếu không
-      Playwright đỏ vì strict mode chứ không vì sản phẩm.
+      chơi ra (`catalog.meta.ttl`). `Row` của ds vẽ cột phụ MỘT lần, là anh em của thẻ
+      link trong cùng `<li>` (link chỉ bọc tiêu đề), nên neo theo dòng chứ không theo link.
     */
     await expect(
-      rows
-        .first()
-        .getByText(t('catalog.meta.ttl', { minutes: ttlMinutes }), { exact: true })
-        .filter({ visible: true }),
+      page
+        .getByRole('listitem')
+        .filter({ has: page.getByRole('link', { name: detail.playground.title, exact: true }) })
+        .getByText(t('catalog.meta.ttl', { minutes: ttlMinutes }), { exact: true }),
       `Dòng '${detail.playground.title}' không nói TTL. Người học phải biết môi trường tự ` +
         'đóng sau bao lâu TRƯỚC KHI bấm vào, không chỉ trước khi bấm Bắt đầu.',
     ).toBeVisible();
@@ -199,8 +198,8 @@ test.describe('luồng 7 — sân chơi', { tag: '@flow' }, () => {
     // Neo vào `t()`: bản regex trước đỏ vì chữ HOA đầu câu, trong khi thông điệp lại
     // nói về "hai con số TTL khác nhau". `ttlMinutes` đi thẳng vào tham số của câu.
     await expect(
-      page.getByText(t('session.playground.empty', { minutes: ttlMinutes })),
-      'Khoang terminal chưa có phiên phải nói cùng con số TTL đó.',
+      page.getByText(t('session.launch.fact.ttl', { minutes: ttlMinutes }), { exact: true }),
+      'Khoang làm việc chưa mở máy phải nói cùng con số TTL đó.',
     ).toBeVisible();
 
     // Đối chứng của mốc 1: chưa bắt đầu thì KHÔNG có khoang terminal nào.
@@ -240,11 +239,13 @@ test.describe('luồng 7 — sân chơi', { tag: '@flow' }, () => {
     // ── 8. UI nói LÝ DO, không phải "đang nối lại" ────────────────────────
     // Câu này là chữ của `packages/terminal/src/session-machine.ts` (sự kiện
     // `ENDED`), không thuộc `packages/copy`, nên neo bằng regex có nguồn trích.
+    // Neo nội dung vùng aria-live, không neo "nhìn thấy": dưới 1280px câu này là `sr-only`
+    // (người nhìn thấy đọc lý do ở khoang terminal), nhưng trình đọc màn hình vẫn phải nghe.
     await expect(
-      announcer.getByText(/Bạn đã kết thúc phiên/),
+      announcer,
       'Phiên đã chết nhưng UI không nói vì sao. `session-machine` đặt sẵn câu "Bạn đã kết thúc ' +
         'phiên…" cho đúng tình huống này; thiếu nó người học chỉ thấy màn hình đổi trạng thái.',
-    ).toBeVisible({ timeout: 30_000 });
+    ).toContainText(/Bạn đã kết thúc phiên/, { timeout: 30_000 });
 
     // Pha phải về đúng `idle`: câu lý do và badge đến từ hai field khác nhau của
     // cùng một state, nên câu đúng mà badge vẫn kẹt được.

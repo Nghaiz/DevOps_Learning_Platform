@@ -2,12 +2,11 @@
 
 import { useMemo, useState, type ReactElement } from 'react';
 import Link from 'next/link';
-import { Plus } from 'lucide-react';
-import { Badge, Button, EmptyState, ErrorState } from '@devops-platform/ui';
 import { renderCopy, t } from '@devops-platform/copy';
+import { Button, Empty, EmptyArt, ErrorBlock, Page, PageHeader, Row, RowList, RowsSkeleton, TopicGlyph } from '@devops-platform/ds';
 import { api } from '../../lib/trpc-react';
 import { describeTrpcError } from '../../lib/trpc';
-import { Board, BoardRow, BoardSkeleton, PageContainer, PosterHeader, lineForTopic } from '../../components/kit';
+import { topicLook } from '../../lib/topic-look';
 import { StateChip, StudioListBody, type StudioFilter } from '../../components/author/studio';
 import {
   KIND_KEYS,
@@ -29,14 +28,14 @@ import {
  *
  * ## Lọc và tìm ở CLIENT, có đếm
  *
- * `authoring.list` là procedure không tham số và không phân trang: nó trả MỌI
- * bài của người gọi trong một lượt (admin: mọi bài của mọi người). Nên bộ lọc
- * trạng thái và ô tìm chạy tại chỗ, và số ở mỗi tab là số THẬT của toàn bộ, không
- * phải "trang này". `/author/problems` thì phân trang ở máy chủ nên không đếm;
- * hai trang dùng chung `StudioListBody` để trông như một hệ.
+ * `authoring.list` là procedure không tham số và không phân trang: nó trả MỌI bài của
+ * người gọi trong một lượt (admin: mọi bài của mọi người). Nên bộ lọc trạng thái và ô
+ * tìm chạy tại chỗ, và số ở mỗi tab là số THẬT của toàn bộ, không phải "trang này".
+ * `/author/problems` thì phân trang ở máy chủ nên không đếm; hai trang dùng chung
+ * `StudioListBody` để trông như một hệ.
  *
- * ⛔ KHÔNG `useInfiniteQuery`: `@trpc/react-query` tự chèn `direction` vào input,
- * mọi input schema của dự án là `.strict()`, và request thật 400.
+ * ⛔ KHÔNG `useInfiniteQuery`: `@trpc/react-query` tự chèn `direction` vào input, mọi
+ * input schema của dự án là `.strict()`, và request thật 400.
  * ⛔ KHÔNG dựng `<main>`: vỏ ứng dụng sở hữu landmark đó.
  */
 export function AuthorListClient(): ReactElement {
@@ -50,15 +49,12 @@ export function AuthorListClient(): ReactElement {
   const shown = useMemo(
     () =>
       sortByRecent(filterByState(items, filter)).filter(
-        (item) =>
-          needle === '' ||
-          item.title.toLocaleLowerCase('vi').includes(needle) ||
-          item.id.includes(needle),
+        (item) => needle === '' || item.title.toLocaleLowerCase('vi').includes(needle) || item.id.includes(needle),
       ),
     [items, filter, needle],
   );
-  // MỘT mốc thời gian cho cả lượt render, để hai hàng cạnh nhau không đọc hai
-  // đồng hồ khác nhau và nhãn "vừa xong" không nhảy giữa các hàng.
+  // MỘT mốc thời gian cho cả lượt render, để hai hàng cạnh nhau không đọc hai đồng hồ
+  // khác nhau và nhãn "vừa xong" không nhảy giữa các hàng.
   const now = new Date();
 
   const filters: readonly StudioFilter<StateFilter>[] = STATE_FILTERS.map((value) => ({
@@ -67,125 +63,117 @@ export function AuthorListClient(): ReactElement {
     count: counts[value],
   }));
 
-  const newButton = (
-    <Button asChild variant="ink" size="lg" iconLeft={<Plus aria-hidden className="size-4" />}>
-      <Link href="/author/new">{t('author.list.new-cta')}</Link>
-    </Button>
-  );
-
   return (
-    <>
-      <PosterHeader
-        section="studio"
-        {...(query.isSuccess
-          ? { kicker: t('author.list.kicker', { total: counts.all, drafts: counts.draft }) }
-          : {})}
+    <Page className="pb-16">
+      <PageHeader
         title={t('author.list.title')}
         lead={t('author.list.lead')}
-        aside={newButton}
-      />
-      <PageContainer>
-        <div className="flex flex-col gap-6 py-10">
-          {query.isPending && <BoardSkeleton rows={4} label={t('author.studio.list.loading')} />}
+        actions={
+          <Button asChild variant="primary" size="lg" icon="plus">
+            <Link href="/author/new">{t('author.list.new-cta')}</Link>
+          </Button>
+        }
+      >
+        {query.isSuccess ? (
+          <p className="text-sm text-ink-3">{t('author.list.summary', { total: counts.all, drafts: counts.draft })}</p>
+        ) : null}
+      </PageHeader>
 
-          {query.isError && (
-            <ErrorState
-              title={t('author.list.error-title')}
-              message={describeTrpcError(query.error)}
-              onRetry={() => void query.refetch()}
-              retrying={query.isFetching}
-            />
-          )}
+      <div className="flex flex-col gap-6">
+        {query.isPending ? <RowsSkeleton rows={4} label={t('author.studio.list.loading')} /> : null}
 
-          {query.isSuccess && items.length === 0 && (
-            <EmptyState
-              title={t('author.list.empty-title')}
-              description={t('author.list.empty-body')}
-              action={
-                <Button asChild>
-                  <Link href="/author/new">{t('author.list.empty-cta')}</Link>
-                </Button>
-              }
-            />
-          )}
+        {query.isError ? (
+          <ErrorBlock
+            title={t('author.list.error-title')}
+            retryLabel={t('common.action.retry')}
+            retrying={query.isFetching}
+            onRetry={() => void query.refetch()}
+          >
+            {describeTrpcError(query.error)}
+          </ErrorBlock>
+        ) : null}
 
-          {query.isSuccess && items.length > 0 && (
-            <StudioListBody
-              filterLabel={t('author.studio.list.filter-label')}
-              filters={filters}
-              filter={filter}
-              onFilterChange={setFilter}
-              searchLabel={t('author.studio.list.search-label')}
-              searchPlaceholder={t('author.studio.list.search-placeholder')}
-              search={search}
-              onSearchChange={setSearch}
-            >
-              {shown.length === 0 ? (
-                <EmptyState
-                  title={
-                    needle === ''
-                      ? renderCopy({
-                          key: 'author.list.filter.empty.title',
-                          params: { filter: t(filterLabelKey(filter)) },
-                        })
-                      : t('author.studio.list.no-match', { query: search.trim() })
-                  }
-                  {...(needle === '' ? { description: t('author.list.filter.empty.body') } : {})}
-                />
-              ) : (
-                <Board label={t('author.list.board-label')}>
-                  {shown.map((item, index) => (
-                    <ItemRow key={item.id} item={item} index={index + 1} now={now} />
-                  ))}
-                </Board>
-              )}
-            </StudioListBody>
-          )}
-        </div>
-      </PageContainer>
-    </>
+        {query.isSuccess && items.length === 0 ? (
+          <Empty
+            title={t('author.list.empty-title')}
+            art={<EmptyArt kind="nothing" />}
+            action={
+              <Button asChild variant="primary" icon="plus">
+                <Link href="/author/new">{t('author.list.empty-cta')}</Link>
+              </Button>
+            }
+          >
+            {t('author.list.empty-body')}
+          </Empty>
+        ) : null}
+
+        {query.isSuccess && items.length > 0 ? (
+          <StudioListBody
+            filterLabel={t('author.studio.list.filter-label')}
+            filters={filters}
+            filter={filter}
+            onFilterChange={setFilter}
+            searchLabel={t('author.studio.list.search-label')}
+            searchPlaceholder={t('author.studio.list.search-placeholder')}
+            search={search}
+            onSearchChange={setSearch}
+          >
+            {shown.length === 0 ? (
+              <Empty
+                size="sm"
+                className="mt-4"
+                title={
+                  needle === ''
+                    ? renderCopy({ key: 'author.list.filter.empty.title', params: { filter: t(filterLabelKey(filter)) } })
+                    : t('author.studio.list.no-match', { query: search.trim() })
+                }
+              >
+                {needle === '' ? t('author.list.filter.empty.body') : undefined}
+              </Empty>
+            ) : (
+              <RowList label={t('author.list.board-label')}>
+                {shown.map((item) => (
+                  <ItemRow key={item.id} item={item} now={now} />
+                ))}
+              </RowList>
+            )}
+          </StudioListBody>
+        ) : null}
+      </div>
+    </Page>
   );
 }
 
-function ItemRow(props: {
-  readonly item: AuthoredItem;
-  readonly index: number;
-  readonly now: Date;
-}): ReactElement {
+function ItemRow(props: { readonly item: AuthoredItem; readonly now: Date }): ReactElement {
   const { item } = props;
+  const look = topicLook({ id: item.id });
   const failure = lastPublishFailure(item);
-  // Lỗi máy chủ có thể dài cả trang. Hàng chỉ mang dòng đầu; nguyên văn nằm ở
-  // chế độ Xuất bản của bài, nơi người soạn sửa được nó.
+  // Lỗi máy chủ có thể dài cả trang. Hàng chỉ mang dòng đầu; nguyên văn nằm ở chế độ
+  // Xuất bản của bài, nơi người soạn sửa được nó.
   const reason = failure?.split('\n').find((line) => line.trim() !== '')?.trim() ?? null;
 
   return (
-    <BoardRow
-      href={`/author/${encodeURIComponent(item.id)}`}
-      index={props.index}
-      order={props.index - 1}
-      line={lineForTopic({ id: item.id })}
+    <Row
+      topic={look.topic}
+      leading={<TopicGlyph topic={look.topic} icon={look.icon} size={24} />}
       title={item.title}
-      sub={
-        <span className="flex flex-col gap-1">
-          <span>
-            {renderCopy(describeItem(item))} · <code className="font-mono text-xs">{item.id}</code>
-          </span>
-          {reason !== null && (
-            <span className="line-clamp-1 font-medium text-destructive">
-              {t('author.list.publish-failed', { reason })}
-            </span>
-          )}
+      link={<Link href={`/author/${encodeURIComponent(item.id)}`}>{item.title}</Link>}
+      description={
+        <span className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
+          <span>{renderCopy(describeItem(item))}</span>
+          <code className="font-mono text-xs text-ink-3">{item.id}</code>
         </span>
       }
+      {...(reason === null
+        ? {}
+        : { below: <p className="line-clamp-1 text-sm font-medium text-bad-ink">{t('author.list.publish-failed', { reason })}</p> })}
       meta={
         <>
-          <Badge variant="outline">{t(KIND_KEYS[item.kind])}</Badge>
-          <span className="font-mono text-xs text-muted-foreground">
-            {renderCopy(describeUpdatedAt(item.updatedAt, props.now))}
-          </span>
+          <span className="w-20 text-xs text-ink-2">{t(KIND_KEYS[item.kind])}</span>
+          <span className="w-36 text-xs text-ink-3">{renderCopy(describeUpdatedAt(item.updatedAt, props.now))}</span>
         </>
       }
-      state={<StateChip state={item.state} label={t(STATE_KEYS[item.state])} />}
+      trailing={<StateChip state={item.state} label={t(STATE_KEYS[item.state])} />}
     />
   );
 }

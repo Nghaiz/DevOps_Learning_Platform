@@ -265,6 +265,7 @@ describe('AC-8 · chưa có phiên', () => {
 
     expect(fetchCalls()).toBe(0);
     expect(iframe()).toBeNull();
-    expect(screen.getByText(/Bấm Bắt đầu/)).toBeDefined();
+    // Nút Bắt đầu nằm ở khoang terminal, nên câu phải chỉ đường sang đó.
+    expect(screen.getByText(/tab Terminal và bấm Bắt đầu/)).toBeDefined();
   });
 });

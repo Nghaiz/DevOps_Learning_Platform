@@ -1,13 +1,11 @@
 'use client';
 
 import type { ReactElement } from 'react';
-import { Trash2 } from 'lucide-react';
 import { t } from '@devops-platform/copy';
-import { Button, Switch } from '@devops-platform/ui';
 import { Field, TextAreaField, TextField, issueFor } from '../../../components/author/field';
-import type { TopicLine } from '../../../components/kit';
 import type { FieldIssue, NodeFormState } from './cluster-form';
 import { ItemBlock } from './item-block';
+import { Button, Switch } from '@devops-platform/ds';
 
 /**
  * Một node trong cụm ban đầu.
@@ -20,7 +18,6 @@ import { ItemBlock } from './item-block';
 export function NodeFields(props: {
   readonly node: NodeFormState;
   readonly index: number;
-  readonly line: TopicLine;
   readonly issues: readonly FieldIssue[];
   readonly onChange: (patch: Partial<NodeFormState>) => void;
   readonly onRemove: () => void;
@@ -32,7 +29,6 @@ export function NodeFields(props: {
   return (
     <ItemBlock
       index={props.index}
-      line={props.line}
       path={base}
       title={node.name.trim() === '' ? `${t('problem.cluster-fields-node')} ${String(props.index + 1)}` : node.name}
       actions={
@@ -41,7 +37,7 @@ export function NodeFields(props: {
           variant="ghost"
           size="sm"
           disabled={!props.canRemove}
-          iconLeft={<Trash2 aria-hidden className="size-4" />}
+          icon="trash"
           onClick={props.onRemove}
         >
           {t('common.action.delete')}

@@ -15,8 +15,8 @@ export type { TerminalPaneProps } from './terminal-pane.tsx';
 
 export { useResolvedTerminalTheme } from './use-resolved-terminal-theme';
 
-export { WorkspaceSplit, nextWideEnough, STACK_BELOW_PX, UNSTACK_FROM_PX } from './workspace-split.tsx';
-export type { WorkspaceSplitProps } from './workspace-split.tsx';
+export { WorkspaceSplit, nextWideEnough, STACK_BELOW_PX, UNSTACK_FROM_PX, NARROW_BELOW_PX } from './workspace-split.tsx';
+export type { SplitFocus, WorkspaceSplitProps } from './workspace-split.tsx';
 
 export { WorkspacePanel } from './workspace-panel.tsx';
 export type { WorkspacePanelProps } from './workspace-panel.tsx';
@@ -36,14 +36,14 @@ export {
   useWorkspaceLayout,
 } from './workspace-layout.tsx';
 
-// Thanh 48px + dải thông báo của màn thực hành.
+// Thanh 52px + dải thông báo của khu thực hành.
 export { WorkspaceBar } from './workspace-bar.tsx';
 export type { WorkspaceBarProps } from './workspace-bar.tsx';
 export { NoticeStrip } from './notice-strip.tsx';
 export type { PracticeNotice } from './notice-strip.tsx';
 
-export { PhaseIcon, SessionStatusPill, phaseToneClass } from './session-status.tsx';
-export type { PhaseIconProps, SessionStatusPillProps } from './session-status.tsx';
+export { SessionStatusPill } from './session-status.tsx';
+export type { SessionStatusPillProps } from './session-status.tsx';
 
 // Cổng nút Kiểm tra / nút chạy lệnh, lớp phủ theo pha, bàn giao cửa sổ riêng.
 export { checkBlockedReason, execBlockedReason } from './practice-gates';
@@ -52,9 +52,9 @@ export { resolveTerminalOverlay, overlayActionLabel } from './terminal-overlay';
 export type { OverlayAction, OverlayInput, TerminalOverlay } from './terminal-overlay';
 export { useTerminalHandoff, useWindowHandoff, terminalWindowUrl } from './terminal-handoff';
 export type { HandoffState, TerminalHandoff, WindowHandoff } from './terminal-handoff';
-export { contentViewLabels, stepNavLabels } from './practice-labels';
+export { contentLabels } from './practice-labels';
 
-export { SESSION_PHASE_LABEL, phaseBadgeVariant, TTL_URGENT_MS, TTL_VISIBLE_MS } from './session-phase';
+export { SESSION_PHASE_LABEL, phaseTone, phaseIsWaiting, TTL_URGENT_MS, TTL_VISIBLE_MS } from './session-phase';
 export { describeCapacity, DEFAULT_PROFILE } from './capacity';
 export type {
   CapacityHint,
@@ -65,12 +65,17 @@ export type {
   ProfileCapacityView,
   UnknownCapacityHint,
 } from './capacity';
-export { IDE_BOOT_TIMEOUT_MS, IDE_LAYOUT, ideSessionUrl, shouldShowIdePane } from './ide-layout';
+export { IDE_BOOT_TIMEOUT_MS, IDE_LAYOUT, ideAvailable, ideSessionUrl, shouldShowIdePane } from './ide-layout';
 export { IdePane } from './ide-pane.tsx';
 export type { IdePaneProps } from './ide-pane.tsx';
 
 // Danh sách nhiệm vụ, NĂM trạng thái nhìn được (`infra` tách khỏi `failed`).
 export { TaskChecklist } from './task-checklist.tsx';
+export { PracticeLaunch } from './practice-launch.tsx';
+export type { LaunchKind, PracticeLaunchProps } from './practice-launch.tsx';
+export { PracticeError, PracticeFrame, PracticeSkeleton } from './practice-frame.tsx';
+export { useResumeMachine } from './use-resume-machine';
+export type { ActiveMachine, ResumeMachine } from './use-resume-machine';
 export type { TaskChecklistItem, TaskChecklistProps } from './task-checklist.tsx';
 export { countByVisualState, outcomeKind, resolveTaskVisualState } from './task-state';
 export type { StoredTaskState, TaskOutcomeKind, TaskVisualState } from './task-state';

@@ -1,893 +1,215 @@
-# Hệ thiết kế — SSOT (P16)
+# Hệ thiết kế `ds`
 
-**Nguồn:** `apps/web/src/app/globals.css` (token + dark mode) · `packages/ui/src/theme/theme-provider.tsx`
-(cơ chế theme) · `packages/ui/src/**` (component). Hợp đồng C1/C2 gốc:
-[`plans/devops-learning-platform/phase-13-exec.md`](../plans/devops-learning-platform/phase-13-exec.md) §2.
+<!-- updated 261020 -->
 
-<!-- updated 260913 -->
+Hệ thiết kế của bản dựng lại giao diện 2026-10. Mã nằm ở `packages/ds`: token và base ở
+`src/styles/theme.css`, component ở `src/*.tsx`, bộ biểu tượng ở `src/icons`, minh hoạ ở `src/art`.
+`apps/web/src/app/globals.css` nạp theme này ngay sau Tailwind.
 
-Cập nhật 2026-10-03: landing là một tuyến metro 3D cuộn-điều-khiển (GSAP + ScrollTrigger + Lenis + React Three Fiber, chung một vòng `gsap.ticker`), có ghim cảnh, terminal tua theo cuộn và motion graphics 2D. Màu tuyến khớp token `--line-*` của app; chữ dùng bản pha sáng trên nền tối. Xem [quy tắc giao diện hiện hành](design-guidelines.md#landing) và [kế hoạch landing 3D](../plans/devops-learning-platform/landing-3d/plan.md); chế độ giảm chuyển động không chạy vòng lặp nào và dùng bản đồ tuyến SVG tĩnh.
+Mọi trang dùng hệ này, trừ những vùng chủ dự án yêu cầu giữ nguyên giao diện cũ: landing, canvas
+game K8s, màn chơi Git và CI/CD. Giao diện cũ có tài liệu riêng ở
+[design-system-legacy.md](design-system-legacy.md); mục 9 nói hai hệ sống cạnh nhau ra sao.
 
-## 0. Nguyên tắc
+## 1. Lệnh cấm của chủ dự án
 
-**Một nguồn màu duy nhất.** JSX KHÔNG BAO GIỜ dùng `#hex` hay `slate-*`/`gray-*`/
-`zinc-*`/`neutral-*` trần — chỉ class ngữ nghĩa (`bg-background`, `text-muted-foreground`,
-…) map tới token bên dưới. Kiểm bằng:
+| Không dùng | Thay bằng | Ai gác |
+|---|---|---|
+| Sidebar bên trái để điều hướng | Thanh trên cùng sáu mục, thanh mục con ngay dưới | người rà |
+| Thẻ bo góc xếp lưới | Dòng (`RowList`), bảng, mục có đường kẻ 1px | người rà |
+| Hàng ô số liệu ở trang tổng quan | Số nằm trong câu, trong bảng, hoặc trên `ProgressLine` | người rà |
+| Viền trái làm dấu "đang chọn" | Nền `acc-wash`, chữ đậm, gạch dưới (`TabsList look="line"`) | `design:check` |
+| Loader donut, vòng quay | Vạch quét (`LoadingLine`, `loading` của `Button`), khung chờ đúng hình dòng | `design:check` |
+| Bộ icon đại trà (lucide, heroicons…) | Bộ glyph riêng của ds (`<Icon name>`) | `design:check` |
+| Dùng lại kit, lớp, biến của giao diện cũ | Component và token của ds | `design:check` |
+| Chủ đề tàu, bảng tuyến, nhà ga (ngoài landing) | Màu theo mục và theo chủ đề | người rà |
+| Bộ giao diện của ui-ux-pro-max | Không có thay thế: hệ này tự dựng | người rà |
 
-```bash
-grep -rnE '#[0-9a-fA-F]{3,8}|\b(slate|gray|zinc|neutral)-[0-9]{2,3}' apps/web/src packages/ui/src --include=*.tsx | grep -v node_modules
-```
+Bốn dòng có hình dạng xác định trong mã nguồn nên máy gác được (`pnpm design:check`, mục 10).
+Những dòng còn lại là phán đoán bố cục: rà bằng ảnh chụp ở 390px và 1440px, cả hai theme.
 
-Phải **rỗng** trên toàn `apps/web/src` + `packages/ui/src` ở cuối Đợt 3 (mọi lane
-đã xong). Tại **13.A** (Đợt 1), phạm vi kiểm chỉ là `packages/ui/src` +
-`apps/web/src/app/layout.tsx` + `globals.css` — các route `apps/web/src/app/{lessons,
-labs,paths,quiz,playgrounds,me,login,(session)}/**` do lane B/C/D1/D2/E ở Đợt 2
-migrate, chưa migrate lúc 13.A merge là đúng kế hoạch, không phải lỗi.
+## 2. Khung trang
 
-`packages/terminal/src/**/themes.ts` là **ngoại lệ tường minh** (grep AC gốc ở
-`phase-13-exec.md` §5 đã ghi rõ) — bảng màu ANSI của terminal là dữ liệu cấu hình
-xterm.js, không phải class Tailwind, không đi qua hệ token này.
+- **Thanh trên cùng** (`components/shell/site-header.tsx`): logo, sáu mục cha (Học, Thực hành,
+  Luyện đề, Trò chơi, Soạn bài, Quản trị; hai mục cuối hiện theo vai trò), ô tìm trang `Ctrl K`,
+  nút đổi theme, tài khoản. Mỗi mục mang `data-section` nên tự có màu nhấn của nó.
+- **Thanh mục con** (`section-bar.tsx`): các trang con của mục đang mở. Mục cha trỏ tới trang tổng
+  quan của mục (`/learn`, `/practice`…), không trỏ thẳng vào trang con đầu tiên.
+- **Di động**: thanh trên thu thành nút mở menu toàn màn (`mobile-menu.tsx`); không có ngăn kéo
+  bên trái.
+- **Khu thực hành** (bài học, lab, playground, bài thi) là trang toàn màn, không có vỏ ứng dụng:
+  thanh 52px, dải thông báo, rồi hai khoang kéo được (`PaneGroup`). Khoang đọc theo theme; khoang
+  máy (terminal, IDE) tối ở cả hai theme.
+- Mỗi trang có đúng một `h1` (do `PageHeader` dựng) và đúng một `<main>` (ở `app-shell.tsx`).
 
-## 1. Token màu hiện hành (P16, 2026-09-13)
+## 3. Màu
 
-<!-- updated 260913 -->
+Khối biến giữa hai dấu mốc `@palette` trong theme.css do `packages/ds/scripts/palette.mjs --write`
+sinh ra từ bảng OKLCH trong script. Đừng sửa tay khối đó: sửa bảng rồi chạy lại.
+`src/styles/palette.test.ts` đỏ khi khối lệch khỏi bảng, hoặc khi một cặp màu trượt ngưỡng.
 
-Nguồn giá trị: `apps/web/src/app/globals.css`. Nguồn phép đo và ngưỡng: `packages/ui/src/theme/tokens.contract.test.ts`. Bảng P13 được giữ trong khối lịch sử bên dưới, không dùng làm giá trị hiện hành.
+**Trung tính.** `canvas` (nền trang), `paper` (mặt khối), `well` và `well-2` (vùng lõm, khung chờ),
+`ink` / `ink-2` / `ink-3` (chữ chính, chữ phụ, chữ chú thích), `rule` / `rule-2` (đường kẻ),
+`control` (viền ô nhập), `focus` (vòng focus), `overlay` (nền dưới hộp thoại), `on-solid` (chữ
+trên nền đặc). Lớp Tailwind cùng tên: `bg-paper`, `text-ink-2`, `border-rule`.
 
-| Biến CSS | Class Tailwind | Vai trò | Sáng | Tối |
-|---|---|---|---|---|
-| `--background` | `bg-background` | Nền trang | `oklch(1 0 0)` | `oklch(0.145 0.016 263.7)` |
-| `--foreground` | `text-foreground` | Chữ chính | `oklch(0.362 0.031 269.7)` | `oklch(0.97 0.008 263.7)` |
-| `--card` | `bg-card` | Nền thẻ/card | `oklch(1 0 0)` | `oklch(0.205 0.016 263.7)` |
-| `--card-foreground` | `text-card-foreground` | Chữ trong card | `oklch(0.362 0.031 269.7)` | `oklch(0.97 0.008 263.7)` |
-| `--popover` | `bg-popover` | Nền popover/dropdown/select | `oklch(1 0 0)` | `oklch(0.205 0.016 263.7)` |
-| `--popover-foreground` | `text-popover-foreground` | Chữ trong popover | `oklch(0.362 0.031 269.7)` | `oklch(0.97 0.008 263.7)` |
-| `--primary` | `bg-primary` / `text-primary` | Hành động chính, link, focus ring mặc định | `oklch(0.519 0.186 26.7)` | `oklch(0.68 0.19 26.7)` |
-| `--primary-foreground` | `text-primary-foreground` | Chữ trên nền primary | `oklch(0.985 0 0)` | `oklch(0.145 0.016 263.7)` |
-| `--secondary` | `bg-secondary` | Hành động phụ, nút Copy/Chạy trong code block | `oklch(0.97 0.005 263.7)` | `oklch(0.269 0.016 263.7)` |
-| `--secondary-foreground` | `text-secondary-foreground` | Chữ trên nền secondary | `oklch(0.362 0.031 269.7)` | `oklch(0.97 0.008 263.7)` |
-| `--muted` | `bg-muted` | Nền mờ (Skeleton, code block, hàng bảng hover) | `oklch(0.97 0.005 263.7)` | `oklch(0.269 0.016 263.7)` |
-| `--muted-foreground` | `text-muted-foreground` | Chữ phụ/ghi chú | `oklch(0.5 0.024 269.7)` | `oklch(0.72 0.018 263.7)` |
-| `--accent` | `bg-accent` | Hover/focus của item tương tác (menu, tab) | `oklch(0.951 0.023 26.7)` | `oklch(0.269 0.016 263.7)` |
-| `--accent-foreground` | `text-accent-foreground` | Chữ trên nền accent | `oklch(0.362 0.031 269.7)` | `oklch(0.97 0.008 263.7)` |
-| `--destructive` | `bg-destructive` | Hành động/trạng thái phá huỷ, lỗi | `oklch(0.505 0.192 29)` | `oklch(0.704 0.175 29)` |
-| `--destructive-foreground` | `text-destructive-foreground` | Chữ trên nền destructive | `oklch(0.985 0 0)` | `oklch(0.145 0.016 263.7)` |
-| `--success` | `bg-success` | Trạng thái thành công, badge "Đạt" | `oklch(0.518 0.146 150.741)` | `oklch(0.696 0.17 150.741)` |
-| `--success-foreground` | `text-success-foreground` | Chữ trên nền success | `oklch(0.985 0 0)` | `oklch(0.145 0.016 263.7)` |
-| `--warning` | `bg-warning` | Cảnh báo (chạm hardCap, sức chứa thấp) | `oklch(0.541 0.15 55.98)` | `oklch(0.769 0.188 70.08)` |
-| `--warning-foreground` | `text-warning-foreground` | Chữ trên nền warning | `oklch(0.985 0 0)` | `oklch(0.145 0.016 263.7)` |
-| `--border` | `border-border` | Viền mặc định | `oklch(0.912 0.008 263.7)` | `oklch(1 0 0 / 12%)` |
-| `--input` | `border-input`, `bg-input` (Switch off) | Viền ô nhập, nền Switch tắt | `oklch(0.63 0.014 263.7)` | `oklch(1 0 0 / 38%)` |
-| `--ring` | `focus-visible:ring-ring` **+ `ring-offset-2 ring-offset-background`** | Vòng focus — bằng primary, nên KHÔNG được vẽ sát mặt nút (§1a) | `oklch(0.519 0.186 26.7)` | `oklch(0.68 0.19 26.7)` |
-| `--radius` | `rounded-lg` (= `--radius-lg`) | Bo góc gốc | `0.75rem` | `kế thừa :root` |
+**Màu mục.** Vỏ ứng dụng gắn `data-section` (`learn`, `practice`, `judge`, `games`, `studio`,
+`admin`) lên khung trang; mọi thứ bên trong đọc `--acc-*`. Mỗi màu có sáu bậc: `wash` và `tint`
+(nền khối), `soft`, `mid` (đồ hoạ), `solid` (nền đặc dưới chữ `on-solid`), `ink` (chữ màu).
+Lớp: `bg-acc-wash`, `text-acc-ink`, `bg-acc-solid`.
 
+**Màu chủ đề.** `data-topic` (`kubernetes`, `docker`, `git`, `cicd`, `linux`, `bash`, `networking`,
+`security`, `iac`, `observability`, `general`) cho `--tp-*` với cùng sáu bậc. Đừng tự đoán chủ
+đề từ chuỗi: `topicLook({ gameId | id | tags })` ở `apps/web/src/lib/topic-look.ts` trả về chủ đề
+và biểu tượng.
 
-### Tương phản hiện hành
+**Trạng thái.** `ok`, `warn`, `bad`, `info`, mỗi cái có `wash`, `tint`, `mid`, `solid`, `ink`.
+Trạng thái không bao giờ chỉ nói bằng màu: luôn kèm chữ hoặc biểu tượng (`Pill` có `icon`).
 
-Các tỷ lệ dưới đây lấy từ số đo token P16, không lấy từ bảng P13. Chữ thường cần 4.5:1; ranh giới control cần 3:1. `TEXT_PAIRS` và `NON_TEXT_PAIRS` trong bộ kiểm thử là danh sách đầy đủ được cưỡng chế.
+**Ngưỡng tương phản** (bảng đo của `palette.mjs`, cả hai theme):
 
-| Cặp | Tỷ lệ hiện hành |
+| Cặp | Ngưỡng |
 |---|---|
-| primary sáng / background hoặc card | 6.0885:1 |
-| primary tối / background | 6.3056459:1 |
-| primary tối / card | 5.7070919:1 |
-| primary tối / muted | 4.8157422:1 |
-| trắng tinh / primary tối | 3.1396889:1 |
-| primary sáng / destructive sáng | 1.0646:1 |
-| primary tối / destructive tối | 1.1061929:1 |
+| `ink`, `ink-2`, `ink-3` trên `canvas`, `paper`, `well`, `well-2` | 4.5:1 |
+| bậc `ink` của mọi mục, chủ đề, trạng thái trên `canvas`, `wash`, `tint` | 4.5:1 |
+| chữ `on-solid` trên bậc `solid` | 4.5:1 |
+| `control` trên `paper` và `canvas`; `focus` trên `paper` và `canvas` | 3:1 |
+| bậc `mid` trên `canvas` (đồ hoạ) | 1.8:1 |
 
-Primary tối là `oklch(0.68 0.19 26.7)`, dùng được làm chữ trên background/card/muted. Trắng tinh trên primary tối chỉ đạt 3.1397:1, nên chữ nút dùng `--primary-foreground` tối, không dùng trắng. Focus giữ `--ring === --primary`; phải có offset để vòng focus không nằm sát nền primary. Hai màu đỏ không đủ tách nghĩa: primary nền đặc; destructive nền rỗng, viền và TriangleAlert.
+`rule` và `rule-2` CỐ Ý dưới 3:1: chúng là đường kẻ trang trí, nên không được là thứ duy nhất
+phân biệt hai trạng thái. Ô nhập dùng `control`. axe chỉ đo tương phản của CHỮ; viền, biểu tượng
+và đồ hoạ không qua axe, và bảng trên là phép đo duy nhất cho chúng (`e2e/a11y.spec.ts` ghi rõ giới
+hạn này).
 
-### Token ngoài bảng C1 — palette Git Odyssey
+Màu cứng (`#hex`, thang màu Tailwind như `bg-blue-500`) bị chặn trong JSX bởi `pnpm tokens:check`.
 
-<!-- updated 261003 -->
+## 4. Chữ
 
-Bảng trên là hệ token **vai trò**. `globals.css` còn khai 43 token `--odyssey-*`
-và chúng cố ý **không** nằm trong `C1_COLOR_TOKENS`. Chúng có hằng số riêng
-`C1_ODYSSEY_TOKENS` ở `packages/ui/src/theme/tokens.contract.test.ts` — thêm hay
-bớt một token là phải sửa cả hằng số đó lẫn mục này.
+Ba họ chữ, tự host qua `next/font` trong `app/layout.tsx`, cả ba có subset `vietnamese`:
 
-| Nhóm | Số | Dùng ở đâu | Theme | Dạng |
-|---|---|---|---|---|
-| `--odyssey-*` | 43 | Palette trò Git Odyssey (`git-odyssey.css`) | Chỉ `:root`, cố định | `rgb()` |
-
-Ba nhóm `--workspace-*`, `--art-*` và `--challenge-*` của thiết kế cũ đã bị xoá
-ngày 2026-10-03, cùng các luật `practice.css` từng đọc chúng. `practice.css` nay
-chỉ còn vài class của game K8s đóng băng và không khai lại `:root`/`.dark`.
-
-Vì sao là `rgb()` chứ không `oklch()`: giá trị được chuyển từ hex, và `rgb()` là
-dạng duy nhất quy đổi mà không mất một bit nào. Cùng tiền lệ với `--journey-*`
-(bảng màu cảnh 3D landing).
-
-#### Vì sao palette cố định ở cả hai theme
-
-`.git-odyssey` tự đặt `color-scheme: dark` rồi vẽ toàn bộ mặt nền của mình. Nhân
-đôi 43 dòng xuống `.dark` chỉ là bịa ra một biến thể theme mà thiết kế không
-đòi, và thêm 43 chỗ để quên đồng bộ. Hợp đồng vì thế khẳng định chúng **vắng
-mặt** ở `.dark`, cùng luật đang áp cho `--brand-*` và `--journey-*`.
-
-#### Không map sang `@theme inline` — có ô gác
-
-Palette này không có dòng `--color-*`, nên Tailwind không sinh
-`text-odyssey-muted-ink`. Đó là chủ ý, cùng lý lẽ với `--brand-*`: một class tồn
-tại là một class sẽ có người dùng.
-
-### Bản ghi P13 đã thay thế
-
-<details>
-<summary>Lịch sử token và tỷ lệ P13; không dùng để triển khai P16</summary>
-
-Toàn bộ giá trị, bảng đo và kết luận định lượng trong khối này là lịch sử trước P16. Chúng giải thích các quyết định cũ; bảng hiện hành phía trên và phép kiểm trong mã nguồn thay thế chúng.
-
-## 1. Token màu
-
-Định nghĩa ở `apps/web/src/app/globals.css`, khối `:root` (sáng) và `.dark` (tối).
-Tên biến CSS = tên trong hợp đồng C1, không đổi được mà không phá mọi lane tiêu thụ.
-
-| Biến CSS | Class Tailwind | Vai trò | Sáng (oklch) | Tối (oklch) |
-|---|---|---|---|---|
-| `--background` | `bg-background` | Nền trang | `1 0 0` (trắng) | `0.145 0 0` (gần đen) |
-| `--foreground` | `text-foreground` | Chữ chính | `0.145 0 0` | `0.985 0 0` |
-| `--card` | `bg-card` | Nền thẻ/card | `1 0 0` | `0.205 0 0` |
-| `--card-foreground` | `text-card-foreground` | Chữ trong card | `0.145 0 0` | `0.985 0 0` |
-| `--popover` | `bg-popover` | Nền popover/dropdown/select | `1 0 0` | `0.205 0 0` |
-| `--popover-foreground` | `text-popover-foreground` | Chữ trong popover | `0.145 0 0` | `0.985 0 0` |
-| `--primary` | `bg-primary` / `text-primary` | Hành động chính, link, focus ring mặc định | `0.58 0.23 25` (đỏ) | `0.609 0.242 25` (đỏ sáng hơn) |
-| `--primary-foreground` | `text-primary-foreground` | Chữ trên nền primary | `0.985 0 0` | `0.145 0 0` |
-| `--secondary` | `bg-secondary` | Hành động phụ, nút Copy/Chạy trong code block | `0.97 0 0` | `0.269 0 0` |
-| `--secondary-foreground` | `text-secondary-foreground` | Chữ trên nền secondary | `0.205 0 0` | `0.985 0 0` |
-| `--muted` | `bg-muted` | Nền mờ (Skeleton, code block, hàng bảng hover) | `0.97 0 0` | `0.269 0 0` |
-| `--muted-foreground` | `text-muted-foreground` | Chữ phụ/ghi chú | `0.446 0 0` | `0.708 0 0` |
-| `--accent` | `bg-accent` | Hover/focus của item tương tác (menu, tab) | `0.951 0.023 25` | `0.269 0 0` |
-| `--accent-foreground` | `text-accent-foreground` | Chữ trên nền accent | `0.205 0 0` | `0.985 0 0` |
-| `--destructive` | `bg-destructive` | Hành động/trạng thái phá huỷ, lỗi | `0.577 0.245 27.325` (đỏ) | `0.704 0.191 22.216` |
-| `--destructive-foreground` | `text-destructive-foreground` | Chữ trên nền destructive | `0.985 0 0` | `0.145 0 0` |
-| `--success` | `bg-success` | Trạng thái thành công, badge "Đạt" | `0.518 0.146 150.741` (xanh lá) | `0.696 0.17 150.741` |
-| `--success-foreground` | `text-success-foreground` | Chữ trên nền success | `0.985 0 0` | `0.145 0 0` |
-| `--warning` | `bg-warning` | Cảnh báo (chạm hardCap, sức chứa thấp) | `0.541 0.15 55.98` (hổ phách) | `0.769 0.188 70.08` |
-| `--warning-foreground` | `text-warning-foreground` | Chữ trên nền warning | `0.985 0 0` | `0.145 0 0` |
-| `--border` | `border-border` | Viền mặc định | `0.922 0 0` | `1 0 0 / 12%` |
-| `--input` | `border-input`, `bg-input` (Switch off) | Viền ô nhập, nền Switch tắt | `0.63 0 0` (**không** bằng `--border` — xem §1a) | `1 0 0 / 38%` (**cũng** không bằng `--border` — xem §1a) |
-| `--ring` | `focus-visible:ring-ring` **+ `ring-offset-2 ring-offset-background`** | Vòng focus — bằng primary, nên KHÔNG được vẽ sát mặt nút (§1a) | `0.58 0.23 25` (= primary) | `0.609 0.242 25` (= primary tối) |
-| `--radius` | `rounded-lg` (= `--radius-lg`) | Bo góc gốc | `0.625rem` | (không đổi theo theme) |
-
-`--radius-sm`/`--radius-md`/`--radius-lg`/`--radius-xl` suy ra từ `--radius` trong
-`@theme inline` (`calc(var(--radius) ± Npx)`) — KHÔNG khai lại số cứng ở component.
-
-`--radius` **cố ý chỉ khai ở `:root`**, không lặp ở `.dark`: nó là số đo hình học,
-không phải màu, và `.dark` nằm trên `<html>` nên `:root` vẫn khớp cùng phần tử —
-giá trị luôn phân giải được ở cả hai theme. Lặp lại nó chỉ tạo thêm một chỗ để
-quên đồng bộ. Đây là điểm lệch DUY NHẤT so với câu "`:root` và `.dark` đều định
-nghĩa đủ" của hợp đồng C1, và nó được gác bằng một test tường minh
-(`tokens.contract.test.ts` → "`--radius` khai ở :root (CỐ Ý không lặp ở .dark)").
-
-### 1a. Contrast — số đo, không phải cảm nhận
-
-Mọi con số dưới đây tính từ chính `globals.css` bằng `tokens.contract.test.ts`
-(oklch → sRGB **mã hoá gamma** → độ chói tương đối WCAG 2.1), và được **gác
-lại** ở đó: hạ một token xuống dưới ngưỡng làm suite `packages/ui` đỏ.
-
-> **⚠ Đính chính 2026-09-06 — bảng cũ có hai con số SAI, và chúng sai theo
-> hướng nguy hiểm nhất: chúng chứng nhận cho đúng thứ cần chặn.**
->
-> `tokens.contract.test.ts` trộn alpha trong **linear-light**, còn trình duyệt
-> composite `border-color`/`background-color` trong **sRGB đã mã hoá gamma**
-> (CSS Color 4 §12 — compositing chạy SAU khi màu chuyển sang không gian đích).
-> Sai lệch không nhỏ; nó lật ngược kết luận. Với `--input` tối cũ
-> (`oklch(1 0 0 / 16%)`) trên nền `oklch(0.145 0 0)`:
->
-> | | phép trộn | kết quả | trên `--background` | trên `--card` |
-> |---|---|---|---|---|
-> | ĐÚNG | `255×0.16 + 10×0.84 = 49.2` | `#313131` | **1.53** ✗ | **1.63** ✗ |
-> | SAI (cũ) | `1×0.16 + 0.00305×0.84` | `#707070` | 4.01 "đạt" | 3.71 "đạt" |
->
-> Hai con số 4.01 / 3.71 đã được chép sang **ba nơi**: bảng này, chú thích
-> `--input` trong `globals.css`, và chính test. Cả ba sai cùng một kiểu, sửa
-> cùng ngày. Chỉ các cặp có token TRONG SUỐT bị ảnh hưởng (`--input` tối,
-> `--border` tối) — cặp đục không đi qua phép trộn nên số của chúng không đổi.
->
-> Đối chứng cũ của test không cứu được: nó chỉ khẳng định `4.01 < 9.48`, tức
-> xác nhận một con số sai nhỏ hơn một con số khác. Nay thay bằng đối chứng
-> **dương**, tính tay được và độc lập với token hiện tại: trắng/đen = 21.00:1
-> kèm hex hai đầu thang, `oklch(0.145 0 0)` = `#0a0a0a`, và phép trộn 16% ra
-> `#313131` / 1.53:1 chạy SONG SONG với vế linear-light `#707070` / 4.01:1 —
-> đổi lại công thức là đỏ, không phải "đẹp lên".
-
-**Vì sao phải đo tay.** `axe-core` — cổng a11y của 13.H — chỉ có rule contrast
-cho **chữ**. Nó không có rule nào cho viền hay ranh giới control, nên
-SC 1.4.11 hoặc được đo ở đây, hoặc không ở đâu cả. Một cổng axe xanh **không**
-chứng minh viền đủ tương phản.
-
-| Cặp | Ngưỡng | Sáng | Tối |
-|---|---|---|---|
-| `--foreground` / `--background` | 4.5 (SC 1.4.3) | 19.79 | 18.96 |
-| `--muted-foreground` / `--background` | 4.5 | 7.57 | 7.63 |
-| `--muted-foreground` / `--muted` | 4.5 | 6.94 | 5.83 |
-| `--muted-foreground` / `--card` | 4.5 | 7.57 | 6.91 |
-| `--primary-foreground` / `--primary` | 4.5 | **4.61** | **4.61** |
-| `--secondary-foreground` / `--secondary` | 4.5 | 16.42 | 14.48 |
-| `--destructive-foreground` / `--destructive` | 4.5 | 4.56 | 6.84 |
-| `--success-foreground` / `--success` | 4.5 | 4.95 | 7.82 |
-| `--warning-foreground` / `--warning` | 4.5 | 5.06 | 9.23 |
-| `--input` / `--background` | 3.0 (SC 1.4.11) | **3.50** | **3.51** |
-| `--input` / `--card` | 3.0 | 3.50 | **3.58** |
-| `--input` / `--muted` | 3.0 | 3.21 | **3.45** |
-| núm Switch / rãnh Switch (trên `--background`) | 3.0 | 3.50 | **3.51** |
-| núm Switch / rãnh Switch (trên `--card`) | 3.0 | 3.50 | **3.95** |
-| `--ring` / `--background` | 3.0 | 4.82 | 4.61 |
-| `--ring` / `--card` | 3.0 | 4.82 | 4.17 |
-| `--primary` / `--background` | 3.0 | 4.82 | 4.61 |
-| `--destructive` / `--background` | 3.0 (SC 1.4.11 viền) **và 4.5** (SC 1.4.3 — nay là màu CHỮ, §1c) | 4.76 | 6.84 |
-| `--destructive` / `--card` | 3.0 **và 4.5** (§1c) | 4.76 | 6.19 |
-| `--destructive` / `--muted` | 4.5 — **CHƯA ĐẠT ở nhánh sáng**, khoảng trống đã đo (§1c) | **4.37** | 5.23 |
-| `--ring` / `--primary` | miễn trừ có chứng minh | **1.00** | **1.00** |
-| `--ring` / `--destructive` | miễn trừ có chứng minh | **1.01** | **1.49** |
-| `--border` / `--background` | — (trang trí) | **1.26** | **1.33** |
-| `--border` / `--card` | — (trang trí) | **1.26** | **1.42** |
-
-Ô **đậm** = giá trị từng nằm dưới ngưỡng, hoặc cố ý nằm dưới ngưỡng kèm lý do.
-
-**`--input` ≠ `--border`, khác với shadcn/ui gốc.** shadcn để hai token bằng
-nhau; giá trị đó cho **1.26:1** trên nền trắng. `--input` là ranh giới **nhận
-dạng** của control — `border-input` là viền duy nhất của `Input`, `Textarea`,
-`SelectTrigger`, `Checkbox`, `RadioGroupItem` và `Button variant="outline"`,
-còn `bg-input` là rãnh `Switch` lúc tắt. Ở 1.26:1 một ô nhập trên trang sáng
-gần như **vô hình** cho tới khi được focus.
-
-- **Sáng:** `0.63` (#898989) cho 3.50:1, dư ~0.5 so với ngưỡng để sai số
-  chuyển oklch→sRGB giữa các trình duyệt không kéo tụt xuống dưới.
-- **Tối:** `1 0 0 / 38%`, KHÔNG phải 16% (2026-09-06). Ở 16% lớp trắng này ra
-  `#313131` trên nền trang ⇒ 1.53:1 — cùng một hỏng như nhánh sáng, chỉ khác
-  là bảng cũ báo 4.01 nên nó không lộ ra. 38% cho 3.51 / 3.58 / 3.45.
-  Giữ dạng **trong suốt** thay vì đổi sang oklch đục là có chủ đích: alpha là
-  thứ kéo ba con số sát nhau (chênh 0.13), còn một giá trị đục vừa đủ 3.0 trên
-  `--muted` (`oklch(0.545 0 0)`) sẽ vọt lên 3.99 trên `--background` — chênh
-  0.94, tức viền đậm nhạt khác hẳn nhau tuỳ nó nằm trong khối nào.
-
-**`--border` ở 1.26–1.42:1 là quyết định, không phải chỗ bỏ sót.** Nó chỉ vẽ
-ranh giới **trang trí**: viền card, kẻ dòng bảng, viền đứt `EmptyState`,
-`Separator` (mặc định `decorative`, tức `role="none"`). SC 1.4.11 loại trừ
-tường minh phần trang trí thuần và phần không mang thông tin — nội dung trong
-card, không phải đường kẻ quanh nó, mới là thứ người dùng cần đọc. Ranh giới
-nào **nhận dạng một control** thì dùng `--input`, không dùng `--border`. Thêm
-một component tương tác mà lấy `border-border` làm viền duy nhất ⇒ đổi sang
-`border-input`.
-
-**Vòng focus: `--ring` = `--primary`, nên nó KHÔNG được vẽ sát mặt nút.**
-Đây là hệ quả trực tiếp của việc `--ring` cố ý bằng `--primary`: mọi vòng focus
-nằm sát một mặt tô `bg-primary` đều bằng **1.00:1** — vô hình, ở cả hai theme
-(nút `destructive`: 1.09 sáng / 1.00 tối). Nó phá luôn phép kiểm bàn phím của
-13.H, vì thứ phép kiểm đó cần thấy thì không hiển thị.
-
-**`--destructive`: không có nghiệm token.** Ở chế độ tối, quét vét cạn thang độ
-chói cho đúng **0 nghiệm**; hai đầu mút nói rõ vì sao: trắng tinh chỉ được
-2.8922:1 với `--destructive`, còn đen tuyền chỉ được 1.1722:1 với `--card`.
-
-**`--primary`: nay là một LỰA CHỌN, không phải bất khả thi.** ⚠ Mục này TỪNG
-khẳng định điều bất khả thi trên cho cả hai màu, dựa trên khe `--primary`↔`--card`
-6.20:1 và quy tắc "nhét vừa hai bậc 3:1 thì cần khe ≥9:1". Thương hiệu đỏ
-(2026-09-08) làm câu đó **sai** — và nó sai vì lập luận ≥9 chỉ xét vòng focus nằm
-**giữa** `--card` và `--primary`, nên bỏ sót nhánh nó nằm **ngoài** khoảng đó.
-Đỏ có độ chói tương đối thấp hơn lam ở cùng L, nên trắng nay đạt **4.2972:1** với
-`--primary` tối và phép quét cho **317 nghiệm**: một giá trị `--ring` riêng đang
-có sẵn.
-
-Ta không lấy nó, vì phạm vi chứ không vì vật lý: `--ring` là vòng focus của **mọi**
-phần tử focus được, nên cho nó hue riêng là thiết kế lại toàn bộ hệ thống focus,
-không phải đổi màu thương hiệu. Cơ chế `ring-offset` dưới đây vốn đã khiến vòng
-focus không bao giờ nằm sát mặt nút, nên khoảng trống này không gây hại ngay. Nếu
-sau khi đỏ lên vẫn thấy đáng làm thì mở một thay đổi riêng.
-
-Cách sửa vì vậy vẫn nằm ở **hình học**, không nằm ở màu:
-
-| Cơ chế | Dùng ở | Màu KỀ vòng focus khi đó |
+| Biến | Họ chữ | Dùng cho |
 |---|---|---|
-| `ring-offset-2` + `ring-offset-background` | `Button`, `Switch`, `Checkbox` | `--background` / `--card` — 4.82 sáng / 4.61 tối |
-| `ring-current` | `StepNav`, nút đóng `Toast` | `text-*-foreground` của chính bề mặt — đã gác ở ≥4.5:1 |
-
-Hai class của cơ chế thứ nhất **bắt buộc đi cùng nhau**: thiếu
-`ring-offset-background` thì Tailwind rơi về mặc định của chính nó
-(`--tw-ring-offset-color: #fff`), tức một khe **trắng** trên nền tối. Cơ chế
-thứ hai dành cho hai chỗ mà offset là SAI chứ không phải thiếu — hàng bước nằm
-trong `overflow-x-auto` nên vòng đẩy ra ngoài bị **cắt** ở mép cuộn, còn nút
-đóng toast thì màu nền trang không hề kề nó.
-
-Miễn trừ hai cặp `--ring`/`--primary` và `--ring`/`--destructive` khỏi bảng đo
-chỉ đứng vững chừng nào offset **thật sự có mặt**, nên nó được gác bằng class
-render ra DOM ở `button.test.tsx`, `switch.test.tsx`, `checkbox.test.tsx`,
-`toast.test.tsx`, `lesson/step-nav.test.tsx`.
-
-⛔ Con số **6.20 đã bị XOÁ**, không phải cập nhật thành 4.17. Nó ghim một lập luận
-nay đã sai (xem ngay trên), nên ghim lại số mới sẽ để một con số trông tươi mới
-đứng cạnh một chứng minh hỏng — đúng thứ `rules/pinned-baseline-test-companion.md`
-cấm. Thay vào đó `tokens.contract.test.ts` gác **điều kiện còn hiệu lực**:
-`--ring === --primary` ở cả hai theme. Ngày nào ai đó cho `--ring` một giá trị
-riêng thì test đó đỏ, và khi ấy cặp `--ring`/`--primary` phải quay lại bảng đo —
-vì lúc đó nó đo được thật.
-
-**Spinner trong nút `loading` lấy màu từ token, không từ `currentColor`.**
-`Button loading` đặt `text-transparent` lên chính `<button>` để giấu nhãn phía
-sau Spinner đè lên — nhưng `currentColor` khi đó là trong suốt, mà
-`lucide-react` vẽ icon bằng `stroke="currentColor"` + `fill="none"`, nên
-spinner **cũng** biến mất. Lớp bọc Spinner vì vậy đặt màu theo biến thể
-(`SPINNER_TONE` trong `button.tsx`): mỗi giá trị là màu **chữ** của chính biến
-thể đó, nên tương phản với mặt nút đã nằm trong bảng ≥4.5:1 ở trên, dư so với
-mức 3:1 mà SC 1.4.11 đòi. `outline`/`ghost` phải nói rõ `text-foreground` vì
-hai biến thể đó không đặt `text-*` nào, `currentColor` của chúng là màu thừa
-kế bất kỳ. jsdom không tính computed style nên phép gác ở đây là **class**
-quyết định màu, không phải sự tồn tại phần tử — kiểm sự tồn tại là một test
-không bao giờ đỏ được.
-
-**`--success`/`--warning` KHÔNG có trong bảng chuẩn shadcn/ui** (bản gốc chỉ có
-`destructive`) — thêm hai token này vì sản phẩm cần phân biệt "đạt/thành công"
-(chấm lab, quiz), "cảnh báo" (sắp hết TTL, gần chạm hardCap), và "lỗi" (destructive)
-là ba trạng thái ngữ nghĩa khác nhau mà chỉ một cặp primary/destructive không đủ
-diễn đạt.
-
-### 1c. Thương hiệu ĐỎ, và vì sao `destructive` phải đổi HÌNH DẠNG
-
-Từ 2026-09-08 hue thương hiệu là **25** (đỏ ấm), không còn 262.881 (lam). Chọn 25
-chứ không 15 (ngả hồng) hay 40 (ngả cam): 25 là đỏ mà mắt đọc thẳng ra "đỏ".
-
-**L là nghiệm của một phép quét, không phải một giá trị chọn tay.** Hai lực kéo
-ngược nhau — "không quá đậm" kéo L lên, contrast của chữ trên mặt nút kéo L
-xuống. Quét L 0.400–0.700 bước 0.001 tại hue 25 bằng chính `measure()` của
-`packages/ui/src/theme/tokens.contract.test.ts`, chroma bám mép gamut sRGB chừa
-biên 0.005:
-
-| Nhánh | Tiêu chí | Nghiệm | Đo được | Láng giềng trượt |
-|---|---|---|---|---|
-| `:root` | L **lớn nhất** giữ chữ trắng `0.985` ở ≥4.6:1 | `oklch(0.58 0.23 25)` → `#e31029` | 4.6144 | L=0.581 → 4.5977 |
-| `.dark` | L **nhỏ nhất** giữ chữ `0.145` ở ≥4.6:1 | `oklch(0.609 0.242 25)` → `#f2102c` | 4.6060 | L=0.608 → 4.5896 |
-
-Tiêu chí đảo chiều giữa hai nhánh vì chữ trên nút đảo chiều: nhánh sáng chữ
-TRẮNG nên contrast kéo L xuống; nhánh tối chữ GẦN ĐEN nên contrast kéo L lên, và
-L càng cao thì đỏ càng nhạt về phía hồng. Cả hai vì vậy nằm đúng trên biên 4.6 —
-từ hai phía đối nhau. Ngưỡng 4.6 dư 0.1 so với 4.5 của SC 1.4.3, để sai số
-oklch→sRGB giữa các trình duyệt không kéo tụt xuống dưới.
-
-Chroma chừa biên 0.005 dưới mép gamut gần như **miễn phí**: bám mép tuyệt đối chỉ
-mua thêm 0.001 L (L=0.581 C=0.236, dư vỏn vẹn 0.00005) và đổi lại là một giá trị
-mà bất kỳ ma trận oklch→sRGB nào lệch ở chữ số thứ tư cũng đẩy ra ngoài gamut —
-lúc đó trình duyệt gamut-map còn phép đo lại clamp, hai phép chiếu khác nhau, và
-con số đo được không còn tả đúng thứ hiển thị.
-
-**Hệ quả: `--primary` và `--destructive` nay lệch đúng 2.3° hue**, đo được
-**1.01:1** giữa hai mặt nút ở nhánh sáng. Mắt không phân biệt nổi. Nếu cả hai
-cùng tô nền đặc thì "Lưu" và "Xoá vĩnh viễn" trông y hệt nhau — và với người mù
-màu đỏ-lục, hoặc trên bản in đen trắng, chúng **đúng là** một.
-
-Tách bằng **HÌNH DẠNG**, ở tầng component, không bằng cách đổi màu:
-
-| | `primary` | `destructive` |
-|---|---|---|
-| nền lúc nghỉ | `bg-primary` (ĐẶC) | `bg-transparent` (rỗng) |
-| viền | không có | `border border-destructive` |
-| chữ | `text-primary-foreground` (sáng, đảo) | `text-destructive` (đậm) |
-| icon | không có mặc định | `TriangleAlert` mặc định, `aria-hidden` |
-| hover | `bg-primary/90` | đảo sang nền ĐẶC `bg-destructive` |
-
-Khác biệt là **cấu trúc**, nên nó sống sót khi khử màu. Quy ra độ chói tương đối
-(chính là kênh xám mà ảnh đen trắng giữ lại): nền nút `primary` L=0.1679 còn nền
-nút `destructive` L=1.0000 ở nhánh sáng — chênh **4.82:1**; nhánh tối 0.1943 vs
-0.0030 — chênh **4.61:1**. Tức ngay cả khi xoá sạch sắc độ, hai nút vẫn là "khối
-đặc tối" cạnh "khung rỗng sáng". Gác ở `button.test.tsx` §"khử màu" và
-`badge.test.tsx`.
-
-**Vì sao nghỉ = trong suốt chứ không phải `bg-destructive/10`.** Chữ đỏ trên nền
-hồng nhạt **không đạt** SC 1.4.3 ở nhánh sáng: đo được **3.99:1** (cần 4.5). Alpha
-không cứu nổi — `--destructive` sáng chỉ đạt 4.7647:1 trên nền trắng tinh, nên mọi
-lớp phủ đều ăn vào đúng phần dư mỏng đó; muốn đạt 4.5 thì tint phải hạ xuống /03,
-lúc ấy không còn là tint nữa. Bỏ hẳn tint giữ nguyên 4.7647 (sáng) / 6.8443 (tối).
-
-✅ **Khoảng trống trên `bg-muted` ĐÃ ĐÓNG (2026-09-10).** Chỗ này trước đây dặn
-"đừng đặt nút/badge `destructive` vào khối `bg-muted` ở nhánh sáng", vì
-`text-destructive` chỉ được **4.3686:1** ở đó. `p16-tokens.md` đặt `--destructive`
-sáng thành `oklch(0.505 0.192 29)`, đo lại được **5.9429** (sáng) và **5.3271**
-(tối) — cả hai vượt 4.5, nên lời dặn ấy không còn đúng và đã được gỡ.
-
-*Absence pin* tương ứng ở `tokens.contract.test.ts` cũng bị **xoá**, không phải
-"cập nhật con số": cặp `--destructive`/`--muted` nay nằm thẳng trong `TEXT_PAIRS`
-ở cả hai theme. Ghim lại 5.94 sẽ biến một lần sửa thành một baseline vĩnh viễn
-mà không ai rà lại — `rules/pinned-baseline-test-companion.md` cấm đúng điều đó.
-
-**Khoảng trống link tối đã đóng (2026-09-12):** `--primary` và `--ring` dùng
-`oklch(0.68 0.19 26.7)`, nằm trong sRGB. Tương phản link trên background/card/muted
-lần lượt **6.3056/5.7071/4.8157:1**; chữ trên nút đạt **6.3056:1**. Trắng cạnh
-ring vẫn đạt **3.1397:1**. Ba cặp link nằm trong `TEXT_PAIRS`, ngưỡng 4.5 cho cả
-hai theme; đối chứng màu cũ chứng minh test phát hiện hồi quy. Gạch chân giúp
-nhận dạng link nhưng không thay thế yêu cầu tương phản chữ SC 1.4.3.
-
-**`Alert` KHÔNG đổi, và đó là kết luận có số.** Nó vốn đã là dạng nhạt + viền, và
-không có biến thể alert nào tô nền `--primary` đặc để mà lẫn. Nhãn ở đó là
-`text-foreground` (16.56:1 sáng / 15.16:1 tối trên `--card`) chứ không phải
-`text-destructive`, nên nó không chạm cái trần 4.7647 đã buộc nút phải bỏ tint —
-khác nhau vì alert đọc lâu còn nút thì liếc.
-
-**`--status-progress` giữ hue 262.881, và lý do ĐẢO NGƯỢC.** Trước đây lam là hue
-thương hiệu nên "đang học" bám theo màu chính một cách có chủ ý. Nay thương hiệu
-là đỏ, nên lập luận đó vừa mất hiệu lực vừa lật thành lý do ngược lại: một chấm
-"đang học" màu đỏ đọc thẳng ra "lỗi". Lam nay **rảnh** — không còn tranh chấp ngữ
-nghĩa với gì — nên nó mang được nghĩa trung lập "đang diễn ra". Cùng lý lẽ cho các
-mặt nền tối (`--background`/`--card`/`--muted`/`--secondary`, chroma 0.012): mặt
-nền không mang thương hiệu, và tô sắc ấm lên nền tối cho ra xám ngả nâu, đục. Nền
-lạnh dưới điểm nhấn đỏ là tương phản có chủ ý.
-
-**Hàng xóm hue — đã đo, không có xung đột.** `--warning` (hue 55.98 sáng / 70.08
-tối) và `--difficulty-intermediate` (hue 65) cách primary 31–45°, và đọc ra nâu/hổ
-phách (`#ae5100`, `#975c16` ở nhánh sáng) chứ không cùng họ với `#e31029`. Cái
-thật sự sát là `--destructive` ở 2.3° — và đó chính là lý do mục này tồn tại.
-
-
-</details>
-
-## 2. Cơ chế dark mode (D2)
-
-1. **Nguồn class:** `.dark` trên `<html>` (không phải `<body>` — `packages/ui`
-   không giả định `<body>` là gốc). Tailwind v4 khai `@custom-variant dark
-   (&:where(.dark, .dark *))` trong `globals.css` (không có
-   `tailwind.config.*` ở repo này — xem `phase-13-exec.md` §0).
-2. **Trước paint:** `THEME_INIT_SCRIPT` (chuỗi JS thuần, `packages/ui/src/theme/
-   theme-provider.tsx`) nhúng bằng `<script nonce={nonce}
-   dangerouslySetInnerHTML>` trong `<head>` ở `apps/web/src/app/layout.tsx` —
-   cùng nonce CSP đã gắn cho request (`x-nonce`, xem
-   `apps/web/src/server/security/headers.ts`). Script đọc
-   `localStorage['dlp.theme']` (`'light'|'dark'|'system'`), tính theme thực áp
-   dụng, và `document.documentElement.classList.add/remove('dark')` — TRƯỚC KHI
-   React hydrate, để không nháy màu (FOUC).
-3. **Sau hydrate:** `<ThemeProvider>` (bọc `{children}` trong layout) tiếp quản —
-   `useTheme()` trả `{ choice, resolved, setChoice }`. `resolved` theo dõi
-   `prefers-color-scheme` real-time khi `choice === 'system'`.
-4. **`<html suppressHydrationWarning>`** — bắt buộc, vì script ở bước 2 mutate
-   `classList` của `<html>` trước khi React so khớp cây DOM server-rendered;
-   không có cờ này React sẽ log cảnh báo hydration mismatch sai (đây là hành vi
-   ĐÚNG, không phải lỗi cần sửa).
-5. **Terminal:** theo `resolved === 'dark' ? 'dlp-dark' : 'dlp-light'` qua
-   `useResolvedTerminalTheme()` (hợp đồng C5, lane D1 tiêu thụ) — trừ khi người
-   dùng đã chọn theme terminal riêng ở hồ sơ (13.E).
-
-## 3. Font (D3)
-
-**Be Vietnam Pro** — `next/font/google`, subsets `['latin', 'vietnamese']`, weight
-`400/500/600/700`, biến `--font-be-vietnam-pro`, áp trên `<html>` ở `layout.tsx`.
-`--font-sans` trong `@theme inline` dùng biến này + fallback stack thật
-(`ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif`) —
-không chỉ mỗi biến, để trang vẫn đọc được nếu `next/font` fail lúc build (lỗi mạng).
-
-**⛔ Không Poppins** — Poppins KHÔNG có subset `vietnamese`, thiếu glyph có dấu
-nặng/ngã/ơ/ư (ví dụ "ợ", "ẫ", "ỡ" render bằng font fallback hệ thống, vỡ giữa từ).
-Be Vietnam Pro phủ đủ toàn bộ bảng chữ tiếng Việt trong CÙNG MỘT font-family, không
-cần font thứ hai chỉ cho dấu.
-
-**Kiểm bằng mắt:** chuỗi `"Bài học Kỹ thuật hạ tầng — đã kiểm chứng đầy đủ dấu:
-ợ, ẫ, ỡ, ư, ộ"` (đủ dấu nặng/ngã/ơ/ư như AC yêu cầu) phải hiện liền mạch, không đổi
-font đột ngột ở bất kỳ ký tự nào.
-
-`next/font/google` tự host (không gọi Google Fonts lúc runtime từ trình duyệt
-người dùng) ⇒ CSP `font-src 'self'` không cần đổi.
-
-## 4. Kho component (`packages/ui/src`)
-
-**Nền tảng:** shadcn/ui trên [`radix-ui`](https://www.npmjs.com/package/radix-ui)
-(gói hợp nhất, `import { X } from 'radix-ui'` → `X.Root`/`X.Trigger`/…) +
-`class-variance-authority` (biến thể) + `lucide-react` (icon) + `cn()`
-(`clsx` + `tailwind-merge`, có sẵn từ trước). KHÔNG dùng `tailwindcss-animate`/
-`tw-animate-css` — mọi hiệu ứng dùng transition CSS thường
-(`transition-colors`, `transition-transform`), tránh thêm dependency cho hiệu
-ứng vào/ra chưa ai yêu cầu (YAGNI).
-
-Mọi component export từ `packages/ui/src/index.ts`. Radix wrapper đều
-`'use client'`. Primitive thuần trình bày (`Badge`, `Card`, `Skeleton`,
-`EmptyState`, `ErrorState`, `Table`, …) KHÔNG tự `'use client'` — nơi gọi tự quyết
-định (giữ nguyên quy ước sẵn có ở `button.tsx`/`input.tsx`).
-
-### 4a. Checklist 4 trạng thái
-
-`n/a` = trạng thái không áp dụng cho bản chất component đó, kèm lý do ngắn — không
-phải "bỏ quên".
-
-| Component | Loading | Empty | Error | Disabled |
-|---|---|---|---|---|
-| `Button` | `loading` prop → Spinner đè giữa + `aria-busy`, giữ nguyên bề rộng | n/a (không có "rỗng" cho một nút) | n/a (lỗi hành động là việc của caller, hiện qua Toast/ErrorState) | `disabled` (native) |
-| `Input` / `Textarea` | n/a (ô nhập không có trạng thái tải) | n/a | `invalid` → `aria-invalid` + viền destructive | `disabled` (native) |
-| `Label` | n/a | n/a | n/a | theo `peer-disabled` của control liên kết |
-| `Badge` | n/a | n/a | `variant="destructive"`; trạng thái bị chặn dùng `status-locked` (§4c) | n/a (không tương tác — không nhận focus, không có handler) |
-| `Card` (+Header/Title/Description/Content/Footer) | nơi gọi đặt `<Skeleton>` bên trong `CardContent`; khung chờ KHÔNG đặt `interactive` (§4d) | nơi gọi đặt `<EmptyState>` bên trong | nơi gọi đặt `<ErrorState>` bên trong | n/a (thẻ không phải control; `interactive` chỉ đổi phản hồi hover, không phải trạng thái bật/tắt) |
-| `Dialog` (+Trigger/Content/Header/Footer/Title/Description/Close) | nội dung bên trong tự quản (Skeleton nếu cần) | n/a | n/a | `DialogTrigger asChild` nhận `disabled` từ control con |
-| `Tabs` (+List/Trigger/Content) | mỗi `TabsContent` tự quản loading riêng | n/a | n/a | `TabsTrigger disabled` |
-| `Select` (+Trigger/Content/Item/Value/Group) | n/a (đóng/mở tức thời, không tải danh sách bất đồng bộ ở tầng primitive) | danh sách item rỗng thì nơi gọi tự không render `SelectContent` | n/a | `Select disabled` (toàn bộ) hoặc `SelectItem disabled` (từng mục) |
-| `DropdownMenu` (+Trigger/Content/Item/Separator/Label) | n/a | n/a | n/a | `DropdownMenuItem disabled` |
-| `Tooltip` (+Provider/Trigger/Content) | n/a | n/a | n/a | ẩn khi trigger `disabled` (trình duyệt không bắn pointer event) |
-| `Switch` | n/a | n/a | n/a | `disabled` (Radix) |
-| `Checkbox` | n/a | n/a | n/a | `disabled` (Radix) |
-| `RadioGroup` (+Item) | n/a | n/a | n/a | `disabled` ở `RadioGroup` (cả nhóm) hoặc `RadioGroupItem` (từng mục) |
-| `Toaster` / `useToast` | n/a (toast tự xuất hiện tức thời) | không có toast nào = không render gì (đúng ý, không phải "rỗng" cần thông báo) | `variant: 'destructive'` cho toast báo lỗi | n/a |
-| `Alert` (+Title/Description) | n/a | n/a | `variant="destructive"` → `role="alert"` | n/a |
-| `Skeleton` | CHÍNH LÀ trạng thái loading (khối chờ tải) | n/a | n/a | n/a |
-| `Spinner` | CHÍNH LÀ chỉ báo loading (`role="status"`) | n/a | n/a | n/a |
-| `Table` (+Header/Body/Row/Head/Cell/Caption) | nơi gọi render hàng `<Skeleton>` trong `TableBody` | nơi gọi render `<EmptyState>` thay `TableBody` (ngoài `<table>`, hoặc một hàng span đủ cột) | nơi gọi render `<ErrorState>` thay bảng | n/a |
-| `CursorPager` | `loading` → nút Tiếp ở trạng thái `Button loading` | n/a (không phân trang được thì `hasNext=false`) | n/a (lỗi tải trang tiếp là việc của nơi gọi qua `ErrorState`) | `hasNext=false` → nút Tiếp disable; `page<=1` → nút Về đầu disable |
-| `EmptyState` | n/a (không tự tải gì — nơi gọi quyết định lúc nào đổi `Skeleton` sang `EmptyState`) | CHÍNH LÀ trạng thái empty | n/a | n/a |
-| `ErrorState` | n/a | n/a | CHÍNH LÀ trạng thái error (`role="alert"`) | `retrying` → nút Thử lại `Button loading` |
-| `Separator` | n/a (ranh giới thuần thị giác) | n/a | n/a | n/a |
-| `Kbd` | n/a | n/a | n/a | n/a |
-| `MarkdownView` | n/a (render đồng bộ từ chuỗi đã có trong tay — không có pha tải) | n/a (chuỗi rỗng ra khối rỗng; "không có nội dung" là quyết định của nơi gọi, không phải của trình render) | n/a (không I/O nên không có lỗi riêng; markdown hỏng vẫn render ra text) | n/a (chỉ đọc, không có control nào để vô hiệu) |
-| `ContentView`/`SplitPane`/`StepNav`/`ProgressBar` | giữ API cũ (P2/2.D) — nơi gọi (trang bài học) bọc `Skeleton` NGOÀI cụm | n/a (bài học luôn có ít nhất một bước; danh sách rỗng là lỗi dữ liệu, chặn từ trước khi render) | nơi gọi bọc `ErrorState` NGOÀI cụm — tầng primitive không có trạng thái lỗi riêng | `StepNav` tự tính disable nút Trước/Tiếp theo vị trí `activeKey` |
-| `SearchTabs` | n/a (lọc chạy ở nơi gọi; khung chờ thuộc về danh sách BÊN DƯỚI, không thuộc thanh tìm) | n/a (thanh tìm luôn có ít nhất một tab; "không có kết quả" hiện bằng `EmptyState` của danh sách) | n/a (không I/O — nó chỉ phát `onSearch`/`onTabChange`) | n/a (gói ngoài `gooey-search-tabs@0.2.0` không có prop `disabled`; nơi gọi cần khoá thì không render nó — xem §4f) |
-| `ResourceIcon` | n/a (glyph tĩnh, không có pha tải) | n/a | n/a (`kind` là union đóng 26 giá trị nên không có nhánh "không biết loại") | n/a (không tương tác — không nhận focus, không có handler) |
-| `Chip` | n/a (bật/tắt tức thời; danh sách bên dưới tự hiện khung chờ) | n/a (nhãn bắt buộc; `count={0}` vẫn hiện số 0 — "lọc này không có gì" là thông tin) | n/a (không I/O) | `disabled` (native) |
-| `TopicBadge` | n/a (glyph tĩnh) | n/a (`line` là union đóng chín tuyến; chủ đề không rõ thì nơi gọi dùng `Badge variant="line"` không `line` ⇒ tuyến mực) | n/a | n/a (không tương tác) |
-| `LineMarker` | n/a (glyph tĩnh) | n/a | n/a | `state="locked"` (ô rỗng viền xám, mờ) — không phải control nên không có `disabled` |
-| `Difficulty` | n/a (glyph tĩnh) | n/a (`level` là union đóng bốn mức) | n/a | n/a (không tương tác) |
-| `StatusDot` | `tone="live"` nhấp nháy cho phiên đang chạy | `tone="idle"` | `tone="bad"` | n/a (không tương tác; luôn đứng cạnh chữ nói cùng trạng thái) |
-| `Meter` | n/a (vẽ từ `value`/`max` đã có; nơi gọi đặt `Skeleton` khi chưa có số) | `value=0` ⇒ thước rỗng; `max<=0` ⇒ thước rỗng, `aria-valuemax=0` | n/a (không I/O; giá trị ngoài [0, max] bị kẹp, không ném) | n/a (chỉ đọc) |
-| `Num` | n/a (số nằm trong câu; câu chờ tải thì nơi gọi thay cả câu bằng `Skeleton`) | n/a | n/a | n/a (không tương tác) |
-| `Sheet` (+Trigger/Content/Title/Description/Close) | nội dung bên trong tự quản (Skeleton nếu cần) | n/a | n/a | `SheetTrigger asChild` nhận `disabled` từ control con |
-| `Popover` (+Trigger/Content) | nội dung bên trong tự quản | n/a | n/a | `PopoverTrigger asChild` nhận `disabled` từ control con |
-
-### 4b. `Button` — biến thể, `asChild`/`loading`, icon
-
-```ts
-variant: 'primary' | 'ink' | 'secondary' | 'outline' | 'ghost' | 'destructive' | 'link'; // mặc định 'primary'
-size: 'sm' | 'md' | 'lg' | 'icon'; // mặc định 'md'
-asChild?: boolean; // Radix Slot — render root là phần tử con (vd. <a>) thay vì <button>
-loading?: boolean; // disabled + Spinner đè giữa, giữ nguyên bề rộng nút
-iconLeft?: ReactNode;  // icon TRƯỚC nhãn — BỊ BỎ QUA khi asChild (xem dưới)
-iconRight?: ReactNode; // icon SAU nhãn — cùng ràng buộc
-```
-
-`variant`/`size` cũ (`'primary'|'secondary'|'ghost'`, không `size`) **vẫn hoạt
-động không đổi** — API mở rộng, không phá lời gọi hiện có.
-
-#### `asChild` đổi CÁCH biểu đạt disabled/loading, không đổi ý nghĩa
-
-Thuộc tính HTML `disabled` chỉ có tác dụng trên phần tử form. `asChild` hầu như
-luôn bọc một `<a>` (nút-trông-như-link), và ở đó `disabled` được in ra nhưng
-trình duyệt bỏ qua hoàn toàn: liên kết vẫn bấm được, vẫn nhận focus, và cả
-`disabled:pointer-events-none` lẫn `disabled:opacity-50` đều không khớp vì
-pseudo-class `:disabled` không bao giờ đúng với anchor.
-
-Nên khi `asChild`, `Button` chuyển sang `aria-disabled="true"` +
-`pointer-events-none opacity-50` **không điều kiện**. Đồng thời `loading` ở
-nhánh này **không** áp `text-transparent`: Spinner đè chỉ render được ở nhánh
-`<button>` (Radix `Slot` chỉ nhận một phần tử con), nên giấu nhãn sẽ để lại một
-liên kết chữ tàng hình không có gì thay thế — `tailwind-merge` còn nuốt luôn
-`text-primary-foreground` khi hai class cùng nhóm màu chữ gặp nhau.
-
-| | `<button>` (mặc định) | `asChild` (vd. `<a>`) |
-|---|---|---|
-| `disabled` | thuộc tính `disabled` native | `aria-disabled` + `pointer-events-none opacity-50` |
-| `loading` | Spinner đè + `text-transparent` + `aria-busy` | nhãn giữ nguyên hiển thị + `aria-busy` + khoá như trên |
-
-Cả bốn đường đều có test hồi quy trong `button.test.tsx` § "Button — asChild".
-
-#### `iconLeft`/`iconRight` — icon TRANG TRÍ, và `asChild` không nhận được chúng
-
-Hai prop này nhận `ReactNode`, đặt icon ở hai đầu nhãn. Icon ở đây là **trang
-trí**: nó đứng cạnh chữ đã nói đủ nghĩa, nên node truyền vào **tự mang
-`aria-hidden`** — `Button` cố ý không `cloneElement` để nhét thuộc tính vào node
-của nơi gọi. Nút chỉ-có-icon là ca khác hẳn: dùng `size="icon"` + `aria-label`
-trên chính nút, vì lúc đó icon là thứ DUY NHẤT mang nghĩa.
-
-**`asChild` bỏ qua cả hai prop, và đó là hành vi đã khai — không phải bug.**
-Radix `Slot` gọi `Children.only`, tức `props.children` phải là **đúng một** React
-element. Thêm một node anh em (icon) vào nhánh đó làm Slot ném thẳng *"expected a
-single React element child"*. Nên nhánh `asChild` truyền `children` nguyên vẹn,
-và icon là việc của element con:
-
-```tsx
-<Button asChild>
-  <Link href="/lessons"><Play aria-hidden />Bắt đầu</Link>
-</Button>
-```
-
-Bỏ qua trong im lặng là điều đáng ngại, nên nó **được ghim bằng test** ở
-`button.test.tsx` — một lần "dọn dẹp" sau này biến nó thành sự bỏ qua tình cờ sẽ
-làm suite đỏ, chứ không trôi qua.
-
-Khi `loading`, icon nằm CÙNG nhánh với nhãn nên `text-transparent` của nút nuốt
-luôn màu nét của chúng. Đúng ý: cả cụm icon + nhãn mờ đi sau Spinner đè lên, thay
-vì icon còn nổi lên cạnh một cái nhãn đã tàng hình.
-
-#### Bản dựng lại PTIT (2026-10) — hình dạng và vi tương tác
-
-Nguồn: `plans/fe-ptit-rebuild/design-brief.md` + `contracts/ui-kit.md` §B.
-
-- **Vuông.** Bo góc đi qua `rounded-control` (nút, ô nhập, chip, badge, tab) và
-  `rounded-surface` (dialog, popover, menu, select, toast). Cả hai ra 0 trong app
-  và ra bậc bo cũ bên trong `.arena-root` của game K8s, nên game không đổi hình.
-- **Bóng chỉ ở lớp nổi.** `shadow-float` cho dialog, sheet, popover, dropdown,
-  select, tooltip, toast. Trong trang không còn `shadow-elevation-*` nào.
-- **`ink`** = khối mực đảo màu. `secondary` nay là nền `muted`; `outline` viền
-  mực, hover tô muted; `link` chữ `--brand` (đỏ an toàn cho chữ), gạch chân hiện
-  khi hover.
-- **`destructive`** = nền pha nhạt `bg-destructive/10` + viền `/50` + chữ đỏ +
-  icon `TriangleAlert`; hover đảo sang nền đặc. Vẫn khác `primary` bằng CẤU TRÚC
-  (khối đặc không viền / khối nhạt có viền + icon), xem §1c.
-- **Vi tương tác:** nhấn ⇒ lún 1px (`motion-safe:active:translate-y-px`); có
-  `iconRight` ⇒ icon nhích 2px khi hover (`group/button`). Cả hai sau
-  `motion-safe:`.
-
-### 4c. `Badge` — bảy biến thể NGỮ NGHĨA, mỗi cái một hình riêng
-
-Sáu biến thể trình bày (`default`, `secondary`, `success`, `warning`,
-`destructive`, `outline`) nói về **sắc thái**. Bảy biến thể dưới đây nói về
-**trạng thái có thật trong miền dữ liệu** — độ khó của bài, tiến độ của người
-học — nên mỗi cái mang một icon `lucide-react` riêng, **mặc định**:
-
-| Biến thể | Nhãn tiếng Việt | Icon | Hình |
-|---|---|---|---|
-| `difficulty-basic` | Cơ bản | `SignalLow` | sóng tín hiệu **1 vạch** |
-| `difficulty-intermediate` | Trung cấp | `SignalMedium` | sóng tín hiệu **2 vạch** |
-| `difficulty-advanced` | Nâng cao | `SignalHigh` | sóng tín hiệu **3 vạch** |
-| `difficulty-expert` | Rất khó | `Signal` | sóng tín hiệu **4 vạch đầy** |
-| `status-todo` | Chưa bắt đầu | `Circle` | vòng tròn **rỗng** |
-| `status-progress` | Đang học | `CirclePlay` | vòng tròn có **nút play** |
-| `status-done` | Đã xong | `CircleCheck` | vòng tròn có **dấu tích** |
-| `status-locked` | Bị khoá | `Lock` | **ổ khoá** |
-
-**Vì sao mỗi trạng thái phải có hình riêng, không chỉ màu riêng.** WCAG 1.4.1
-(Use of Color) cấm màu là phương tiện DUY NHẤT truyền đạt thông tin, và ở đây có
-hai người đọc cụ thể bị bỏ lại nếu chỉ dựa vào màu:
-
-- **In đen trắng.** Bảy nền tô đặc đổ về bảy sắc xám; "Đã xong" và "Đang học"
-  thành hai ô xám gần bằng nhau. Số vạch và dấu tích thì sống sót qua máy in.
-- **Người mù màu.** Ca phổ biến nhất (deuteranopia, khoảng 6% nam giới) làm xanh
-  lá và đỏ chập lại — đúng cặp `status-done` / `destructive`, tức cặp mà đọc nhầm
-  gây hại nhất: "đã xong" và "hỏng" trông như nhau.
-
-Hai thang hình được chọn để **bản thân thứ tự cũng đọc được**, không chỉ khác
-nhau: độ khó là **số vạch tăng dần** (1 → 2 → 3, nhìn là biết cái nào nặng hơn),
-tiến độ là một **hành trình** rỗng → play → tích → khoá. Ba icon khác nhau nhưng
-không xếp được thứ tự thì vẫn thoả 1.4.1 mà mất thông tin thứ bậc.
-
-**Icon là MẶC ĐỊNH, không phải opt-in.** Nếu nơi gọi phải tự truyền icon thì bảo
-đảm 1.4.1 phụ thuộc vào việc MỌI nơi gọi đều nhớ — tức là không có bảo đảm nào.
-Nơi gọi vẫn đè được bằng `icon={<... />}`, và tắt hẳn bằng `icon={null}`. Sáu
-biến thể trình bày cố ý KHÔNG có icon mặc định: chúng không mang một trạng thái
-cố định nào để mà vẽ.
-
-**Hai chỗ lệch tên, cả hai đều cố ý** (chi tiết ở `badge.tsx`):
-
-1. `basic` ≠ `beginner`. Token là `--difficulty-basic`; enum miền
-   (`ScenarioDifficulty`) là `beginner`. Việc nối hai từ vựng thuộc về **nơi
-   gọi** — đúng một chỗ: `DIFFICULTY_BADGE` trong
-   `apps/web/src/components/catalog/catalog-labels.ts`.
-2. `status-todo` **không có token riêng**. Hợp đồng token chỉ có
-   `progress`/`done`/`locked`, còn miền tiến độ có bốn giá trị. `status-todo` vì
-   vậy mượn `--muted`/`--muted-foreground` (đã được gác ≥4.5:1) thay vì mint token
-   mới — trung tính là màu ĐÚNG cho "chưa bắt đầu", và thứ phân biệt nó khỏi ba
-   trạng thái kia là HÌNH.
-
-`status-locked` hiện **chưa có nơi gọi**: trang danh mục không khoá mục nào. Nó
-dành cho lộ trình tuần tự (`app/paths/[id]`). Ghi ra để lần đọc sau không kết
-luận nhầm rằng nó thừa.
-
-### 4d. `Card` — `interactive` và `accent`
-
-```ts
-interactive?: boolean;                            // mặc định FALSE
-accent?: 'basic' | 'intermediate' | 'advanced'   // cung màu độ khó ở góc trên-trái
-       | 'pending';                                // độ khó CHƯA BIẾT (khung chờ tải)
-```
-
-`interactive` bật hover: đổi viền sang `border-input`, nâng bóng lên
-`shadow-elevation-2`, và nhấc thẻ `-translate-y-0.5` (dưới `motion-safe:`).
-
-**Mặc định `false` là một quyết định, không phải sự dè dặt.** Hiệu ứng nhấc là
-tín hiệu "bấm được". Đặt nó lên một tấm bảng tĩnh — thẻ "Sức chứa" ở trang quản
-trị, khung đăng nhập — là **hứa một hành động không tồn tại**: người dùng rê
-chuột, thấy thẻ phản hồi, bấm, và không có gì xảy ra. Mặc định phải là cái KHÔNG
-hứa gì; thẻ nào thật sự bấm được thì tự nói ra.
-
-Nên quy tắc là: **bật `interactive` khi và chỉ khi thẻ nằm trong một `<Link>` hoặc
-có handler bấm.** Hiện có đúng một nơi — `CatalogCard`
-(`apps/web/src/components/catalog/catalog-grid.tsx`), và nó **đã truyền** (kiểm
-2026-09-06). Khung chờ (skeleton) trong cùng file cố ý KHÔNG truyền: một ô đang
-tải thì chưa bấm được.
-
-`accent` vẽ **một cung màu ở góc trên-trái** — vòng ellipse hở của motif
-(`packages/motion/src/motif.ts`), bậc nét `ARC_STROKE_HAIRLINE`, cắt theo góc bo
-bởi một lớp bọc `absolute inset-0 overflow-hidden`. Hậu tố ba giá trị đầu khớp
-token `--difficulty-*`, nên nó mang **cùng chỗ lệch `basic`/`beginner`** ở §4c —
-`DIFFICULTY_ACCENT` trong `catalog-labels.ts` là chỗ nối. Màu một mình KHÔNG
-đủ cho 1.4.1; nó đi kèm `Badge` độ khó có icon trong cùng thẻ, và đó mới là thứ
-mang nghĩa — điều đó càng đúng với cung 2px hơn là với dải 4px cũ.
-
-`'pending'` (xám `--muted`) là độ khó **chưa biết**, dành cho khung chờ tải.
-Nó là một giá trị của `accent` chứ không phải một cung xám do nơi gọi tự dựng:
-hình học của cung do `card.tsx` sở hữu, và một bản chép ở `catalog-grid.tsx` sẽ
-lệch vào lần sửa thứ hai — lúc đó khung chờ và thẻ thật không còn cùng hình, mà
-bố cục nhảy khi dữ liệu về chính là thứ khung chờ sinh ra để chặn.
-
-> **Đổi hình ngày 2026-09-11 (lane 16.L0).** Bản trước vẽ `border-l-4
-> border-l-difficulty-*` — một dải phẳng ở viền trái. Design §3 chốt thẻ danh
-> mục dùng "một cung màu ở góc thay cho viền trái phẳng", và `Card` là chỗ duy
-> nhất phát ra hình đó. `Card` nay luôn mang `relative` (cung định vị tuyệt đối
-> theo thẻ) và nhận `children` tường minh thay vì để chúng đi qua `{...props}`.
-> `packages/ui/src/card.test.tsx` chuyển toàn bộ khẳng định cũ sang hình mới —
-> không ô nào bị xoá.
-
-### 4e. Ba bậc bóng — `shadow-elevation-1|2|3`
-
-Ba **bậc ngữ nghĩa**, không phải ba kích cỡ tuỳ ý. Dùng sai bậc thì phân cấp thị
-giác nói dối về thứ đang thật sự nổi lên trên:
-
-| Class | Bậc | Dùng cho |
-|---|---|---|
-| `shadow-elevation-1` | nền | thẻ lúc **nghỉ**, thanh đầu trang, ô thống kê |
-| `shadow-elevation-2` | nhấc | thẻ lúc **hover** (chỉ khi `interactive`) |
-| `shadow-elevation-3` | nổi | **popover / dialog** — lớp nằm trên toàn trang |
-
-Tiện ích sinh từ namespace `--shadow-*` trong `@theme inline`. **KHÔNG** viết
-`shadow-[var(--elevation-1)]`: dạng arbitrary vẫn đổi theo theme nhưng bỏ qua
-bảng theme, nên mỗi chỗ gọi lại tự chọn bậc — đúng thứ mà ba bậc sinh ra để chặn.
-
-> **Trạng thái thật của bậc 3 (đo 2026-09-06): chưa có nơi gọi nào.** Token
-> `--elevation-3` đã khai ở cả hai theme và `shadow-elevation-3` đã sinh ra, nhưng
-> bốn lớp nổi hiện vẫn dùng thang dựng sẵn của Tailwind — `Dialog` và `Toaster` ở
-> `shadow-lg`, `SelectContent`/`DropdownMenuContent`/`TooltipContent` ở
-> `shadow-md`. Đây là **nợ chưa trả**, không phải quyết định; ghi ra để lần đọc
-> sau không tưởng bậc 3 đã được dùng ở đâu đó rồi.
-
-#### ⚠ `tailwind-merge` KHÔNG khử `shadow-elevation-*` với thang dựng sẵn
-
-Đo trực tiếp bằng `twMerge` của bản đang cài:
-
-```
-twMerge('shadow-sm shadow-elevation-1')          → 'shadow-sm shadow-elevation-1'     ← CẢ HAI sống
-twMerge('shadow-elevation-1 shadow-none')        → 'shadow-elevation-1 shadow-none'   ← CẢ HAI sống
-twMerge('shadow-elevation-1 shadow-elevation-2') → 'shadow-elevation-2'               ← khử ĐƯỢC
-```
-
-Dòng thứ ba là chỗ dễ đọc nhầm thành "vậy là nó vẫn hoạt động". Cấu hình mặc định
-của `tailwind-merge` chỉ biết thang bóng dựng sẵn (`sm`/`md`/`lg`/…);
-`elevation-1` không phải cỡ áo phông nên nó bị xếp vào nhóm *shadow-**color***.
-Hai class **cùng** rơi vào nhóm đó thì khử nhau bình thường — nên bậc 1 với bậc 2
-sạch sẽ. Nhưng một "màu" thì **không xung đột** với một "bóng", nên `shadow-none`
-và `shadow-sm` đi xuyên qua.
-
-Hệ quả thực dụng: **đừng trông vào `className="shadow-none"` để tắt bóng của
-`Card`** — cả hai luật cùng tồn tại và THỨ TỰ NGUỒN CSS quyết định, không phải ý
-định của nơi gọi. Muốn một bậc khác thì truyền `shadow-elevation-*` khác (khử
-được, dòng ba ở trên), đừng truyền `shadow-none`.
-
-Sửa tận gốc là dạy `cn.ts` biết nhóm này:
-
-```ts
-extendTailwindMerge({ extend: { classGroups: { shadow: [{ shadow: ['elevation-1', 'elevation-2', 'elevation-3'] }] } } })
-```
-
-Chưa làm — `cn.ts` là SSOT của mọi component, đổi nó là việc riêng có test riêng,
-không phải phần đuôi của một lane giao diện.
-
-## 5. Quy tắc dùng màu
-
-
-1. **Không bao giờ** `#hex` hay `slate-*`/`gray-*`/`zinc-*`/`neutral-*` trong JSX
-   — dùng class ngữ nghĩa ở bảng §1.
-2. **Không** thêm token màu mới ở `globals.css` mà không cập nhật bảng §1 —
-   token là hợp đồng C1, đổi/thêm phải phản ánh ở tài liệu này TRONG CÙNG COMMIT.
-3. Modifier độ mờ dùng cú pháp Tailwind v4 chuẩn: `bg-primary/90`,
-   `border-warning/30` — hoạt động trực tiếp trên biến CSS đã khai trong
-   `@theme inline`, không cần khai riêng biến `-rgb`.
-4. Component **presentational thuần** (không Radix) không tự `'use client'` —
-   giữ khả năng render server-side của trang cha.
-5. Icon dùng `lucide-react`, kích thước qua class Tailwind (`size-4`, `size-5`)
-   — không import SVG rời hay hardcode `width`/`height` bằng số.
-
-## 6. Thêm component mới
-
-1. Component **presentational** (không hành vi trình duyệt phức tạp) → viết
-   trực tiếp bằng `cn()` + class Tailwind (theo mẫu `badge.tsx`/`alert.tsx`).
-2. Component **tương tác phức tạp** (focus trap, portal, bàn phím) → tìm
-   primitive tương ứng trong `radix-ui` trước — KHÔNG tự viết lại (accessibility
-   của Radix đã được kiểm nhiều năm; `packages/terminal/src/session-machine.ts`
-   là ví dụ nhắc "đừng viết máy trạng thái/hành vi phức tạp thứ hai" cùng tinh
-   thần). Bọc bằng `cn()` + token, giữ nguyên props gốc của Radix qua
-   `ComponentProps<typeof Radix.X>`.
-3. Nếu có nhiều biến thể (màu/kích thước) → `class-variance-authority`, đặt
-   `satisfies Record<TênVariant, string>` để TypeScript báo lỗi ngay khi thêm
-   một giá trị enum mà quên viết class tương ứng.
-4. **Export** ở `packages/ui/src/index.ts` — cả runtime export lẫn `export type`
-   nếu có props/type công khai.
-5. **Test** — một file `*.test.tsx` cạnh component, vitest + RTL (jsdom — xem
-   header `packages/ui/vitest.config.ts` về ranh giới hành vi/layout), phủ MỌI
-   trạng thái áp dụng được ở bảng §4a. Nếu cần polyfill trình duyệt
-   (`ResizeObserver`, `scrollIntoView`, Pointer Capture) — polyfill đã có sẵn ở
-   `packages/ui/vitest.setup.ts`, không định nghĩa lại trong file test.
-6. **Cập nhật bảng §4a** trong tài liệu này ở CÙNG COMMIT — checklist trạng
-   thái là một phần của định nghĩa "xong", không phải việc làm sau. Bước này
-   **được gác bằng máy** từ 2026-09-06 (`src/design-system.contract.test.ts`,
-   §7): export một component mà không thêm dòng vào §4a làm suite đỏ, nên nó
-   không còn là một lời nhắc trông chờ vào trí nhớ.
-7. Chạy ba lệnh **RIÊNG** trước khi commit:
-
-   ```bash
-   pnpm --filter @devops-platform/ui typecheck
-   pnpm --filter @devops-platform/ui lint
-   pnpm --filter @devops-platform/ui test
-   ```
-
-   ⚠ **KHÔNG gộp** thành `pnpm --filter … typecheck lint test`. `pnpm run` chỉ
-   nhận MỘT tên script; hai chữ còn lại bị truyền tiếp làm **đối số** cho
-   script đầu, nên lệnh thật chạy ra là `tsc --noEmit "lint" "test"` và chết ở
-   `error TS5112: tsconfig.json is present but will not be loaded if files are
-   specified on commandline` (đo 2026-09-06). Hỏng này đọc như một lỗi kiểu
-   của repo, trong khi `lint` và `test` **chưa từng chạy** — nguy hiểm đúng ở
-   chỗ đó.
-
-## 7. Ba cổng hợp đồng (chạy trong suite `packages/ui`)
-
-Bảng C1/C2 ở `phase-13-exec.md` §2 là hợp đồng giữa 13.A và **tám lane Đợt 2**
-viết song song trong context riêng. Một hợp đồng chỉ được kiểm bằng mắt thì mục
-ruỗng theo thời gian, và hỏng của nó xuất hiện muộn — ở lane khác, trông như
-lỗi của họ. Ba file dưới đây biến nó thành cổng:
-
-| File | Gác gì | Đỏ ở đâu |
-|---|---|---|
-| `src/theme/tokens.contract.test.ts` | Token C1 có ở **cả** `:root` lẫn `.dark`; mọi token có `--color-*` trong `@theme inline`; contrast WCAG của 12 cặp chữ + 6 cặp phi-chữ ở cả hai theme. Thêm: palette `--odyssey-*` ngoài C1 (§ "Token ngoài bảng C1") — không token nào THỪA ngoài hợp đồng, palette vắng mặt ở `.dark`, và không lọt vào `@theme inline` | `pnpm test` |
-| `src/exports.contract.test.ts` | 68 tên C1/C2 được export; prop bắt buộc vẫn bắt buộc; mọi giá trị union variant/size còn nguyên; không có export lạ ngoài hợp đồng | `pnpm typecheck` **và** `pnpm test` |
-| `src/design-system.contract.test.tsx` | **Chính tài liệu này**: mọi component export có dòng ở bảng §4a và khai đủ 4 trạng thái; không dòng nào trỏ tới component đã xoá; bảng icon §4c khớp DOM thật | `pnpm test` |
-
-Ba hỏng chúng bắt được mà không cổng nào khác thấy:
-
-1. **Token thiếu ở một theme.** Không lỗi CSS, không cảnh báo build — chế độ
-   tối chỉ kế thừa màu sáng và hiện sai.
-2. **Thiếu map `@theme inline`.** Class `bg-x` không được Tailwind sinh ra;
-   JSX vẫn biên dịch, thuộc tính `class` vẫn có trong HTML, chỉ là không luật
-   CSS nào khớp. Cùng hình dạng với lỗi `@source` đo ngày 2026-08-13 (xem đầu
-   `globals.css`).
-3. **Contrast tụt dưới WCAG.** `axe-core` (cổng 13.H) chỉ đo contrast của
-   **chữ** — không có rule nào cho viền. Một cổng axe xanh không nói gì về
-   SC 1.4.11.
-
-Cả ba file mang **đối chứng dương**: phép đo contrast tự kiểm bằng 1:1 với
-chính nó, 21:1 đen-trắng và một khẳng định alpha thật sự được đè lên nền; kiểm
-export có test chặn tên lạ; cổng tài liệu chạy phép kiểm của nó trên các bản
-markdown **đã bị bẻ gãy có chủ đích** (thêm một component ma, xoá một dòng thật,
-làm rỗng một ô trạng thái) và đòi cả ba lượt đó phải đỏ. Một cổng không bao giờ
-đỏ được thì không gác gì cả.
-
-**Khi một cổng đỏ, sửa TOKEN/EXPORT — không hạ ngưỡng, không thêm tên vào danh
-sách miễn trừ** trừ khi đó thật sự là một quyết định mới, và khi đó phải sửa
-C1/C2 ở `phase-13-exec.md` trong cùng commit.
-
-### 7a. Cổng màu — nay là script, không còn là lệnh grep
-
-Từ 2026-09-08 phép kiểm màu cứng là **`pnpm tokens:check`**
-(`scripts/check-design-tokens.mjs`), không còn là dòng grep dán trong
-`phase-13-exec.md` §5. Ba lý do đo được:
-
-1. **Không job CI nào chạy lệnh grep đó** (grep toàn bộ `.github/workflows/`:
-   0 kết quả). Một lệnh nằm trong plan chỉ chạy khi có người nhớ chạy.
-2. **Nó kêu oan 5/5 lần.** Cả năm kết quả nó trả về đều là `#fff` trong CHÚ
-   THÍCH hoặc trong thông điệp assertion mô tả một lỗi đã sửa. Một cổng mà 100%
-   đầu ra là báo động giả thì bị tắt trong hai tuần.
-3. **Vùng quét thủng.** `--include=*.tsx` bỏ qua mọi `.ts` và `.css`.
-
-Script bỏ dòng chú thích và file test, mở thang màu Tailwind từ 4 tên lên đủ 22
-(`bg-red-500` / `text-blue-600` trước đây lọt hoàn toàn), thêm dạng `0xRRGGBB`
-của Three.js (§4.5), và chạy **đối chứng dương** trước mỗi lượt quét — 13 mẫu
-bẩn phải bị bắt, 20 mẫu sạch không được kêu; tự kiểm hỏng thì thoát 2 và không
-quét gì cả.
-
-**Sổ cái miễn trừ chạy hai chiều**, cùng khuôn `KNOWN_OUT_OF_GAMUT`: file/giá trị
-có màu cứng mà không có trong sổ ⇒ đỏ; dòng trong sổ mà nay đã sạch ⇒ **cũng đỏ**,
-và việc phải làm là xoá dòng đó. Miễn trừ có hai mức — cả file (xterm `ITheme`,
-vì nó nhận màu qua API JS và không đọc được `var(--token)`) và **từng giá trị trên
-từng dòng** (`0xffffff` của `THREE.*Light` là "vắng mặt sắc độ", nhưng `0x000000`
-của `THREE.Fog` là màu cảnh phải đổi theo theme, nên nó **vẫn bị bắt**).
-
-Hai dương tính giả cũ dưới đây nay đã được script xử lý đúng — giữ lại để lần
-kiểm sau không mất thời gian truy lại:
-
-1. **`globals.css` chứa `slate-*` và `#hex` trong CHÚ THÍCH.** Đó là bằng chứng
-   đo được: tên class của lỗi `@source` 2026-08-13, và hai giá trị sRGB của lần
-   sửa contrast `--input` (§1a). Không dòng nào là màu đang dùng. Một file CSS
-   token đương nhiên chứa giá trị màu — nó nằm ngoài phạm vi grep có chủ ý.
-2. **`toast.tsx` khớp grep thương mại vì chữ `subscribe`.** Đó là
-   `useSyncExternalStore(subscribe, …)` của React, không phải gói cước. Grep AC
-   `price|pricing|checkout|subscribe|billing` chạy trên `apps/web/src`, không
-   phủ `packages/ui`, nên nó không đỏ ở Đợt 3 — nhưng ai chạy bản nới rộng sẽ
-   gặp.
+| `font-display` | Bricolage Grotesque (trục `opsz`) | tiêu đề, số nổi bật |
+| `font-sans` | Hanken Grotesk | chữ giao diện và chữ đọc |
+| `font-mono` | Intel One Mono | lệnh, mã, tên tài nguyên |
+
+Thang chữ (`@theme` trong theme.css): `2xs` 11px, `xs` 12, `sm` 14, `base` 15, `md` 16, `lg` 18,
+`xl` 22, `2xl` 28, `3xl` 36, `4xl` 48. Cỡ chữ cố định theo rem, không co theo viewport. Giãn dòng
+đi kèm từng cỡ; dấu tiếng Việt chồng tầng nên tiêu đề không xuống dưới 1.08.
+
+`packages/ui/src/theme/type-scale.contract.test.ts` gác subset `vietnamese` của MỌI font nạp ở
+layout.tsx và legacy-fonts.ts: thêm một font mà quên subset là đỏ.
+
+## 5. Hình và chuyển động
+
+- **Bo góc**: `xs` 3px, `sm` 5px (ô nhập, nút), `md` 8px, `lg` 12px (popover, toast),
+  `xl` 16px (hộp thoại). Khối trong trang thì vuông: không có thẻ bo góc, dòng danh sách phẳng chỉ
+  có đường kẻ đáy, khối phản hồi (`Notice`, `Empty`, `ErrorBlock`) là khung kẻ 1px góc vuông với
+  dải màu 2px ở mép trên báo sắc thái.
+- **Bóng** chỉ cho thứ nổi: `shadow-pop` (menu, popover, hộp thoại, toast), `shadow-lift`. Khối
+  nằm trong trang không có bóng.
+- **Chuyển động** phục vụ thao tác: `animate-enter` (260ms, khối vào trang, xếp lượt bằng `--i`),
+  `animate-fade`, `animate-pop-in` / `pop-out` (popover), `animate-sheet-in` / `sheet-out`,
+  `animate-sweep` (vạch đang tải), `animate-breathe`, `animate-draw`, `animate-stamp`. Easing:
+  `ease-out` = `cubic-bezier(0.23, 1, 0.32, 1)`.
+- **Đang tải** là vạch quét hoặc khung chờ đúng hình dòng thật (`RowsSkeleton`, `Skeleton`). Không
+  có vòng quay ở bất kỳ đâu.
+- `prefers-reduced-motion: reduce` được khai MỘT LẦN trong theme.css: mọi transition và animation
+  về 0.01ms (không phải 0s, để `transitionend` vẫn bắn).
+
+## 6. Biểu tượng và minh hoạ
+
+Bộ glyph riêng ở `src/icons/glyphs.ts`, vẽ trên lưới 24 với nét 2, đầu nét vuông, góc nối nhọn, và
+một lớp tô in LỆCH xuống phải 1.6 đơn vị bằng màu nhấn của mục (`.ds-ic-t`, như hai lượt in chồng
+không khít). Đó là thứ làm bộ glyph không đọc ra như một bộ icon nét đều dựng sẵn; rà ảnh
+2026-10-20 xếp kiểu nét mảnh đầu tròn cũ vào lệnh cấm "icon đại trà". Dùng
+`<Icon name="terminal" size={18} />`; `tint` đổi màu lớp tô (`acc` mặc định, `topic`, `neutral`,
+`none`). Thêm `label` khi biểu tượng mang nghĩa một mình, bỏ trống khi đã có chữ đi kèm (khi đó nó
+`aria-hidden`). Cần biểu tượng mới thì thêm path vào `glyphs.ts`, không kéo thư viện ngoài vào.
+
+Icon dùng tiết kiệm: thanh điều hướng trên cùng và thanh mục con chỉ có chữ (mục đang mở có ô vuông
+màu của mục và vạch dưới), vì chữ đã đủ nghĩa.
+
+Minh hoạ vẽ bằng SVG nét, tô theo token nên tự đổi theo theme:
+
+- `SectionArt kind` cho đầu trang tổng quan của từng mục (`learn`, `practice`, `judge`, `games`,
+  `studio`, `admin`, `me`).
+- `GameArt kind` cho từng game (`k8s`, `git`, `cicd`, `netpol`, `dockerfile`).
+- `EmptyArt kind` cho khối rỗng và khối lỗi (`nothing`, `search`, `offline`, `done`, `locked`,
+  `lost`, `waiting`).
+
+## 7. Component
+
+| Nhóm | Component |
+|---|---|
+| Nút | `Button` (`primary`, `ink`, `secondary` mặc định, `ghost`, `danger`, `link`; `icon`, `iconRight`, `loading`, `asChild`), `IconButton` (bắt buộc `label`) |
+| Ô nhập | `Field` (nhãn, gợi ý, lỗi nối bằng `aria-describedby`), `Input`, `Textarea` (`mono`), `NativeSelect`, `Select`, `Checkbox`, `Switch`, `RadioGroup` / `Radio` / `RadioItem`, `Label` |
+| Chọn chế độ | `Tabs` + `TabsList look="line" \| "segment"`, `Segmented`, `Chip` (`pressed`, `count`) |
+| Phản hồi | `Pill` (tone, `dot`, `live`), `Notice`, `toast` (sonner), `ConfirmDialog` (bắt buộc `cancelLabel`; `loss`, `blockedReason`) |
+| Trạng thái danh sách | `RowsSkeleton`, `Skeleton`, `Empty`, `ErrorBlock` (`onRetry`, `actions`), `Pager` |
+| Tiến độ | `ProgressLine` (0..1, `role="meter"` hoặc `progressbar`), `LoadingLine`, `Segments`, `LevelBars`, `StepStrip` |
+| Bố cục | `Page`, `PageHeader`, `BackLink`, `Section`, `SummaryList`, `RowList` / `Row`, `TopicGlyph`, `Table` (đặt `label` để trình đọc màn hình gọi tên bảng) |
+| Lớp nổi | `Dialog`, `Sheet` (`SheetContent` bắt buộc `title`), `Popover`, `Menu`, `Tip`, `CommandPalette` |
+| Khoang | `PaneGroup`, `Pane`, `PaneHandle` (khu thực hành) |
+| Nội dung bài | `Markdown`, `ContentView` (subpath `@devops-platform/ds/content`, cần `labels`) |
+
+Mọi danh sách có đủ bốn trạng thái: đang tải (`RowsSkeleton` đúng hình dòng), rỗng (`Empty`), lỗi
+(`ErrorBlock` có nút thử lại), và một trang (`Pager` dùng ngăn xếp con trỏ ở
+`apps/web/src/lib/cursor-stack.ts`).
+
+`NativeSelect` thay `Select` khi một lựa chọn là giá trị rỗng (Radix không nhận), hoặc khi danh
+sách ngắn và nên cư xử như ô chọn của trình duyệt.
+
+Vài hành vi dễ đoán sai:
+
+- `Notice tone="bad"` tự mang `role="alert"` (lỗi lưu, lỗi nhập phải được đọc ngay); truyền
+  `role="status"` để hạ xuống.
+- `ConfirmDialog` không đóng được khi `confirming`: Esc, bấm nền và nút Huỷ đều bị khoá, vì lượt
+  gọi đã đi và đóng hộp lúc đó là để người dùng tưởng đã huỷ.
+- `Button loading` dùng `aria-disabled` và chặn bấm, không `disabled`: nút đang giữ focus mà bị
+  `disabled` thì focus rơi về `<body>`.
+- Mục đang chọn của `Menu`, `Select` và `CommandPalette` có nền nhạt màu mục cộng viền trong 1px
+  màu `control`. Chỉ đổi nền thì ở bảng tối mục đó gần như trùng nền hộp (1,03:1).
+- `PageHeader badge` đặt thẻ đếm cạnh h1, không trong h1, để tên của tiêu đề chỉ là tiêu đề.
+- Vòng focus của phần tử sát mép vùng cuộn vẽ vào trong (`focus-visible:-outline-offset-2`), không
+  thì bị cắt mất; `outline-none` phải đi cùng `focus-visible:outline-solid` (`design:check` gác).
+
+## 8. Chữ trong giao diện
+
+Mọi chuỗi đi qua `packages/copy` (`t('khoá')`); không viết chuỗi tiếng Việt thẳng trong JSX. Giọng
+văn: câu ngắn, nói việc cụ thể, xưng "bạn", giữ thuật ngữ tiếng Anh khi người trong nghề vẫn nói
+vậy (pod, commit, pipeline). Thông báo lỗi nói chuyện gì xảy ra và làm gì tiếp, không xin lỗi
+chung chung.
+
+Bộ test của `packages/copy` gác: không gạch ngang dài (U+2014, U+2013), không chữ bị lột dấu, mọi
+nhóm đúng ba khoá anh em phải khai lý do (`intentionalThree`), không chuỗi có dấu lọt ra ngoài bản
+đồ, không khoá chết, giá trị chuẩn NFC, và danh sách cụm bị chặn.
+
+## 9. Hai hệ sống cạnh nhau
+
+Giao diện cũ chỉ còn trong các vùng giữ nguyên, bọc bởi `LegacySkin`
+(`apps/web/src/components/games/legacy-skin.tsx`) hoặc `.arena-root`. Token cũ khai trong khối có
+phạm vi `.legacy-skin, .arena-root` ở `apps/web/src/app/legacy.css`, không ở `:root`, nên trang mới
+không đọc được chúng. Font cũ (Archivo, Be Vietnam Pro, JetBrains Mono) chỉ nạp ở các route đó
+(`app/legacy-fonts.ts`).
+
+`.legacy-skin` khai đè vài tên mà tiện ích Tailwind của ds cũng đọc: font, thang chữ, giãn dòng,
+bo góc, `--spacing`, `--ease-out`, `--ink`. Một khối giao diện MỚI nằm bên trong màn chơi cũ (bảng
+bên của sandbox Git, nơi có Level Builder: `components/games/git/sandbox-panel.tsx`) đặt lớp
+`ds-island` để lấy lại giá trị của ds. Bảng màu đứng chung bộ chọn với `:root` / `.dark`; các tên
+theme đọc lại bằng `--theme(… inline)`. Luật gốc của màn chơi (`.git-odyssey`, legacy.css) dừng ở
+biên đảo bằng `:not(.ds-island *)`.
+
+Vùng cuộn đặt `relative`: một nhãn `sr-only` bên trong vùng cuộn mà không có tổ tiên định vị sẽ
+thoát ra và kéo trang dài thêm (đã gặp: tài liệu cao 6977px cho nội dung 1051px).
+
+## 10. Cổng
+
+| Lệnh | Gác |
+|---|---|
+| `pnpm design:check` | Kit cũ (`@devops-platform/ui`), bộ icon đại trà, loader quay vòng, viền trái dày, vùng cuộn thiếu `relative` (nhãn sr-only thoát ra kéo dài trang), `outline-none` đi cùng vòng focus bằng outline mà thiếu `focus-visible:outline-solid` (Tailwind v4 đặt `--tw-outline-style: none`, vòng focus không hiện), lớp và biến của legacy.css ngoài vùng giữ nguyên; `.ds-island` phủ đủ tên bị khai đè. Tên lớp cũ đọc từ chính legacy.css. Danh sách vùng giữ nguyên (`LEGACY_ZONES`) đỏ cả khi một dòng không còn che vi phạm nào. |
+| `pnpm tokens:check` | Màu cứng trong JSX |
+| `pnpm bundle:check` (sau build) | xterm chỉ vào route có terminal; trần byte của nền chung |
+| `packages/ds` `palette.test.ts` | Khối @palette khớp bảng sinh; mọi cặp tương phản đạt |
+| `packages/copy` test | Các luật chữ ở mục 8 |
+| `node scripts/check-no-commerce.mjs` | Không giá, gói cước, thanh toán ở bất kỳ đâu |
+| `pnpm --filter @devops-platform/web e2e:ci` | axe trên các màn chốt, không tràn ngang ở 390px, game chạy được không cần backend |

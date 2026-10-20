@@ -251,6 +251,16 @@ jobs:
       - name: Cổng màu trần (tokens:check)
         run: pnpm tokens:check
 
+      # Bản dựng lại giao diện 2026-10. Lệnh cấm của chủ dự án có hình dạng xác định trong mã nguồn
+      # (kit cũ, bộ icon đại trà, loader quay vòng, viền trái đánh dấu, lớp và biến của giao diện cũ
+      # ngoài vùng giữ nguyên), và `.ds-island` phải phủ đủ tên mà legacy.css khai đè. Chỉ đọc mã
+      # nguồn nên không cần build; đặt cạnh tokens:check vì cùng loại cổng.
+      - name: Cổng lệnh cấm thiết kế (design:check)
+        # Chạy cả khi bước turbo đỏ: cổng chỉ đọc mã nguồn, không cần build, và một vi phạm thiết kế
+        # không được nằm khuất sau một test đỏ tới lượt chạy sau.
+        if: ${{ !cancelled() }}
+        run: pnpm design:check
+
       # P16 / ô AC "không kéo xterm.js vào trang không có terminal"
       # (phase-14-exec.md:21). Cùng lý do bước-riêng như tokens:check ở trên, và
       # cùng bài học: trước lane này, ô AC đó KHÔNG CÓ PHÉP ĐO nào — chỉ có một

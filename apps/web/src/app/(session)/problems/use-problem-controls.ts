@@ -3,12 +3,12 @@
 import { useCallback, useMemo, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type {
-  GameId,
   ProblemDifficulty,
   ProblemOrderKey,
   ProblemViewerStatus,
 } from '@devops-platform/games';
-import { FIRST_PAGE, currentCursor, pageNumber, pushCursor, type CursorStack } from '../../../lib/cursor-stack';
+import { FIRST_PAGE, currentCursor, pageNumber, popCursor, pushCursor, type CursorStack } from '../../../lib/cursor-stack';
+import type { ProblemGameChoice } from './problem-game';
 import {
   hasActiveFilter,
   normalizeTag,
@@ -22,7 +22,7 @@ export interface ProblemControls {
   readonly cursor: string | undefined;
   readonly page: number;
   readonly hasActiveFilter: boolean;
-  readonly setGame: (value: GameId) => void;
+  readonly setGame: (value: ProblemGameChoice) => void;
   readonly toggleDifficulty: (value: ProblemDifficulty) => void;
   /*
    * `string`, không `ProblemTopic`: từ 2026-09-15 `ProblemFilter.topics` chở
@@ -38,6 +38,7 @@ export interface ProblemControls {
   readonly setDirection: (value: 'asc' | 'desc') => void;
   readonly clearFilters: () => void;
   readonly goNext: (nextCursor: string | null) => void;
+  readonly goPrevious: () => void;
   readonly goFirst: () => void;
 }
 
@@ -122,7 +123,7 @@ export function useProblemControls(): ProblemControls {
       `clearFilters` đã cố tránh với `orderBy`.
     */
     setGame: useCallback(
-      (value: GameId) => {
+      (value: ProblemGameChoice) => {
         if (value === query.game) {
           return;
         }
@@ -179,6 +180,7 @@ export function useProblemControls(): ProblemControls {
     clearFilters: useCallback(() => write({ ...query, filter: {} }, 'push'), [query, write]),
 
     goNext: useCallback((nextCursor: string | null) => setStack((prev) => pushCursor(prev, nextCursor)), []),
+    goPrevious: useCallback(() => setStack((prev) => popCursor(prev)), []),
     goFirst: useCallback(() => setStack(FIRST_PAGE), []),
   };
 }

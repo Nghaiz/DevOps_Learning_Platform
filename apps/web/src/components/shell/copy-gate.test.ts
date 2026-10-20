@@ -48,7 +48,6 @@ const SRC_ROOT = path.resolve(import.meta.dirname, '..', '..');
  */
 const LANE_DIRS: readonly string[] = [
   path.join('components', 'shell'),
-  path.join('components', 'kit'),
   path.join('app', 'login'),
   path.join('app', 'register'),
   path.join('app', 'forgot-password'),
@@ -71,6 +70,8 @@ const FILES: readonly string[] = [
   ...LANE_DIRS.flatMap((dir) => collect(path.join(SRC_ROOT, dir))),
   // Password reset email is part of the auth surface and runs on the server.
   path.join(SRC_ROOT, 'server', 'auth', 'password-reset-mail.ts'),
+  // Root layout dựng tiêu đề tài liệu và bọc vỏ ứng dụng: chữ của nó là chữ của vỏ.
+  path.join(SRC_ROOT, 'app', 'layout.tsx'),
 ];
 
 describe('T4 · glob của lane 16.B không còn chuỗi người dùng nằm ngoài bản đồ', () => {

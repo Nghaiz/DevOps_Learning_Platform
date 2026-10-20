@@ -1,6 +1,4 @@
-import type { ComponentProps } from 'react';
 import { renderCopy, type CopyRef, type StaticTextKey } from '@devops-platform/copy';
-import type { Difficulty } from '@devops-platform/ui';
 import {
   type ProblemDifficulty,
   type ProblemOrderKey,
@@ -73,13 +71,11 @@ export const PROBLEM_VIEWER_STATUS_LABELS = labelsFrom(PROBLEM_VIEWER_STATUS_KEY
  * Hai thang cùng có bốn bậc nên đây là ánh xạ 1-1, không mất mát. Glyph chỉ vẽ
  * SỐ VẠCH; chữ của bậc vẫn đến từ `PROBLEM_DIFFICULTY_LABELS` của hợp đồng.
  */
-export const PROBLEM_DIFFICULTY_LEVEL: Readonly<
-  Record<ProblemDifficulty, ComponentProps<typeof Difficulty>['level']>
-> = {
-  easy: 'basic',
-  medium: 'intermediate',
-  hard: 'advanced',
-  expert: 'expert',
+export const PROBLEM_DIFFICULTY_LEVEL: Readonly<Record<ProblemDifficulty, 1 | 2 | 3 | 4>> = {
+  easy: 1,
+  medium: 2,
+  hard: 3,
+  expert: 4,
 };
 
 /**

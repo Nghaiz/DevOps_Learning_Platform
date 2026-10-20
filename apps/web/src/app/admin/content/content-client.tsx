@@ -2,34 +2,15 @@
 
 import { useMemo, useState, type ReactElement } from 'react';
 import Link from 'next/link';
-import { RefreshCw } from 'lucide-react';
 import type { inferRouterOutputs } from '@trpc/server';
 import { err, t } from '@devops-platform/copy';
-import {
-  Alert,
-  AlertDescription,
-  AlertTitle,
-  Badge,
-  Button,
-  Chip,
-  EmptyState,
-  ErrorState,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-  useToast,
-} from '@devops-platform/ui';
 import type { AppRouter } from '../../../server/trpc/routers/app-router';
 import { api } from '../../../lib/trpc-react';
 import { describeTrpcError } from '../../../lib/trpc';
 import { AdminNote, AdminPage, LedgerSkeleton } from '../../../components/admin/admin-page';
-import { ConfirmDialog } from '../../../components/kit/confirm-dialog';
 import {
   CONTENT_STATE_FILTERS,
-  contentStateVariant,
+  contentStateTone,
   describeArchiveError,
   describeContentKind,
   describeContentState,
@@ -38,6 +19,7 @@ import {
   planArchive,
 } from '../../../components/admin/content-row';
 import { formatMoment } from '../../../lib/format-moment';
+import { Button, Chip, ConfirmDialog, Empty, ErrorBlock, Notice, Pill, Table, TBody, TD, TH, THead, TR, toast } from '@devops-platform/ds';
 
 type ContentItem = inferRouterOutputs<AppRouter>['authoring']['list'][number];
 
@@ -66,32 +48,20 @@ export function AdminContentClient(): ReactElement {
   const rows = useMemo(() => orderContent(filterContentByState(all, state)), [all, state]);
 
   return (
-    <AdminPage
-      kicker={t('admin.content.kicker')}
-      title={t('admin.content.title')}
-      lead={t('admin.content.lead')}
-    >
-      <div className="flex flex-col gap-6 pt-10">
+    <AdminPage title={t('admin.content.title')} lead={t('admin.content.lead')}>
+      <div className="flex flex-col gap-6">
         {/*
           Lưu trữ KHÔNG ghi `admin_audit`, và điều đó phải nói ra chứ không giấu.
           `authoring.archive` là procedure của người soạn; nó không gọi
           `writeAdminAudit`. Một trang quản trị ngụ ý "mọi thứ ở đây đều được
           ghi" trong khi một nút thì không là khẳng định quá tay.
         */}
-        <Alert variant="warning">
-          <AlertTitle as="h2">{t('admin.content.alert-title')}</AlertTitle>
-          <AlertDescription>{t('admin.content.alert-body')}</AlertDescription>
-        </Alert>
+        <Notice tone="warn" title={t('admin.content.alert-title')}>{t('admin.content.alert-body')}</Notice>
 
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div role="group" aria-label={t('admin.content.filter-label')} className="flex flex-wrap gap-2">
             {CONTENT_STATE_FILTERS.map((option) => (
-              <Chip
-                key={option}
-                selected={state === option}
-                onClick={() => setState(option)}
-                {...(query.data === undefined ? {} : { count: filterContentByState(all, option).length })}
-              >
+              <Chip key={option} pressed={state === option} onPressedChange={() => setState(option)} {...(query.data === undefined ? {} : { count: filterContentByState(all, option).length })}>
                 {option === 'all' ? t('admin.content.state-all') : describeContentState(option)}
               </Chip>
             ))}
@@ -101,7 +71,7 @@ export function AdminContentClient(): ReactElement {
             size="sm"
             onClick={() => void query.refetch()}
             loading={query.isFetching}
-            iconLeft={<RefreshCw aria-hidden="true" />}
+            icon="refresh"
           >
             {t('admin.content.refetch')}
           </Button>
@@ -116,47 +86,43 @@ export function AdminContentClient(): ReactElement {
             retrying={query.isFetching}
           />
         ) : rows.length === 0 ? (
-          <EmptyState
-            title={
+          <Empty title={
               state === 'all'
                 ? t('admin.content.empty-title-all')
                 : t('admin.content.empty-title-filtered')
-            }
-            description={
-              state === 'all'
-                ? t('admin.content.empty-body-all')
-                : t('admin.content.empty-body-filtered')
-            }
-            action={
+            } action={
               state === 'all' ? (
-                <Button asChild variant="outline">
+                <Button asChild variant="secondary">
                   <Link href="/author">{t('admin.content.open-author')}</Link>
                 </Button>
               ) : (
-                <Button variant="outline" onClick={() => setState('all')}>
+                <Button variant="secondary" onClick={() => setState('all')}>
                   {t('admin.content.show-all')}
                 </Button>
               )
-            }
-          />
+            }>{
+              state === 'all'
+                ? t('admin.content.empty-body-all')
+                : t('admin.content.empty-body-filtered')
+            }</Empty>
         ) : (
           <div className="flex flex-col gap-4">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t('admin.content.col-title')}</TableHead>
-                  <TableHead>{t('admin.content.col-kind')}</TableHead>
-                  <TableHead>{t('admin.content.col-state')}</TableHead>
-                  <TableHead>{t('admin.content.col-author')}</TableHead>
-                  <TableHead>{t('admin.content.col-updated')}</TableHead>
-                  <TableHead className="text-right">{t('admin.content.col-actions')}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+            <Table label={t('admin.content.title')}>
+              <THead>
+                <tr>
+                  <TH>{t('admin.content.col-title')}</TH>
+                  <TH>{t('admin.content.col-kind')}</TH>
+                  <TH>{t('admin.content.col-state')}</TH>
+                  <TH>{t('admin.content.col-author')}</TH>
+                  <TH>{t('admin.content.col-updated')}</TH>
+                  <TH numeric>{t('admin.content.col-actions')}</TH>
+                </tr>
+              </THead>
+              <TBody>
                 {rows.map((item) => (
                   <ContentRow key={item.id} item={item} />
                 ))}
-              </TableBody>
+              </TBody>
             </Table>
 
             <AdminNote>
@@ -171,7 +137,7 @@ export function AdminContentClient(): ReactElement {
   );
 }
 
-/** Hai nửa của `ErrorEntry` vào hai khe của `ErrorState`. */
+/** Hai nửa của `ErrorEntry` vào hai khe của `ErrorBlock`. */
 function ContentError({
   reason,
   onRetry,
@@ -183,20 +149,13 @@ function ContentError({
 }): ReactElement {
   const failure = err('admin.error.content-list', { reason });
   return (
-    <ErrorState
-      title={failure.what}
-      message={failure.next}
-      onRetry={onRetry}
-      retrying={retrying}
-      retryLabel={t('admin.reload')}
-    />
+    <ErrorBlock title={failure.what} onRetry={onRetry} retrying={retrying} retryLabel={t('admin.reload')}>{failure.next}</ErrorBlock>
   );
 }
 
 function ContentRow({ item }: { readonly item: ContentItem }): ReactElement {
   const [open, setOpen] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
-  const { toast } = useToast();
   const utils = api.useUtils();
 
   const plan = planArchive({ title: item.title, kind: item.kind, state: item.state });
@@ -205,11 +164,7 @@ function ContentRow({ item }: { readonly item: ContentItem }): ReactElement {
     onSuccess: () => {
       setOpen(false);
       setServerError(null);
-      toast({
-        variant: 'success',
-        title: t('admin.content.toast-title'),
-        description: t('admin.content.toast-body', { title: item.title }),
-      });
+      toast.success(t('admin.content.toast-title'), { description: t('admin.content.toast-body', { title: item.title }) });
       void utils.authoring.list.invalidate();
     },
     onError: (error) => {
@@ -218,35 +173,45 @@ function ContentRow({ item }: { readonly item: ContentItem }): ReactElement {
   });
 
   return (
-    <TableRow>
-      <TableCell>
+    <TR>
+      <TD>
         <div className="flex flex-col gap-0.5">
-          <span className="font-semibold text-foreground">{item.title}</span>
-          <span className="font-mono text-xs text-muted-foreground">{item.id}</span>
+          <span className="font-medium text-ink">{item.title}</span>
+          <span className="font-mono text-xs text-ink-2">{item.id}</span>
           {/*
             `publishError` là kết quả CHẠY THỬ THẬT của P9 (setup + verify từng
             bước), không phải một cờ. Giấu nó đi là biến trang quản trị thành một
             dấu tích.
           */}
           {item.publishError === null ? null : (
-            <span className="text-xs text-destructive">
+            <span className="text-xs text-bad-ink">
               {t('admin.content.publish-error', { reason: item.publishError })}
             </span>
           )}
         </div>
-      </TableCell>
-      <TableCell className="text-sm">{describeContentKind(item.kind)}</TableCell>
-      <TableCell>
-        <Badge variant={contentStateVariant(item.state)}>{describeContentState(item.state)}</Badge>
-      </TableCell>
-      <TableCell className="font-mono text-xs text-muted-foreground">{item.authorId}</TableCell>
-      <TableCell className="font-mono text-xs text-muted-foreground">
-        {formatMoment(item.updatedAt)}
-      </TableCell>
-      <TableCell className="text-right">
+      </TD>
+      <TD className="text-sm">{describeContentKind(item.kind)}</TD>
+      <TD>
+        <Pill tone={contentStateTone(item.state)}>{describeContentState(item.state)}</Pill>
+      </TD>
+      <TD>
+        {item.authorName === null ? (
+          <span className="font-mono text-xs text-ink-3">{item.authorId}</span>
+        ) : (
+          <div className="flex flex-col gap-0.5">
+            <span className="text-sm text-ink">{item.authorName}</span>
+            <span className="text-xs text-ink-3">{item.authorEmail}</span>
+          </div>
+        )}
+      </TD>
+      <TD className="whitespace-nowrap text-xs tabular-nums text-ink-2">{formatMoment(item.updatedAt)}</TD>
+      <TD numeric>
+        {/* Bài đã lưu trữ không có gì để lưu trữ nữa: ô trạng thái đã nói điều đó. */}
+        {item.state === 'archived' ? null : (
         <Button
-          variant="outline"
+          variant="secondary"
           size="sm"
+          icon="archive"
           onClick={() => {
             setServerError(null);
             setOpen(true);
@@ -254,6 +219,7 @@ function ContentRow({ item }: { readonly item: ContentItem }): ReactElement {
         >
           {t('admin.content.archive-button')}
         </Button>
+        )}
 
         <ConfirmDialog
           open={open}
@@ -270,10 +236,11 @@ function ContentRow({ item }: { readonly item: ContentItem }): ReactElement {
           blockedReason={plan.blockedReason}
           error={serverError}
           confirmLabel={plan.confirmLabel}
+          cancelLabel={t('common.action.cancel')}
           confirming={archive.isPending}
           onConfirm={() => archive.mutate({ id: item.id })}
         />
-      </TableCell>
-    </TableRow>
+      </TD>
+    </TR>
   );
 }

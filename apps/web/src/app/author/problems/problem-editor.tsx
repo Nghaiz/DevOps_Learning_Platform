@@ -3,8 +3,8 @@
 import { useMemo, useState, type ReactElement, type ReactNode } from 'react';
 import { t } from '@devops-platform/copy';
 import type { ProblemState } from '@devops-platform/games';
-import { useToast } from '@devops-platform/ui';
 import {
+  FormBlock,
   IssueList,
   RailSection,
   StateChip,
@@ -13,7 +13,7 @@ import {
   focusFieldByPath,
   type SaveStatus,
 } from '../../../components/author/studio';
-import { Split, lineForTopic } from '../../../components/kit';
+import { topicLook } from '../../../lib/topic-look';
 import { ArenaPreview } from './arena-preview';
 import { ClassifyFields } from './classify-fields';
 import { ClusterFields } from './cluster-fields';
@@ -29,6 +29,7 @@ import { toStudioIssues } from './problem-issues';
 import { PROBLEM_MODES, modeForIssuePath, type ProblemMode } from './problem-modes';
 import { formWithGame, type ProblemFormState } from './problem-form';
 import { StatementFields } from './statement-fields';
+import { toast } from '@devops-platform/ds';
 
 /** Hai việc trang gọi cần làm trên trình soạn: nhảy về một ô, mở một chế độ. */
 export interface EditorNav {
@@ -63,13 +64,12 @@ export function ProblemEditor(props: {
   readonly publish?: ((nav: EditorNav) => ReactNode) | undefined;
 }): ReactElement {
   const { form, onChange } = props;
-  const { toast } = useToast();
   const [mode, setMode] = useState<string>(PROBLEM_MODES.statement);
 
   /** `null` khi game chưa có plugin: một câu trả lời hợp lệ, `GameSelectField` nói ra ca đó. */
   const view = pluginViewFor(form.gameId);
   const specFields = useMemo(() => view?.authorFields ?? [], [view]);
-  const line = lineForTopic({ gameId: form.gameId });
+  const look = topicLook({ gameId: form.gameId });
   const studioIssues = useMemo(() => toStudioIssues(props.issues, specFields), [props.issues, specFields]);
 
   const nav: EditorNav = {
@@ -79,7 +79,7 @@ export function ProblemEditor(props: {
       if (target === null) return;
       setMode(target);
       focusFieldByPath(path, () => {
-        toast({ title: t('author.problem.jump-missing') });
+        toast.warning(t('author.problem.jump-missing'));
       });
     },
   };
@@ -106,9 +106,11 @@ export function ProblemEditor(props: {
   ];
 
   return (
+    // Màu của game đang soạn (`--tp-*`) phủ cả trình soạn: số thứ tự của mục lặp, ô chọn
+    // game và khung chơi thử đọc nó, không phải truyền xuống từng component.
+    <div data-topic={look.topic}>
     <StudioEditorFrame
       crumbs={[
-        { label: t('shell.section.studio') },
         { href: '/author/problems', label: t('shell.nav.author-problems') },
         { label: props.code ?? t('author.problem.new.crumb') },
       ]}
@@ -124,7 +126,7 @@ export function ProblemEditor(props: {
             {studioIssues.length > 0 ? (
               <IssueList issues={studioIssues} onJump={nav.jump} />
             ) : (
-              <p className="text-muted-foreground">{t('author.studio.rail.issues-clean')}</p>
+              <p className="text-ink-2">{t('author.studio.rail.issues-clean')}</p>
             )}
           </RailSection>
           {props.readiness(nav)}
@@ -132,7 +134,7 @@ export function ProblemEditor(props: {
       }
     >
       <StudioPanel value={PROBLEM_MODES.statement}>
-        <Split index="01" title={t('author.problem.game.label')}>
+        <FormBlock title={t('author.problem.game.label')}>
           <GameSelectField
             gameId={form.gameId}
             // Đổi game trên bài ĐÃ LƯU là đổi kiểu `initialState` của nó, mà máy
@@ -143,11 +145,11 @@ export function ProblemEditor(props: {
               onChange(formWithGame(form, gameId));
             }}
           />
-        </Split>
-        <Split index="02" title={t('problem.statement-fields-mo-ta')}>
+        </FormBlock>
+        <FormBlock title={t('problem.statement-fields-mo-ta')}>
           <StatementFields form={form} onChange={patch} issues={props.issues} code={props.code} />
-        </Split>
-        <Split index="03" title={t('problem.classify-fields-phan-loai')}>
+        </FormBlock>
+        <FormBlock title={t('problem.classify-fields-phan-loai')}>
           <ClassifyFields
             form={form}
             onChange={patch}
@@ -156,12 +158,12 @@ export function ProblemEditor(props: {
             // §18.D.6: `false` khi plugin không khai `seedSpec`, tức hôm nay là mọi game.
             canSeed={view?.canSeed ?? false}
           />
-        </Split>
+        </FormBlock>
       </StudioPanel>
 
       <StudioPanel value={PROBLEM_MODES.spec}>
         {view !== null && view.specEditor === 'generic' ? (
-          <Split index="01" title={view.specTabLabel}>
+          <FormBlock title={view.specTabLabel}>
             <PluginFields
               fields={view.authorFields}
               value={form.specText}
@@ -170,12 +172,11 @@ export function ProblemEditor(props: {
                 onChange({ ...form, specText: { ...form.specText, [path]: next } });
               }}
             />
-          </Split>
+          </FormBlock>
         ) : (
           <ClusterFields
             cluster={form.cluster}
             issues={props.issues}
-            line={line}
             nextKey={props.nextKey}
             onChange={patchCluster}
             onReplace={(cluster) => {
@@ -186,21 +187,20 @@ export function ProblemEditor(props: {
       </StudioPanel>
 
       <StudioPanel value={PROBLEM_MODES.objectives}>
-        <ObjectiveList form={form} onChange={patch} issues={props.issues} line={line} nextKey={props.nextKey} />
+        <ObjectiveList form={form} onChange={patch} issues={props.issues} nextKey={props.nextKey} />
       </StudioPanel>
 
       <StudioPanel value={PROBLEM_MODES.hints}>
-        <Split index="01" title={t('problem.hint-fields-goi-y')}>
+        <FormBlock title={t('problem.hint-fields-goi-y')}>
           <HintListFields
             hints={form.hints}
             issues={props.issues}
-            line={line}
             nextKey={props.nextKey}
             onChange={(hints) => {
               patch({ hints });
             }}
           />
-        </Split>
+        </FormBlock>
       </StudioPanel>
 
       <StudioPanel value={PROBLEM_MODES.arena}>
@@ -215,5 +215,6 @@ export function ProblemEditor(props: {
         <StudioPanel value={PROBLEM_MODES.publish}>{props.publish(nav)}</StudioPanel>
       )}
     </StudioEditorFrame>
+    </div>
   );
 }

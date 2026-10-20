@@ -9,7 +9,6 @@
  */
 
 import type { ReactElement } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
 
 import { t } from '@devops-platform/copy';
 import {
@@ -17,12 +16,12 @@ import {
   type GitObjective,
   type GitPredicateName,
 } from '@devops-platform/games';
-import { Button } from '@devops-platform/ui';
 
 import { ArgEditor } from './arg-editor';
 import { CheckField, SelectField, TextField } from './builder-fields';
 import { BuilderStep } from './builder-step';
 import { useRowKeys } from './row-keys';
+import { Button } from '@devops-platform/ds';
 
 const PREDICATE_OPTIONS = GIT_PREDICATE_NAMES.map((name) => ({ value: name, label: name }));
 
@@ -70,10 +69,10 @@ export function ObjectiveEditor({
             const prefix = `builder-objective-${rowKey}`;
             const n = index + 1;
             return (
-              <li key={rowKey} className="animate-rise">
-                <fieldset className="min-w-0 border border-border bg-card p-4">
-                  <legend className="type-label float-left mb-3 flex w-full items-center gap-2 text-line-git-ink">
-                    <span aria-hidden className="size-2 shrink-0 bg-line-git" />
+              <li key={rowKey} className="animate-enter">
+                <fieldset className="min-w-0 border border-rule bg-paper p-4">
+                  <legend className="float-left mb-3 flex w-full items-center gap-2 text-xs font-medium text-tp-ink">
+                    <span aria-hidden className="size-2 shrink-0 bg-tp-solid" />
                     {t('author.builder.objective.legend', { n })}
                   </legend>
                   <div className="clear-left flex flex-col gap-4">
@@ -129,8 +128,8 @@ export function ObjectiveEditor({
                       />
                       <Button
                         size="sm"
-                        variant="destructive"
-                        iconLeft={<Trash2 aria-hidden />}
+                        variant="danger"
+                        icon="trash"
                         onClick={() => {
                           rows.remove(index);
                           onChange(objectives.filter((_, i) => i !== index));
@@ -150,8 +149,8 @@ export function ObjectiveEditor({
       <div>
         <Button
           size="sm"
-          variant="outline"
-          iconLeft={<Plus aria-hidden />}
+          variant="secondary"
+          icon="plus"
           data-testid="git-builder-add-objective"
           onClick={() => {
             rows.append();

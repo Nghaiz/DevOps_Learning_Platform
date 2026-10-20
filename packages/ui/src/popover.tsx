@@ -21,17 +21,24 @@ export function PopoverContent({
 }: ComponentProps<typeof RadixPopover.Content>) {
   return (
     <RadixPopover.Portal>
-      <RadixPopover.Content
-        data-slot="popover-content"
-        sideOffset={sideOffset}
-        align={align}
-        className={cn(
-          'z-50 w-72 rounded-surface border border-ink bg-popover p-4 text-sm text-popover-foreground shadow-float outline-none',
-          'animate-rise [animation-duration:var(--motion-base)]',
-          className,
-        )}
-        {...props}
-      />
+      {/*
+        Portal gắn vào <body>, ngoài `.legacy-skin` của màn chơi, nên token của legacy.css không tới.
+        Bọc trong một khung `contents` mang lại phạm vi đó; KHÔNG gắn lớp lên chính nội dung: quy tắc
+        `.legacy-skin { color; font-family }` nằm ngoài @layer và sẽ đè lớp chữ của nó.
+      */}
+      <div className="legacy-skin contents">
+        <RadixPopover.Content
+          data-slot="popover-content"
+          sideOffset={sideOffset}
+          align={align}
+          className={cn(
+            'z-50 w-72 rounded-surface border border-ink bg-popover p-4 text-sm text-popover-foreground shadow-float outline-none',
+            'animate-rise [animation-duration:var(--motion-base)]',
+            className,
+          )}
+          {...props}
+        />
+      </div>
     </RadixPopover.Portal>
   );
 }

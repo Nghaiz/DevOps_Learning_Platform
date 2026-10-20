@@ -55,9 +55,10 @@
  *   pnpm --filter @devops-platform/web e2e --grep @games-cicd-problem
  */
 
-import type { Page } from '@playwright/test';
+import { CICD_PROBLEMS_SEED } from '@devops-platform/games';
+import type { APIRequestContext, Page } from '@playwright/test';
 
-import { expect, test } from './fixtures/api';
+import { expect, test, trpcQuery } from './fixtures/api';
 import { openScreen, settle } from './fixtures/nav';
 import { attachJson, traceRequests } from './games-harness';
 
@@ -69,6 +70,26 @@ const BAI_CD = 'CICD-0002';
 
 /** Cửa sổ trần nhịp (`RATE_LIMIT_WINDOW_MS`), cộng một chút cho lệch đồng hồ. */
 const CUA_SO_NHIP_MS = 65_000;
+
+/**
+ * Tiền đề: mã bài trên môi trường đang đo PHẢI là bài của bộ seed.
+ *
+ * Mã cấp theo thứ tự tạo (`next-code.ts`), nên trên một cài đặt chưa chạy
+ * `scripts/seed-content.mjs` thì `CICD-0001` là bài đầu tiên ai đó soạn tay. Đo
+ * 2026-10-20 trên cụm lab: `CICD-0001` là một bài CD do flow soạn bài tạo ra, và
+ * AC-J1 đỏ với "WA (0/1)" sau một lời giải đúng cho bài CI, trông y hệt bộ chấm
+ * hỏng. Khẳng định danh tính bài trước thì ô đỏ đúng chỗ, kèm cách sửa.
+ */
+async function phaiLaBaiSeed(api: APIRequestContext, code: string): Promise<void> {
+  const seed = CICD_PROBLEMS_SEED.find((p) => p.code === code);
+  if (seed === undefined) throw new Error(`bộ seed không có ${code}`);
+  const { problem } = await trpcQuery<{ problem: { slug: string; title: string } }>(api, 'problems.byCode', { code });
+  expect(
+    problem.slug,
+    `${code} ở môi trường này là "${problem.title}", không phải bài seed "${seed.title}". ` +
+      'Nạp seed bằng scripts/seed-content.mjs (docs/content-sources.md) rồi đo lại.',
+  ).toBe(seed.slug);
+}
 
 function thanhNopBai(page: Page) {
   return page.getByTestId('cicd-oj-bar');
@@ -133,7 +154,8 @@ async function nopBai(page: Page): Promise<string> {
 test.describe.configure({ mode: 'serial' });
 
 test.describe('Chế độ làm bài CI/CD — §19.J', { tag: '@games-cicd-problem' }, () => {
-  test('AC-J1 — mở đề, nộp sai, sửa, nộp lại và nhận AC', async ({ page }) => {
+  test('AC-J1 — mở đề, nộp sai, sửa, nộp lại và nhận AC', async ({ page, api }) => {
+    await phaiLaBaiSeed(api, BAI_CI);
     await openScreen(page, `${CICD_PATH}?problem=${BAI_CI}`, 'user');
     await settle(page);
     await boQuaManChuyenTiep(page);
@@ -185,7 +207,8 @@ test.describe('Chế độ làm bài CI/CD — §19.J', { tag: '@games-cicd-prob
     expect(ketQua, `verdict sau khi sửa: ${ketQua}`).toContain('AC');
   });
 
-  test('AC-J2/J3 — bảng núm CD đi tới được bộ chấm', async ({ page }) => {
+  test('AC-J2/J3 — bảng núm CD đi tới được bộ chấm', async ({ page, api }) => {
+    await phaiLaBaiSeed(api, BAI_CD);
     await openScreen(page, `${CICD_PATH}?problem=${BAI_CD}`, 'user');
     await settle(page);
     await boQuaManChuyenTiep(page);

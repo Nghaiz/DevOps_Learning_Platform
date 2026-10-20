@@ -1,127 +1,121 @@
 'use client';
 
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { ArrowRight, Menu, X } from 'lucide-react';
+import { usePathname, useSearchParams } from 'next/navigation';
+import { Button, DialogPrimitive as RadixDialog, IconButton, cn } from '@devops-platform/ds';
 import { t } from '@devops-platform/copy';
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogTitle,
-  DialogTrigger,
-  cn,
-} from '@devops-platform/ui';
-import { activeNavItem, PRIMARY_NAV, sectionsFor, userMenuItems, type Viewer } from './nav';
-import { NAV_ICONS } from './nav-icons';
-import { SECTION_TONE } from './section-tone';
+import { activeNavItem, sectionsFor, userMenuItems, type SectionId, type Viewer } from './nav';
 
 /**
- * Điều hướng dưới 1024px: một tấm phủ kín màn hình nền chrome, section viết to,
- * trang con xếp ngay dưới. Mỗi liên kết bọc `DialogClose` để bấm xong là đóng.
+ * Điều hướng dưới 1024px: một nút mở tấm phủ toàn màn, liệt kê mọi mục cùng trang con.
+ * Tên nút, tên hộp thoại và tên vùng điều hướng được `e2e/responsive.spec.ts` dò theo.
  */
-export function MobileMenu({ viewer }: { readonly viewer: Viewer | null }) {
+export function MobileMenu({ viewer, activeId }: { readonly viewer: Viewer | null; readonly activeId: SectionId | null }) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
-  const active = activeNavItem(pathname, PRIMARY_NAV);
+  const search = useSearchParams().toString();
+  const sections = sectionsFor(viewer);
+  const close = (): void => setOpen(false);
 
+  // Tấm phủ chỉ hiện dưới 1024px. Màn rộng ra lúc nó đang mở (xoay máy tính bảng) thì CSS giấu
+  // nó đi nhưng hộp thoại vẫn mở: trang trơ, cuộn bị khoá, focus kẹt trong một thứ vô hình.
   useEffect(() => {
-    setOpen(false);
-  }, [pathname]);
+    if (!open) return undefined;
+    const wide = window.matchMedia('(min-width: 1024px)');
+    const onChange = (event: MediaQueryListEvent): void => {
+      if (event.matches) setOpen(false);
+    };
+    if (wide.matches) setOpen(false);
+    wide.addEventListener('change', onChange);
+    return () => wide.removeEventListener('change', onChange);
+  }, [open]);
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <button
-          type="button"
-          aria-label={t('shell.menu.open')}
-          className="grid size-10 place-items-center border border-chrome-border text-chrome-foreground transition-colors hover:bg-chrome-foreground/10 lg:hidden"
+    <RadixDialog.Root open={open} onOpenChange={setOpen}>
+      <RadixDialog.Trigger asChild>
+        <IconButton icon="menu" label={t('shell.menu.open')} variant="ghost" className="lg:hidden" />
+      </RadixDialog.Trigger>
+      <RadixDialog.Portal>
+        <RadixDialog.Content
+          aria-describedby={undefined}
+          className="fixed inset-0 z-50 flex flex-col bg-canvas outline-none data-[state=open]:animate-fade lg:hidden"
         >
-          <Menu className="size-5" aria-hidden="true" />
-        </button>
-      </DialogTrigger>
-      <DialogContent
-        aria-describedby={undefined}
-        className="inset-0 top-0 left-0 h-dvh max-h-none w-screen max-w-none translate-x-0 translate-y-0 gap-0 overflow-y-auto border-0 bg-chrome p-0 text-chrome-foreground shadow-none [&>button:last-child]:hidden"
-      >
-        <div className="sticky top-0 z-10 flex h-16 items-center justify-between border-b border-chrome-border bg-chrome px-5">
-          <DialogTitle className="type-label text-chrome-muted">{t('shell.menu.title')}</DialogTitle>
-          <DialogClose
-            aria-label={t('shell.menu.close')}
-            className="grid size-10 place-items-center border border-chrome-border"
-          >
-            <X className="size-5" aria-hidden="true" />
-          </DialogClose>
-        </div>
-        <nav aria-label={t('shell.nav.aria-collapsed')} className="px-5 pb-12">
-          {sectionsFor(viewer).map((section, sectionIndex) => {
-            const tone = SECTION_TONE[section.tone];
-            return (
-              <section
-                key={section.id}
-                className="stagger animate-rise border-b border-chrome-border py-6"
-                style={{ '--i': sectionIndex } as CSSProperties}
-              >
-                <h2 className="flex items-center gap-3 type-display">
-                  <span className={cn('inline-block size-4', tone.bar)} aria-hidden="true" />
+          <div className="flex h-14 shrink-0 items-center justify-between border-b border-rule px-4">
+            <RadixDialog.Title className="font-display text-lg font-semibold text-ink">{t('shell.menu.title')}</RadixDialog.Title>
+            <RadixDialog.Close asChild>
+              <IconButton icon="close" label={t('shell.menu.close')} variant="ghost" />
+            </RadixDialog.Close>
+          </div>
+          <nav aria-label={t('shell.nav.aria-collapsed')} className="relative min-h-0 flex-1 overflow-y-auto px-4 pb-10 pt-2">
+            {sections.map((section) => (
+              <div key={section.id} data-section={section.id} className="border-b border-rule py-4">
+                <Link
+                  href={section.hub}
+                  onClick={close}
+                  aria-current={section.id === activeId ? 'true' : undefined}
+                  className="flex items-center gap-2.5 py-1 font-display text-lg font-semibold text-ink"
+                >
+                  <span aria-hidden className="size-2.5 shrink-0 bg-acc-solid" />
                   {section.label}
-                </h2>
-                <ul className="mt-4 grid gap-1">
+                </Link>
+                <p className="mb-2 mt-1 text-sm text-ink-3">{section.lead}</p>
+                <ul className="flex flex-col">
                   {section.items.map((entry) => {
-                    const Icon = NAV_ICONS[entry.icon];
-                    const isActive = active?.href === entry.href;
+                    // Một trang hiện tại duy nhất, như thanh mục con: chỉ trong mục đang mở, khớp
+                    // dài nhất kèm query. So tiền tố từng đánh dấu cả /author lẫn /author/problems.
+                    const active = section.id === activeId && activeNavItem(pathname, section.items, search)?.href === entry.href;
                     return (
                       <li key={entry.href}>
-                        <DialogClose asChild>
-                          <Link
-                            href={entry.href}
-                            aria-current={isActive ? 'page' : undefined}
-                            className={cn(
-                              'flex min-h-12 items-center gap-3 px-3 text-lg transition-colors',
-                              isActive ? tone.fill : 'hover:bg-chrome-foreground/10',
-                            )}
-                          >
-                            <Icon className="size-5 shrink-0" aria-hidden="true" />
-                            <span className="flex-1">{entry.label}</span>
-                            <ArrowRight className="size-4" aria-hidden="true" />
-                          </Link>
-                        </DialogClose>
+                        <Link
+                          href={entry.href}
+                          onClick={close}
+                          aria-current={active ? 'page' : undefined}
+                          className={cn(
+                            'flex items-center gap-2.5 py-2.5 text-base transition-colors',
+                            active ? 'font-medium text-ink' : 'text-ink-2 hover:text-ink',
+                          )}
+                        >
+                          {/* Dấu trang hiện tại là ô vuông màu mục, như thanh mục con; không mảng nền bo góc. */}
+                          <span aria-hidden className={cn('size-2 shrink-0', active ? 'bg-acc-solid' : 'bg-transparent')} />
+                          {entry.label}
+                        </Link>
                       </li>
                     );
                   })}
                 </ul>
-              </section>
-            );
-          })}
-          {viewer ? (
-            <ul className="grid gap-1 py-6">
-              {userMenuItems(viewer.role).map((entry) => (
-                <li key={entry.href}>
-                  <DialogClose asChild>
-                    <Link href={entry.href} className="flex min-h-12 items-center px-3 hover:bg-chrome-foreground/10">
-                      {entry.label}
+              </div>
+            ))}
+            <div className="flex flex-col gap-1 py-4">
+              {viewer === null ? (
+                <div className="flex gap-2">
+                  <Button asChild variant="secondary" className="flex-1">
+                    <Link href="/login" onClick={close}>
+                      {t('shell.header.sign-in')}
                     </Link>
-                  </DialogClose>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <div className="grid grid-cols-2 gap-3 py-6">
-              <DialogClose asChild>
-                <Link href="/login" className="flex h-12 items-center justify-center border border-chrome-border font-semibold">
-                  {t('shell.header.sign-in')}
-                </Link>
-              </DialogClose>
-              <DialogClose asChild>
-                <Link href="/register" className="flex h-12 items-center justify-center bg-primary font-semibold text-primary-foreground">
-                  {t('shell.header.register')}
-                </Link>
-              </DialogClose>
+                  </Button>
+                  <Button asChild variant="ink" className="flex-1">
+                    <Link href="/register" onClick={close}>
+                      {t('shell.header.register')}
+                    </Link>
+                  </Button>
+                </div>
+              ) : (
+                userMenuItems(viewer.role).map((entry) => (
+                  <Link
+                    key={entry.href}
+                    href={entry.href}
+                    onClick={close}
+                    className="-mx-2 flex items-center gap-3 rounded-md px-2 py-2.5 text-base text-ink-2 hover:bg-well"
+                  >
+                    {entry.label}
+                  </Link>
+                ))
+              )}
             </div>
-          )}
-        </nav>
-      </DialogContent>
-    </Dialog>
+          </nav>
+        </RadixDialog.Content>
+      </RadixDialog.Portal>
+    </RadixDialog.Root>
   );
 }

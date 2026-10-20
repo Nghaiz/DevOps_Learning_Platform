@@ -3,11 +3,11 @@
 import { useId, type ReactElement } from 'react';
 import { t } from '@devops-platform/copy';
 import type { AuthorField } from '@devops-platform/games';
-import { Checkbox, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Switch } from '@devops-platform/ui';
 import { Field, TextAreaField, TextField, issueFor } from '../../../components/author/field';
 import { fieldPathProps } from '../../../components/author/studio';
 import type { FieldIssue } from './cluster-form';
 import { isJsonShaped, type SpecTextState } from './spec-text';
+import { Checkbox, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Switch } from '@devops-platform/ds';
 
 /**
  * Biểu mẫu trạng thái ban đầu DỰNG TỪ `authorFields` của plugin (§18.A.6).
@@ -29,7 +29,7 @@ export function PluginFields(props: {
   readonly issues: readonly FieldIssue[];
 }): ReactElement {
   if (props.fields.length === 0) {
-    return <p className="text-sm text-muted-foreground">{t('author.problem.spec.no-fields')}</p>;
+    return <p className="text-sm text-ink-2">{t('author.problem.spec.no-fields')}</p>;
   }
   return (
     <div className="flex flex-col gap-6">
@@ -163,7 +163,7 @@ function MultiSelectField(props: {
 
   return (
     <fieldset className="flex flex-col gap-2" aria-describedby={describedBy} {...fieldPathProps(field.path)}>
-      <legend className="mb-1.5 text-[13px] font-semibold text-foreground">{field.label}</legend>
+      <legend className="mb-1.5 text-[13px] font-semibold text-ink">{field.label}</legend>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         {field.options.map((option) => {
           const optionId = `${id}-${option.value}`;
@@ -186,12 +186,12 @@ function MultiSelectField(props: {
         })}
       </div>
       {field.help !== undefined && (
-        <p id={`${id}-hint`} className="text-xs text-muted-foreground">
+        <p id={`${id}-hint`} className="text-xs text-ink-2">
           {field.help}
         </p>
       )}
       {props.error !== null && (
-        <p id={`${id}-error`} className="text-xs font-medium text-destructive">
+        <p id={`${id}-error`} className="text-xs font-medium text-bad-ink">
           {props.error}
         </p>
       )}

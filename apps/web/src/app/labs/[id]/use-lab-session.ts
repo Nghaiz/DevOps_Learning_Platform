@@ -1,7 +1,7 @@
 'use client';
 
 import { errText } from '@devops-platform/copy';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import type { CreatedSession } from '@devops-platform/terminal';
 import { api } from '../../../lib/trpc-react';
 import { trpc } from '../../../lib/trpc';
@@ -31,6 +31,11 @@ export interface LabSession extends SandboxSession {
    * được đọc thành một lượt hỏng, cũng không được đọc thành một lượt thành công.
    */
   readonly preferencesApplied: boolean | null;
+  /**
+   * Nhận lại một lần thử CHƯA NỘP cùng máy của nó (mở lại trang giữa chừng). Không có
+   * bước này thì trang chỉ còn nút Bắt đầu, và bấm vào là bỏ lần thử đang dở.
+   */
+  readonly adoptAttempt: (attemptId: string, session: CreatedSession) => void;
 }
 
 export function useLabSession(labId: string, userId: string): LabSession {
@@ -79,5 +84,13 @@ export function useLabSession(labId: string, userId: string): LabSession {
   );
 
   const session = useSandboxSession(actions);
-  return { ...session, attemptId, preferencesApplied };
+  const adopt = session.adopt;
+  const adoptAttempt = useCallback(
+    (nextAttemptId: string, machine: CreatedSession) => {
+      setAttemptId(nextAttemptId);
+      adopt(machine);
+    },
+    [adopt],
+  );
+  return { ...session, attemptId, preferencesApplied, adoptAttempt };
 }

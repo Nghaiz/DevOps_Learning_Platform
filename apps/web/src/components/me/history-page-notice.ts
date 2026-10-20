@@ -3,7 +3,7 @@ import { t } from '@devops-platform/copy';
 /**
  * F4 — một trang RỖNG có ba nguyên nhân, và giao diện cũ chỉ biết một.
  *
- * Luật cũ nằm rải trong `history-tabs.tsx` + `active-sessions.tsx`:
+ * Luật cũ nằm rải trong `history-tabs.tsx` + danh sách phiên cũ của `/me`:
  * `items.length === 0 ⇒ hiện "Chưa có ... nào" và KHÔNG render pager`. Nó đúng
  * cho đúng một nguyên nhân — chưa từng có gì — và nói sai sự thật cho hai
  * nguyên nhân còn lại:

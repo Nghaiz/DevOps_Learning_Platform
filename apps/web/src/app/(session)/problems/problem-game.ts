@@ -2,42 +2,28 @@ import { GAME_IDS, problemTopicLabels, type GameId } from '@devops-platform/game
 import { t } from '@devops-platform/copy';
 
 /**
- * Bộ chọn GAME của khối lọc chủ đề — §18 khối 6.
+ * Bộ chọn GAME của kho đề.
  *
- * ## Điều khiển này LÀM gì, và cố ý KHÔNG làm gì
+ * ## Nó làm hai việc
  *
- * Nó đổi **từ vựng chủ đề** hiện dưới nó. Nó **không** lọc danh sách bài theo
- * game, và đó là một ranh giới có lý do đo được chứ không phải một thiếu sót:
- * `ProblemFilter` (hợp đồng, `packages/games/src/k8s/problem.ts:244`) không có
- * trường `gameId`, và schema đầu vào của `problems.list` khai `.strict()` —
- * đo 2026-09-15, `problemFilterSchema.safeParse({ gameId: 'git' })` trả
- * `unrecognized_keys`. Một bộ chọn hứa lọc bài mà chỉ đổi được từ vựng là một
- * điều khiển NÓI DỐI; câu `problem.oj.filter.game-hint` vì thế nói đúng một vế.
+ * 1. Thu hẹp danh sách về bài của một game: `buildProblemListInput` gửi lựa chọn
+ *    thành `filter.gameId`, và `problemFilterSchema` của `problems.list` nhận khoá đó.
+ * 2. Đổi từ vựng chủ đề hiện dưới nó: chủ đề là của TỪNG game (`branching` chỉ Git
+ *    có), nên khối chủ đề đi theo game đang chọn.
  *
- * Thực tế nó vẫn thu hẹp danh sách, chỉ là gián tiếp: chủ đề `branching` chỉ có
- * trên bài Git, nên chọn nó ra đúng tập bài Git. Khác nhau ở chỗ phép thu hẹp
- * đến từ chủ đề người dùng chọn, không đến từ một mệnh đề game mà máy chủ không
- * có.
+ * ## "Tất cả game" là mặc định, và khối chủ đề ẨN ở đó
  *
- * ## ⛔ VÌ SAO KHÔNG có trạng thái "mọi game"
+ * Kho chở bài của nhiều game, nên trang mở ra phải thấy được mọi đề. Ở "Tất cả",
+ * khối chủ đề không gộp phẳng các bộ từ vựng: id chủ đề để TRẦN (xem quy ước ở
+ * `git/problem-topics.ts`), nên ngày hai game trùng một id thì một ô đã đánh dấu
+ * trong rổ chung không còn nói được nó thuộc game nào. Ẩn khối đi làm chỗ nhập nhằng
+ * đó không dựng được.
  *
- * Chủ dự án đã bác bản gộp phẳng mười bảy chủ đề. Nghĩa còn lại của "mọi game"
- * là *tắt luôn phép lọc chủ đề* — một mục trong danh sách mà việc duy nhất của
- * nó là vô hiệu hoá chính khối bên dưới. Nó cũng mở ra một chỗ nhập nhằng thật:
- * id chủ đề để TRẦN (`branching`, không phải `git-branching`, xem quy ước ở
- * `git/problem-topics.ts`), nên ngày đầu tiên hai game trùng một id thì một ô
- * đã đánh dấu trong rổ "mọi game" không còn nói được nó thuộc game nào. Bộ chọn
- * một-game-một-lúc làm chỗ nhập nhằng đó **không dựng được**, chứ không phải
- * chỉ tránh nó.
+ * ## Liên kết cũ đọc bằng `k8s`
  *
- * ## Game mặc định là `k8s`, và lý do KHÔNG phải "vì nó có trước"
- *
- * Mọi bài trong kho hôm nay đều là K8s (`PROBLEMS_SEED` mười bài `K8S-*`; chưa
- * có seed bài Git nào). Nhưng lý do nặng hơn là LIÊN KẾT ĐÃ GỬI ĐI: một
- * `/problems?topic=workload` người ta đã dán cho nhau không mang tham số
- * `game`, nên game mặc định quyết định chủ đề đó còn sống hay bị lọc bỏ lúc
- * đọc lại. Mặc định `k8s` giữ nguyên MỌI liên kết cũ; mặc định `git` hay "mọi
- * game" sẽ làm chúng mở ra với ô đánh dấu trống — mất bộ lọc, không báo gì.
+ * `/problems?topic=workload` có từ trước khi có "Tất cả" và không mang `game`. Đọc
+ * nó bằng "Tất cả" là bỏ chủ đề trong im lặng; đọc bằng `k8s` (`LEGACY_TOPIC_GAME`)
+ * giữ nguyên bộ lọc người ta đã gửi cho nhau.
  */
 
 /** Tên hiển thị theo game. `null` = game chưa có từ vựng chủ đề nào để chọn. */
@@ -99,8 +85,22 @@ export const PROBLEM_FILTER_GAMES: readonly GameId[] = GAME_IDS.filter(
   (gameId) => GAME_NAMES[gameId] !== null && topicIdsFor(gameId).length > 0,
 );
 
-/** Xem khối đầu file về việc vì sao mặc định là `k8s` chứ không phải "mọi game". */
-export const DEFAULT_PROBLEM_GAME: GameId = 'k8s';
+/**
+ * Bộ chọn game có thêm "Tất cả" (bản dựng lại 2026-10): kho đề nhiều game thì mặc định
+ * phải là nhìn được mọi đề. Ở "Tất cả", khối chủ đề ẨN đi chứ không gộp phẳng các bộ
+ * từ vựng: chủ đề là của từng game (`branching` chỉ Git có), và một rổ chung sẽ không
+ * nói được ô đã chọn thuộc game nào.
+ */
+export type ProblemGameChoice = GameId | 'all';
+
+export const ALL_GAMES = 'all' as const;
+
+/**
+ * Game cho liên kết CŨ: `/problems?topic=workload` có từ trước khi có "Tất cả", không
+ * mang tham số `game`, và chủ đề của nó là của K8s. Đọc nó bằng `k8s` giữ nguyên bộ
+ * lọc; đọc bằng "Tất cả" thì chủ đề bị bỏ trong im lặng.
+ */
+export const LEGACY_TOPIC_GAME: GameId = 'k8s';
 
 export function gameName(gameId: GameId): string {
   return GAME_NAMES[gameId] ?? gameId;
@@ -112,6 +112,8 @@ export function gameName(gameId: GameId): string {
  * một giá trị lạ là dữ liệu hỏng chứ không phải lỗi chương trình, và hậu quả
  * nhìn thấy được ngay trên màn hình (bộ chọn hiện game mặc định).
  */
-export function parseGame(raw: string | null): GameId {
-  return PROBLEM_FILTER_GAMES.find((gameId) => gameId === raw) ?? DEFAULT_PROBLEM_GAME;
+export function parseGame(raw: string | null, hasTopics = false): ProblemGameChoice {
+  const known = PROBLEM_FILTER_GAMES.find((gameId) => gameId === raw);
+  if (known !== undefined) return known;
+  return hasTopics ? LEGACY_TOPIC_GAME : ALL_GAMES;
 }

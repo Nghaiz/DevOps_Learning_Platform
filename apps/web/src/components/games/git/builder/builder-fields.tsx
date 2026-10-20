@@ -1,22 +1,21 @@
 'use client';
 
 /**
- * Ô nhập của Builder, dựng trên primitive `packages/ui` (`Label`, `Input`,
- * `Textarea`, `Checkbox`).
+ * Ô nhập của Builder, dựng trên primitive `packages/ds` (`Label`, `Input`,
+ * `Textarea`, `NativeSelect`, `Checkbox`).
  *
  * Mỗi ô nhận `id` từ nơi gọi chứ không tự sinh: id là thứ nối `<label>` với ô
  * nhập, và e2e `games-builder-network.spec.ts` tìm ô bằng đúng nhãn đó
  * (`getByLabel('Tiêu đề')`). Câu gợi ý nối vào ô bằng `aria-describedby` nên
  * trình đọc màn hình đọc nó ngay sau nhãn.
  *
- * Ô chọn là `<select>` gốc chứ không phải `Select` của Radix: Radix không nhận
- * giá trị rỗng cho một mục, mà "không kèm bài đọc" chính là giá trị rỗng.
+ * Ô chọn là `NativeSelect` (`<select>` gốc) chứ không phải `Select` của Radix: Radix
+ * không nhận giá trị rỗng cho một mục, mà "không kèm bài đọc" chính là giá trị rỗng.
  */
 
 import { useState, type ReactElement } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { Checkbox, cn, Input, Label, NativeSelect, Textarea } from '@devops-platform/ds';
 
-import { Checkbox, Input, Label, Textarea, cn } from '@devops-platform/ui';
 
 interface FieldBase {
   readonly id: string;
@@ -39,15 +38,16 @@ function FieldHint({
 }) {
   if (id === undefined || text === undefined) return null;
   return (
-    <p id={id} className="text-xs leading-relaxed text-muted-foreground">
+    <p id={id} className="text-xs leading-relaxed text-ink-2">
       {text}
     </p>
   );
 }
 
-function FieldLabel({ id, label, mono }: Pick<FieldBase, 'id' | 'label' | 'mono'>) {
+/** Nhãn luôn là chữ thường, kể cả ô `mono`: chỉ GIÁ TRỊ (mã, lệnh, JSON) mới viết mono. */
+function FieldLabel({ id, label }: Pick<FieldBase, 'id' | 'label'>) {
   return (
-    <Label htmlFor={id} className={cn('leading-snug', mono === true && 'font-mono font-medium')}>
+    <Label htmlFor={id} className="leading-snug">
       {label}
     </Label>
   );
@@ -73,7 +73,7 @@ export function TextField({
   const hintId = hintIdOf(id, hint);
   return (
     <div className="flex flex-col gap-1.5">
-      <FieldLabel id={id} label={label} mono={mono} />
+      <FieldLabel id={id} label={label} />
       <Input
         id={id}
         type={type}
@@ -197,32 +197,21 @@ export function SelectField({
   return (
     <div className="flex flex-col gap-1.5">
       <FieldLabel id={id} label={label} />
-      <div className="relative">
-        <select
-          id={id}
-          value={value}
-          aria-describedby={hintId}
-          onChange={(e) => {
-            onChange(e.target.value);
-          }}
-          className={cn(
-            'h-10 w-full appearance-none rounded-none border border-input bg-card pr-9 pl-3 text-base text-foreground sm:text-sm',
-            'outline-none transition-colors duration-[var(--motion-fast)] ease-out hover:border-ink',
-            'focus-visible:border-ink focus-visible:ring-2 focus-visible:ring-ring',
-            mono === true && 'font-mono',
-          )}
-        >
-          {options.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-        <ChevronDown
-          aria-hidden
-          className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-muted-foreground"
-        />
-      </div>
+      <NativeSelect
+        id={id}
+        value={value}
+        aria-describedby={hintId}
+        onChange={(e) => {
+          onChange(e.target.value);
+        }}
+        className={cn(mono === true && 'font-mono')}
+      >
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </NativeSelect>
       <FieldHint id={hintId} text={hint} />
     </div>
   );

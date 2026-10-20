@@ -7,13 +7,12 @@
  */
 
 import type { ReactElement } from 'react';
-import { ArrowRight } from 'lucide-react';
 
 import { t } from '@devops-platform/copy';
 import type { GitLevel } from '@devops-platform/games';
-import { Button } from '@devops-platform/ui';
 
 import { BuilderStep, GIT_FILL } from './builder-step';
+import { Button } from '@devops-platform/ds';
 
 export interface PlayStepProps {
   readonly index: number;
@@ -30,9 +29,9 @@ export function PlayStep({ index, level, onPlayTest }: PlayStepProps): ReactElem
       lead={t('author.builder.lead.play')}
     >
       <div>
-        <Button
+        <Button variant="primary"
           className={GIT_FILL}
-          iconRight={<ArrowRight aria-hidden />}
+          iconRight="arrow-right"
           data-testid="git-builder-play-test"
           disabled={level === null}
           onClick={() => {

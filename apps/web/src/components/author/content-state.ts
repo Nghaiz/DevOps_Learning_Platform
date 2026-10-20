@@ -192,5 +192,6 @@ export function describeUpdatedAt(iso: string, now: Date): CopyRef {
   if (hours < 24) return { key: 'author.item.updated.hours', params: { n: hours } };
   const days = Math.floor(hours / 24);
   if (days <= 7) return { key: 'author.item.updated.days', params: { n: days } };
-  return { key: 'author.item.updated.on-date', params: { date: iso.slice(0, 10) } };
+  const [year, month, day] = iso.slice(0, 10).split('-');
+  return { key: 'author.item.updated.on-date', params: { date: `${day ?? ''}/${month ?? ''}/${year ?? ''}` } };
 }

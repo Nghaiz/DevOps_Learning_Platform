@@ -69,15 +69,17 @@
 .git-odyssey button {
   cursor: pointer;
 }
-.git-odyssey button:disabled {
+/* `:not(.ds-island *)`: bảng bên của sandbox là giao diện ds (sandbox-panel.tsx); ba luật
+ * dưới đây là của màn chơi và không được chọc vào nó. */
+.git-odyssey button:disabled:not(.ds-island *) {
   cursor: not-allowed;
   opacity: 0.45;
 }
-.git-odyssey button:focus-visible,
-.git-odyssey input:focus-visible,
-.git-odyssey select:focus-visible,
-.git-odyssey textarea:focus-visible,
-.git-odyssey summary:focus-visible {
+.git-odyssey button:focus-visible:not(.ds-island *),
+.git-odyssey input:focus-visible:not(.ds-island *),
+.git-odyssey select:focus-visible:not(.ds-island *),
+.git-odyssey textarea:focus-visible:not(.ds-island *),
+.git-odyssey summary:focus-visible:not(.ds-island *) {
   outline: 2px solid var(--git-gold);
   outline-offset: 4px;
 }
@@ -129,8 +131,8 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
-.git-odyssey h1,
-.git-odyssey h2 {
+.git-odyssey h1:not(.ds-island *),
+.git-odyssey h2:not(.ds-island *) {
   font-family: var(--font-display);
   font-stretch: 106%;
   letter-spacing: -0.01em;
@@ -1015,71 +1017,6 @@
 
 
 
-.git-builder-panel {
-  background: var(--git-panel);
-}
-.git-builder-panel section {
-  border-color: var(--git-border);
-  border-radius: 0;
-}
-.git-builder-panel h2,
-.git-builder-panel h3 {
-  color: var(--git-zone);
-}
-.git-builder-panel input,
-.git-builder-panel textarea,
-.git-builder-panel select {
-  border-color: var(--input);
-  background: var(--git-abyss);
-  border-radius: 0;
-  padding: 10px;
-  line-height: 1.6;
-}
-.git-builder-panel button {
-  min-height: 36px;
-  border-radius: 0;
-  transition:
-    border-color 0.2s,
-    background 0.2s;
-}
-.git-builder-panel button:hover {
-  border-color: var(--git-zone);
-  background: var(--git-raised);
-}
-.git-builder-panel fieldset {
-  background: color-mix(in srgb, var(--git-raised) 40%, transparent);
-  border-color: var(--git-border);
-  border-radius: 0;
-  padding: 13px;
-}
-.git-builder-panel legend {
-  color: var(--git-gold);
-}
-.git-builder-panel label {
-  color: var(--git-ink);
-}
-.git-builder-heading {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  padding: 17px;
-  background: var(--odyssey-heading-tint);
-  border: 1px solid var(--git-border);
-  border-radius: 0;
-}
-.git-builder-heading svg {
-  color: var(--git-violet);
-}
-.git-builder-heading strong {
-  display: block;
-  font-size: 15px;
-}
-.git-builder-heading small {
-  display: block;
-  margin-top: 4px;
-  color: var(--git-muted);
-  font-size: 10px;
-}
 @keyframes git-float {
   0%,
   100% {
@@ -1363,32 +1300,6 @@
   color: var(--git-ink);
   font-size: 12px;
   outline: none;
-}
-
-.git-sandbox-tools {
-  padding: 20px;
-  gap: 23px;
-  overflow-y: auto;
-}
-.git-sandbox-tools > section + section,
-.git-builder-content > section {
-  border-top: 1px solid var(--git-border);
-  padding-top: 18px;
-}
-.git-sandbox-tools.git-builder-open {
-  width: 430px;
-}
-.git-builder-publish {
-  padding: 18px;
-  border: 1px solid var(--git-violet) !important;
-  background: color-mix(in srgb, var(--git-violet) 3.1373%, transparent);
-}
-@media (max-width: 800px) {
-  .git-sandbox-tools,
-  .git-sandbox-tools.git-builder-open {
-    width: 100%;
-    max-height: 520px;
-  }
 }
 
 .git-file-pipeline {

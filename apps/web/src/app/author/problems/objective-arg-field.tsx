@@ -2,12 +2,12 @@
 
 import type { ReactElement } from 'react';
 import { t } from '@devops-platform/copy';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@devops-platform/ui';
 import { Field, TextField, issueFor } from '../../../components/author/field';
 import type { FieldIssue } from './cluster-form';
 import type { PredicateArgSpec } from './predicate-arg-types';
 import { PROBE_VALUES } from './predicate-spec';
 import { INCIDENT_KINDS, INCIDENT_LABELS, RESOURCE_KINDS } from './vocabulary';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@devops-platform/ds';
 
 /** Radix Select không nhận `value=""` cho một mục, nên "không đặt" mang một token riêng. */
 const NONE = 'khong';

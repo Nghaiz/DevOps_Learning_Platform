@@ -1,52 +1,25 @@
 import type { IntentionalThree, Surface } from '../types.ts';
 
 /**
- * Surface `common.` và `unit.`, sở hữu bởi L0.
+ * Surface `common.` và `unit.`: chữ dùng chung từ hai màn trở lên, và đơn vị đếm.
  *
- * Bảng sở hữu §6.1 giao L0 ba tiền tố (`common.` `error.` `unit.`) nhưng chỉ hai
- * file (`common.ts` `error.ts`), nên `unit.` ở chung file này. `Surface<'common'
- * | 'unit'>` là thứ giữ cho tiền tố thứ ba không lọt vào đây.
- *
- * ⚠ Lane KHÔNG tự thêm khoá vào file này. Chuỗi dùng ở từ hai surface trở lên
- * đi vào `common.`, và L0 là người thêm (§6.1). Lane cần một khoá chung thì nhắn
- * L0; tự thêm vào surface của mình rồi chép sang là dựng hai nguồn sự thật cho
- * một câu, và hai bản sẽ trôi khác nhau ở lần sửa đầu tiên.
- *
- * ⚠ Ở lượt L0 này bản đồ CỐ Ý mỏng. Nó chỉ chứa thứ đã có nguồn sự thật ngoài
- * giao diện: nhãn thao tác lặp ở mọi màn, và ba mức của `ScenarioDifficulty`.
- * Danh từ danh mục (`bài học` / `lab` / ...) KHÔNG ở đây: §1.2 của hợp đồng đặt
- * chúng ở `catalog.noun.*`, và đoán trước cho lane khác là việc L0 không có dữ
- * liệu để làm.
+ * Danh từ danh mục (`bài học`, `lab`…) không ở đây mà ở `catalog.noun.*`. Chuỗi chỉ
+ * một màn dùng thì thuộc surface của màn đó.
  */
 export const common = {
-  // Hộp xác nhận dùng chung (components/kit/confirm-dialog.tsx).
-  'common.confirm.cancel': 'Huỷ',
-  'common.confirm.loss-label': 'Sẽ mất',
-  // ── Trang lỗi chung (bản dựng lại PTIT, 2026-10-03) ──────────────────────
+  // ── Trang không tìm thấy và trang lỗi ───────────────────────────────────
   'common.not-found.code': '404',
-  'common.not-found.kicker': 'Không có trên bản đồ',
-  'common.not-found.title': 'Ga này không tồn tại',
-  'common.not-found.body':
-    'Đường dẫn sai, hoặc bài đã bị gỡ. Quay về một trong các tuyến chính bên dưới.',
-  'common.not-found.home': 'Về trang chủ',
-  'common.crash.kicker': 'Có lỗi khi dựng trang',
-  'common.crash.title': 'Trang này vừa gặp sự cố',
-  'common.crash.body':
-    'Lỗi nằm ở phía chúng tôi, không phải do bạn bấm sai. Thử tải lại; vẫn lỗi thì gửi mã bên dưới cho giảng viên.',
-  'common.crash.retry': 'Thử lại',
+  'common.not-found.title': 'Không tìm thấy trang này',
+  'common.not-found.body': 'Đường dẫn có thể gõ sai, hoặc nội dung đã bị gỡ. Chọn một mục trong danh sách để đi tiếp.',
+  'common.not-found.home': 'Về trang đầu',
+  'common.crash.title': 'Trang này vừa gặp lỗi',
+  'common.crash.body': 'Lỗi nằm ở phía hệ thống, không phải do bạn bấm sai. Thử tải lại; nếu vẫn lỗi, gửi mã bên dưới cho giảng viên.',
+  'common.crash.retry': 'Tải lại phần này',
   'common.crash.digest': (p: { digest: string }) => `Mã lỗi: ${p.digest}`,
-  // ── Thao tác ────────────────────────────────────────────────────────────
-  /**
-   * Mô tả tài liệu mặc định của toàn ứng dụng, đọc bởi `app/layout.tsx`.
-   *
-   * Ở `common` chứ không ở `shell` vì `layout.tsx` gốc là file của L0 và không
-   * lane nào được chạm. Tiêu đề đi kèm thì dùng lại `shell.brand.name` thay vì
-   * đẻ thêm một bản thứ ba của tên sản phẩm.
-   */
-  'common.meta-description': 'Nền tảng học DevOps qua lab sandbox',
-  /** Mô tả cho thẻ Open Graph. Khác `common.meta-description`: thẻ share nói
-   * điều gì làm nền tảng này khác, còn mô tả tài liệu nói nó LÀ gì. */
-  'common.og-description': 'Học DevOps bằng lab sandbox chạy thật',
+  'common.meta-description': 'Học DevOps bằng máy ảo chạy thật: bài học, lab, đề chấm tự động và trò chơi.',
+  'common.og-description': 'Học DevOps trên máy ảo chạy thật, ngay trong trình duyệt.',
+
+  // ── Nhãn thao tác lặp ở nhiều màn ───────────────────────────────────────
   'common.action.save': 'Lưu',
   'common.action.cancel': 'Huỷ',
   'common.action.close': 'Đóng',
@@ -62,34 +35,23 @@ export const common = {
   'common.action.clear-filter': 'Bỏ lọc',
   'common.action.reload': 'Tải lại trang',
   'common.action.more': 'Xem thêm',
+  'common.action.actions': 'Thao tác khác',
   'common.action.dismiss': 'Bỏ qua',
-
-  // ── Trạng thái ──────────────────────────────────────────────────────────
+  // Nhãn phân trang khớp từng chữ với câu hướng dẫn ở `me.history.empty-page-go-*`.
+  'common.pager.first': 'Về trang đầu',
+  'common.pager.prev': 'Trang trước',
+  'common.pager.next': 'Trang sau',
+  'common.pager.page': (p: { page: number }) => `Trang ${String(p.page)}`,
   'common.state.loading': 'Đang tải',
   'common.state.saving': 'Đang lưu',
   'common.state.empty': 'Chưa có gì ở đây',
   'common.state.offline': 'Mất kết nối tới máy chủ',
-
-  // ── Nhãn trường ─────────────────────────────────────────────────────────
   'common.label.required': 'Bắt buộc',
   'common.label.optional': 'Không bắt buộc',
-
-  /**
-   * `beginner` (miền) so với `basic` (token) là hai từ vựng cố ý lệch nhau:
-   * `ScenarioDifficulty` là hợp đồng dữ liệu chạy từ P2, `--difficulty-basic`
-   * là hợp đồng token. Bản đồ thông điệp khoá theo TÊN MIỀN, vì nơi gọi cầm
-   * trong tay một giá trị `ScenarioDifficulty` chứ không cầm một tên token.
-   * Việc nối hai tên đó thuộc về bảng ánh xạ ở nơi dùng, không thuộc về đây.
-   */
   'common.difficulty.beginner': 'Cơ bản',
   'common.difficulty.intermediate': 'Trung cấp',
   'common.difficulty.advanced': 'Nâng cao',
 
-  /**
-   * Loại từ dính liền danh từ, nên nó nằm trong chính giá trị chứ không nằm
-   * trong một bảng loại từ riêng (§1.5). `unit.minute` là số ít về mặt tên gọi
-   * và dùng cho mọi `n`: `1 phút` và `5 phút` chung một danh từ.
-   */
   'unit.minute': (p: { n: number }) => `${p.n} phút`,
   'unit.second': (p: { n: number }) => `${p.n} giây`,
   'unit.hour': (p: { n: number }) => `${p.n} giờ`,
@@ -101,5 +63,5 @@ export const common = {
 
 export const commonIntentionalThree = {
   'common.difficulty':
-    '2026-09-10: đúng ba mức tồn tại trong hợp đồng dữ liệu ScenarioDifficulty (beginner, intermediate, advanced), kiểm tại packages/shared-types/src/scenario.ts. Mức thứ tư nào cũng phải sửa schema trước, và lúc đó nhóm này thôi là ba.',
+    '2026-09-10: đúng ba mức tồn tại trong hợp đồng dữ liệu ScenarioDifficulty (beginner, intermediate, advanced), kiểm tại packages/shared-types/src/scenario.ts.',
 } as const satisfies IntentionalThree;

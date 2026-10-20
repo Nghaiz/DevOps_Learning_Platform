@@ -2,130 +2,44 @@
 
 import { useEffect, useState, type ReactElement } from 'react';
 import Link from 'next/link';
-import { FlaskConical, Play } from 'lucide-react';
 import { t } from '@devops-platform/copy';
+import { Button, Page } from '@devops-platform/ds';
 import { CD_LEVELS, CI_LEVELS, CICD_LEVELS, type CicdLevel } from '@devops-platform/games';
-import { Button, Difficulty, Meter, TopicBadge, type LineMarkerState } from '@devops-platform/ui';
-import { Board, BoardRow, PageContainer, PosterHeader, Split } from '../../kit';
+import { CampaignHeader, ChapterBlock, ChapterStrip, LevelDifficulty, LevelRow, type LevelStatus } from '../campaign/campaign-parts';
 import { readCicdProgress, type CicdProgress } from './cicd-progress';
 
 /**
- * Danh sách màn của Xưởng đường ống CI/CD: một bảng tuyến, hai chương.
+ * Danh sách màn của Xưởng đường ống CI/CD: hai chương, số thứ tự đánh liên tục qua hai
+ * chương (1…28), khớp với số trong id màn.
  *
- * Số thứ tự đánh liên tục qua hai chương (01…28), khớp với số trong id màn.
+ * ⚠ Không sắp lại, không nhóm lại theo độ khó. Thứ tự đó là thứ tự dạy: C06 ("cache là
+ * bộ đệm") phải đến trước C07/C08 (khoá quá rộng / quá hẹp), và C09 ("một lượt xanh
+ * không chứng minh gì") phải đến trước C10/C11 (chạy lại).
  *
- * ⚠ Không sắp lại, không nhóm lại theo độ khó. Thứ tự đó là thứ tự dạy: C06
- * ("cache là bộ đệm") phải đến trước C07/C08 (khoá quá rộng / quá hẹp), và C09
- * ("một lượt xanh không chứng minh gì") phải đến trước C10/C11 (chạy lại).
- *
- * Mỗi dòng là một LIÊN KẾT thật tới `/games/cicd/<id>`: màn chơi có đoạn con
- * riêng (19.D), nên mở tab mới, chép đường dẫn và nút Back đều đúng.
+ * Mỗi dòng là một LIÊN KẾT thật tới `/games/cicd/<id>`: màn chơi có đoạn con riêng
+ * (19.D), nên mở tab mới, chép đường dẫn và nút Back đều đúng.
  */
-
-const DIFFICULTY_LABEL = {
-  basic: t('common.difficulty.beginner'),
-  intermediate: t('common.difficulty.intermediate'),
-  advanced: t('common.difficulty.advanced'),
-} as const;
 
 export interface CicdCampaignProps {
   readonly onSandbox: () => void;
 }
 
-function stateOf(
-  progress: CicdProgress,
-  level: CicdLevel,
-  nextId: string | null,
-): { readonly marker: LineMarkerState; readonly label: string; readonly isNext: boolean } {
-  const entry = progress[level.id];
-  if (entry?.completed === true) return { marker: 'done', label: t('games.state.done'), isNext: false };
-  if (level.id === nextId) {
-    return {
-      marker: 'current',
-      label: entry === undefined ? t('games.state.next') : t('games.state.playing'),
-      isNext: true,
-    };
-  }
-  return {
-    marker: 'todo',
-    label: entry === undefined ? t('games.state.new') : t('games.state.playing'),
-    isNext: false,
-  };
-}
+const CHAPTERS = [
+  { anchor: 'cicd-chapter-ci', title: t('games.cicd.chapter.ci.title'), blurb: t('games.cicd.chapter.ci.blurb'), levels: CI_LEVELS, offset: 0 },
+  {
+    anchor: 'cicd-chapter-cd',
+    title: t('games.cicd.chapter.cd.title'),
+    blurb: t('games.cicd.chapter.cd.blurb'),
+    levels: CD_LEVELS,
+    offset: CI_LEVELS.length,
+  },
+] as const;
 
-function Chapter({
-  code,
-  title,
-  blurb,
-  levels,
-  offset,
-  progress,
-  nextId,
-}: {
-  readonly code: 'CI' | 'CD';
-  readonly title: string;
-  readonly blurb: string;
-  readonly levels: readonly CicdLevel[];
-  readonly offset: number;
-  readonly progress: CicdProgress;
-  readonly nextId: string | null;
-}): ReactElement {
-  const done = levels.filter((level) => progress[level.id]?.completed === true).length;
-  return (
-    <Split
-      index={code}
-      title={title}
-      aside={
-        <>
-          <p>{blurb}</p>
-          <p className="mt-3 font-mono tabular-nums">
-            {t('games.chapter.progress', { done, total: levels.length })}
-          </p>
-        </>
-      }
-    >
-      <Board label={title}>
-        {levels.map((level, index) => {
-          const state = stateOf(progress, level, nextId);
-          const editable = [...level.editable, ...(level.cd?.editable ?? [])];
-          return (
-            <BoardRow
-              key={level.id}
-              href={`/games/cicd/${level.id}`}
-              index={offset + index + 1}
-              order={index}
-              line="cicd"
-              lineState={state.marker}
-              title={level.title}
-              sub={level.mission}
-              meta={
-                <>
-                  <span className="flex flex-wrap items-center gap-x-2 font-mono text-xs text-muted-foreground">
-                    <span className="type-label">{t('games.cicd.campaign.editable')}</span>
-                    {editable.map((part) => (
-                      <span key={part}>{part}</span>
-                    ))}
-                  </span>
-                  <Difficulty level={level.difficulty} label={DIFFICULTY_LABEL[level.difficulty]} />
-                </>
-              }
-              state={
-                <span
-                  className={
-                    state.isNext
-                      ? 'bg-signal px-2 py-1 type-label text-signal-foreground'
-                      : 'px-2 py-1 type-label text-muted-foreground'
-                  }
-                >
-                  {state.label}
-                </span>
-              }
-            />
-          );
-        })}
-      </Board>
-    </Split>
-  );
+function statusOf(progress: CicdProgress, level: CicdLevel, nextId: string | null): LevelStatus {
+  const entry = progress[level.id];
+  if (entry?.completed === true) return 'done';
+  if (level.id === nextId) return entry === undefined ? 'next' : 'playing';
+  return entry === undefined ? 'new' : 'playing';
 }
 
 export function CicdCampaign({ onSandbox }: CicdCampaignProps): ReactElement {
@@ -136,86 +50,100 @@ export function CicdCampaign({ onSandbox }: CicdCampaignProps): ReactElement {
   }, []);
 
   const total = CICD_LEVELS.length;
-  const done = CICD_LEVELS.filter((level) => progress[level.id]?.completed === true).length;
-  const next = CICD_LEVELS.find((level) => progress[level.id]?.completed !== true) ?? null;
+  const isDone = (id: string): boolean => progress[id]?.completed === true;
+  const done = CICD_LEVELS.filter((level) => isDone(level.id)).length;
+  const next = CICD_LEVELS.find((level) => !isDone(level.id)) ?? null;
+  const nextId = next?.id ?? null;
 
   return (
     <>
-      <PosterHeader
-        section="games"
-        kicker={t('games.cicd.campaign.kicker', { levels: total, chapters: 2 })}
+      <CampaignHeader
+        game="cicd"
         title={t('games.cicd.name')}
         lead={t('games.cicd.campaign.lead')}
-        switcher={false}
-        aside={
-          <div className="flex flex-col gap-4 border-2 border-current p-5 md:p-6">
-            <div className="flex items-center gap-3">
-              <TopicBadge line="cicd" />
-              <p className="font-mono text-sm tabular-nums">{t('games.chapter.progress', { done, total })}</p>
-            </div>
-            <Meter
-              value={done}
-              max={total}
-              segments={total}
-              tone="cicd"
-              label={t('games.band.progress.aria', { name: t('games.cicd.name') })}
-            />
-            {next === null ? (
-              <p className="text-sm">{t('games.cicd.campaign.all-done', { total })}</p>
-            ) : (
-              <Button asChild size="lg" variant="ink" className="h-auto min-h-12 justify-start py-3 text-left whitespace-normal">
-                <Link href={`/games/cicd/${next.id}`}>
-                  <Play aria-hidden="true" />
-                  {progress[next.id] === undefined && done === 0
-                    ? t('games.cicd.campaign.start', { title: next.title })
-                    : t('games.cicd.campaign.continue', { title: next.title })}
-                </Link>
-              </Button>
-            )}
-          </div>
+        levels={total}
+        chapters={CHAPTERS.length}
+        done={done}
+        allDone={t('games.cicd.campaign.all-done', { total })}
+        cta={
+          next === null ? null : (
+            <Button asChild size="lg" variant="primary" icon="play">
+              <Link href={`/games/cicd/${next.id}`}>
+                {progress[next.id] === undefined && done === 0
+                  ? t('games.cicd.campaign.start', { title: next.title })
+                  : t('games.cicd.campaign.continue', { title: next.title })}
+              </Link>
+            </Button>
+          )
         }
-      >
-        <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2">
-          <Button
-            variant="outline"
-            onClick={onSandbox}
-            className="border-current"
-            iconLeft={<FlaskConical aria-hidden="true" />}
-          >
-            {t('games.cicd.campaign.sandbox')}
-          </Button>
-          <p className="text-sm opacity-90">{t('games.cicd.campaign.sandbox-sub')}</p>
-        </div>
-      </PosterHeader>
+        extra={
+          <span className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <Button variant="secondary" size="lg" icon="flask" onClick={onSandbox}>
+              {t('games.cicd.campaign.sandbox')}
+            </Button>
+            <span className="max-w-[34ch] text-sm text-ink-2">{t('games.cicd.campaign.sandbox-sub')}</span>
+          </span>
+        }
+      />
+
+      <ChapterStrip
+        chapters={CHAPTERS.map((chapter) => ({
+          anchor: chapter.anchor,
+          label: chapter.title,
+          done: chapter.levels.filter((level) => isDone(level.id)).length,
+          total: chapter.levels.length,
+        }))}
+      />
 
       {/*
-        `data-testid` để ô Playwright đếm đúng danh sách này: đếm theo chữ hiển
-        thị (`01`, `02`, …) sẽ bắt nhầm ngay khi một khối khác có số thứ tự. Bên
-        trong chỉ có hai bảng màn, không danh sách nào khác, nên số `listitem`
-        đúng bằng số màn.
+        `data-testid` để ô Playwright đếm đúng danh sách này: đếm theo chữ hiển thị sẽ
+        bắt nhầm ngay khi một khối khác có số thứ tự. Bên trong chỉ có hai danh sách màn,
+        không danh sách nào khác, nên số `listitem` đúng bằng số màn.
       */}
-      <PageContainer className="pt-4 pb-16">
-        <div data-testid="cicd-level-list">
-          <Chapter
-            code="CI"
-            title={t('games.cicd.chapter.ci.title')}
-            blurb={t('games.cicd.chapter.ci.blurb')}
-            levels={CI_LEVELS}
-            offset={0}
-            progress={progress}
-            nextId={next?.id ?? null}
-          />
-          <Chapter
-            code="CD"
-            title={t('games.cicd.chapter.cd.title')}
-            blurb={t('games.cicd.chapter.cd.blurb')}
-            levels={CD_LEVELS}
-            offset={CI_LEVELS.length}
-            progress={progress}
-            nextId={next?.id ?? null}
-          />
+      <Page className="py-10 md:py-12">
+        <div data-testid="cicd-level-list" className="flex flex-col gap-12">
+          {CHAPTERS.map((chapter) => (
+            <ChapterBlock
+              key={chapter.anchor}
+              anchor={chapter.anchor}
+              title={chapter.title}
+              listLabel={chapter.title}
+              blurb={chapter.blurb}
+              done={chapter.levels.filter((level) => isDone(level.id)).length}
+              total={chapter.levels.length}
+            >
+              {chapter.levels.map((level, index) => {
+                const editable = [...level.editable, ...(level.cd?.editable ?? [])];
+                return (
+                  <LevelRow
+                    key={level.id}
+                    index={chapter.offset + index + 1}
+                    title={level.title}
+                    href={`/games/cicd/${level.id}`}
+                    status={statusOf(progress, level, nextId)}
+                    description={level.mission}
+                    meta={
+                      <>
+                        <span className="flex w-44 flex-wrap items-center gap-x-1.5 gap-y-0.5 font-mono text-xs text-ink-3">
+                          <span className="font-sans">{t('games.cicd.campaign.editable')}</span>
+                          {editable.map((part) => (
+                            <span key={part} className="text-ink-2">
+                              {part}
+                            </span>
+                          ))}
+                        </span>
+                        <span className="w-28">
+                          <LevelDifficulty value={level.difficulty} />
+                        </span>
+                      </>
+                    }
+                  />
+                );
+              })}
+            </ChapterBlock>
+          ))}
         </div>
-      </PageContainer>
+      </Page>
     </>
   );
 }

@@ -131,36 +131,30 @@ describe('⛔ 16.D.4 — "chưa đạt" và "hạ tầng lỗi" khác nhau trên
 
   it('khác nhau ở HÌNH — không chỉ ở màu (SC 1.4.1)', () => {
     /*
-      Đo bằng `svg.getAttribute('class')` thì chỉ đo lại màu. Thứ cần đo là hai
-      icon có phải HAI HÌNH khác nhau không, và lucide ghi tên hình vào
-      `class="lucide lucide-circle-x"`. So hai chuỗi lớp đó SAU KHI bỏ phần màu
-      là cách duy nhất phân biệt được "đổi màu" với "đổi hình".
+      Đo bằng lớp màu thì chỉ đo lại màu. Thứ cần đo là hai biểu tượng có phải HAI
+      HÌNH khác nhau không, và `Icon` của hệ giao diện ghi tên hình vào `data-icon`.
     */
     renderBoth();
     const shapeOf = (row: HTMLElement): string => {
-      const svg = row.querySelector('svg');
-      expect(svg, 'hàng phải có một glyph').not.toBeNull();
-      return (svg?.getAttribute('class') ?? '')
-        .split(/\s+/)
-        .filter((token) => token.startsWith('lucide-'))
-        .join(' ');
+      const glyph = row.querySelector('[data-state-icon]');
+      expect(glyph, 'hàng phải có biểu tượng trạng thái').not.toBeNull();
+      return glyph?.getAttribute('data-icon') ?? '';
     };
 
     const failedShape = shapeOf(rowFor('failed'));
     const infraShape = shapeOf(rowFor('infra'));
 
-    expect(failedShape, 'glyph phải mang tên hình của lucide').not.toBe('');
+    expect(failedShape, 'biểu tượng phải mang tên hình').not.toBe('');
     expect(infraShape).not.toBe('');
     expect(infraShape, 'hai trạng thái này KHÔNG được dùng chung một hình').not.toBe(failedShape);
   });
 
   it('khác nhau ở MÀU, và cả hai màu đều là token ngữ nghĩa', () => {
     renderBoth();
-    const failedClass = rowFor('failed').querySelector('svg')?.getAttribute('class') ?? '';
-    const infraClass = rowFor('infra').querySelector('svg')?.getAttribute('class') ?? '';
+    const toneOf = (row: HTMLElement): string => row.querySelector('[data-state-icon]')?.parentElement?.className ?? '';
 
-    expect(failedClass).toContain('text-destructive');
-    expect(infraClass).toContain('text-warning');
+    expect(toneOf(rowFor('failed'))).toContain('text-bad-ink');
+    expect(toneOf(rowFor('infra'))).toContain('text-warn-ink');
   });
 
   it('CHỈ hàng hạ tầng mang câu "không phải bài làm của bạn chưa đạt"', () => {
@@ -229,7 +223,7 @@ describe('danh sách kiểm — cấu trúc và bàn phím', () => {
     expect(screen.getByRole('button').textContent).not.toContain('3');
   });
 
-  it('chỉ hàng đang chấm mới quay — đối chứng âm trên bốn hàng còn lại', () => {
+  it('chỉ hàng đang chấm mới có nhịp thở — đối chứng âm trên bốn hàng còn lại', () => {
     render(
       <TaskChecklist
         items={(['not-attempted', 'running', 'passed', 'failed', 'infra'] as const).map((state) =>
@@ -240,14 +234,12 @@ describe('danh sách kiểm — cấu trúc và bàn phím', () => {
       />,
     );
 
+    const motionOf = (state: TaskVisualState): string => rowFor(state).querySelector('[data-state-icon]')?.getAttribute('class') ?? '';
     for (const state of ['not-attempted', 'passed', 'failed', 'infra'] as const) {
-      expect(
-        rowFor(state).querySelector('svg')?.getAttribute('class') ?? '',
-        `hàng ${state} không được quay`,
-      ).not.toContain('animate-spin');
+      expect(motionOf(state), `hàng ${state} không được chuyển động`).not.toContain('animate-breathe');
     }
-    expect(rowFor('running').querySelector('svg')?.getAttribute('class') ?? '').toContain(
-      'animate-spin',
-    );
+    expect(motionOf('running')).toContain('animate-breathe');
+    // Hệ giao diện này không có vòng xoay ở đâu cả.
+    expect(document.body.innerHTML).not.toContain('animate-spin');
   });
 });

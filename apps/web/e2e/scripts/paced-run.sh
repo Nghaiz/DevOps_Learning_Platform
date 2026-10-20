@@ -98,8 +98,27 @@ tai_khoan_moi() {
   ma="$(curl -sk -o /dev/null -w '%{http_code}' -X POST "$E2E_BASE_URL/api/auth/sign-up/email"         -H 'Content-Type: application/json' -H "Origin: $E2E_ORIGIN"         -d "{\"email\":\"$e\",\"password\":\"$E2E_PASSWORD\",\"name\":\"paced\"}" --max-time 30)"
   [[ "$ma" == "200" ]] || { echo "signup that bai ($ma)" >&2; return 1; }
   ssh -o BatchMode=yes "$VM_SSH" "/tmp/paced-promote.sh '$e' admin" >/dev/null 2>&1 || return 1
-  TAIKHOAN+=("$e")
   printf '%s' "$e"
+}
+
+# Goi tai_khoan_moi, cho roi thu lai khi dang ky bi 429. Ghi email vao TAIKHOAN o tien trinh CHA:
+# tai_khoan_moi chay trong subshell cua $(...), ghi o do thi mang cua cha luon rong va buoc don
+# cuoi khong ha quyen tai khoan nao (con lai tai khoan paced-* mang quyen admin tren cum).
+TAIKHOAN_MOI=""
+tao_tai_khoan() {
+  local thu=0
+  TAIKHOAN_MOI=""
+  while (( thu < 4 )); do
+    if TAIKHOAN_MOI="$(tai_khoan_moi)"; then
+      TAIKHOAN+=("$TAIKHOAN_MOI")
+      return 0
+    fi
+    thu=$((thu + 1))
+    (( thu < 4 )) || break
+    printf '[paced] dang ky bi tu choi, cho %ss roi thu lai (lan %d)\n' "$((20 * thu))" "$thu" >&2
+    sleep "$((20 * thu))"
+  done
+  return 1
 }
 
 : "${E2E_PASSWORD:?bat buoc}"
@@ -145,7 +164,8 @@ for muc in "${MEBAT[@]}"; do
   printf '\n===== [paced] me %d/%d : %s  (%s) =====\n' "$i" "$TONG" "$nhan" "$(date -Is)"
   # Tai khoan MOI cho moi me: bucket rate-limit theo userId, nen me nay khong
   # thua huong gi tu me truoc.
-  EM="$(tai_khoan_moi)" || { DO+=("$nhan (khong tao duoc tai khoan)"); continue; }
+  tao_tai_khoan || { DO+=("$nhan (khong tao duoc tai khoan)"); continue; }
+  EM="$TAIKHOAN_MOI"
   ( cd "$GOC" && E2E_EMAIL="$EM" pnpm --filter web exec playwright test "e2e/$spec" "${doi[@]}" ) 2>&1 | tail -20
   MA=${PIPESTATUS[0]}
 
@@ -169,7 +189,8 @@ for muc in "${MEBAT[@]}"; do
     printf '[paced] me %d: chay lai cac o DA DO bang tai khoan khac (lan %d)
 ' "$i" "$LAN"
     sleep "$NGHI"
-    EM2="$(tai_khoan_moi)" || break
+    tao_tai_khoan || break
+    EM2="$TAIKHOAN_MOI"
     ( cd "$GOC" && E2E_EMAIL="$EM2" pnpm --filter web exec playwright test "e2e/$spec" "${doi[@]}" --last-failed ) 2>&1 | tail -8
     MA=${PIPESTATUS[0]}
   done

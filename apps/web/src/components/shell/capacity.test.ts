@@ -60,7 +60,7 @@ describe('describeCapacity — ba mức', () => {
     expect(reading.tone).toBe('full');
     expect(reading.label).toBe('Hết chỗ');
     expect(reading.detail).toContain('sẽ bị từ chối');
-    expect(reading.detail).toContain('Bàn học');
+    expect(reading.detail).toContain('Trang của tôi');
   });
 
   it('trần mềm 0 (pool ăn hết quota) đọc là hết chỗ, không phải "còn 0 chỗ"', () => {
@@ -76,7 +76,7 @@ describe('describeCapacity — câu hiển thị', () => {
       describeCapacity(view(20, 20, 23)),
     ]) {
       expect(reading.detail).toContain('20');
-      expect(reading.detail).toContain('trần cứng 23');
+      expect(reading.detail).toContain('tối đa 23');
     }
   });
 

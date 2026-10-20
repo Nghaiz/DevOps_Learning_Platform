@@ -55,47 +55,68 @@ export interface SheetContentProps extends ComponentProps<typeof RadixDialog.Con
  * `className="bg-ink text-ink-foreground"`, nút đóng và mô tả tự theo
  * `currentColor` nên không phải sửa gì thêm.
  */
-export function SheetContent({ side, closeLabel, className, children, ...props }: SheetContentProps) {
+export function SheetContent({
+  side,
+  closeLabel,
+  className,
+  children,
+  ...props
+}: SheetContentProps) {
   const rootSide = useContext(SheetSideContext);
   const resolved = side ?? rootSide ?? 'right';
   return (
     <RadixDialog.Portal>
-      <RadixDialog.Overlay data-slot="sheet-overlay" className="fixed inset-0 z-50 bg-background/80" />
-      <RadixDialog.Content
-        data-slot="sheet-content"
-        data-side={resolved}
-        className={cn(
-          'fixed z-50 flex flex-col gap-4 overflow-y-auto bg-card p-6 text-card-foreground outline-none',
-          '[animation-duration:var(--motion-base)]',
-          SIDE[resolved],
-          className,
-        )}
-        {...props}
-      >
-        {children}
-        {closeLabel !== undefined && (
-          <RadixDialog.Close
-            data-slot="sheet-close"
-            className={cn(
-              'absolute top-4 right-4 inline-flex size-9 items-center justify-center rounded-control outline-none',
-              'transition-colors duration-[var(--motion-fast)] ease-out hover:bg-current/10',
-              'focus-visible:ring-2 focus-visible:ring-ring',
-            )}
-          >
-            <X aria-hidden="true" className="size-4" />
-            <span className="sr-only">{closeLabel}</span>
-          </RadixDialog.Close>
-        )}
-      </RadixDialog.Content>
+      {/*
+        Portal gắn vào <body>, ngoài `.legacy-skin` của màn chơi, nên token của legacy.css không tới.
+        Bọc trong một khung `contents` mang lại phạm vi đó; KHÔNG gắn lớp lên chính nội dung: quy tắc
+        `.legacy-skin { color; font-family }` nằm ngoài @layer và sẽ đè lớp chữ của nó.
+      */}
+      <div className="legacy-skin contents">
+        <RadixDialog.Overlay
+          data-slot="sheet-overlay"
+          className="fixed inset-0 z-50 bg-background/80"
+        />
+        <RadixDialog.Content
+          data-slot="sheet-content"
+          data-side={resolved}
+          className={cn(
+            'fixed z-50 flex flex-col gap-4 overflow-y-auto bg-card p-6 text-card-foreground outline-none',
+            '[animation-duration:var(--motion-base)]',
+            SIDE[resolved],
+            className,
+          )}
+          {...props}
+        >
+          {children}
+          {closeLabel !== undefined && (
+            <RadixDialog.Close
+              data-slot="sheet-close"
+              className={cn(
+                'absolute top-4 right-4 inline-flex size-9 items-center justify-center rounded-control outline-none',
+                'transition-colors duration-[var(--motion-fast)] ease-out hover:bg-current/10',
+                'focus-visible:ring-2 focus-visible:ring-ring',
+              )}
+            >
+              <X aria-hidden="true" className="size-4" />
+              <span className="sr-only">{closeLabel}</span>
+            </RadixDialog.Close>
+          )}
+        </RadixDialog.Content>
+      </div>
     </RadixDialog.Portal>
   );
 }
 
 export function SheetTitle({ className, ...props }: ComponentProps<typeof RadixDialog.Title>) {
-  return <RadixDialog.Title data-slot="sheet-title" className={cn('type-title', className)} {...props} />;
+  return (
+    <RadixDialog.Title data-slot="sheet-title" className={cn('type-title', className)} {...props} />
+  );
 }
 
-export function SheetDescription({ className, ...props }: ComponentProps<typeof RadixDialog.Description>) {
+export function SheetDescription({
+  className,
+  ...props
+}: ComponentProps<typeof RadixDialog.Description>) {
   return (
     <RadixDialog.Description
       data-slot="sheet-description"

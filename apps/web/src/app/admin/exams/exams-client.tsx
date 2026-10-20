@@ -1,22 +1,13 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useState, type ReactElement } from 'react';
-import { ArrowRight, Plus } from 'lucide-react';
-import type { inferRouterOutputs } from '@trpc/server';
-import { err, t } from '@devops-platform/copy';
 import {
-  Button,
-  CursorPager,
-  EmptyState,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-  useToast,
-} from '@devops-platform/ui';
+  useCallback,
+  useState,
+  type ReactElement } from 'react';
+import type { inferRouterOutputs } from '@trpc/server';
+import { err,
+  t } from '@devops-platform/copy';
 import type { AppRouter } from '../../../server/trpc/routers/app-router';
 import { api } from '../../../lib/trpc-react';
 import { describeTrpcError } from '../../../lib/trpc';
@@ -26,6 +17,7 @@ import {
   FirstPageButton,
   LedgerError,
   LedgerSkeleton,
+  AdminPager,
 } from '../../../components/admin/admin-page';
 import { ExamFormSheet, useSheetServerError } from '../../../components/admin/exam-form-sheet';
 import {
@@ -39,10 +31,12 @@ import {
   FIRST_PAGE,
   currentCursor,
   pageNumber,
+  popCursor,
   pushCursor,
   type CursorStack,
 } from '../../../lib/cursor-stack';
 import { formatDay, formatMoment } from '../../../lib/format-moment';
+import { Button, Empty, Table, TBody, TD, TH, THead, TR, toast } from '@devops-platform/ds';
 
 type ExamSummary = inferRouterOutputs<AppRouter>['exams']['list']['items'][number];
 
@@ -69,19 +63,12 @@ export function AdminExamsClient(): ReactElement {
   const query = api.exams.list.useQuery(cursor === undefined ? {} : { cursor });
 
   return (
-    <AdminPage
-      kicker={t('admin.exams.kicker')}
-      title={t('admin.exams.title')}
-      lead={t('admin.exams.lead')}
-      aside={
-        <div className="flex lg:justify-end">
-          <Button size="lg" onClick={() => setCreating(true)} iconLeft={<Plus aria-hidden="true" />}>
-            {t('admin.exams.open-create')}
-          </Button>
-        </div>
-      }
-    >
-      <div className="pt-10">
+    <AdminPage title={t('admin.exams.title')} lead={t('admin.exams.lead')} aside={
+        <Button variant="primary" size="lg" onClick={() => setCreating(true)} icon="plus">
+          {t('admin.exams.open-create')}
+        </Button>
+      }>
+      <div>
         <ExamsBody
           page={pageNumber(stack)}
           items={query.data?.items ?? null}
@@ -92,6 +79,7 @@ export function AdminExamsClient(): ReactElement {
           onRetry={() => void query.refetch()}
           onNext={() => setStack((prev) => pushCursor(prev, query.data?.nextCursor ?? null))}
           onFirst={() => setStack(FIRST_PAGE)}
+          onPrevious={() => setStack(popCursor)}
           onCreate={() => setCreating(true)}
         />
       </div>
@@ -106,12 +94,11 @@ function CreateExamSheet(props: {
   readonly onCreated: () => void;
 }): ReactElement {
   const [serverError, setServerError] = useSheetServerError(props.open);
-  const { toast } = useToast();
   const utils = api.useUtils();
 
   const create = api.exams.create.useMutation({
     onSuccess: (created) => {
-      toast({ variant: 'success', title: t('admin.exams.created-toast', { title: created.title }) });
+      toast.success(t('admin.exams.created-toast', { title: created.title }));
       // Đọc lại từ máy chủ thay vì chèn vào cache: vị trí trong danh sách chỉ
       // máy chủ biết chắc.
       void utils.exams.list.invalidate();
@@ -159,6 +146,7 @@ function ExamsBody(props: {
   readonly onRetry: () => void;
   readonly onNext: () => void;
   readonly onFirst: () => void;
+  readonly onPrevious: () => void;
   readonly onCreate: () => void;
 }): ReactElement {
   if (props.pending) {
@@ -178,19 +166,15 @@ function ExamsBody(props: {
   const items = props.items ?? [];
   if (items.length === 0) {
     return (
-      <EmptyState
-        title={t('admin.exams.empty-title')}
-        description={t('admin.exams.empty-body')}
-        action={
+      <Empty title={t('admin.exams.empty-title')} action={
           props.page > 1 ? (
             <FirstPageButton page={props.page} onFirst={props.onFirst} />
           ) : (
-            <Button onClick={props.onCreate} iconLeft={<Plus aria-hidden="true" />}>
+            <Button variant="primary" onClick={props.onCreate} icon="plus">
               {t('admin.exams.open-create')}
             </Button>
           )
-        }
-      />
+        }>{t('admin.exams.empty-body')}</Empty>
     );
   }
 
@@ -200,60 +184,55 @@ function ExamsBody(props: {
 
   return (
     <div className="flex flex-col gap-4">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead scope="col">{t('admin.exams.col-title')}</TableHead>
-            <TableHead scope="col">{t('admin.exams.col-window')}</TableHead>
-            <TableHead scope="col" className="text-right">
+      <Table label={t('admin.exams.title')}>
+        <THead>
+          <tr>
+            <TH scope="col">{t('admin.exams.col-title')}</TH>
+            <TH scope="col">{t('admin.exams.col-window')}</TH>
+            <TH scope="col" numeric>
               {t('admin.exams.col-problems')}
-            </TableHead>
-            <TableHead scope="col" className="text-right">
+            </TH>
+            <TH scope="col" numeric>
               {t('admin.exams.col-duration')}
-            </TableHead>
-            <TableHead scope="col" className="text-right">
+            </TH>
+            <TH scope="col" numeric>
               {t('admin.exams.col-attempts')}
-            </TableHead>
-            <TableHead scope="col">{t('admin.exams.col-created')}</TableHead>
-            <TableHead scope="col" className="text-right">
+            </TH>
+            <TH scope="col">{t('admin.exams.col-created')}</TH>
+            <TH scope="col" numeric>
               {t('admin.exams.col-actions')}
-            </TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
+            </TH>
+          </tr>
+        </THead>
+        <TBody>
           {items.map((item) => (
-            <TableRow key={item.id}>
-              <TableHead scope="row" className="text-left">
+            <TR key={item.id}>
+              <TD>
                 <div className="flex flex-col gap-0.5">
-                  <span className="font-semibold text-foreground">{item.title}</span>
-                  <span className="text-xs font-normal text-muted-foreground">{item.className}</span>
+                  <span className="font-medium text-ink">{item.title}</span>
+                  <span className="text-xs text-ink-2">{item.className}</span>
                 </div>
-              </TableHead>
-              <TableCell>
+              </TD>
+              <TD>
                 <div className="flex flex-col items-start gap-1">
                   <ExamStateBadge state={examWindowState(item, now)} />
-                  <span className="font-mono text-xs text-muted-foreground">
-                    {describeExamWindow(item, formatMoment)}
-                  </span>
+                  <span className="text-xs tabular-nums text-ink-2">{describeExamWindow(item, formatMoment)}</span>
                 </div>
-              </TableCell>
-              <TableCell className="text-right font-mono tabular-nums">{item.problemCodes.length}</TableCell>
-              <TableCell className="text-right font-mono tabular-nums">
+              </TD>
+              <TD numeric>{item.problemCodes.length}</TD>
+              <TD numeric>
                 {t('admin.exams.minutes', { minutes: item.durationMinutes })}
-              </TableCell>
-              <TableCell className="text-right font-mono tabular-nums">{item.attemptCount}</TableCell>
-              <TableCell className="font-mono text-xs text-muted-foreground">{formatDay(item.createdAt)}</TableCell>
-              <TableCell className="text-right">
-                <Button asChild variant="outline" size="sm">
-                  <Link href={`/admin/exams/${item.id}`}>
-                    {t('admin.exams.open')}
-                    <ArrowRight aria-hidden="true" className="size-4" />
-                  </Link>
+              </TD>
+              <TD numeric>{item.attemptCount}</TD>
+              <TD className="whitespace-nowrap text-xs tabular-nums text-ink-2">{formatDay(item.createdAt)}</TD>
+              <TD numeric>
+                <Button asChild variant="secondary" size="sm" iconRight="arrow-right">
+                  <Link href={`/admin/exams/${item.id}`}>{t('admin.exams.open')}</Link>
                 </Button>
-              </TableCell>
-            </TableRow>
+              </TD>
+            </TR>
           ))}
-        </TableBody>
+        </TBody>
       </Table>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -261,13 +240,7 @@ function ExamsBody(props: {
           {t('admin.exams.note', { count: items.length, page: props.page })}
           {props.hasNext ? t('admin.exams.note-more') : '.'}
         </AdminNote>
-        <CursorPager
-          page={props.page}
-          hasNext={props.hasNext}
-          loading={props.fetching}
-          onNext={props.onNext}
-          onReset={props.onFirst}
-        />
+        <AdminPager page={props.page} hasNext={props.hasNext} loading={props.fetching} onNext={props.onNext} onFirst={props.onFirst} onPrevious={props.onPrevious} />
       </div>
     </div>
   );

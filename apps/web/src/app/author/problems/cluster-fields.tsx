@@ -1,12 +1,10 @@
 'use client';
 
 import { useState, type ReactElement } from 'react';
-import { Plus } from 'lucide-react';
 import { t } from '@devops-platform/copy';
-import { Button, Tabs, TabsContent, TabsList, TabsTrigger } from '@devops-platform/ui';
 import { TextAreaField, issueFor } from '../../../components/author/field';
 import { fieldPathProps } from '../../../components/author/studio';
-import { Split, type TopicLine } from '../../../components/kit';
+import { FormBlock } from '../../../components/author/studio';
 import {
   emptyNode,
   emptyResource,
@@ -18,6 +16,7 @@ import {
 import { ClusterJsonFields } from './cluster-json-fields';
 import { NodeFields } from './node-fields';
 import { ResourceFields } from './resource-fields';
+import { Button, Tabs, TabsContent, TabsList, TabsTrigger } from '@devops-platform/ds';
 
 const FORM = 'bieu-mau';
 const JSON_VIEW = 'json';
@@ -40,7 +39,6 @@ export function ClusterFields(props: {
   readonly onChange: (patch: Partial<ClusterFormState>) => void;
   readonly onReplace: (next: ClusterFormState) => void;
   readonly issues: readonly FieldIssue[];
-  readonly line: TopicLine;
   readonly nextKey: () => string;
 }): ReactElement {
   const [view, setView] = useState(FORM);
@@ -58,7 +56,7 @@ export function ClusterFields(props: {
   return (
     <Tabs value={view} onValueChange={setView} className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="type-label text-muted-foreground">{t('problem.cluster-fields-trang-thai-cum-ban-dau')}</p>
+        <p className="text-xs font-medium text-ink-3">{t('problem.cluster-fields-trang-thai-cum-ban-dau')}</p>
         <TabsList aria-label={t('problem.cluster-fields-trang-thai-cum-ban-dau')}>
           <TabsTrigger value={FORM}>{t('problem.cluster-fields-bieu-mau')}</TabsTrigger>
           <TabsTrigger value={JSON_VIEW}>{t('problem.cluster-fields-dan-json')}</TabsTrigger>
@@ -66,10 +64,10 @@ export function ClusterFields(props: {
       </div>
 
       <TabsContent value={FORM} className="flex flex-col focus-visible:outline-none">
-        <Split index="01" title={t('problem.cluster-fields-node')}>
+        <FormBlock title={t('problem.cluster-fields-node')}>
           <div className="flex flex-col gap-6" {...fieldPathProps('nodes')}>
             {issueFor(props.issues, 'nodes') !== null && (
-              <p role="alert" className="text-sm font-medium text-destructive">
+              <p role="alert" className="text-sm font-medium text-bad-ink">
                 {issueFor(props.issues, 'nodes')}
               </p>
             )}
@@ -78,7 +76,6 @@ export function ClusterFields(props: {
                 key={node.key}
                 node={node}
                 index={index}
-                line={props.line}
                 issues={props.issues}
                 canRemove={cluster.nodes.length > 1}
                 onChange={(patch) => {
@@ -92,8 +89,8 @@ export function ClusterFields(props: {
             <div>
               <Button
                 type="button"
-                variant="outline"
-                iconLeft={<Plus aria-hidden className="size-4" />}
+                variant="secondary"
+                icon="plus"
                 onClick={() => {
                   props.onChange({ nodes: [...cluster.nodes, emptyNode(props.nextKey())] });
                 }}
@@ -102,9 +99,9 @@ export function ClusterFields(props: {
               </Button>
             </div>
           </div>
-        </Split>
+        </FormBlock>
 
-        <Split index="02" title={t('problem.cluster-fields-namespace')}>
+        <FormBlock title={t('problem.cluster-fields-namespace')}>
           <TextAreaField
             label={t('author.problem.field.namespaces')}
             value={cluster.namespacesText}
@@ -119,12 +116,12 @@ export function ClusterFields(props: {
               'problem.cluster-fields-moi-dong-mot-namespace-tai-nguyen-chi-dat-duoc-vao-namespace-da-khai-o-day',
             )}
           />
-        </Split>
+        </FormBlock>
 
-        <Split index="03" title={t('problem.cluster-fields-tai-nguyen')}>
+        <FormBlock title={t('problem.cluster-fields-tai-nguyen')}>
           <div className="flex flex-col gap-6" {...fieldPathProps('resources')}>
             {cluster.resources.length === 0 && (
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-ink-2">
                 {t(
                   'problem.cluster-fields-chua-co-tai-nguyen-nao-mot-bai-chan-doan-thuong-bat-dau-bang-mot-workload-d',
                 )}
@@ -135,7 +132,6 @@ export function ClusterFields(props: {
                 key={resource.key}
                 resource={resource}
                 index={index}
-                line={props.line}
                 issues={props.issues}
                 onChange={(patch) => {
                   patchResource(index, patch);
@@ -148,8 +144,8 @@ export function ClusterFields(props: {
             <div>
               <Button
                 type="button"
-                variant="outline"
-                iconLeft={<Plus aria-hidden className="size-4" />}
+                variant="secondary"
+                icon="plus"
                 onClick={() => {
                   props.onChange({ resources: [...cluster.resources, emptyResource(props.nextKey())] });
                 }}
@@ -158,11 +154,11 @@ export function ClusterFields(props: {
               </Button>
             </div>
           </div>
-        </Split>
+        </FormBlock>
       </TabsContent>
 
       <TabsContent value={JSON_VIEW} className="focus-visible:outline-none">
-        <Split index="01" title={t('problem.cluster-fields-dan-json')}>
+        <FormBlock title={t('problem.cluster-fields-dan-json')}>
           <ClusterJsonFields
             cluster={cluster}
             nextKey={props.nextKey}
@@ -171,7 +167,7 @@ export function ClusterFields(props: {
               setView(FORM);
             }}
           />
-        </Split>
+        </FormBlock>
       </TabsContent>
     </Tabs>
   );

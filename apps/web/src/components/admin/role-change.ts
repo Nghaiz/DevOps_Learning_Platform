@@ -1,5 +1,5 @@
 import { err, t } from '@devops-platform/copy';
-import type { BadgeVariant } from '@devops-platform/ui';
+import type { Tone } from '@devops-platform/ds';
 import type { ViewerRole } from '../shell/nav';
 
 /**
@@ -38,14 +38,14 @@ export function describeRole(role: string): string {
   return role;
 }
 
-export function roleBadgeVariant(role: string): BadgeVariant {
+export function roleTone(role: string): Tone {
   if (role === 'admin') {
-    return 'destructive';
+    return 'acc';
   }
   if (role === 'author') {
-    return 'secondary';
+    return 'info';
   }
-  return 'outline';
+  return 'neutral';
 }
 
 export interface RoleChangePlan {

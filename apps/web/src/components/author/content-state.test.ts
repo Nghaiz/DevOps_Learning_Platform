@@ -99,7 +99,7 @@ describe('describeItem — nhãn nói đúng thứ ta biết', () => {
   it('playground KHÔNG được đọc thành "0 bước"', () => {
     const ref = describeItem(item({ kind: 'playground', stepCount: 0 }));
     const text = say(ref);
-    expect(text).toBe('Sân chơi · không có bước');
+    expect(text).toBe('Sân chơi, không có bước');
     expect(text).not.toContain('0 bước');
     // Nhánh playground không được mang `n` sang bản đồ: một tham số thừa ở đây
     // là một con số chờ ai đó quyết định hiện nó ra.
@@ -107,8 +107,8 @@ describe('describeItem — nhãn nói đúng thứ ta biết', () => {
   });
 
   it('lab đếm task, lesson đếm bước', () => {
-    expect(say(describeItem(item({ kind: 'lab', stepCount: 4 })))).toBe('Lab · 4 task');
-    expect(say(describeItem(item({ kind: 'lesson', stepCount: 4 })))).toBe('Bài học · 4 bước');
+    expect(say(describeItem(item({ kind: 'lab', stepCount: 4 })))).toBe('Lab, 4 task');
+    expect(say(describeItem(item({ kind: 'lesson', stepCount: 4 })))).toBe('Bài học, 4 bước');
   });
 
   it('mỗi loại đi vào một khoá RIÊNG, nên bộ dò thấy cả ba nhánh', () => {
@@ -154,8 +154,8 @@ describe('describeUpdatedAt', () => {
 
   it('quá 7 ngày thì hiện ngày UTC, KHÔNG đổi sang giờ địa phương (test phải chạy được ở mọi TZ)', () => {
     const ref = describeUpdatedAt('2026-08-01T23:59:00.000Z', now);
-    expect(ref.params).toEqual({ date: '2026-08-01' });
-    expect(say(ref)).toBe('Sửa ngày 2026-08-01');
+    expect(ref.params).toEqual({ date: '01/08/2026' });
+    expect(say(ref)).toBe('Sửa ngày 01/08/2026');
   });
 
   it('mốc trong tương lai (đồng hồ máy khách chậm) đọc là "vừa xong", không phải một số âm', () => {

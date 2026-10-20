@@ -1,18 +1,16 @@
 'use client';
 
 import type { ReactElement } from 'react';
-import { ArrowDown, ArrowUp, Trash2 } from 'lucide-react';
 import { t } from '@devops-platform/copy';
-import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Switch } from '@devops-platform/ui';
 import type { GameId, PredicateName } from '@devops-platform/games';
 import { Field, TextField, issueFor } from '../../../components/author/field';
-import type { TopicLine } from '../../../components/kit';
 import type { FieldIssue } from './cluster-form';
 import { ItemBlock } from './item-block';
 import { ObjectiveArgField } from './objective-arg-field';
 import { ObjectiveArgGeneric } from './objective-arg-generic';
 import { genericArgs, k8sSpec, predicateOptions } from './predicate-catalog';
 import type { ObjectiveFormState } from './problem-form';
+import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Switch } from '@devops-platform/ds';
 
 /**
  * Một mục tiêu: định danh, nhãn tiếng Việt, vị từ, tham số, cờ hiện/ẩn.
@@ -34,7 +32,6 @@ export function ObjectiveFields(props: {
   readonly nodes: readonly string[];
   /** ⛔ BẮT BUỘC (P20): thiếu nó là quay về bảng vị từ của riêng K8s. */
   readonly gameId: GameId;
-  readonly line: TopicLine;
   readonly onChange: (patch: Partial<ObjectiveFormState>) => void;
   readonly onRemove: () => void;
   readonly canRemove: boolean;
@@ -57,7 +54,6 @@ export function ObjectiveFields(props: {
   return (
     <ItemBlock
       index={props.index}
-      line={props.line}
       path={base}
       title={objective.label.trim() === '' ? `${t('problem.objective-fields-muc-tieu')} ${String(n)}` : objective.label}
       actions={
@@ -72,7 +68,7 @@ export function ObjectiveFields(props: {
             size="sm"
             disabled={!props.canMoveUp}
             aria-label={t('author.problem.objectives.move-up', { n })}
-            iconLeft={<ArrowUp aria-hidden className="size-4" />}
+            icon="arrow-up"
             onClick={() => {
               props.onMove(-1);
             }}
@@ -85,7 +81,7 @@ export function ObjectiveFields(props: {
             size="sm"
             disabled={!props.canMoveDown}
             aria-label={t('author.problem.objectives.move-down', { n })}
-            iconLeft={<ArrowDown aria-hidden className="size-4" />}
+            icon="arrow-down"
             onClick={() => {
               props.onMove(1);
             }}
@@ -97,7 +93,7 @@ export function ObjectiveFields(props: {
             variant="ghost"
             size="sm"
             disabled={!props.canRemove}
-            iconLeft={<Trash2 aria-hidden className="size-4" />}
+            icon="trash"
             onClick={props.onRemove}
           >
             {t('common.action.delete')}
@@ -158,7 +154,7 @@ export function ObjectiveFields(props: {
       </Field>
 
       {spec !== null && spec.args.length > 0 && (
-        <div className="grid gap-5 bg-muted p-4 sm:grid-cols-2">
+        <div className="grid gap-5 bg-well p-4 sm:grid-cols-2">
           {spec.args.map((argSpec) => (
             <ObjectiveArgField
               key={argSpec.key}
@@ -177,7 +173,7 @@ export function ObjectiveFields(props: {
       )}
 
       {generic.length > 0 && (
-        <div className="grid gap-5 bg-muted p-4 sm:grid-cols-2">
+        <div className="grid gap-5 bg-well p-4 sm:grid-cols-2">
           {generic.map((argSpec) => (
             <ObjectiveArgGeneric
               key={argSpec.name}
@@ -194,7 +190,7 @@ export function ObjectiveFields(props: {
       )}
 
       {spec?.requireOneOf !== undefined && (
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-ink-2">
           {t('problem.objective-fields-phai-dien-it-nhat-mot-trong')}{' '}
           {spec.requireOneOf
             .map((key) => {

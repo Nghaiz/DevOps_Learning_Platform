@@ -1,5 +1,5 @@
 import { err, t, type TextKey } from '@devops-platform/copy';
-import type { BadgeVariant } from '@devops-platform/ui';
+import type { Tone } from '@devops-platform/ds';
 
 /**
  * Đọc một `JsonSession` của `admin.sessions.list` thành câu tiếng Việt, phần
@@ -31,26 +31,26 @@ import type { BadgeVariant } from '@devops-platform/ui';
  */
 interface StatusEntry {
   readonly labelKey: TextKey;
-  readonly variant: BadgeVariant;
+  readonly tone: Tone;
   /** Còn nối được vào không (status < 5, cùng ngưỡng `TERMINAL_STATUS_FLOOR`). */
   readonly live: boolean;
 }
 
 export interface StatusView {
   readonly label: string;
-  readonly variant: BadgeVariant;
+  readonly tone: Tone;
   readonly live: boolean;
 }
 
 const STATUS: Readonly<Record<number, StatusEntry>> = {
-  0: { labelKey: 'admin.session-status.unspecified', variant: 'outline', live: true },
-  1: { labelKey: 'admin.session-status.pending', variant: 'secondary', live: true },
-  2: { labelKey: 'admin.session-status.warm', variant: 'secondary', live: true },
-  3: { labelKey: 'admin.session-status.claimed', variant: 'success', live: true },
-  4: { labelKey: 'admin.session-status.running', variant: 'success', live: true },
-  5: { labelKey: 'admin.session-status.expired', variant: 'outline', live: false },
-  6: { labelKey: 'admin.session-status.reaped', variant: 'outline', live: false },
-  7: { labelKey: 'admin.session-status.failed', variant: 'destructive', live: false },
+  0: { labelKey: 'admin.session-status.unspecified', tone: 'neutral', live: true },
+  1: { labelKey: 'admin.session-status.pending', tone: 'info', live: true },
+  2: { labelKey: 'admin.session-status.warm', tone: 'info', live: true },
+  3: { labelKey: 'admin.session-status.claimed', tone: 'ok', live: true },
+  4: { labelKey: 'admin.session-status.running', tone: 'ok', live: true },
+  5: { labelKey: 'admin.session-status.expired', tone: 'neutral', live: false },
+  6: { labelKey: 'admin.session-status.reaped', tone: 'neutral', live: false },
+  7: { labelKey: 'admin.session-status.failed', tone: 'bad', live: false },
 };
 
 /**
@@ -64,11 +64,11 @@ export function describeSessionStatus(status: number): StatusView {
   if (entry === undefined) {
     return {
       label: t('admin.session-status.unknown', { status }),
-      variant: 'warning',
+      tone: 'warn',
       live: false,
     };
   }
-  return { label: t(entry.labelKey), variant: entry.variant, live: entry.live };
+  return { label: t(entry.labelKey), tone: entry.tone, live: entry.live };
 }
 
 export interface TerminatePlan {

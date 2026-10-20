@@ -2,93 +2,73 @@
 
 import type { ReactElement } from 'react';
 import { t } from '@devops-platform/copy';
-import { cn } from '@devops-platform/ui';
+import { Icon, ProgressLine, cn } from '@devops-platform/ds';
 import { formatMoment } from '../../../../lib/format-moment';
 import { formatCountdown, isCountdownUrgent } from '../countdown';
 
 /**
- * Bảng giờ kiểu bảng tàu chạy: mỗi chữ số một ô lật, chữ mono lớn.
+ * Đồng hồ của lượt thi: con số lớn bên trái, thước thời gian còn lại bên phải.
  *
- * - Nền mực khi còn thời gian, chuyển sang đỏ PTIT khi còn dưới 5 phút
- *   (`isCountdownUrgent`), và về nền xám tĩnh khi lượt đã khoá.
- * - Mỗi ô có `key` gồm vị trí VÀ chữ số, nên React chỉ dựng lại đúng ô vừa đổi:
- *   ô giây lật mỗi giây, ô phút đứng yên. Hiệu ứng lật là `animate-reveal-down`,
- *   khối giảm chuyển động toàn cục tắt nó.
+ * - Mực khi còn thời gian, đỏ khi còn dưới 5 phút (`isCountdownUrgent`), xám khi lượt
+ *   đã khoá. Thước rút ngắn theo cùng con số, nên liếc mắt là biết còn bao nhiêu
+ *   phần của bài thi.
+ * - Chữ số dùng `tabular-nums`: mỗi chữ số rộng bằng nhau, nên con số đứng yên trong
+ *   lúc giây chạy thay vì rung theo bề ngang của từng chữ số.
  *
  * ⛔ `aria-live="off"` trên con số: đọc lại đồng hồ bốn lần mỗi giây làm trình đọc
- * màn hình không nói được gì khác. Thay vào đó MỘT vùng `role="status"` báo đúng
- * một lần khi bảng chuyển sang gấp, vì nội dung của nó chỉ đổi đúng lúc đó.
+ * màn hình không nói được gì khác. Thay vào đó MỘT vùng `role="status"` báo đúng một
+ * lần khi đồng hồ chuyển sang gấp, vì nội dung của nó chỉ đổi đúng lúc đó.
  */
 export function CountdownBoard(props: {
   readonly remainingMs: number;
+  /** Tổng thời gian của lượt, để thước biết mẫu số. */
+  readonly totalMs: number;
   readonly closed: boolean;
   readonly submitted: boolean;
   readonly deadline: string;
 }): ReactElement {
   const urgent = !props.closed && isCountdownUrgent(props.remainingMs);
-  const text = props.closed ? formatCountdown(0) : formatCountdown(props.remainingMs);
-  const secondsFrom = text.lastIndexOf(':') + 1;
+  const left = props.closed ? 0 : Math.max(0, props.remainingMs);
+  const ratio = props.totalMs > 0 ? Math.min(1, left / props.totalMs) : 0;
+  const percent = Math.round(ratio * 100);
 
   return (
     <section
       aria-label={t('exam.countdown-label')}
       data-urgent={urgent ? 'true' : undefined}
-      className={cn(
-        'relative overflow-hidden transition-colors duration-[var(--motion-slow)]',
-        props.closed
-          ? 'bg-muted text-muted-foreground'
-          : urgent
-            ? 'bg-primary text-primary-foreground'
-            : 'bg-ink text-ink-foreground',
-      )}
+      className="grid gap-6 border-y border-rule py-7 md:grid-cols-[auto_minmax(16rem,22rem)] md:items-end md:justify-between"
     >
-      <div aria-hidden className="pointer-events-none absolute inset-0 bg-rails opacity-[0.06]" />
-      <div className="relative flex flex-col gap-6 px-5 py-8 md:flex-row md:items-end md:justify-between md:px-10 md:py-10">
-        <div className="flex flex-col gap-4">
-          <p className="type-label opacity-80">
-            {props.closed
-              ? t(props.submitted ? 'exam.attempt.submitted' : 'exam.attempt.expired')
-              : t('exam.countdown-label')}
-          </p>
-          <output aria-live="off" className="flex items-center gap-1.5 md:gap-2">
-            {/*
-              Ô chữ số mang `animate-reveal-down`, chạy lại mỗi lần React dựng ô
-              mới. Khoá theo cả chữ số thì ô GIÂY dựng lại mỗi giây và hiệu ứng
-              chớp liên tục. Chỉ các ô đứng trước dấu ":" cuối (phút, giờ) mang
-              chữ số trong khoá: chúng lật một lần mỗi phút; ô giây khoá theo vị
-              trí và chỉ đổi chữ.
-            */}
-            {[...text].map((char, index) =>
-              char === ':' ? (
-                <span
-                  key={`sep-${String(index)}`}
-                  className="font-mono text-[clamp(2.5rem,8vw,6rem)] leading-none font-bold opacity-70"
-                >
-                  {char}
-                </span>
-              ) : (
-                <span
-                  key={index < secondsFrom ? `${String(index)}-${char}` : String(index)}
-                  className={cn(
-                    'inline-flex h-[clamp(4rem,12vw,8.5rem)] w-[clamp(2.75rem,8vw,5.75rem)] animate-reveal-down items-center justify-center',
-                    'font-mono text-[clamp(2.75rem,9vw,6.5rem)] leading-none font-bold tabular-nums',
-                    props.closed ? 'bg-background/60' : 'bg-background/10',
-                  )}
-                >
-                  {char}
-                </span>
-              ),
-            )}
-          </output>
-        </div>
-        <div className="flex flex-col gap-2 md:items-end">
-          <p className="font-mono text-sm opacity-90">
-            {t('exam.deadline-note', { at: formatMoment(props.deadline) })}
-          </p>
-          <p role="status" className="type-label">
-            {urgent ? t('exam.countdown-warn') : null}
-          </p>
-        </div>
+      <div className="flex flex-col gap-2">
+        <p className="flex items-center gap-1.5 text-sm text-ink-3">
+          <Icon name={props.closed ? 'lock' : 'timer'} size={16} />
+          {props.closed
+            ? t(props.submitted ? 'exam.attempt.submitted' : 'exam.attempt.expired')
+            : t('exam.countdown-label')}
+        </p>
+        <output
+          aria-live="off"
+          className={cn(
+            'font-display text-[clamp(3.25rem,11vw,6.5rem)] font-semibold leading-none tracking-[-0.03em] tabular-nums',
+            'transition-colors duration-300',
+            props.closed ? 'text-ink-3' : urgent ? 'text-bad-ink' : 'text-ink',
+          )}
+        >
+          {formatCountdown(left)}
+        </output>
+      </div>
+
+      <div className="flex flex-col gap-2.5">
+        <ProgressLine
+          value={ratio}
+          size="md"
+          role="meter"
+          tone={props.closed ? 'acc' : urgent ? 'bad' : 'acc'}
+          label={t('exam.countdown-meter', { percent })}
+        />
+        <p className="text-sm tabular-nums text-ink-2">{t('exam.deadline-note', { at: formatMoment(props.deadline) })}</p>
+        <p role="status" className={cn('text-sm font-medium', urgent ? 'text-bad-ink' : 'sr-only')}>
+          {urgent ? t('exam.countdown-warn') : null}
+        </p>
       </div>
     </section>
   );

@@ -10,7 +10,7 @@
  * ## Vì sao một `if` ba dòng đáng được kéo ra
  *
  * Không phải vì nó dài. Vì mệnh đề nó mang không đọc được từ chỗ nó nằm: giá
- * trị `null` của `useMinWidth` ("chưa đo được bề rộng") đi theo nhánh RỘNG, và
+ * trị `null` ("chưa đo được bề rộng") đi theo nhánh RỘNG, và
  * đó là một quyết định có lý lẽ chứ không phải một phép ép kiểu tiện tay. Là
  * hàm thuần thì lý lẽ ấy có một chỗ để ở, và có một bảng vào/ra khẳng định nó.
  */
@@ -19,13 +19,13 @@
  * Hai hình dạng, và chỉ hai.
  *
  * `side-by-side` là bố cục đích: nội dung bên trái, khoang terminal bên phải.
- * `stacked` là bản HẠ CẤP CÓ CHỦ Ý dưới `TERMINAL_MIN_WIDTH_PX` (13.B mục 8):
+ * `stacked` là bản HẠ CẤP CÓ CHỦ Ý dưới `STACK_BELOW_PX` của `workspace-split.tsx`:
  * nội dung chiếm trọn bề rộng, và thứ đáng lẽ ở khoang phải xuống dưới nó.
  */
 export type SplitShape = 'side-by-side' | 'stacked';
 
 /**
- * `wideEnough` là giá trị thô của `useMinWidth`: `true` / `false` / `null` khi
+ * `wideEnough` là giá trị thô của phép đo khung chứa: `true` / `false` / `null` khi
  * chưa đo được (SSR và khung hình đầu tiên).
  *
  * ⚠ `null` đi theo nhánh RỘNG, và đây là chỗ duy nhất trong file có một lựa

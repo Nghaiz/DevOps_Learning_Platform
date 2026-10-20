@@ -1,21 +1,10 @@
 'use client';
 
-import { useState, type ReactElement } from 'react';
-import { err, t } from '@devops-platform/copy';
 import {
-  Alert,
-  AlertDescription,
-  AlertTitle,
-  CursorPager,
-  EmptyState,
-  Table,
-  TableBody,
-  TableCaption,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@devops-platform/ui';
+  useState,
+  type ReactElement } from 'react';
+import { err,
+  t } from '@devops-platform/copy';
 import { api } from '../../../lib/trpc-react';
 import { describeTrpcError } from '../../../lib/trpc';
 import {
@@ -24,6 +13,7 @@ import {
   FirstPageButton,
   LedgerError,
   LedgerSkeleton,
+  AdminPager,
 } from '../../../components/admin/admin-page';
 import {
   describeAuditAction,
@@ -37,9 +27,11 @@ import {
   FIRST_PAGE,
   currentCursor,
   pageNumber,
+  popCursor,
   pushCursor,
   type CursorStack,
 } from '../../../lib/cursor-stack';
+import { Empty, Notice, Table, TBody, TD, TH, THead, TR } from '@devops-platform/ds';
 
 /**
  * `/admin/audit`: nhật ký hành động quản trị, mới nhất trước.
@@ -64,16 +56,9 @@ export function AdminAuditClient(): ReactElement {
   const query = api.admin.audit.list.useQuery(cursor === undefined ? {} : { cursor });
 
   return (
-    <AdminPage
-      kicker={t('admin.audit.kicker')}
-      title={t('admin.audit.title')}
-      lead={t('admin.audit.lead')}
-    >
-      <div className="flex flex-col gap-6 pt-10">
-        <Alert>
-          <AlertTitle as="h2">{t('admin.audit.alert-title')}</AlertTitle>
-          <AlertDescription>{t('admin.audit.alert-body')}</AlertDescription>
-        </Alert>
+    <AdminPage title={t('admin.audit.title')} lead={t('admin.audit.lead')}>
+      <div className="flex flex-col gap-6">
+        <Notice tone="info" title={t('admin.audit.alert-title')}>{t('admin.audit.alert-body')}</Notice>
 
         {query.isPending ? (
           <LedgerSkeleton />
@@ -86,50 +71,46 @@ export function AdminAuditClient(): ReactElement {
             onFirst={() => setStack(FIRST_PAGE)}
           />
         ) : query.data.items.length === 0 ? (
-          <EmptyState
-            title={t('admin.audit.empty-title')}
-            description={t('admin.audit.empty-body')}
-            {...(pageNumber(stack) > 1
+          <Empty title={t('admin.audit.empty-title')} {...(pageNumber(stack) > 1
               ? { action: <FirstPageButton page={pageNumber(stack)} onFirst={() => setStack(FIRST_PAGE)} /> }
-              : {})}
-          />
+              : {})}>{t('admin.audit.empty-body')}</Empty>
         ) : (
           <div className="flex flex-col gap-4">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t('admin.audit.col-when')}</TableHead>
-                  <TableHead>{t('admin.audit.col-actor')}</TableHead>
-                  <TableHead>{t('admin.audit.col-action')}</TableHead>
-                  <TableHead>{t('admin.audit.col-target')}</TableHead>
-                  <TableHead>{t('admin.audit.col-detail')}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+            <Table label={t('admin.audit.table-label')}>
+              <THead>
+                <tr>
+                  <TH>{t('admin.audit.col-when')}</TH>
+                  <TH>{t('admin.audit.col-actor')}</TH>
+                  <TH>{t('admin.audit.col-action')}</TH>
+                  <TH>{t('admin.audit.col-target')}</TH>
+                  <TH>{t('admin.audit.col-detail')}</TH>
+                </tr>
+              </THead>
+              <TBody>
                 {query.data.items.map((row) => {
                   const actor = describeAuditActor(row.actorId);
                   return (
-                    <TableRow key={row.id}>
-                      <TableCell className="font-mono text-xs whitespace-nowrap text-muted-foreground">
+                    <TR key={row.id}>
+                      <TD className="whitespace-nowrap text-xs tabular-nums text-ink-2">
                         {formatMoment(row.occurredAt)}
-                      </TableCell>
-                      <TableCell className="font-mono text-xs">
+                      </TD>
+                      <TD className="font-mono text-xs">
                         <AuditActor actor={actor} />
-                      </TableCell>
-                      <TableCell className="font-medium">{describeAuditAction(row.action)}</TableCell>
-                      <TableCell className="font-mono text-xs">
+                      </TD>
+                      <TD className="font-medium">{describeAuditAction(row.action)}</TD>
+                      <TD className="font-mono text-xs">
                         {describeAuditTarget(row.targetType, row.targetId)}
-                      </TableCell>
-                      <TableCell className="max-w-md text-sm break-words text-muted-foreground">
+                      </TD>
+                      <TD className="max-w-md text-sm break-words text-ink-2">
                         {describeAuditDetail(row.action, row.detail)}
-                      </TableCell>
-                    </TableRow>
+                      </TD>
+                    </TR>
                   );
                 })}
-              </TableBody>
-              <TableCaption>{t('admin.audit.caption')}</TableCaption>
+              </TBody>
             </Table>
 
+            <AdminNote>{t('admin.audit.caption')}</AdminNote>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <AdminNote>
                 {t('admin.audit.note', {
@@ -138,13 +119,7 @@ export function AdminAuditClient(): ReactElement {
                 })}
                 {query.data.nextCursor != null ? t('admin.audit.note-more') : t('admin.audit.note-last')}
               </AdminNote>
-              <CursorPager
-                hasNext={query.data.nextCursor != null}
-                onNext={() => setStack((prev) => pushCursor(prev, query.data.nextCursor))}
-                onReset={() => setStack(FIRST_PAGE)}
-                page={pageNumber(stack)}
-                loading={query.isFetching}
-              />
+              <AdminPager page={pageNumber(stack)} hasNext={query.data.nextCursor != null} loading={query.isFetching} onNext={() => setStack((prev) => pushCursor(prev, query.data.nextCursor))} onFirst={() => setStack(FIRST_PAGE)} onPrevious={() => setStack(popCursor)} />
             </div>
           </div>
         )}

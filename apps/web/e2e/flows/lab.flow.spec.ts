@@ -211,7 +211,7 @@ test.describe('luồng 2 — lab', { tag: '@flow' }, () => {
     const { sessionId } = await startSandbox(page, 'labs.startAttempt', rateLimited, startLabel);
 
     // ── 4. Terminal: có byte về, và shell CHẠY lệnh ─────────────────────────
-    // Bài IDE mở ở tab Editor, hàng terminal mang `hidden` cho tới khi đổi tab.
+    // Có phiên thì bài IDE về tab Editor, hàng terminal mang `hidden` cho tới khi đổi tab.
     await workspaceTab(page, 'terminal').click();
     await expectTerminalLive(page, traffic);
     await typeInTerminal(page, SHELL_MARKER_CMD);
@@ -284,7 +284,7 @@ test.describe('luồng 2 — lab', { tag: '@flow' }, () => {
     // ── 9. Nộp bài ──────────────────────────────────────────────────────────
     await page.getByRole('button', { name: t('session.lab.submit'), exact: true }).click();
     // Hộp xác nhận (điểm chốt, không chấm lại được): bấm nút Nộp bài TRONG hộp.
-    await page.getByRole('dialog').getByRole('button', { name: t('session.lab.submit'), exact: true }).click();
+    await page.getByRole('alertdialog').getByRole('button', { name: t('session.lab.submit'), exact: true }).click();
     // Đã nộp ⇒ `lab-client` khoá lượt chấm và in câu lý do: dấu hiệu quan sát được của "đã nộp".
     await expect(targetItem.getByText(t('session.lab.blocked-submitted'))).toBeVisible({ timeout: 60_000 });
     await expect(checkButton).toBeDisabled();

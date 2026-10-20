@@ -5,6 +5,7 @@ import {
   FIRST_PAGE,
   currentCursor,
   pageNumber,
+  popCursor,
   pushCursor,
   type CursorStack,
 } from '../../lib/cursor-stack';
@@ -18,7 +19,7 @@ import {
  * ⛔ **KHÔNG `useInfiniteQuery`.** Nó nhét `direction` vào input, mọi schema là
  * `.strict()`, và request THẬT của trình duyệt trả 400 trong khi test mức API
  * vẫn xanh (đo 2026-08-13 — xem chú thích đầy đủ ở `app/lessons/lessons-client.tsx`).
- * Đường đúng là `useQuery` + cursor thủ công + `CursorPager`.
+ * Đường đúng là `useQuery` + cursor thủ công + `Pager`.
  *
  * Phần TÍNH TOÁN mượn nguyên `lib/cursor-stack.ts` thay vì chép lại: đó là bốn
  * hàm thuần, không mang khái niệm nào của danh mục, và bản chép thứ hai sẽ trôi
@@ -31,6 +32,7 @@ export interface CursorPages {
   readonly page: number;
   /** `null` = server nói đã hết ⇒ đứng yên (xem `pushCursor`). */
   readonly goNext: (nextCursor: string | null) => void;
+  readonly goPrevious: () => void;
   readonly goFirst: () => void;
 }
 
@@ -41,9 +43,13 @@ export function useCursorPages(): CursorPages {
     setStack((prev) => pushCursor(prev, nextCursor));
   }, []);
 
+  const goPrevious = useCallback(() => {
+    setStack((prev) => popCursor(prev));
+  }, []);
+
   const goFirst = useCallback(() => {
     setStack(FIRST_PAGE);
   }, []);
 
-  return { cursor: currentCursor(stack), page: pageNumber(stack), goNext, goFirst };
+  return { cursor: currentCursor(stack), page: pageNumber(stack), goNext, goPrevious, goFirst };
 }

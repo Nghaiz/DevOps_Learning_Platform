@@ -12,16 +12,15 @@
  */
 
 import type { ReactElement } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
 
 import { t } from '@devops-platform/copy';
 import type { GitTeaching } from '@devops-platform/games';
-import { Button } from '@devops-platform/ui';
 
 import { AreaField, LinesField, TextField } from './builder-fields';
 import { BuilderStep } from './builder-step';
 import { linesToList, listToLines } from './draft-state';
 import { useRowKeys } from './row-keys';
+import { Button } from '@devops-platform/ds';
 
 /**
  * Một mục tra nhanh của `teaching.cheatsheet`.
@@ -80,9 +79,9 @@ export function TeachingStep({ index, teaching, onChange }: TeachingStepProps): 
       />
 
       <div className="flex flex-col gap-3">
-        <h3 className="type-label text-muted-foreground">{t('author.builder.cheat.title')}</h3>
+        <h3 className="text-xs font-medium text-ink-3">{t('author.builder.cheat.title')}</h3>
         {teaching.cheatsheet.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{t('author.builder.cheat.empty')}</p>
+          <p className="text-sm text-ink-2">{t('author.builder.cheat.empty')}</p>
         ) : (
           <ol className="flex flex-col gap-3">
             {teaching.cheatsheet.map((entry, at) => {
@@ -90,9 +89,9 @@ export function TeachingStep({ index, teaching, onChange }: TeachingStepProps): 
               const prefix = `builder-cheat-${rowKey}`;
               const n = at + 1;
               return (
-                <li key={rowKey} className="animate-rise">
-                  <fieldset className="min-w-0 border border-border bg-card p-4">
-                    <legend className="type-label float-left mb-3 w-full text-line-git-ink">
+                <li key={rowKey} className="animate-enter">
+                  <fieldset className="min-w-0 border border-rule bg-paper p-4">
+                    <legend className="float-left mb-3 w-full text-xs font-medium text-tp-ink">
                       {t('author.builder.cheat.legend', { n })}
                     </legend>
                     <div className="clear-left flex flex-col gap-4">
@@ -116,8 +115,8 @@ export function TeachingStep({ index, teaching, onChange }: TeachingStepProps): 
                       <div className="flex justify-end">
                         <Button
                           size="sm"
-                          variant="destructive"
-                          iconLeft={<Trash2 aria-hidden />}
+                          variant="danger"
+                          icon="trash"
                           onClick={() => {
                             rows.remove(at);
                             onChange({
@@ -139,8 +138,8 @@ export function TeachingStep({ index, teaching, onChange }: TeachingStepProps): 
         <div>
           <Button
             size="sm"
-            variant="outline"
-            iconLeft={<Plus aria-hidden />}
+            variant="secondary"
+            icon="plus"
             onClick={() => {
               rows.append();
               onChange({

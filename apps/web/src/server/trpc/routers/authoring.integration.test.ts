@@ -132,6 +132,25 @@ describe('quyền sở hữu lúc CHẠY (rủi ro score 20)', () => {
     expect(seen).toContain(mineId);
     expect(seen).not.toContain(theirs);
   });
+
+  /*
+    `authoring.list` trả kèm tên và email người soạn (trang quản trị nội dung). Ô này ghim
+    rằng một tác giả chỉ nhận email của CHÍNH MÌNH: đổi phép nối hay bộ lọc mà lộ email người
+    khác thì ô đầu vẫn xanh (nó chỉ so id), ô này thì không.
+  */
+  it('author chỉ nhận email của chính mình; admin nhận email đúng của từng người soạn', async () => {
+    await createOwned(AUTHOR_A);
+    const theirs = await createOwned(AUTHOR_B);
+
+    const mine = await callerAs(AUTHOR_A, 'author').authoring.list();
+    expect(mine.length).toBeGreaterThan(0);
+    expect(new Set(mine.map((r) => r.authorEmail))).toEqual(new Set([`${AUTHOR_A}@example.test`]));
+
+    const all = await callerAs('admin-1', 'admin').authoring.list();
+    const theirsRow = all.find((r) => r.id === theirs);
+    expect(theirsRow?.authorEmail).toBe(`${AUTHOR_B}@example.test`);
+    expect(theirsRow?.authorName).toBe(AUTHOR_B);
+  });
 });
 
 describe('sửa bài ĐÃ XUẤT BẢN không đổi nội dung dưới chân người học (task 20)', () => {

@@ -17,58 +17,66 @@ export type ThemeName = 'dlp-dark' | 'dlp-light' | 'dlp-contrast';
 export const DEFAULT_THEME: ThemeName = 'dlp-dark';
 
 /**
- * Đêm (bản dựng lại PTIT, design-brief §7): workspace luôn tối ở cả hai theme
- * trang. Nền trùng --background tối của trang, con trỏ đỏ PTIT, vùng chọn vàng
- * tín hiệu với chữ mực. ANSI chỉnh sáng để đọc được trên nền #0A0D14.
+ * Mực: workspace luôn tối ở cả hai theme trang, nền trùng `--code-bg` tối của hệ
+ * giao diện. Con trỏ màu cúc vạn thọ của logo, vùng chọn xanh mực với chữ sáng.
+ *
+ * Mọi màu sinh từ OKLCH (sáng đều theo cảm nhận), rồi đổi ra hex vì xterm chỉ nhận
+ * chuỗi màu CSS cũ. Màu chữ thường đạt ≥ 6,9:1 trên nền; `brightBlack` (chữ mờ như
+ * chú thích, gợi ý) đạt 4,8:1, vẫn qua ngưỡng 4,5 của WCAG AA.
  */
 const dark: ITheme = {
-  foreground: '#ECEAE3',
-  background: '#0A0D14',
-  cursor: '#E3261D',
-  cursorAccent: '#0A0D14',
-  selectionBackground: '#EFF003',
-  selectionForeground: '#121829',
-  black: '#1A2030',
-  red: '#FF6A5E',
-  green: '#3DD27E',
-  yellow: '#FFC940',
-  blue: '#7AA7FF',
-  magenta: '#C99BFF',
-  cyan: '#3FD3E2',
-  white: '#D5D3CC',
-  brightBlack: '#6B7387',
-  brightRed: '#FF8F85',
-  brightGreen: '#6BE39E',
-  brightYellow: '#FFE07A',
-  brightBlue: '#A3C2FF',
-  brightMagenta: '#DDBEFF',
-  brightCyan: '#7FE4EE',
-  brightWhite: '#F6F5F1',
+  foreground: '#E4E8ED',
+  background: '#0D1013',
+  cursor: '#F8BD40',
+  cursorAccent: '#0D1013',
+  selectionBackground: '#274972',
+  selectionForeground: '#EFF2F6',
+  black: '#2A2E34',
+  red: '#F5746D',
+  green: '#67D283',
+  yellow: '#F1C955',
+  blue: '#74AEF5',
+  magenta: '#D58FE5',
+  cyan: '#64D1D7',
+  white: '#D4D8DD',
+  brightBlack: '#7B8189',
+  brightRed: '#FF958D',
+  brightGreen: '#8CE6A0',
+  brightYellow: '#FEDF80',
+  brightBlue: '#94C5FF',
+  brightMagenta: '#E4ADF1',
+  brightCyan: '#93E5E9',
+  brightWhite: '#F3F5F8',
 };
 
+/**
+ * Giấy: cho người chọn terminal sáng. Nền trùng `--canvas` sáng; màu ANSI hạ độ sáng
+ * để chữ thường đạt ≥ 4,8:1. Dòng "bright" TỐI hơn dòng thường, vì trên nền sáng
+ * "nổi bật hơn" nghĩa là đậm hơn, không phải nhạt hơn.
+ */
 const light: ITheme = {
-  foreground: '#1e293b',
-  background: '#f8fafc',
-  cursor: '#0284c7',
-  cursorAccent: '#f8fafc',
-  selectionBackground: '#cbd5e1',
-  selectionForeground: '#0f172a',
-  black: '#0f172a',
-  red: '#dc2626',
-  green: '#16a34a',
-  yellow: '#ca8a04',
-  blue: '#2563eb',
-  magenta: '#9333ea',
-  cyan: '#0891b2',
-  white: '#e2e8f0',
-  brightBlack: '#475569',
-  brightRed: '#ef4444',
-  brightGreen: '#22c55e',
-  brightYellow: '#eab308',
-  brightBlue: '#3b82f6',
-  brightMagenta: '#a855f7',
-  brightCyan: '#06b6d4',
-  brightWhite: '#f8fafc',
+  foreground: '#22272E',
+  background: '#F8FAFD',
+  cursor: '#1E6CBF',
+  cursorAccent: '#F8FAFD',
+  selectionBackground: '#C5DDFC',
+  selectionForeground: '#171B22',
+  black: '#22272E',
+  red: '#C2272D',
+  green: '#137738',
+  yellow: '#9D6300',
+  blue: '#1D60BC',
+  magenta: '#943CA7',
+  cyan: '#087988',
+  white: '#D4D8DD',
+  brightBlack: '#5E646B',
+  brightRed: '#A51E24',
+  brightGreen: '#09672E',
+  brightYellow: '#8A5600',
+  brightBlue: '#1351A6',
+  brightMagenta: '#7F2C91',
+  brightCyan: '#056774',
+  brightWhite: '#393D45',
 };
 
 /**

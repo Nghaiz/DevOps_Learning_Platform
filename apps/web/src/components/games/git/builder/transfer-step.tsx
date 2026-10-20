@@ -7,13 +7,12 @@
  */
 
 import { useState, type ReactElement } from 'react';
-import { Download, Upload } from 'lucide-react';
 
 import { t } from '@devops-platform/copy';
 import { levelFromJson, levelToJson, type GitLevel } from '@devops-platform/games';
-import { Button, Label, Textarea } from '@devops-platform/ui';
 
 import { BuilderStep } from './builder-step';
+import { Button, Label, Textarea } from '@devops-platform/ds';
 
 export interface TransferStepProps {
   readonly index: number;
@@ -78,13 +77,13 @@ export function TransferStep({
           rows={6}
           value={exported}
           placeholder={t('author.builder.transfer.export-empty')}
-          className="min-h-0 bg-muted font-mono text-muted-foreground sm:text-xs"
+          className="min-h-0 bg-well font-mono text-ink-2 sm:text-xs"
         />
         <div>
           <Button
             size="sm"
-            variant="outline"
-            iconLeft={<Download aria-hidden />}
+            variant="secondary"
+            icon="download"
             onClick={download}
             disabled={exported === ''}
             data-testid="git-builder-download"
@@ -114,7 +113,7 @@ export function TransferStep({
             id="builder-import-error"
             role="alert"
             data-testid="git-builder-import-error"
-            className="animate-rise text-sm leading-relaxed text-destructive"
+            className="animate-enter text-sm leading-relaxed text-bad-ink"
           >
             {t('author.builder.transfer.import-error')}
           </p>
@@ -123,7 +122,7 @@ export function TransferStep({
           <Button
             size="sm"
             variant="ink"
-            iconLeft={<Upload aria-hidden />}
+            icon="upload"
             onClick={doImport}
             disabled={importText.trim() === ''}
           >

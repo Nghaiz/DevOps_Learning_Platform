@@ -2,9 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import { count, t } from '@devops-platform/copy';
-import { Button, ErrorState, Skeleton } from '@devops-platform/ui';
 import { RailSection, saveStatusOf, type SaveStatus } from '../../../../components/author/studio';
-import { PageContainer } from '../../../../components/kit';
+import { Page } from '@devops-platform/ds';
 import { api } from '../../../../lib/trpc-react';
 import { describeTrpcError } from '../../../../lib/trpc';
 import type { FieldIssue } from '../cluster-form';
@@ -18,6 +17,7 @@ import { ProblemEditor, type EditorNav } from '../problem-editor';
 import { ProblemPublishPanel } from '../publish-check';
 import { SaveToolbar } from '../save-toolbar';
 import { useProblemMutations } from './use-problem-mutations';
+import { Button, ErrorBlock, Skeleton } from '@devops-platform/ds';
 
 /** Payload đã serialise: thứ duy nhất đáng so để biết màn hình có lệch bản lưu không. */
 function snapshotOf(form: ProblemFormState): string | null {
@@ -72,23 +72,18 @@ export function ProblemEditClient({ code }: { readonly code: string }): ReactEle
 
   if (query.isPending) {
     return (
-      <PageContainer className="flex flex-col gap-4 py-10">
+      <Page className="flex flex-col gap-4 py-10">
         <Skeleton className="h-10 w-2/3" />
         <Skeleton className="h-96 w-full" />
-      </PageContainer>
+      </Page>
     );
   }
 
   if (query.isError || loaded === null || form === null) {
     return (
-      <PageContainer className="py-10">
-        <ErrorState
-          title={t('author.problem.edit.error-title')}
-          message={query.error === null ? t('author.problem.edit.error-fallback') : describeTrpcError(query.error)}
-          onRetry={() => void query.refetch()}
-          retrying={query.isFetching}
-        />
-      </PageContainer>
+      <Page className="py-10">
+        <ErrorBlock title={t('author.problem.edit.error-title')} retryLabel={t('common.action.retry')} onRetry={() => void query.refetch()} retrying={query.isFetching}>{query.error === null ? t('author.problem.edit.error-fallback') : describeTrpcError(query.error)}</ErrorBlock>
+      </Page>
     );
   }
 
@@ -181,7 +176,7 @@ function Readiness(props: {
           : saveFirst
             ? t('author.studio.publish.save-first.title')
             : props.blockers > 0
-              ? count('author.problem.publish.blocked-title', props.blockers)
+              ? count('author.problem.publish.blocked-rail', props.blockers)
               : t('author.problem.rail.ready')}
       </p>
       <div>

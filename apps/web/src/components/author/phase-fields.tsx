@@ -2,9 +2,9 @@
 
 import { t } from '@devops-platform/copy';
 import { useId, type ReactElement } from 'react';
-import { Label, Switch } from '@devops-platform/ui';
 import type { FieldIssue, PhaseFormState } from './draft-form';
 import { TextAreaField, TextField, issueFor } from './field';
+import { Label, Switch } from '@devops-platform/ds';
 
 /**
  * Một "phase" của bài học (mở đầu / kết thúc): markdown + script.
@@ -32,7 +32,7 @@ export function PhaseSection(props: {
   const switchId = useId();
   return (
     <>
-      <div className="flex min-h-10 items-center gap-3 border border-border px-3 py-2 transition-colors duration-150 has-[[data-state=checked]]:border-line-cicd has-[[data-state=checked]]:bg-line-cicd/12">
+      <div className="flex min-h-10 items-center gap-3 border border-rule px-3 py-2 transition-colors duration-150 has-[[data-state=checked]]:border-acc-mid has-[[data-state=checked]]:bg-acc-wash">
         <Switch
           id={switchId}
           checked={props.enabled}
@@ -44,7 +44,7 @@ export function PhaseSection(props: {
         </Label>
       </div>
       {props.enabled && (
-        <div className="animate-rise">
+        <div className="animate-enter">
           <PhaseFields
             path={props.path}
             value={props.value}
@@ -147,7 +147,7 @@ export function MarkdownHint(): ReactElement {
   return (
     <>
       {t('author.phase-fields-khoi-code-co-the-mang-nut-chay-dung-cu-phap-khoi-code-cua-noi-dung-nen-tang')}{' '}
-      <code className="font-mono text-foreground">{t('author.phase-fields-assets-lt-khoa-gt')}</code>
+      <code className="font-mono text-ink">{t('author.phase-fields-assets-lt-khoa-gt')}</code>
       {t('author.phase-fields-lay-khoa-o-tab-tep-dinh-kem')}
     </>
   );

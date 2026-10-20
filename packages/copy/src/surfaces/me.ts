@@ -34,33 +34,58 @@ import type { ErrorEntry, IntentionalThree, Surface } from '../types.ts';
  * có nó và một khoá chỉ dùng ở đúng một surface thuộc về surface đó (§1.7).
  */
 export const me = {
-  // ── Hai màn: tiêu đề tài liệu ─────────────────────────────────────────────
-  'me.page.me-document-title': 'Bàn học · PTIT DevOps Lab',
-  'me.page.settings-document-title': 'Cài đặt · PTIT DevOps Lab',
+  // ── Tiêu đề tài liệu ──────────────────────────────────────────────────────
+  'me.page.me-document-title': 'Trang của tôi',
+  'me.page.settings-document-title': 'Cài đặt',
 
-  // ── `/me` · đầu trang "Bàn học" ───────────────────────────────────────────
+  // ── `/me`: đầu trang ──────────────────────────────────────────────────────
   /*
-    Không có hàng thẻ số (design-brief §0.4). Hai con số của trang nằm trong hai
-    câu dẫn, in bằng `Num` qua chỗ giữ `numSlot`, nên mỗi câu là MỘT mục của bản
-    đồ chứ không phải ba mảnh ghép.
+    Không có hàng ô số. Đầu trang là một câu nói việc cần làm nhất lúc này, chọn
+    theo thứ tự: máy đang chạy, bài đang dở, kỳ thi đang mở. Không có gì thì nói
+    thẳng là không có.
   */
-  'me.desk.kicker': 'Bàn học',
-  'me.desk.title-fallback': 'Bàn học của bạn',
-  'me.desk.settings': 'Cài đặt',
-  'me.desk.paths-count': (p: { n: string }) => `Bạn đang học dở ${p.n} lộ trình.`,
-  'me.desk.paths-none': 'Chưa có lộ trình nào học dở.',
-  'me.desk.sessions-count': (p: { n: string }) => `Đang mở ${p.n} phiên máy.`,
-  'me.desk.sessions-at-least': (p: { n: string }) => `Đang mở ít nhất ${p.n} phiên máy.`,
-  'me.desk.sessions-none': 'Không có phiên máy nào đang mở.',
+  'me.home.greeting': (p: { name: string }) => `Chào ${p.name}`,
+  'me.home.greeting-anon': 'Chào bạn',
+  'me.home.lead-machine': (p: { title: string; left: string }) => `Máy của bài “${p.title}” vẫn đang chạy, ${p.left}.`,
+  'me.home.lead-machine-untitled': (p: { left: string }) => `Bạn có một máy đang chạy, ${p.left}.`,
+  'me.home.lead-lesson': (p: { title: string; step: number }) =>
+    `Lần trước bạn dừng ở bước ${String(p.step)} của bài “${p.title}”.`,
+  'me.home.lead-exam': (p: { title: string; until: string }) => `Kỳ thi “${p.title}” đang mở tới ${p.until}.`,
+  'me.home.lead-quiet': 'Không có gì đang làm dở. Mở một bài học hoặc một lab để bắt đầu.',
+  'me.home.lead-unknown': 'Chưa đọc được máy, bài và kỳ thi của bạn. Các khối bên dưới có nút thử lại.',
+  'me.home.settings': 'Cài đặt',
+  'me.home.browse-lessons': 'Xem bài học',
+  'me.home.browse-labs': 'Xem lab',
+  'me.home.aside': 'Kỳ thi của lớp',
 
-  // ── `/me` · đang học ──────────────────────────────────────────────────────
-  'me.learning.title': 'Đang học',
-  'me.learning.aside': 'Lộ trình bạn đã đạt ít nhất một phần mà chưa đạt hết.',
-  'me.learning.loading': 'Đang tải lộ trình học dở',
-  'me.learning.empty-title': 'Chưa có lộ trình nào học dở',
-  'me.learning.empty-description': 'Lộ trình hiện ở đây sau khi bạn đạt phần đầu tiên của nó.',
-  'me.learning.empty-action': 'Chọn lộ trình',
-  'me.learning.route-aria': (p: { title: string }) => `Sơ đồ tuyến của lộ trình ${p.title}`,
+  // ── `/me`: máy đang chạy ──────────────────────────────────────────────────
+  'me.machines.title': 'Máy đang chạy',
+  'me.machines.description': 'Mỗi máy giữ một chỗ trong cụm. Làm xong thì tắt để người khác còn chỗ.',
+  'me.machines.loading': 'Đang tải danh sách máy',
+  'me.machines.empty-title': 'Không có máy nào đang chạy',
+  'me.machines.empty-body': 'Máy được tạo khi bạn bấm Bắt đầu ở một bài học, lab hoặc sân chơi.',
+  'me.machines.untitled': (p: { time: string }) => `Máy mở lúc ${p.time}`,
+  'me.machines.opened': (p: { time: string }) => `Mở lúc ${p.time}`,
+  'me.machines.resume': 'Mở lại',
+  'me.machines.terminal': 'Chỉ mở terminal',
+  'me.machines.end': 'Tắt máy',
+  'me.machines.confirm-title': 'Tắt máy này?',
+  'me.machines.confirm-body': (p: { time: string }) =>
+    `Máy mở lúc ${p.time} sẽ bị thu hồi ngay, thứ chưa lưu trong máy sẽ mất. Bạn mở máy mới lúc nào cũng được.`,
+  'me.machines.confirm-cancel': 'Để máy chạy',
+  'me.machines.kind.lesson': 'Bài học',
+  'me.machines.kind.lab': 'Lab',
+  'me.machines.kind.playground': 'Sân chơi',
+
+  // ── `/me`: đang học dở ────────────────────────────────────────────────────
+  'me.continue.title': 'Đang học dở',
+  'me.continue.loading': 'Đang tải bài học dở',
+  'me.continue.empty-title': 'Chưa có bài nào đang làm dở',
+  'me.continue.empty-body': 'Bài học và lộ trình bạn đã bắt đầu sẽ hiện ở đây để quay lại cho nhanh.',
+  'me.continue.empty-action': 'Chọn bài học',
+  'me.continue.path': 'Lộ trình',
+  'me.continue.lesson': 'Bài học',
+  'me.continue.open': 'Học tiếp',
 
   // ── Nhãn tiến độ lộ trình (`path-progress.ts`) ────────────────────────────
   'me.path.no-items': 'Lộ trình chưa có phần nào',
@@ -69,29 +94,11 @@ export const me = {
   'me.path.all-passed': 'Đã đạt tất cả các phần',
   'me.path.locked': 'Không còn phần nào đang mở. Đạt phần trước đó để mở khoá.',
 
-  // ── `/me` · phiên đang mở ─────────────────────────────────────────────────
-  'me.sessions.title': 'Phiên đang mở',
-  'me.sessions.aside':
-    'Mỗi phiên giữ một máy sandbox. Kết thúc phiên không dùng nữa để trả chỗ cho người khác.',
-  'me.sessions.board': 'Danh sách phiên máy đang mở',
-  'me.sessions.loading': 'Đang tải danh sách phiên',
-  'me.sessions.empty-title': 'Không có phiên nào đang mở',
-  'me.sessions.empty-description':
-    'Phiên được tạo khi bạn bắt đầu một bài học, lab hoặc sân chơi, và tự hết hạn khi tới giờ.',
-  'me.sessions.row-title': (p: { time: string }) => `Máy mở lúc ${p.time}`,
-  'me.sessions.row-opened': (p: { time: string }) => `mở lúc ${p.time}`,
-  'me.sessions.resume': 'Mở terminal',
-  'me.sessions.end': 'Kết thúc',
-  'me.sessions.confirm-title': (p: { time: string }) => `Kết thúc phiên mở lúc ${p.time}?`,
-  'me.sessions.confirm-description':
-    'Máy sandbox bị thu hồi ngay và mọi thứ chưa lưu trong đó sẽ mất. Chỗ này được trả lại cho lớp, và bạn mở phiên mới lúc nào cũng được.',
-  'me.sessions.confirm-keep': 'Để nguyên',
-  'me.sessions.confirm-end': 'Kết thúc phiên',
-
-  // ── Sức chứa: `null` là CHƯA BIẾT, không phải "đã đầy" ────────────────────
-  'me.capacity.unknown': 'Chưa rõ sức chứa',
-  'me.capacity.unknown-detail':
-    'Máy chủ chưa đọc được hạn mức của cụm, nên không nói được còn mấy chỗ.',
+  // ── `/me`: kỳ thi ─────────────────────────────────────────────────────────
+  'me.exams.title': 'Kỳ thi của lớp',
+  'me.exams.empty': 'Lớp của bạn chưa có kỳ thi nào đang mở hoặc sắp mở.',
+  'me.exams.enter': 'Vào thi',
+  'me.exams.all': 'Xem mọi kỳ thi',
 
   // ── Trạng thái phiên, giọng NGƯỜI HỌC (`session-summary.ts`) ──────────────
   /*
@@ -170,7 +177,7 @@ export const me = {
   'me.labs.score-partial': (p: { percent: number }) =>
     `${String(p.percent)}% tính tới lúc này (chưa nộp)`,
   'me.labs.score-final': (p: { percent: number; tasks: number }) =>
-    `${String(p.percent)}% · đạt ${String(p.tasks)} nhiệm vụ`,
+    `${String(p.percent)}%, đạt ${String(p.tasks)} nhiệm vụ`,
   /*
     `null` = chưa nộp, nên KHÔNG có thời lượng. Hiện "0 giây" cho một lần thử
     đang mở là bịa ra một con số mà máy chủ cố ý từ chối trả.
@@ -189,12 +196,12 @@ export const me = {
   'me.quizzes.status-passed': 'Đạt',
   'me.quizzes.status-failed': 'Chưa đạt',
   'me.quizzes.score': (p: { correct: number; total: number; percent: number }) =>
-    `${String(p.correct)}/${String(p.total)} câu đúng · ${String(p.percent)}%`,
+    `${String(p.correct)}/${String(p.total)} câu đúng (${String(p.percent)}%)`,
 
   // ── `/settings` · đầu trang và trạng thái lưu của từng khối ───────────────
-  'me.settings.kicker': 'Tài khoản',
   'me.settings.title': 'Cài đặt',
-  'me.settings.back': 'Về bàn học',
+  'me.settings.back': 'Trang của tôi',
+  'me.settings.lead': 'Tên hiển thị, mật khẩu và cách terminal hoạt động khi bạn mở máy.',
   'me.settings.loading': 'Đang tải hồ sơ…',
   /*
     Mỗi khối lưu riêng, nên mỗi khối tự nói nó đang ở đâu. Bốn trạng thái vì có
@@ -247,7 +254,7 @@ export const me = {
     'Áp dụng cho phiên và terminal bạn mở sau khi lưu, không đổi thứ đang chạy.',
   'me.preferences.shell-label': 'Shell mặc định',
   'me.preferences.theme-label': 'Màu terminal',
-  'me.preferences.theme-follow': 'Theo giao diện trang',
+  'me.preferences.theme-follow': 'Mặc định',
   'me.preferences.leaderboard-label': 'Hiện tên tôi trên bảng xếp hạng',
   'me.preferences.save': 'Lưu tuỳ chọn',
 
@@ -267,9 +274,9 @@ export const me = {
     "Đã lưu".
   */
   'me.notice.shell-next-session': (p: { fallback: string }) =>
-    `Shell được ghi vào máy ở lần mở phiên TIẾP THEO, không phải ngay bây giờ. Nếu lúc đó máy chưa kịp được cấp, lần mở đó bỏ qua tuỳ chọn và bạn nhận ${p.fallback} mặc định của máy. Mở lại phiên là áp được.`,
+    `Shell được ghi vào máy ở lần mở máy tiếp theo, không phải ngay bây giờ. Nếu lúc đó máy chưa kịp được cấp, lần mở đó bỏ qua tuỳ chọn và bạn nhận ${p.fallback} mặc định của máy. Mở lại máy là áp được.`,
   'me.notice.shell-active-sessions': (p: { howMany: string }) =>
-    `Bạn đang có ${p.howMany} phiên chạy. Chúng giữ shell cũ cho tới khi kết thúc. Kết thúc phiên ở Bàn học rồi mở lại nếu muốn dùng ngay.`,
+    `Bạn đang có ${p.howMany} máy chạy. Chúng giữ shell cũ cho tới khi tắt. Tắt máy ở Trang của tôi rồi mở lại nếu muốn dùng ngay.`,
   /*
     `nextCursor !== null` nghĩa là con số đếm được là SÀN chứ không phải tổng.
     Nói "2 phiên" khi thật ra có 7 là một câu sai ở đúng ca cảnh báo này quan
@@ -278,11 +285,11 @@ export const me = {
   'me.notice.shell-at-least': (p: { n: number }) => `ít nhất ${String(p.n)}`,
   'me.notice.session-fallback': (p: { fallback: string; chosen: string }) =>
     `Phiên này đang chạy ${p.fallback} mặc định của máy, không phải ${p.chosen} bạn đã chọn.`,
-  'me.notice.leaderboard-public': 'Những lần thử lab SAU sẽ hiện tên bạn trên bảng xếp hạng.',
-  'me.notice.leaderboard-private': 'Những lần thử lab SAU sẽ ẩn danh trên bảng xếp hạng.',
+  'me.notice.leaderboard-public': 'Từ lần thử lab tới, bảng xếp hạng hiện tên bạn.',
+  'me.notice.leaderboard-private': 'Từ lần thử lab tới, bạn ẩn danh trên bảng xếp hạng.',
   'me.notice.leaderboard-scope':
     'Các lần thử đã nộp giữ lựa chọn của riêng chúng. Đổi từng lần ở trang lab đó.',
-  'me.notice.terminal-follow': 'Terminal đổi màu theo giao diện sáng/tối của trang.',
+  'me.notice.terminal-follow': 'Terminal dùng bảng màu tối mặc định, ở cả giao diện sáng lẫn tối của trang.',
   'me.notice.terminal-pinned': (p: { theme: string }) =>
     `Terminal luôn dùng bảng màu "${p.theme}", kể cả khi bạn đổi giao diện trang.`,
   'me.notice.terminal-scope': 'Áp dụng cho terminal bạn mở sau khi lưu.',
@@ -306,6 +313,10 @@ export const me = {
   'me.error.sessions-load': (p: { reason: string }): ErrorEntry => ({
     what: `Không tải được danh sách phiên: ${p.reason}`,
     next: 'Bấm Thử lại. Phiên đang chạy không bị ảnh hưởng bởi lỗi đọc này.',
+  }),
+  'me.error.exams-load': (p: { reason: string }): ErrorEntry => ({
+    what: `Không tải được kỳ thi của lớp: ${p.reason}`,
+    next: 'Bấm Thử lại, hoặc mở trang Kỳ thi. Kỳ thi đang mở không bị ảnh hưởng bởi lỗi đọc này.',
   }),
   'me.error.history-load': (p: { reason: string }): ErrorEntry => ({
     what: `Không tải được lịch sử: ${p.reason}`,
@@ -373,6 +384,8 @@ export const me = {
  * từ đầu thay vì sửa sau.
  */
 export const meIntentionalThree = {
+  'me.machines.kind':
+    '2026-10-20: đúng ba loại nội dung có máy riêng (lesson, lab, playground), khớp cột kind của bảng session_origins.',
   'me.history.tab':
     '2026-09-10: đúng ba loại lịch sử tồn tại ở tầng dữ liệu (me.listProgress, me.listLabAttempts, me.listQuizAttempts), không phải ba mục chọn ra cho đẹp.',
   'me.lessons.col':

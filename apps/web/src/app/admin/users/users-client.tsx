@@ -1,57 +1,43 @@
 'use client';
 
-import { useCallback, useState, type FormEvent, type ReactElement } from 'react';
-import { Search, X } from 'lucide-react';
-import type { inferRouterOutputs } from '@trpc/server';
-import { err, t } from '@devops-platform/copy';
 import {
-  Badge,
-  Button,
-  Chip,
-  CursorPager,
-  EmptyState,
-  Input,
-  Label,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-  useToast,
-} from '@devops-platform/ui';
+  useCallback,
+  useState,
+  type FormEvent,
+  type ReactElement } from 'react';
+import type { inferRouterOutputs } from '@trpc/server';
+import { err,
+  t } from '@devops-platform/copy';
 import type { AppRouter } from '../../../server/trpc/routers/app-router';
 import type { ViewerRole } from '../../../components/shell/nav';
 import { api } from '../../../lib/trpc-react';
-import { describeTrpcError, trpcErrorCode } from '../../../lib/trpc';
+import { describeTrpcError,
+  trpcErrorCode } from '../../../lib/trpc';
 import {
   AdminNote,
   AdminPage,
   FirstPageButton,
   LedgerError,
   LedgerSkeleton,
+  AdminPager,
 } from '../../../components/admin/admin-page';
-import { ConfirmDialog } from '../../../components/kit/confirm-dialog';
 import {
   ASSIGNABLE_ROLES,
   describeRole,
   describeRoleChangeError,
   planRoleChange,
-  roleBadgeVariant,
+  roleTone,
 } from '../../../components/admin/role-change';
 import {
   FIRST_PAGE,
   currentCursor,
   pageNumber,
+  popCursor,
   pushCursor,
   type CursorStack,
 } from '../../../lib/cursor-stack';
 import { formatDay } from '../../../lib/format-moment';
+import { Button, Chip, Empty, Icon, Input, Label, Pill, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Table, TBody, TD, TH, THead, toast, TR, ConfirmDialog } from '@devops-platform/ds';
 
 type AdminUser = inferRouterOutputs<AppRouter>['admin']['users']['list']['items'][number];
 
@@ -106,18 +92,15 @@ export function AdminUsersClient({ actorId }: { readonly actorId: string }): Rea
   }, []);
 
   return (
-    <AdminPage
-      kicker={t('admin.users.kicker')}
-      title={t('admin.users.title')}
-      lead={t('admin.users.lead')}
-    >
-      <div className="flex flex-col gap-6 pt-10">
+    <AdminPage title={t('admin.users.title')} lead={t('admin.users.lead')}>
+      <div className="flex flex-col gap-6">
         <form onSubmit={onSearch} className="flex flex-wrap items-end gap-2" role="search">
           <div className="flex min-w-64 flex-1 flex-col gap-1.5 md:max-w-xl">
             <Label htmlFor="admin-users-q">{t('admin.users.search-label')}</Label>
             <Input
               id="admin-users-q"
               type="search"
+              icon="search"
               value={draftQuery}
               onChange={(event) => setDraftQuery(event.target.value)}
               placeholder={t('admin.users.search-placeholder')}
@@ -126,9 +109,9 @@ export function AdminUsersClient({ actorId }: { readonly actorId: string }): Rea
           </div>
           <Button
             type="submit"
-            variant="ink"
+            variant="primary"
             loading={query.isFetching && appliedQuery !== ''}
-            iconLeft={<Search aria-hidden="true" />}
+            icon="search"
           >
             {t('admin.users.search-submit')}
           </Button>
@@ -137,9 +120,9 @@ export function AdminUsersClient({ actorId }: { readonly actorId: string }): Rea
             bật tắt (`aria-pressed`) của `Chip`: tắt chip là bỏ lọc.
           */}
           {appliedQuery === '' ? null : (
-            <Chip selected onClick={clearFilter} title={t('admin.users.clear-filter')}>
+            <Chip pressed onPressedChange={clearFilter} title={t('admin.users.clear-filter')}>
               {t('admin.users.filter-chip', { query: appliedQuery })}
-              <X aria-hidden="true" className="size-3.5" />
+              <Icon name="close" size={14} />
             </Chip>
           )}
         </form>
@@ -156,6 +139,7 @@ export function AdminUsersClient({ actorId }: { readonly actorId: string }): Rea
           onRetry={() => void query.refetch()}
           onNext={() => setStack((prev) => pushCursor(prev, query.data?.nextCursor ?? null))}
           onFirst={() => setStack(FIRST_PAGE)}
+          onPrevious={() => setStack(popCursor)}
           onClearFilter={clearFilter}
         />
       </div>
@@ -175,6 +159,7 @@ function UsersBody(props: {
   readonly onRetry: () => void;
   readonly onNext: () => void;
   readonly onFirst: () => void;
+  readonly onPrevious: () => void;
   readonly onClearFilter: () => void;
 }): ReactElement {
   if (props.pending) {
@@ -198,44 +183,40 @@ function UsersBody(props: {
 
   if (items.length === 0) {
     return (
-      <EmptyState
-        title={
+      <Empty title={
           filtering
             ? t('admin.users.empty-title-query', { query: props.appliedQuery })
             : t('admin.users.empty-title')
-        }
-        description={filtering ? t('admin.users.empty-body-query') : t('admin.users.empty-body')}
-        {...(filtering
+        } {...(filtering
           ? {
               action: (
-                <Button variant="outline" onClick={props.onClearFilter}>
+                <Button variant="secondary" onClick={props.onClearFilter}>
                   {t('admin.users.back-first')}
                 </Button>
               ),
             }
           : props.page > 1
             ? { action: <FirstPageButton page={props.page} onFirst={props.onFirst} /> }
-            : {})}
-      />
+            : {})}>{filtering ? t('admin.users.empty-body-query') : t('admin.users.empty-body')}</Empty>
     );
   }
 
   return (
     <div className="flex flex-col gap-4">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>{t('admin.users.col-user')}</TableHead>
-            <TableHead>{t('admin.users.col-role')}</TableHead>
-            <TableHead>{t('admin.users.col-created')}</TableHead>
-            <TableHead className="text-right">{t('admin.users.col-actions')}</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
+      <Table label={t('admin.users.title')}>
+        <THead>
+          <tr>
+            <TH>{t('admin.users.col-user')}</TH>
+            <TH>{t('admin.users.col-role')}</TH>
+            <TH>{t('admin.users.col-created')}</TH>
+            <TH numeric>{t('admin.users.col-actions')}</TH>
+          </tr>
+        </THead>
+        <TBody>
           {items.map((user) => (
             <UserRow key={user.id} user={user} actorId={props.actorId} />
           ))}
-        </TableBody>
+        </TBody>
       </Table>
 
       {/*
@@ -247,13 +228,7 @@ function UsersBody(props: {
           {t('admin.users.note', { count: items.length, page: props.page })}
           {props.hasNext ? t('admin.users.note-more') : '.'}
         </AdminNote>
-        <CursorPager
-          hasNext={props.hasNext}
-          onNext={props.onNext}
-          onReset={props.onFirst}
-          page={props.page}
-          loading={props.fetching}
-        />
+        <AdminPager page={props.page} hasNext={props.hasNext} loading={props.fetching} onNext={props.onNext} onFirst={props.onFirst} onPrevious={props.onPrevious} />
       </div>
     </div>
   );
@@ -269,7 +244,6 @@ function UserRow({
   const [open, setOpen] = useState(false);
   const [nextRole, setNextRole] = useState<ViewerRole>(() => firstOtherRole(user.role));
   const [serverError, setServerError] = useState<string | null>(null);
-  const { toast } = useToast();
   const utils = api.useUtils();
   const isSelf = user.id === actorId;
 
@@ -277,11 +251,7 @@ function UserRow({
     onSuccess: (result) => {
       setOpen(false);
       setServerError(null);
-      toast({
-        variant: 'success',
-        title: t('admin.users.toast-title', { email: user.email }),
-        description: t('admin.users.toast-body', { role: describeRole(result.role) }),
-      });
+      toast.success(t('admin.users.toast-title', { email: user.email }), { description: t('admin.users.toast-body', { role: describeRole(result.role) }) });
       // Đọc lại từ máy chủ: sửa tại chỗ trong cache là tự khẳng định một trạng
       // thái ta chỉ suy ra, trong khi máy chủ vừa trả sự thật.
       void utils.admin.users.list.invalidate();
@@ -301,24 +271,25 @@ function UserRow({
   });
 
   return (
-    <TableRow>
-      <TableCell>
+    <TR>
+      <TD>
         <div className="flex flex-col gap-0.5">
-          <span className="font-semibold text-foreground">{user.name}</span>
-          <span className="font-mono text-xs text-muted-foreground">{user.email}</span>
+          <span className="font-medium text-ink">{user.name}</span>
+          <span className="font-mono text-xs text-ink-2">{user.email}</span>
           {isSelf ? (
-            <span className="type-label text-brand">{t('admin.users.self-note')}</span>
+            <span className="text-xs font-medium text-acc-ink">{t('admin.users.self-note')}</span>
           ) : null}
         </div>
-      </TableCell>
-      <TableCell>
-        <Badge variant={roleBadgeVariant(user.role)}>{describeRole(user.role)}</Badge>
-      </TableCell>
-      <TableCell className="font-mono text-xs text-muted-foreground">{formatDay(user.createdAt)}</TableCell>
-      <TableCell className="text-right">
+      </TD>
+      <TD>
+        <Pill tone={roleTone(user.role)}>{describeRole(user.role)}</Pill>
+      </TD>
+      <TD className="whitespace-nowrap text-xs tabular-nums text-ink-2">{formatDay(user.createdAt)}</TD>
+      <TD numeric>
         <Button
-          variant="outline"
+          variant="secondary"
           size="sm"
+          icon="user"
           onClick={() => {
             setNextRole(firstOtherRole(user.role));
             setServerError(null);
@@ -344,6 +315,7 @@ function UserRow({
           blockedReason={plan.blockedReason}
           error={serverError}
           confirmLabel={plan.confirmLabel}
+          cancelLabel={t('common.action.cancel')}
           confirming={setRole.isPending}
           onConfirm={() => setRole.mutate({ userId: user.id, role: nextRole })}
         >
@@ -369,8 +341,8 @@ function UserRow({
             </Select>
           </div>
         </ConfirmDialog>
-      </TableCell>
-    </TableRow>
+      </TD>
+    </TR>
   );
 }
 

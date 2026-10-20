@@ -1,5 +1,5 @@
 import { err, t } from '@devops-platform/copy';
-import type { BadgeVariant } from '@devops-platform/ui';
+import type { Tone } from '@devops-platform/ds';
 import { CONTENT_KINDS, CONTENT_STATES } from '@devops-platform/shared-types/authoring';
 import type { ContentKind, ContentState } from '@devops-platform/shared-types/authoring';
 
@@ -23,11 +23,11 @@ function isContentState(value: string): value is ContentState {
   return (CONTENT_STATES as readonly string[]).includes(value);
 }
 
-const STATE_VARIANT: Readonly<Record<ContentState, BadgeVariant>> = {
-  draft: 'outline',
-  publishing: 'warning',
-  published: 'success',
-  archived: 'secondary',
+const STATE_TONE: Readonly<Record<ContentState, Tone>> = {
+  draft: 'neutral',
+  publishing: 'info',
+  published: 'ok',
+  archived: 'neutral',
 };
 
 /** Bộ lọc trạng thái; `'all'` là sentinel của giao diện (Radix Select không nhận `value=""`). */
@@ -51,8 +51,8 @@ export function describeContentState(state: string): string {
   return isContentState(state) ? t(`admin.content-state.${state}`) : state;
 }
 
-export function contentStateVariant(state: string): BadgeVariant {
-  return isContentState(state) ? STATE_VARIANT[state] : 'warning';
+export function contentStateTone(state: string): Tone {
+  return isContentState(state) ? STATE_TONE[state] : 'warn';
 }
 
 export interface ArchivePlan {

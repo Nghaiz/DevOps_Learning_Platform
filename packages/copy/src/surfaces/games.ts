@@ -11,16 +11,16 @@ import type { IntentionalThree } from '../types.ts';
  * thuật ngữ tiếng Anh mà người trong nghề vẫn nói (pod, commit, pipeline, runner).
  */
 export const games = {
-  'games.meta-title': 'Trò chơi · PTIT DevOps Lab',
+  'games.meta-title': 'Trò chơi',
   'games.meta-description':
     'Ba game DevOps chạy ngay trong trình duyệt: Kubernetes, Git và CI/CD. Không cần đăng nhập, không tốn sandbox.',
 
   // ── /games: đầu trang ──────────────────────────────────────────────────────
-  'games.hub.kicker': (p: { games: number; levels: number }) =>
-    `Tuyến nhanh · ${String(p.games)} game · ${String(p.levels)} màn`,
+  'games.hub.summary': (p: { games: number; levels: number }) =>
+    `${String(p.games)} game chơi được, ${String(p.levels)} màn`,
   'games.hub.title': 'Trò chơi',
   'games.hub.lead':
-    'Mỗi game là một tuyến nhanh qua một mảng DevOps. Gõ lệnh thật, nhìn hệ thống đổi theo, sai thì chơi lại.',
+    'Mỗi game dựng một hệ thống mô phỏng ngay trong trình duyệt. Bạn gõ lệnh thật, nhìn nó đổi theo, sai thì chơi lại từ đầu.',
   'games.hub.progress.label': 'Tiến độ trên máy này',
   'games.hub.progress.unit': (p: { total: number }) => `/${String(p.total)} màn đã qua`,
   'games.hub.saved-local': 'Tiến độ lưu trong trình duyệt của bạn, đổi máy là bắt đầu lại.',
@@ -54,22 +54,22 @@ export const games = {
   'games.k8s.name': 'Kubernetes Arena',
   'games.k8s.blurb':
     'Dựng rồi cứu một cluster mô phỏng bằng kubectl. Mỗi màn là một cluster hỏng theo một kiểu khác.',
-  'games.k8s.meta-title': 'Kubernetes Arena · PTIT DevOps Lab',
+  'games.k8s.meta-title': 'Kubernetes Arena',
   'games.k8s.meta-description':
     'Bài thực hành kubectl trên cluster mô phỏng chạy trong trình duyệt: tạo pod, phơi service, chịu sự cố.',
   'games.git.name': 'Phòng thí nghiệm Git',
   'games.git.blurb':
     'Gõ lệnh git thật trên một kho mô phỏng. Nắn lịch sử, làm việc nhóm qua remote, cứu commit tưởng đã mất.',
-  'games.git.meta-title': 'Phòng thí nghiệm Git · PTIT DevOps Lab',
+  'games.git.meta-title': 'Phòng thí nghiệm Git',
   'games.git.meta-description':
     'Gõ lệnh git trên kho mô phỏng chạy trong trình duyệt và xem đồ thị commit đổi theo từng lệnh.',
   'games.cicd.name': 'Xưởng đường ống CI/CD',
   'games.cicd.blurb':
     'Soạn workflow YAML, chạy mô phỏng rồi đọc ba trục: thời gian chờ, số commit qua mỗi giờ và runner-phút. Nửa sau đưa artifact qua các môi trường.',
-  'games.cicd.meta-title': 'Xưởng đường ống CI/CD · PTIT DevOps Lab',
+  'games.cicd.meta-title': 'Xưởng đường ống CI/CD',
   'games.cicd.meta-description':
     'Soạn workflow, chạy mô phỏng và tối ưu pipeline theo ba trục: thời gian chờ, thông lượng, runner-phút.',
-  'games.cicd.level-title': (p: { title: string }) => `${p.title} · Xưởng đường ống CI/CD`,
+  'games.cicd.level-title': (p: { title: string }) => `${p.title} | Xưởng đường ống CI/CD`,
   'games.maze.name': 'Mê cung mạng',
   'games.maze.blurb':
     'Đưa gói tin từ pod này sang pod kia qua một mê cung NetworkPolicy: mở đúng đường cần mở, đóng phần còn lại.',
@@ -78,7 +78,6 @@ export const games = {
     'Ghép một Dockerfile chạy được rồi rèn cho nhỏ lại. Mỗi layer thừa là một điểm trừ, mỗi lần cache trượt cũng vậy.',
 
   // ── Dải giới thiệu một game trên /games ────────────────────────────────────
-  'games.band.kicker': (p: { n: string; topic: string }) => `Tuyến ${p.n} · ${p.topic}`,
   'games.band.facts': (p: { levels: number; chapters: number }) =>
     `${String(p.levels)} màn, chia ${String(p.chapters)} chương.`,
   'games.band.facts-label': 'Màn chơi',
@@ -95,13 +94,12 @@ export const games = {
 
   // ── Game chưa chơi được ────────────────────────────────────────────────────
   'games.soon.title': 'Đang dựng',
-  'games.soon.kicker': 'Chưa chơi được',
   'games.soon.badge': 'Sắp có',
   'games.soon.note': 'Đã có bản thiết kế, chưa có màn chơi. Hai game này sẽ mở ở các đợt sau.',
 
   // ── Lối sang phần có chấm điểm ─────────────────────────────────────────────
   'games.practice.title': 'Luyện đề',
-  'games.practice.kicker': 'Có chấm điểm',
+  'games.practice.note': 'Quen tay rồi thì sang phần có chấm điểm. Kết quả lưu vào tài khoản của bạn.',
   'games.practice.problems.title': 'Bài tập',
   'games.practice.problems.sub':
     'Đề cho cả ba game, chấm tự động. Nộp lời giải và xem từng testcase qua hay trượt.',
@@ -110,7 +108,7 @@ export const games = {
 
   // ── Lối cho tác giả ────────────────────────────────────────────────────────
   'games.studio.title': 'Xưởng soạn',
-  'games.studio.kicker': 'Dành cho tác giả',
+  'games.studio.note': 'Soạn đề, dựng màn Git và viết bài học cho sinh viên của bạn.',
   'games.studio.problem.title': 'Soạn đề bài',
   'games.studio.problem.sub': 'Đề cho K8s, Git hoặc CI/CD, có testcase chấm tự động.',
   'games.studio.builder.title': 'Dựng màn chơi Git',
@@ -128,8 +126,9 @@ export const games = {
   'games.level.minutes': (p: { n: number }) => `~${String(p.n)} phút`,
 
   // ── /games/k8s: trang chọn màn (ngoài canvas game) ─────────────────────────
-  'games.k8s.campaign.kicker': (p: { levels: number; chapters: number }) =>
-    `Trò chơi · K8S · ${String(p.levels)} màn · ${String(p.chapters)} chương`,
+  'games.campaign.summary': (p: { levels: number; chapters: number }) =>
+    `${String(p.levels)} màn, ${String(p.chapters)} chương`,
+  'games.campaign.progress': (p: { done: number; total: number }) => `Đã qua ${String(p.done)}/${String(p.total)} màn`,
   'games.k8s.campaign.lead':
     'Thực hành kubectl trên một cluster mô phỏng chạy ngay trong trình duyệt. Màn sau dựa vào điều màn trước vừa dạy, nên đi theo thứ tự.',
   'games.k8s.campaign.back': 'Tất cả trò chơi',
@@ -155,8 +154,6 @@ export const games = {
   'games.k8s.chapter.other': 'Chương khác',
 
   // ── /games/git: trang chọn màn ─────────────────────────────────────────────
-  'games.git.campaign.kicker': (p: { levels: number; chapters: number }) =>
-    `Trò chơi · GIT · ${String(p.levels)} màn · ${String(p.chapters)} chương`,
   'games.git.campaign.lead':
     'Gõ lệnh git thật trên một kho mô phỏng chạy trong trình duyệt. Đồ thị commit vẽ lại sau từng lệnh, và mỗi lượt chơi bắt đầu lại từ kho ban đầu.',
   'games.git.campaign.start': (p: { title: string }) => `Bắt đầu: ${p.title}`,
@@ -172,7 +169,7 @@ export const games = {
   'games.git.chapter.2.blurb': 'Remote, fetch, pull, push, và những lần hai người cùng sửa một chỗ.',
   'games.git.chapter.3.name': 'Cứu hộ',
   'games.git.chapter.3.blurb': 'reflog, reset, cherry-pick. Tìm lại commit tưởng đã mất.',
-  'games.git.chapter.title': (p: { n: number; name: string }) => `Chương ${String(p.n)} · ${p.name}`,
+  'games.git.chapter.title': (p: { n: number; name: string }) => `Chương ${String(p.n)}: ${p.name}`,
 
   // ── Git: màn chờ và màn lỗi của chế độ làm bài ─────────────────────────────
   'games.git.status.loading-title': 'Đang chuẩn bị kho Git',
@@ -420,8 +417,6 @@ export const games = {
   'games.git.scene3d.label': 'Sơ đồ 3D của kho Git',
 
   // ── /games/cicd: trang chọn màn ────────────────────────────────────────────
-  'games.cicd.campaign.kicker': (p: { levels: number; chapters: number }) =>
-    `Trò chơi · CI · ${String(p.levels)} màn · ${String(p.chapters)} chương`,
   'games.cicd.campaign.lead':
     'Soạn workflow bằng YAML, chạy mô phỏng rồi đọc ba trục: thời gian chờ của một commit, số commit qua được mỗi giờ và runner-phút tiêu tốn. Ba trục không suy ra được từ nhau, mỗi màn dạy một cách chúng kéo nhau.',
   'games.cicd.campaign.start': (p: { title: string }) => `Bắt đầu: ${p.title}`,
@@ -837,6 +832,10 @@ export const games = {
 } as const;
 
 export const gamesIntentionalThree: IntentionalThree = {
+  'games.band':
+    '2026-10-20: dải giới thiệu một game có đúng ba chữ đứng riêng ngoài nhóm tiến độ và nút: nhãn ô số màn, câu số màn và chương, nhãn độ khó. Đây là ba ô của một dải, không phải một danh sách ba ý.',
+  'games.soon':
+    '2026-10-20: khối game đang dựng có đúng ba vai trò chữ (tiêu đề khối, câu ghi chú, nhãn trên từng dòng). Đây là ba phần của một khối giao diện, không phải một danh sách ba ý.',
   'games.cicd.mission.state':
     '2026-10-03: ba trạng thái của một mục tiêu là đúng ba giá trị của ObjectiveState (chưa chấm, đạt, trượt), không phải liệt kê theo thói quen.',
 };

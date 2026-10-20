@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import { parseContentBlocks } from '@devops-platform/scenario/content-blocks';
 import { errText, t } from '@devops-platform/copy';
-import { Button, ContentView, Meter, StepNav, TopicBadge } from '@devops-platform/ui';
+import { Button, ProgressLine, StepStrip, TopicGlyph, type StepItem } from '@devops-platform/ds';
+import { ContentView } from '@devops-platform/ds/content';
 import {
   DEFAULT_PROFILE,
   IdePane,
@@ -15,61 +16,73 @@ import {
   WorkspacePanel,
   WorkspaceSplit,
   checkBlockedReason,
-  contentViewLabels,
+  describeCapacity,
   execBlockedReason,
+  ideAvailable,
   resolveShellFallbackNotice,
-  shouldShowIdePane,
-  stepNavLabels,
   useResolvedTerminalTheme,
   useTerminalHandoff,
   type PracticeNotice,
+  type SplitFocus,
 } from '../../../components/session';
+import { PracticeError, PracticeFrame, PracticeSkeleton } from '../../../components/session/practice-frame';
+import { PracticeLaunch } from '../../../components/session/practice-launch';
+import { contentLabels } from '../../../components/session/practice-labels';
+import { useResumeMachine } from '../../../components/session/use-resume-machine';
 import { useWorkspaceTabs } from '../../../components/session/use-workspace-tabs';
-import { lineForTopic } from '../../../lib/topic-line';
+import { browserStorage } from '../../../components/session/workspace-tabs';
+import { useCapacity } from '../../../components/shell/use-capacity';
+import { tierLabel } from '../../../components/catalog/catalog-labels';
+import { topicLook } from '../../../lib/topic-look';
 import { api } from '../../../lib/trpc-react';
 import { describeTrpcError } from '../../../lib/trpc';
 import { canReconnect } from '../../../lib/use-sandbox-session';
-import { buildPhases, canCheck, phaseKeyForStepIndex } from './phases';
+import { buildPhases, canCheck, phaseKeyForStepIndex, type LessonPhase } from './phases';
 import { summarizeProgress } from './progress';
 import { useLessonSession } from './use-lesson-session';
 import { CheckResultPanel, type CheckOutcome } from './check-result-panel';
+import { assumedSetupPhases, forgetSetupRecord, readSetupRecord, recordSetupRan } from './setup-record';
 
 /**
- * Kết quả chấm GẮN VỚI BƯỚC đã chấm (M5).
- *
- * Bản trước giữ MỘT `check` cho cả trang và xoá nó khi đổi bước. Một lượt chấm
- * đang bay mà người học bấm sang bước khác thì kết quả về sau rơi vào bước MỚI:
- * "Đạt" hiện dưới một bước chưa ai làm. Nay khoá theo `phase.key`, và `seq` của
- * từng lượt chặn một lượt cũ về muộn đè lên lượt mới của CÙNG bước.
+ * Kết quả chấm GẮN VỚI BƯỚC đã chấm. Một lượt chấm đang bay mà người học bấm sang bước
+ * khác thì kết quả về sau KHÔNG được rơi vào bước mới: khoá theo `phase.key`, và `seq`
+ * của từng lượt chặn một lượt cũ về muộn đè lên lượt mới của CÙNG bước.
  */
 interface StepCheck {
   readonly seq: number;
   readonly outcome: CheckOutcome;
 }
 
+/** Trạng thái chuẩn bị môi trường của MỘT bước trong MỘT phiên. */
+type SetupState = 'running' | 'done' | 'failed';
+
+const LABELS = contentLabels();
+
 export function LessonClient({ scenarioId }: { readonly scenarioId: string }): ReactElement {
   const utils = api.useUtils();
   const query = api.lessons.get.useQuery({ scenarioId });
   const session = useLessonSession(scenarioId);
   const handoff = useTerminalHandoff(session.state.sessionId);
+  const capacity = useCapacity();
+  const resume = useResumeMachine({
+    session,
+    belongs: (machine) => machine.content?.kind === 'lesson' && machine.content.id === scenarioId,
+    handoff: handoff.state,
+  });
 
   const me = api.me.get.useQuery({});
   const terminalTheme = useResolvedTerminalTheme(me.data?.preferences.terminalTheme ?? null);
 
-  // "Còn N chỗ": CHỈ hỏi khi chưa có phiên. Đọc thẳng `data`: chưa biết khác biết là 0.
-  const capacity = api.capacity.get.useQuery(
-    {},
-    { refetchInterval: 15_000, enabled: session.state.sessionId === null },
-  );
-
   const [activeKey, setActiveKey] = useState<string | null>(null);
   const [checks, setChecks] = useState<Readonly<Record<string, StepCheck>>>({});
   const checkSeq = useRef(0);
+  const [setup, setSetup] = useState<Readonly<Record<string, SetupState>>>({});
   const [setupError, setSetupError] = useState<string | null>(null);
   const [setupAttempt, setSetupAttempt] = useState(0);
   const [popupBlocked, setPopupBlocked] = useState(false);
+  const [focus, setFocus] = useState<SplitFocus>('both');
   /**
-   * Bước ĐÃ CHẤM ĐẠT trong lượt xem này. ⛔ Không suy dấu ✓ từ `progress.stepIndex`:
+   * Bước ĐÃ CHẤM ĐẠT trong lượt xem này. ⛔ Không suy dấu xong từ `progress.stepIndex`:
    * đó là vị trí hiện tại, không phải bước đã đạt.
    */
   const [passedSteps, setPassedSteps] = useState<ReadonlySet<number>>(new Set());
@@ -92,68 +105,105 @@ export function LessonClient({ scenarioId }: { readonly scenarioId: string }): R
   const runSetup = api.lessons.runSetup.useMutation();
   const checkStep = api.lessons.checkStep.useMutation();
 
-  const setupDone = useRef(new Set<string>());
+  const setupStarted = useRef(new Set<string>());
+  /** Máy đã được nạp cờ "setup đã chạy" từ bản ghi (chỉ làm một lần cho mỗi máy được nhận lại). */
+  const seededFor = useRef<string | null>(null);
   const terminal = session.terminal;
   const sessionId = session.state.sessionId;
+  const progressStepIndex = query.data?.progress.stepIndex ?? 0;
+
+  // Máy tắt (hoặc đổi sang máy khác) thì bản ghi setup của nó vô nghĩa: quên đi.
+  const previousSession = useRef<string | null>(null);
+  useEffect(() => {
+    const previous = previousSession.current;
+    if (previous !== null && previous !== sessionId) forgetSetupRecord(previous, browserStorage());
+    previousSession.current = sessionId;
+  }, [sessionId]);
 
   // Hook gọi TRÊN mọi `return` sớm: số hook không được đổi giữa hai lượt render.
-  const showIde = shouldShowIdePane(scenario?.interfaceLayout ?? null);
+  // ⛔ Có IDE hay không đọc từ `profile` của MÁY CHỦ, không từ `interfaceLayout`: profile
+  // là thứ quyết định pod có chạy Theia không. Lệch nhau là một iframe trắng mãi mãi.
+  const profile = query.data?.profile ?? DEFAULT_PROFILE;
+  const showIde = ideAvailable(profile);
   const tabs = useWorkspaceTabs({ terminal, hasEditor: showIde, sessionId });
 
   /*
-    Terminal đã giao sang cửa sổ riêng thì trang thả kết nối, nên `terminal` ở
-    đây là `null` cho tới khi người học lấy về, có khi không bao giờ. Chờ nó như
-    ca thường là setup của phase đầu không bao giờ chạy. `background` chạy ở máy
-    chủ nên không cần terminal của trang; chỉ cần phiên còn pod.
+    Terminal đã giao sang cửa sổ riêng thì trang thả kết nối, nên `terminal` ở đây là
+    `null` cho tới khi người học lấy về. Chờ nó như ca thường là setup của phase đầu
+    không bao giờ chạy. `background` chạy ở máy chủ nên không cần terminal của trang;
+    chỉ cần phiên còn pod.
   */
   const setupWithoutTerminal = handoff.state !== 'here' && canReconnect(session.state);
+
+  // Bước cần chuẩn bị cho bước đang mở: bước ĐẦU (đẩy asset) và chính bước đang mở.
+  const neededSetup = useMemo((): readonly LessonPhase[] => {
+    if (active === null) return [];
+    const first = phases[0];
+    const needed = first === undefined || first.key === active.key ? [active] : [first, active];
+    return needed.filter((target) => target.key === first?.key || target.phase.hasSetup);
+  }, [active, phases]);
 
   // ── Setup: đúng MỘT lần cho mỗi phase của mỗi phiên, khi terminal đã nối (hoặc đã giao đi) ──
   useEffect(() => {
     // ⛔ Ca thường vẫn CHỜ terminal: chạy setup trước khi chunk xterm kịp gắn là
     // `foreground` của intro rơi mất, vì lúc lượt gọi về thì chưa có gì để gõ vào.
-    if (active === null || sessionId === null || (terminal === null && !setupWithoutTerminal) || phases.length === 0) {
-      return;
-    }
-    // ⛔ Phải chuẩn bị phase ĐẦU TIÊN, không chỉ phase đang mở: asset chỉ được
-    // đẩy ở phase đầu, và người học quay lại được thả thẳng vào bước đang dở.
-    const first = phases[0];
-    const needed = first === undefined || first.key === active.key ? [active] : [first, active];
+    if (active === null || sessionId === null || (terminal === null && !setupWithoutTerminal)) return;
 
-    for (const target of needed) {
-      const isFirst = target.key === first?.key;
-      if (!isFirst && !target.phase.hasSetup) {
-        continue;
-      }
+    /*
+      ⛔ Máy NHẬN LẠI sau khi tải trang đã chạy setup ở lần mount trước. Chạy lại là ghi đè bài
+      làm (script `background` của nội dung không tự chống chạy lại). Nạp cờ từ bản ghi của
+      trình duyệt này; không có bản ghi thì coi phase đầu và mọi bước tới chỗ đang dở là đã chạy.
+    */
+    if (resume.resumed && seededFor.current !== sessionId) {
+      seededFor.current = sessionId;
+      const ran = readSetupRecord(sessionId, browserStorage()) ?? assumedSetupPhases(phases, progressStepIndex);
+      for (const key of ran) setupStarted.current.add(`${sessionId}:${key}`);
+    }
+
+    for (const target of neededSetup) {
       // Khoá gồm cả `sessionId`: cờ của phiên cũ không được sống sót sang pod mới.
       const runKey = `${sessionId}:${target.key}`;
-      if (setupDone.current.has(runKey)) {
-        continue;
-      }
-      setupDone.current.add(runKey);
+      if (setupStarted.current.has(runKey)) continue;
+      setupStarted.current.add(runKey);
+      setSetup((prev) => ({ ...prev, [runKey]: 'running' }));
 
-      runSetup.mutate(
-        { scenarioId, sessionId, phase: target.ref },
-        {
-          onSuccess: (result) => {
-            setSetupError(null);
-            // `foreground` của phase ĐANG MỞ mới gõ vào terminal người học đang nhìn.
-            // Terminal ở cửa sổ riêng ⇒ trang không có gì để gõ vào, và lệnh này bị bỏ chứ
-            // không dồn lại: gõ nó lúc người học lấy terminal về là gõ một lệnh cũ vào giữa việc đang làm.
-            if (result.foreground !== null && target.key === active.key && terminal !== null) {
-              terminal.sendInput(`${result.foreground}\r`);
-            }
-          },
-          onError: (error) => {
-            // ⛔ Setup hỏng PHẢI hiện ra, kèm nút Thử lại.
-            setupDone.current.delete(runKey);
-            setSetupError(describeTrpcError(error));
-          },
+      /*
+        ⛔ `mutateAsync` cho TỪNG phase, không `mutate` kèm callback: gọi `mutate` lần hai trên
+        cùng một mutation thì callback của lần đầu không bao giờ chạy (TanStack Query chỉ báo
+        cho lượt gọi sau cùng). Phase đầu kẹt ở `running` và khoá nút Kiểm tra mãi mãi.
+      */
+      void runSetup.mutateAsync({ scenarioId, sessionId, phase: target.ref }).then(
+        (result) => {
+          recordSetupRan(sessionId, target.key, browserStorage());
+          setSetupError(null);
+          setSetup((prev) => ({ ...prev, [runKey]: 'done' }));
+          // `foreground` của phase ĐANG MỞ mới gõ vào terminal người học đang nhìn. Terminal
+          // ở cửa sổ riêng ⇒ không gõ: gõ lúc lấy terminal về là gõ một lệnh cũ vào giữa việc đang làm.
+          if (result.foreground !== null && target.key === active.key && terminal !== null) {
+            terminal.sendInput(`${result.foreground}\r`);
+          }
+        },
+        (error: unknown) => {
+          // ⛔ Setup hỏng PHẢI hiện ra, kèm nút Thử lại, và khoá nút Kiểm tra.
+          setupStarted.current.delete(runKey);
+          setSetup((prev) => ({ ...prev, [runKey]: 'failed' }));
+          setSetupError(describeTrpcError(error));
         },
       );
     }
     // `runSetup` ngoài deps có chủ ý: danh tính mutation đổi mỗi lượt render.
-  }, [active, phases, sessionId, terminal, setupWithoutTerminal, scenarioId, setupAttempt]);
+  }, [
+    active,
+    neededSetup,
+    sessionId,
+    terminal,
+    setupWithoutTerminal,
+    scenarioId,
+    setupAttempt,
+    resume.resumed,
+    phases,
+    progressStepIndex,
+  ]);
 
   const onSelect = useCallback(
     (key: string) => {
@@ -168,9 +218,7 @@ export function LessonClient({ scenarioId }: { readonly scenarioId: string }): R
   );
 
   const onCheck = useCallback(() => {
-    if (active === null || sessionId === null) {
-      return;
-    }
+    if (active === null || sessionId === null) return;
     const key = active.key;
     const stepIndex = active.stepIndex;
     checkSeq.current += 1;
@@ -185,15 +233,11 @@ export function LessonClient({ scenarioId }: { readonly scenarioId: string }): R
       {
         onSuccess: (result) => {
           land({ kind: 'result', passed: result.passed, exitCode: result.exitCode, output: result.output });
-          if (result.passed && stepIndex !== null) {
-            setPassedSteps((prev) => new Set(prev).add(stepIndex));
-          }
+          if (result.passed && stepIndex !== null) setPassedSteps((prev) => new Set(prev).add(stepIndex));
           void utils.lessons.invalidate();
         },
         // ⛔ Lỗi hệ thống KHÔNG được hiện thành "bài sai".
-        onError: (error) => {
-          land({ kind: 'error', message: describeTrpcError(error) });
-        },
+        onError: (error) => land({ kind: 'error', message: describeTrpcError(error) }),
       },
     );
   }, [active, checkStep, scenarioId, sessionId, utils]);
@@ -201,9 +245,7 @@ export function LessonClient({ scenarioId }: { readonly scenarioId: string }): R
   const resolveAssetUrl = useCallback(
     (relative: string): string | null => {
       const cleaned = relative.replace(/^\.?\//, '');
-      if (!cleaned.startsWith('assets/')) {
-        return null;
-      }
+      if (!cleaned.startsWith('assets/')) return null;
       return `/api/scenarios/${encodeURIComponent(scenarioId)}/${cleaned}`;
     },
     [scenarioId],
@@ -213,42 +255,67 @@ export function LessonClient({ scenarioId }: { readonly scenarioId: string }): R
     setPopupBlocked(!handoff.popOut());
   }, [handoff]);
 
-  if (query.isPending) {
-    return <Centered>{t('session.lesson.loading')}</Centered>;
-  }
+  // Bấm Chạy khi đang phóng to khoang bài (màn hẹp) thì mở lại cả hai: lệnh chạy ở
+  // terminal, người học cần thấy nó chạy mà không mất chỗ đang đọc.
+  const onExec = useCallback(
+    (command: string, interrupt: boolean) => {
+      setFocus((current) => (current === 'read' ? 'both' : current));
+      tabs.exec(command, interrupt);
+    },
+    [tabs],
+  );
+
+  if (query.isPending) return <PracticeSkeleton label={t('session.lesson.loading')} />;
   if (query.isError) {
-    return <Centered tone="error">{describeTrpcError(query.error)}</Centered>;
+    return (
+      <PracticeError
+        title={t('session.lesson.not-found')}
+        message={describeTrpcError(query.error)}
+        backHref="/lessons"
+        backLabel={t('session.lesson.back')}
+        onRetry={() => void query.refetch()}
+        retrying={query.isFetching}
+      />
+    );
   }
   if (scenario === null || active === null) {
-    return <Centered tone="error">{t('session.lesson.not-found')}</Centered>;
+    return (
+      <PracticeError
+        title={t('session.lesson.not-found')}
+        message={t('session.lesson.not-found')}
+        backHref="/lessons"
+        backLabel={t('session.lesson.back')}
+      />
+    );
   }
 
-  const line = lineForTopic({ topic: scenario.topic ?? null, id: scenario.id });
-  const topicLine = line === 'ink' ? undefined : line;
+  const look = topicLook({ topic: scenario.topic ?? null, id: scenario.id });
   const blocks = parseContentBlocks(active.phase.markdown);
   const completed = query.data.progress.status === 'completed';
   const unsupported = query.data.unsupportedCapabilities;
   const phase = session.state.phase;
+  const activeIndex = phases.findIndex((p) => p.key === active.key);
+  const prev = activeIndex > 0 ? phases[activeIndex - 1] : undefined;
+  const next = activeIndex >= 0 && activeIndex < phases.length - 1 ? phases[activeIndex + 1] : undefined;
 
   // `done` = ĐÃ CHẤM ĐẠT, không phải "đã đi qua".
-  const navItems = phases.map((p) => ({
+  const steps: StepItem[] = phases.map((p) => ({
     key: p.key,
     label: p.label,
-    done: p.stepIndex === null ? false : completed || passedSteps.has(p.stepIndex),
+    state: p.stepIndex !== null && (completed || passedSteps.has(p.stepIndex)) ? 'done' : p.key === active.key ? 'current' : 'todo',
   }));
-  const progress = summarizeProgress({
-    stepCount: scenario.steps.length,
-    passedInSession: passedSteps.size,
-    completed,
-  });
+  const progress = summarizeProgress({ stepCount: scenario.steps.length, passedInSession: passedSteps.size, completed });
 
-  const checkReason = checkBlockedReason({ phase, hasSession: sessionId !== null, handoff: handoff.state });
-  const execReason = execBlockedReason({
-    phase,
-    hasSession: sessionId !== null,
-    terminalAttached: terminal !== null,
-    handoff: handoff.state,
-  });
+  const setupFor = (key: string): SetupState | undefined => (sessionId === null ? undefined : setup[`${sessionId}:${key}`]);
+  const setupStates = neededSetup.map((target) => setupFor(target.key));
+  const setupReason = setupStates.includes('failed')
+    ? t('session.check.blocked-setup-failed')
+    : setupStates.includes('running')
+      ? t('session.check.blocked-setup')
+      : null;
+  const phaseReason = checkBlockedReason({ phase, hasSession: sessionId !== null, handoff: handoff.state });
+  const checkReason = phaseReason ?? setupReason;
+  const execReason = execBlockedReason({ phase, hasSession: sessionId !== null, terminalAttached: terminal !== null, handoff: handoff.state });
   const activeCheck = checks[active.key]?.outcome ?? null;
   const checking = activeCheck?.kind === 'running';
 
@@ -270,6 +337,7 @@ export function LessonClient({ scenarioId }: { readonly scenarioId: string }): R
               <Button
                 size="sm"
                 variant="secondary"
+                icon="refresh"
                 onClick={() => {
                   setSetupError(null);
                   setSetupAttempt((n) => n + 1);
@@ -284,108 +352,137 @@ export function LessonClient({ scenarioId }: { readonly scenarioId: string }): R
     ...(unsupported.length > 0
       ? [{ id: 'unsupported', tone: 'warning' as const, text: t('session.lesson.unsupported', { capabilities: unsupported.join(', ') }) }]
       : []),
-    ...(shellNotice === null
-      ? []
-      : [{ id: `shell:${sessionId ?? ''}`, tone: 'warning' as const, text: shellNotice.lines.join(' ') }]),
+    ...(shellNotice === null ? [] : [{ id: `shell:${sessionId ?? ''}`, tone: 'warning' as const, text: shellNotice.lines.join(' ') }]),
     ...(popupBlocked ? [{ id: 'popup', tone: 'warning' as const, text: t('session.overlay.popup-blocked') }] : []),
+    ...(resume.resumed && sessionId !== null ? [{ id: `resumed:${sessionId}`, tone: 'info' as const, text: t('session.launch.resumed') }] : []),
   ];
 
   const instructions = (
-    <div className="h-full overflow-y-auto bg-card text-card-foreground">
-      <div className="mx-auto max-w-[68ch] px-5 py-6 md:px-8">
-        <StepNav
-          items={navItems}
+    <div className="flex h-full min-h-0 flex-col bg-paper">
+      <div className="shrink-0 border-b border-rule px-3 py-2">
+        <StepStrip
+          steps={steps}
           activeKey={active.key}
           onSelect={onSelect}
-          labels={stepNavLabels()}
-          {...(topicLine === undefined ? {} : { line: topicLine })}
-        >
+          label={t('session.steps.list')}
+          stateText={{ done: t('session.steps.state-done'), failed: t('session.steps.state-failed') }}
+        />
+      </div>
+      <div className="relative min-h-0 flex-1 overflow-y-auto focus-visible:-outline-offset-2">
+        <article className="mx-auto max-w-[70ch] px-5 py-6 md:px-8">
+          <h2 className="mb-4 font-display text-2xl font-semibold tracking-[-0.01em] text-ink">{active.label}</h2>
           <ContentView
             blocks={blocks}
-            leadingTitle={active.phase.title ?? undefined}
+            leadingTitle={active.phase.title ?? active.label}
             diagrams={scenario.diagrams}
             resolveAssetUrl={resolveAssetUrl}
-            onExec={tabs.exec}
+            onExec={onExec}
             execEnabled={execReason === null}
             execDisabledReason={execReason}
-            labels={contentViewLabels()}
+            labels={LABELS}
+            linksInNewTab
           />
           {canCheck(active) ? (
-            <div className="mt-6 border-t-2 border-foreground pt-4">
+            <div className="mt-8 border-t border-rule pt-5">
               <div className="flex flex-wrap items-center gap-3">
-                <Button onClick={onCheck} disabled={checkReason !== null || checking} loading={checking}>
+                <Button variant="primary" icon="target" onClick={onCheck} disabled={checkReason !== null || checking} loading={checking}>
                   {t('session.lesson.check')}
                 </Button>
                 {/* Lý do khoá là CHỮ: nút disabled không nhận focus nên `title` của nó không ai đọc được. */}
-                {checkReason !== null && <span className="text-sm text-muted-foreground">{checkReason}</span>}
+                {checkReason === null ? null : <span className="text-sm text-ink-3">{checkReason}</span>}
               </div>
               <CheckResultPanel outcome={activeCheck} />
             </div>
-          ) : (
-            active.stepIndex !== null && <p className="mt-6 text-sm text-muted-foreground">{t('session.lesson.no-check')}</p>
-          )}
-        </StepNav>
+          ) : active.stepIndex !== null ? (
+            <p className="mt-8 border-t border-rule pt-5 text-sm text-ink-3">{t('session.lesson.no-check')}</p>
+          ) : null}
+        </article>
+      </div>
+      <div className="flex h-14 shrink-0 items-center justify-between gap-3 border-t border-rule px-4">
+        <Button variant="ghost" icon="arrow-left" disabled={prev === undefined} onClick={() => prev !== undefined && onSelect(prev.key)}>
+          {t('session.steps.prev')}
+        </Button>
+        <span className="hidden text-sm tabular-nums text-ink-3 sm:inline">
+          {activeIndex + 1}/{phases.length}
+        </span>
+        <Button variant="secondary" iconRight="arrow-right" disabled={next === undefined} onClick={() => next !== undefined && onSelect(next.key)}>
+          {t('session.steps.next')}
+        </Button>
       </div>
     </div>
   );
 
-  const terminalPane = <TerminalPane session={session} theme={terminalTheme} handoff={handoff} />;
+  const launch = (
+    <PracticeLaunch
+      kind="lesson"
+      startLabel={t('session.controls.start')}
+      onStart={session.start}
+      starting={session.starting || resume.pending}
+      tierLabel={tierLabel(scenario.tier)}
+      profile={profile}
+      capacity={describeCapacity(capacity.data, profile)}
+      otherMachines={resume.others}
+    />
+  );
 
   return (
-    <div className="flex h-dvh min-h-0 flex-col overflow-hidden bg-background text-foreground">
-      <WorkspaceBar
-        backHref="/lessons"
-        backLabel={t('session.lesson.back')}
-        title={scenario.title}
-        {...(topicLine === undefined ? {} : { badge: <TopicBadge line={topicLine} size="sm" /> })}
-        progress={
-          <div className="flex flex-col gap-1">
-            <span className="truncate font-mono text-[11px] text-chrome-muted">{progress.label}</span>
-            <Meter
-              value={progress.value}
-              max={progress.max}
-              segments={Math.max(progress.max, 1)}
-              tone={progress.value >= progress.max ? 'success' : (topicLine ?? 'primary')}
+    <PracticeFrame
+      bar={
+        <WorkspaceBar
+          backHref="/lessons"
+          backLabel={t('session.lesson.back')}
+          title={scenario.title}
+          badge={<TopicGlyph topic={look.topic} icon={look.icon} size={22} />}
+          progress={
+            <ProgressLine
+              role="meter"
+              value={progress.max === 0 ? 0 : progress.value / progress.max}
               label={t('session.lesson.progress-label')}
+              caption={progress.label}
+              tone={progress.value >= progress.max && progress.max > 0 ? 'ok' : 'acc'}
+              size="xs"
             />
-          </div>
-        }
-        controls={
-          <SessionControls
-            session={session}
-            actions={{ start: session.start, end: session.end, extend: session.extend }}
-            capacity={capacity.data ?? null}
-            profile={query.data?.profile ?? DEFAULT_PROFILE}
-          />
-        }
-      />
-      <NoticeStrip notices={notices} />
-      <div className="min-h-0 flex-1">
-        <WorkspaceSplit
-          storageKey={showIde ? 'dlp-lesson-split-ide' : 'dlp-lesson-split'}
-          {...(showIde ? { defaultRatio: 0.34 } : {})}
-          content={instructions}
-          side={
-            <WorkspacePanel
-              {...(showIde ? { editor: <IdePane sessionId={sessionId} phase={phase} /> } : {})}
-              terminal={terminalPane}
-              activeTab={tabs.activeTab}
-              onActivate={tabs.onActivate}
-              onPopOut={sessionId === null ? null : onPopOut}
-              status={<SessionStatusPill phase={phase} />}
-              storageKey="dlp-lesson-workspace"
+          }
+          controls={
+            <SessionControls
+              session={session}
+              actions={{ start: session.start, end: session.end, extend: session.extend }}
+              capacity={capacity.data}
+              profile={profile}
             />
           }
         />
-      </div>
-    </div>
-  );
-}
-
-function Centered({ children, tone }: { children: React.ReactNode; tone?: 'error' }): ReactElement {
-  return (
-    <div className="flex h-dvh items-center justify-center bg-background px-6">
-      <p className={tone === 'error' ? 'text-sm text-destructive' : 'text-sm text-muted-foreground'}>{children}</p>
-    </div>
+      }
+      notices={<NoticeStrip notices={notices} />}
+    >
+      <WorkspaceSplit
+        storageKey={showIde ? 'dlp-lesson-split-ide' : 'dlp-lesson-split'}
+        defaultRatio={showIde ? 0.34 : 0.42}
+        focus={focus}
+        onFocusChange={setFocus}
+        content={instructions}
+        side={
+          <WorkspacePanel
+            {...(showIde
+              ? {
+                  editor: (
+                    <IdePane
+                      sessionId={sessionId}
+                      phase={phase}
+                      sessionGone={phase === 'expired' || (phase === 'error' && !canReconnect(session.state))}
+                    />
+                  ),
+                }
+              : {})}
+            terminal={<TerminalPane session={session} theme={terminalTheme} handoff={handoff} placeholder={launch} />}
+            activeTab={tabs.activeTab}
+            onActivate={tabs.onActivate}
+            onPopOut={sessionId === null ? null : onPopOut}
+            status={<SessionStatusPill phase={phase} />}
+            storageKey="dlp-lesson-workspace"
+          />
+        }
+      />
+    </PracticeFrame>
   );
 }

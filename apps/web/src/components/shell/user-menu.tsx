@@ -3,60 +3,33 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { LogOut } from 'lucide-react';
-import {
-  Button,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-  useToast,
-} from '@devops-platform/ui';
+import { Avatar, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Pill, toast } from '@devops-platform/ds';
 import { errText, t } from '@devops-platform/copy';
 import { userMenuItems, type Viewer } from './nav';
-import { USER_MENU_ICONS } from './nav-icons';
-import { avatarInitials } from './initials';
 
+const ROLE_LABEL = {
+  user: () => t('shell.account.role.user'),
+  author: () => t('shell.account.role.author'),
+  admin: () => t('shell.account.role.admin'),
+} as const;
+
+/**
+ * Menu tài khoản: vòng chữ cái đầu trên thanh (tên và email chỉ hiện khi mở menu, để
+ * màn hình chiếu lên lớp không lộ email), trang cá nhân, cài đặt, đăng xuất.
+ */
 export function UserMenu({ viewer }: { readonly viewer: Viewer }) {
   const router = useRouter();
-  const { toast } = useToast();
   const [signingOut, setSigningOut] = useState(false);
-  const items = userMenuItems(viewer.role);
+  const name = viewer.name === '' ? t('shell.account.fallback-name') : viewer.name;
 
-  /**
-   * ⛔ Gọi route logout TỰ VIẾT, KHÔNG phải `authClient.signOut()`.
-   *
-   * `/api/auth/logout` là NƠI DUY NHẤT thu hồi refresh token (luật 7); nó cũng
-   * signOut session Better Auth phía server rồi xoá cả ba cookie. Gọi thẳng
-   * `authClient.signOut()` là "đăng xuất" mà refresh token vẫn sống 7 ngày —
-   * và triệu chứng của lỗi đó là KHÔNG CÓ triệu chứng nào cho tới lúc bị lạm
-   * dụng. (Lý lẽ này đến từ `app/dashboard/sign-out-button.tsx`, file bị thay
-   * bởi menu này ở 13.B.)
-   */
-  async function onSignOut(): Promise<void> {
+  async function signOut(): Promise<void> {
     setSigningOut(true);
     try {
       const response = await fetch('/api/auth/logout', { method: 'POST' });
-      if (!response.ok) {
-        throw new Error(`HTTP ${String(response.status)}`);
-      }
+      if (!response.ok) throw new Error(`HTTP ${String(response.status)}`);
     } catch (error: unknown) {
-      // Chữ NGƯỜI VẬN HÀNH đọc, nên nó ở lại tiếng Anh và KHÔNG vào
-      // `packages/copy` (§1.7: log không vào bản đồ). Bản trước viết câu này
-      // bằng tiếng Việt có dấu, và cổng T4 của lane bắt đúng nó.
-      console.error('[auth] sign-out request failed', error);
-      // KHÔNG điều hướng khi thu hồi thất bại: cookie phiên vẫn còn, nên
-      // `/login` sẽ bị `proxy.ts` đẩy ngược về `/me` và người dùng kết luận
-      // "bấm đăng xuất không ăn thua" mà không biết vì sao.
-      toast({
-        title: t('shell.sign-out.failed-title'),
-        // `errText` nối `what` rồi `next`. Hai nửa TÁCH RỜI ở tầng kiểu nên
-        // không ai rút gọn được thông báo này về một câu "Đăng xuất thất bại".
-        description: errText('shell.error.sign-out'),
-        variant: 'destructive',
-      });
+      console.error('[auth] sign-out failed', error);
+      toast.error(t('shell.sign-out.failed-title'), { description: errText('shell.error.sign-out') });
       setSigningOut(false);
       return;
     }
@@ -65,77 +38,45 @@ export function UserMenu({ viewer }: { readonly viewer: Viewer }) {
   }
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        {/*
-          Avatar chữ cái thay cho chuỗi tên/email in thẳng ra thanh nav.
-
-          Bản cũ `max-w-24 … truncate` giải đúng bài toán CHỖ, nhưng giải bằng
-          cách cắt cụt: tên dài thành "Nguyễn Thị B…", và khi `name` rỗng thì
-          nó in cả địa chỉ email — dữ liệu cá nhân nằm thường trực trên mọi màn
-          hình được chia sẻ hay chiếu lên máy chiếu. Hai chữ cái không cắt được
-          nữa, và tên + email đầy đủ vẫn nằm trong menu khi người dùng chủ động
-          mở ra.
-
-          `aria-hidden` cho hình tròn, tên khả truy cập do `sr-only` cấp: chuỗi
-          hai chữ cái đọc lên là vô nghĩa với trình đọc màn hình.
-        */}
-        <Button variant="ghost" size="sm" className="size-10 px-0 hover:bg-chrome-foreground/10">
-          <span
-            aria-hidden="true"
-            className="flex size-8 items-center justify-center bg-signal font-mono text-xs font-bold text-signal-foreground"
-          >
-            {avatarInitials(viewer.name, viewer.email)}
-          </span>
-          <span className="sr-only">
-            {viewer.name === ''
-              ? t('shell.account.trigger')
-              : t('shell.account.trigger-named', { name: viewer.name })}
-          </span>
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-56">
-        <DropdownMenuLabel className="text-foreground">
-          <span className="block truncate font-medium">
-            {viewer.name === '' ? t('shell.account.fallback-name') : viewer.name}
-          </span>
-          <span className="block truncate text-xs font-normal text-muted-foreground">
-            {viewer.email}
-          </span>
-          <span className="mt-2 inline-block bg-muted px-1.5 py-0.5 type-label text-muted-foreground">
-            {t(`shell.account.role.${viewer.role}` as const)}
-          </span>
-        </DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        {items.map((item) => {
-          const Icon = USER_MENU_ICONS[item.href];
-          return (
-            <DropdownMenuItem key={item.href} asChild>
-              <Link href={item.href} className="flex items-center gap-2">
-                {Icon === undefined ? null : (
-                  <Icon aria-hidden="true" className="size-4 shrink-0" />
-                )}
-                {item.label}
-              </Link>
-            </DropdownMenuItem>
-          );
-        })}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
+    <Menu>
+      <MenuTrigger asChild>
+        <button
+          type="button"
+          className="grid size-9 place-items-center rounded-full transition-[box-shadow] duration-150 hover:ring-4 hover:ring-well-2"
+        >
+          <Avatar name={name} seed={viewer.email} size={32} />
+          <span className="sr-only">{t('shell.account.trigger-named', { name })}</span>
+        </button>
+      </MenuTrigger>
+      <MenuContent className="w-64">
+        <div className="flex items-center gap-3 px-2.5 pb-2 pt-1.5">
+          <Avatar name={name} seed={viewer.email} size={36} />
+          <div className="flex min-w-0 flex-col">
+            <span className="truncate text-sm font-medium text-ink">{name}</span>
+            <span className="truncate text-xs text-ink-3">{viewer.email}</span>
+          </div>
+        </div>
+        <div className="px-2.5 pb-2">
+          <Pill tone="acc">{ROLE_LABEL[viewer.role]()}</Pill>
+        </div>
+        <MenuSeparator />
+        {userMenuItems(viewer.role).map((entry) => (
+          <MenuItem key={entry.href} icon={entry.icon} asChild>
+            <Link href={entry.href}>{entry.label}</Link>
+          </MenuItem>
+        ))}
+        <MenuSeparator />
+        <MenuItem
+          icon="logout"
           disabled={signingOut}
           onSelect={(event) => {
-            // Giữ menu mở trong lúc chờ: đóng ngay rồi thất bại sẽ để lại một
-            // toast lỗi không còn ngữ cảnh nào giải thích nó đến từ đâu.
             event.preventDefault();
-            void onSignOut();
+            void signOut();
           }}
         >
-          <span className="flex items-center gap-2">
-            <LogOut aria-hidden="true" className="size-4 shrink-0" />
-            {signingOut ? t('shell.account.signing-out') : t('shell.account.sign-out')}
-          </span>
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+          {t('shell.account.sign-out')}
+        </MenuItem>
+      </MenuContent>
+    </Menu>
   );
 }

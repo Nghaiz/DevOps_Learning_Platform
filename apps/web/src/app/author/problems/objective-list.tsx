@@ -1,15 +1,14 @@
 'use client';
 
 import type { ReactElement } from 'react';
-import { Plus } from 'lucide-react';
 import { t } from '@devops-platform/copy';
-import { Button } from '@devops-platform/ui';
 import { fieldPathProps } from '../../../components/author/studio';
-import { Split, type TopicLine } from '../../../components/kit';
+import { FormBlock } from '../../../components/author/studio';
 import type { FieldIssue } from './cluster-form';
 import { ObjectiveFields } from './objective-fields';
 import { emptyObjective, moveObjective, type ProblemFormState } from './problem-form';
 import { parseList } from './text-tools';
+import { Button } from '@devops-platform/ds';
 
 /**
  * Chế độ Mục tiêu: danh sách testcase, thêm, xoá, đổi thứ tự.
@@ -24,7 +23,6 @@ export function ObjectiveList(props: {
   readonly form: ProblemFormState;
   readonly onChange: (patch: Partial<ProblemFormState>) => void;
   readonly issues: readonly FieldIssue[];
-  readonly line: TopicLine;
   readonly nextKey: () => string;
 }): ReactElement {
   const { objectives } = props.form;
@@ -32,7 +30,7 @@ export function ObjectiveList(props: {
   const nodes = props.form.cluster.nodes.map((node) => node.name.trim()).filter((name) => name !== '');
 
   return (
-    <Split index="01" title={t('author.problem.objectives.heading')}>
+    <FormBlock title={t('author.problem.objectives.heading')}>
       <div className="flex flex-col gap-6" {...fieldPathProps('objectives')}>
         {objectives.map((objective, index) => (
           <ObjectiveFields
@@ -40,7 +38,6 @@ export function ObjectiveList(props: {
             objective={objective}
             gameId={props.form.gameId}
             index={index}
-            line={props.line}
             issues={props.issues}
             namespaces={namespaces}
             nodes={nodes}
@@ -63,8 +60,8 @@ export function ObjectiveList(props: {
         <div>
           <Button
             type="button"
-            variant="outline"
-            iconLeft={<Plus aria-hidden className="size-4" />}
+            variant="secondary"
+            icon="plus"
             onClick={() => {
               const next = emptyObjective(props.nextKey());
               props.onChange({
@@ -76,6 +73,6 @@ export function ObjectiveList(props: {
           </Button>
         </div>
       </div>
-    </Split>
+    </FormBlock>
   );
 }

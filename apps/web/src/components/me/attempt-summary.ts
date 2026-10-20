@@ -1,5 +1,5 @@
 import { t } from '@devops-platform/copy';
-import type { BadgeVariant } from '@devops-platform/ui';
+import type { Tone } from '@devops-platform/ds';
 import type { LabAttemptStatus, LabScore } from '@devops-platform/shared-types/lab';
 import type { QuizScore } from '@devops-platform/shared-types/quiz';
 
@@ -23,7 +23,7 @@ import type { QuizScore } from '@devops-platform/shared-types/quiz';
 
 export interface LabAttemptSummary {
   readonly statusLabel: string;
-  readonly statusVariant: BadgeVariant;
+  readonly statusVariant: Tone;
   readonly scoreLabel: string;
   readonly durationLabel: string;
 }
@@ -36,11 +36,11 @@ export interface LabAttemptSummary {
  * khoá gõ sai là lỗi biên dịch chứ không phải một ô trống lúc chạy.
  */
 const LAB_STATUS: Readonly<
-  Record<LabAttemptStatus, { key: 'me.labs.status.in-progress' | 'me.labs.status.passed' | 'me.labs.status.failed'; variant: BadgeVariant }>
+  Record<LabAttemptStatus, { key: 'me.labs.status.in-progress' | 'me.labs.status.passed' | 'me.labs.status.failed'; variant: Tone }>
 > = {
-  in_progress: { key: 'me.labs.status.in-progress', variant: 'secondary' },
-  passed: { key: 'me.labs.status.passed', variant: 'success' },
-  failed: { key: 'me.labs.status.failed', variant: 'destructive' },
+  in_progress: { key: 'me.labs.status.in-progress', variant: 'info' },
+  passed: { key: 'me.labs.status.passed', variant: 'ok' },
+  failed: { key: 'me.labs.status.failed', variant: 'bad' },
 };
 
 export function summarizeLabAttempt(input: {
@@ -64,7 +64,7 @@ export function summarizeLabAttempt(input: {
 
 export interface QuizAttemptSummary {
   readonly statusLabel: string;
-  readonly statusVariant: BadgeVariant;
+  readonly statusVariant: Tone;
   readonly scoreLabel: string;
 }
 
@@ -72,7 +72,7 @@ export function summarizeQuizAttempt(input: { readonly score: QuizScore }): Quiz
   const { correctCount, questionCount, percent, passed } = input.score;
   return {
     statusLabel: passed ? t('me.quizzes.status-passed') : t('me.quizzes.status-failed'),
-    statusVariant: passed ? 'success' : 'destructive',
+    statusVariant: passed ? 'ok' : 'bad',
     scoreLabel: t('me.quizzes.score', { correct: correctCount, total: questionCount, percent }),
   };
 }

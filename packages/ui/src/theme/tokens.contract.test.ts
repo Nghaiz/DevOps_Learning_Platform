@@ -50,7 +50,9 @@ function workspaceRoot(): string {
   }
 }
 
-const GLOBALS_CSS = resolvePath(workspaceRoot(), 'apps/web/src/app/globals.css');
+// Token của giao diện cũ (packages/ui) nay khai ở legacy.css, có phạm vi `.legacy-skin`/`.arena-root`.
+// `globals.css` chỉ còn hệ `ds`.
+const GLOBALS_CSS = resolvePath(workspaceRoot(), 'apps/web/src/app/legacy.css');
 
 const css = readFileSync(GLOBALS_CSS, 'utf8');
 
@@ -344,10 +346,10 @@ const C1_GEOMETRY_TOKENS = [
 ] as const;
 
 /**
- * Token khai trong khối `@theme` (không `inline`) — Tailwind vừa phát chúng ra
- * `:root` vừa sinh tiện ích. Chúng KHÔNG nằm trong khối `:root` do ta viết, nên
- * phép kiểm "không token thừa" ở dưới không thấy chúng; nhưng AC-1 vẫn đòi
- * khẳng định chúng VẮNG MẶT ở `.dark`.
+ * Thang chữ, giãn dòng và khoảng cách cũ. Trước bản dựng lại 2026-10 chúng nằm
+ * trong khối `@theme`; khối đó phát ra `:root` và không đặt phạm vi được, mà
+ * `:root` nay thuộc hệ `ds`. Vì vậy legacy.css khai chúng ngay trong khối có
+ * phạm vi `.arena-root`, và AC-1 vẫn đòi khẳng định chúng VẮNG MẶT ở `.dark`.
  */
 const THEME_BLOCK_TOKENS = [
   '--spacing',
@@ -366,6 +368,25 @@ const THEME_BLOCK_TOKENS = [
   '--leading-normal',
   '--leading-loose',
 ] as const;
+
+/**
+ * Cùng đợt chuyển chỗ ấy: font, bo góc và cặp `--text-*--line-height` trước ở
+ * `@theme` / `@theme inline`, nay ở khối có phạm vi. Hệ `ds` khai các tên
+ * `--font-sans`, `--radius-*` của riêng nó ở `:root`; để bản cũ ở `@theme` là
+ * đè lên hệ mới trên mọi trang, không chỉ trong game.
+ */
+const LEGACY_SCOPED_TYPE_TOKENS: readonly string[] = [
+  '--font-display',
+  '--font-sans',
+  '--font-mono',
+  '--radius-sm',
+  '--radius-md',
+  '--radius-lg',
+  '--radius-xl',
+  ...THEME_BLOCK_TOKENS.filter((token) => token.startsWith('--text-')).map(
+    (token) => `${token}--line-height`,
+  ),
+];
 
 /**
  * Cắt khối top-level theo độ sâu ngoặc thay vì regex `\{([\s\S]*?)\}` — khối
@@ -391,7 +412,7 @@ function blockBody(source: string, selector: string): string {
     if (depth <= 0) break;
     buffer.push(line);
   }
-  if (current === null) throw new Error(`Không tìm thấy khối \`${selector}\` trong globals.css`);
+  if (current === null) throw new Error(`Không tìm thấy khối \`${selector}\` trong legacy.css`);
   return buffer.join('\n');
 }
 
@@ -406,8 +427,10 @@ function declarations(body: string): Record<string, string> {
   return out;
 }
 
-const root = declarations(blockBody(css, ':root'));
-const dark = declarations(blockBody(css, '.dark'));
+// legacy.css khai token cũ trong khối có phạm vi (`.legacy-skin,` xuống dòng `.arena-root {`),
+// không ở `:root`: dòng mở khối mang bộ chọn `.arena-root`, và khối tối là `.dark .arena-root`.
+const root = declarations(blockBody(css, '.arena-root'));
+const dark = declarations(blockBody(css, '.dark .arena-root'));
 const themeInline = declarations(blockBody(css, '@theme inline'));
 
 // ─── oklch → sRGB → độ chói tương đối (WCAG 2.1) ──────────────────────────────
@@ -529,7 +552,7 @@ function toHex(rgb: Srgb): string {
  *
  * Tức cổng này ĐÃ CHỨNG NHẬN cho đúng thứ nó sinh ra để chặn. Hai con số sai
  * 4.01 (trên `--background`) và 3.71 (trên `--card`) còn được chép sang chú
- * thích `apps/web/src/app/globals.css` và bảng `docs/design-system.md` §1a —
+ * thích `apps/web/src/app/globals.css` và bảng `docs/design-system-legacy.md` §1a —
  * cả ba nơi sai cùng một kiểu, sửa cùng ngày 2026-09-06.
  *
  * Đối chứng dương ghim cả hai con số nằm ở cuối file, để lần sau ai đổi lại
@@ -652,10 +675,9 @@ describe('C1 — token có mặt ở CẢ HAI theme', () => {
    * vắng vì hai lý do KHÁC nhau, nên chúng được tách khỏi khối trên:
    *
    *  • `--brand-*` vắng vì màu logo KHÔNG được đổi theo theme (§1.5);
-   *  • `--text-*`/`--leading-*`/`--spacing` vắng vì chúng sống trong khối
-   *    `@theme` chứ không trong `:root` do ta viết — nếu một ngày ai đó chép
-   *    một dòng `--text-base` xuống `.dark`, nó sẽ ghi đè bảng theme của
-   *    Tailwind ở đúng một nhánh và không có gì khác kêu lên.
+   *  • `--text-*`/`--leading-*`/`--spacing` vắng vì chúng là số đo, không
+   *    phải màu — nếu một ngày ai đó chép một dòng `--text-base` xuống `.dark`,
+   *    nó sẽ đổi thang chữ ở đúng một nhánh và không có gì khác kêu lên.
    */
   it.each([
     ...C1_BRAND_TOKENS,
@@ -672,7 +694,7 @@ describe('C1 — token có mặt ở CẢ HAI theme', () => {
     ).toBeUndefined();
   });
 
-  it('không có token THỪA ngoài hợp đồng C1 (thêm token = phải sửa C1 + docs/design-system.md)', () => {
+  it('không có token THỪA ngoài hợp đồng C1 (thêm token = phải sửa C1 + docs/design-system-legacy.md)', () => {
     const expected = [
       ...C1_COLOR_TOKENS,
       ...C1_ELEVATION_TOKENS,
@@ -683,6 +705,8 @@ describe('C1 — token có mặt ở CẢ HAI theme', () => {
       ...C1_ODYSSEY_TOKENS,
       ...C1_TRANSIT_SHADOW_TOKENS,
       ...C1_TRANSIT_SHAPE_TOKENS,
+      ...THEME_BLOCK_TOKENS,
+      ...LEGACY_SCOPED_TYPE_TOKENS,
       '--radius',
     ];
     expect(Object.keys(root).toSorted()).toEqual(expected.toSorted());
@@ -799,11 +823,11 @@ function threeReadableColor(value: string): ThreeColorReading {
  * một byte nào vào file sản phẩm.
  */
 function journeyColorViolations(cssText: string): string[] {
-  const declared = declarations(blockBody(cssText, ':root'));
+  const declared = declarations(blockBody(cssText, '.arena-root'));
   return C1_JOURNEY_TOKENS.flatMap((token) => {
     const value = declared[token];
     if (value === undefined) {
-      return [`${token}: không khai ở :root`];
+      return [`${token}: không khai trong khối .arena-root`];
     }
     const reading = threeReadableColor(value);
     return reading.ok ? [] : [`${token}: ${reading.why}`];
@@ -840,10 +864,10 @@ describe('C1 — mười token cảnh 3D ở dạng THREE.Color đọc được'
     ]);
   });
 
-  it('đối chứng dương: token biến mất khỏi :root cũng ĐỎ, không im lặng bỏ qua', () => {
+  it('đối chứng dương: token biến mất khỏi khối .arena-root cũng ĐỎ, không im lặng bỏ qua', () => {
     const doctored = css.replace('--journey-metal: rgb(84, 107, 135);', '');
     expect(doctored).not.toBe(css);
-    expect(journeyColorViolations(doctored)).toEqual(['--journey-metal: không khai ở :root']);
+    expect(journeyColorViolations(doctored)).toEqual(['--journey-metal: không khai trong khối .arena-root']);
   });
 
   it.each([
@@ -941,7 +965,7 @@ describe('C1 — `@theme inline` sinh được class Tailwind cho mọi token', 
 
   it('bo góc VUÔNG trong app, thang cũ chỉ sống lại trong phạm vi game K8s (design-brief §0.1)', () => {
     for (const size of ['sm', 'md', 'lg', 'xl']) {
-      expect(themeInline[`--radius-${size}`]).toBe(`var(--radius-legacy-${size}, 0px)`);
+      expect(root[`--radius-${size}`]).toBe(`var(--radius-legacy-${size}, 0px)`);
     }
     expect(themeInline['--radius-control']).toBe('var(--r-control)');
     expect(themeInline['--radius-surface']).toBe('var(--r-surface)');
@@ -950,13 +974,14 @@ describe('C1 — `@theme inline` sinh được class Tailwind cho mọi token', 
     const arena = declarations(blockBody(css, '.arena-root.dark'));
     expect(arena['--radius-legacy-md']).toBe('calc(0.75rem - 3px)');
     expect(arena['--r-control']).toBe('calc(0.75rem - 3px)');
-    // `--radius-full` là hằng hình học (pill), không suy từ `--radius` — ghim
-    // để nó là một ngoại lệ CÓ TÊN, không phải một dòng lọt lưới.
-    expect(themeInline['--radius-full']).toBe('9999px');
+    // `--radius-full` CỐ Ý không khai lại: `rounded-full` của Tailwind v4 là tiện ích
+    // tĩnh (`calc(infinity * 1px)`), nên vùng giữ nguyên vẫn có pill. Khai nó ở
+    // `@theme inline` là đổi `rounded-full` trên MỌI trang, kể cả hệ `ds`.
+    expect(themeInline['--radius-full']).toBeUndefined();
   });
 
   it('`--font-sans` đặt Be Vietnam Pro trước, kèm fallback thật (D3)', () => {
-    const sans = themeInline['--font-sans'];
+    const sans = root['--font-sans'];
     expect(sans).toContain('var(--font-be-vietnam-pro)');
     // Chỉ mỗi biến là không đủ: nếu `next/font` hỏng lúc build thì biến rỗng và
     // trình duyệt rơi về serif mặc định thay vì một sans đọc được.
@@ -1035,7 +1060,7 @@ const TEXT_PAIRS: ReadonlyArray<readonly [ColorToken, ColorToken]> = [
    * `--destructive` sáng trước đây là `oklch(0.577 0.245 27.325)`, chỉ được
    * **4.3686:1** trên `--muted` — dưới 4.5. Khoảng trống đó được ghim bằng một
    * *absence pin* riêng ở cuối file này, kèm một câu dặn ở
-   * `docs/design-system.md` §1c ("đừng đặt nút destructive vào khối
+   * `docs/design-system-legacy.md` §1c ("đừng đặt nút destructive vào khối
    * `bg-muted`"). `p16-tokens.md` đặt giá trị mới `oklch(0.505 0.192 29)`, đo
    * lại được **5.9429** (sáng) và **5.3271** (tối).
    *
@@ -1063,7 +1088,7 @@ const TEXT_PAIRS: ReadonlyArray<readonly [ColorToken, ColorToken]> = [
  * dụng. `--border` KHÔNG có trong danh sách này: nó chỉ vẽ ranh giới trang
  * trí (viền card, kẻ dòng bảng, `Separator` mặc định `decorative`), thuộc
  * ngoại lệ "pure decoration" của SC 1.4.11 — số đo thật của nó và lý do
- * ghi ở `docs/design-system.md` §1a, để đây là một QUYẾT ĐỊNH có số, không
+ * ghi ở `docs/design-system-legacy.md` §1a, để đây là một QUYẾT ĐỊNH có số, không
  * phải một chỗ bỏ sót.
  */
 const NON_TEXT_PAIRS: ReadonlyArray<readonly [ColorToken, ColorToken]> = [
@@ -1220,7 +1245,7 @@ describe('đối chứng — phép đo contrast ra đúng số đã biết, và 
    *
    * Bốn con số dưới đây tính tay trong `p16-tokens.md` §1.1–§1.2 theo đúng chuỗi
    * sRGB → tuyến tính → độ chói, và ba trong bốn đã được công bố độc lập ở
-   * `docs/design-system.md` §2.1. Lệch một dòng ⇒ MÃ ĐO sai, không phải màu sai.
+   * `docs/design-system-legacy.md` §2.1. Lệch một dòng ⇒ MÃ ĐO sai, không phải màu sai.
    *
    * Đi từ HEX chứ không từ oklch là có chủ ý: nó bỏ qua ma trận oklch→sRGB, nên
    * nếu ma trận đó hỏng thì khối này vẫn đúng và khối `toHex()` ở trên mới đỏ —
@@ -1493,7 +1518,7 @@ describe('AC-4 — luật hai kênh sống sót khi KHỬ MÀU', () => {
  * rồi đưa cặp vào `TEXT_PAIRS` (đã làm, xem chú thích tại chỗ ở đó). Ghim lại
  * 5.94 sẽ là "đổi tên hiện tại thành kỳ vọng", đúng thứ luật cấm.
  *
- * Câu dặn tương ứng ở `docs/design-system.md` §1c cũng đã được gỡ trong CÙNG
+ * Câu dặn tương ứng ở `docs/design-system-legacy.md` §1c cũng đã được gỡ trong CÙNG
  * commit — một tài liệu còn dặn tránh một khoảng trống không còn tồn tại thì
  * đang dạy sai.
  *
@@ -1580,13 +1605,21 @@ describe('gamut sRGB — số đo chỉ đúng khi màu nằm trong gamut', () =
 });
 
 /**
- * `prefers-reduced-motion` được khai MỘT LẦN ở `globals.css` để cả năm lane
- * thừa hưởng. Gác ở đây vì đây là thứ không lane nào tự kiểm được, và khi thiếu
+ * `prefers-reduced-motion` được khai MỘT LẦN, ở theme của hệ `ds`
+ * (`packages/ds/src/styles/theme.css`, mà `globals.css` import trước legacy.css),
+ * để mọi trang lẫn vùng giữ nguyên cùng thừa hưởng. Gác ở đây vì đây là thứ không lane nào tự kiểm được, và khi thiếu
  * thì nó hỏng IM LẶNG: trang vẫn chạy, chỉ là người bật cờ giảm chuyển động
  * không được tôn trọng — không lỗi build, không lỗi runtime.
  */
 describe('D4 — prefers-reduced-motion khai một lần, dùng chung', () => {
-  const block = /@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{([\s\S]*?)\n\}/.exec(css)?.[1];
+  const dsTheme = readFileSync(resolvePath(workspaceRoot(), 'packages/ds/src/styles/theme.css'), 'utf8');
+  const reducedMotion = /@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{([\s\S]*?)\n\}/g;
+  const block = reducedMotion.exec(dsTheme)?.[1];
+
+  it('chỉ có MỘT khối, và legacy.css không tự khai khối thứ hai', () => {
+    expect(dsTheme.match(reducedMotion)?.length).toBe(1);
+    expect(css).not.toMatch(/prefers-reduced-motion:\s*reduce/);
+  });
 
   it('có khối @media (prefers-reduced-motion: reduce)', () => {
     expect(
@@ -1598,8 +1631,9 @@ describe('D4 — prefers-reduced-motion khai một lần, dùng chung', () => {
   it('phủ bằng bộ chọn phổ quát — tiện ích Tailwind KHÔNG đọc --motion-*', () => {
     // `transition-colors` & co. sinh ra `transition-duration` riêng; hạ
     // `--motion-*` về 0 sẽ bỏ sót đúng những chỗ đó.
-    expect(block).toMatch(/\*::before/);
-    expect(block).toMatch(/\*::after/);
+    // `::before` không kèm `*` vẫn là bộ chọn phổ quát (dấu `*` được ngầm hiểu).
+    expect(block).toMatch(/(^|[\s,])\*?::before/m);
+    expect(block).toMatch(/(^|[\s,])\*?::after/m);
   });
 
   it('tắt được CẢ transition lẫn animation, và bằng !important', () => {

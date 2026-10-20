@@ -1,315 +1,278 @@
 'use client';
 
 import Link from 'next/link';
-import type { ReactElement, ReactNode } from 'react';
-import { err, t } from '@devops-platform/copy';
+import type { ReactNode } from 'react';
 import {
-  Badge,
-  CursorPager,
-  EmptyState,
-  ErrorState,
+  Empty,
+  EmptyArt,
+  ErrorBlock,
+  Pager,
+  Pill,
+  RowsSkeleton,
+  Section,
+  TBody,
+  TD,
+  TH,
+  THead,
+  TR,
   Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
-} from '@devops-platform/ui';
+} from '@devops-platform/ds';
+import { err, t } from '@devops-platform/copy';
 import { api } from '../../lib/trpc-react';
 import { describeTrpcError } from '../../lib/trpc';
-import { formatMoment } from '../../lib/format-moment';
-import { BoardSkeleton, StationMarker, lineForTopic } from '../kit';
+import { formatWhen } from '../../lib/format-moment';
 import { summarizeLabAttempt, summarizeQuizAttempt } from './attempt-summary';
 import { summarizeLessonProgress } from './lesson-progress';
-import { useCursorPages } from './use-cursor-pages';
-import { describeEmptyPage, shouldShowPager, type HistoryNotice, type HistoryPageState } from './history-page-notice';
+import { useCursorPages, type CursorPages } from './use-cursor-pages';
+import { describeEmptyPage, shouldShowPager, type HistoryPageState } from './history-page-notice';
 
-/**
- * Lịch sử: bài học · lab · trắc nghiệm, mỗi tab một sổ cái (design-brief §4.4)
- * phân trang bằng cursor.
- *
- * Radix Tabs KHÔNG render tab đang ẩn, nên `useQuery` của mỗi tab chỉ chạy khi
- * người dùng mở tab đó: `me.listLabAttempts` tính điểm cho từng lần thử, và nạp
- * cả ba danh sách lúc vào trang là ba lượt đọc nặng cho thứ phần lớn người dùng
- * không mở.
- *
- * Mọi điểm số TÍNH lúc đọc ở server; trang này không giữ bản sao nào.
- */
-export function HistoryTabs(): ReactElement {
+/** Lịch sử học: ba bảng (bài học, lab, trắc nghiệm), chỉ tab đang mở mới tải dữ liệu. */
+export function HistoryTabs({ headingLevel = 2 }: { readonly headingLevel?: 2 | 3 }) {
   return (
-    <Tabs defaultValue="lessons">
-      <TabsList>
-        <TabsTrigger value="lessons">{t('me.history.tab.lessons')}</TabsTrigger>
-        <TabsTrigger value="labs">{t('me.history.tab.labs')}</TabsTrigger>
-        <TabsTrigger value="quizzes">{t('me.history.tab.quizzes')}</TabsTrigger>
-      </TabsList>
-      <TabsContent value="lessons">
-        <LessonHistory />
-      </TabsContent>
-      <TabsContent value="labs">
-        <LabHistory />
-      </TabsContent>
-      <TabsContent value="quizzes">
-        <QuizHistory />
-      </TabsContent>
-    </Tabs>
+    <Section title={t('me.history.title')} description={t('me.history.aside')} level={headingLevel} icon="history">
+      <Tabs defaultValue="lessons">
+        <TabsList>
+          <TabsTrigger value="lessons" icon="book">
+            {t('me.history.tab.lessons')}
+          </TabsTrigger>
+          <TabsTrigger value="labs" icon="flask">
+            {t('me.history.tab.labs')}
+          </TabsTrigger>
+          <TabsTrigger value="quizzes" icon="quiz">
+            {t('me.history.tab.quizzes')}
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="lessons" className="pt-2">
+          <LessonHistory />
+        </TabsContent>
+        <TabsContent value="labs" className="pt-2">
+          <LabHistory />
+        </TabsContent>
+        <TabsContent value="quizzes" className="pt-2">
+          <QuizHistory />
+        </TabsContent>
+      </Tabs>
+    </Section>
   );
 }
 
-const TITLE_LINK =
-  'inline-flex items-center gap-3 font-medium underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring';
+interface QueryLike {
+  readonly isPending: boolean;
+  readonly isError: boolean;
+  readonly isFetching: boolean;
+  readonly error: unknown;
+  refetch(): unknown;
+}
 
-function LessonHistory(): ReactElement {
+function Frame({
+  query,
+  shape,
+  pages,
+  nextCursor,
+  blank,
+  children,
+}: {
+  query: QueryLike;
+  shape: HistoryPageState;
+  pages: CursorPages;
+  nextCursor: string | null | undefined;
+  blank: { title: string; description: string };
+  children: ReactNode;
+}) {
+  if (query.isPending) return <RowsSkeleton rows={4} label={t('me.history.loading')} />;
+  if (query.isError) {
+    const entry = err('me.error.history-load', { reason: describeTrpcError(query.error) });
+    return (
+      <ErrorBlock
+        title={entry.what}
+        retryLabel={t('common.action.retry')}
+        retrying={query.isFetching}
+        onRetry={() => {
+          if (pages.page > 1) pages.goFirst();
+          else void query.refetch();
+        }}
+      >
+        {entry.next}
+      </ErrorBlock>
+    );
+  }
+  const notice = describeEmptyPage(shape, blank);
+  return (
+    <div className="flex flex-col">
+      {notice === null ? (
+        children
+      ) : (
+        <Empty size="sm" art={<EmptyArt kind="nothing" width={64} />} title={notice.title}>
+          {notice.description}
+        </Empty>
+      )}
+      {shouldShowPager(shape) ? (
+        <Pager
+          status={t('common.pager.page', { page: pages.page })}
+          previousLabel={t('common.pager.prev')}
+          nextLabel={t('common.pager.next')}
+          firstLabel={t('common.pager.first')}
+          onFirst={pages.page > 1 ? pages.goFirst : undefined}
+          onPrevious={pages.page > 1 ? pages.goPrevious : undefined}
+          onNext={nextCursor == null ? undefined : () => pages.goNext(nextCursor)}
+          loading={query.isFetching}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function LessonHistory() {
   const pages = useCursorPages();
   const progress = api.me.listProgress.useQuery(pages.cursor === undefined ? {} : { cursor: pages.cursor });
-
+  const items = progress.data?.items ?? [];
   return (
-    <HistoryFrame
-      state={progress}
+    <Frame
+      query={progress}
+      pages={pages}
+      nextCursor={progress.data?.nextCursor}
+      shape={{ page: pages.page, itemCount: items.length, hasNext: progress.data?.nextCursor != null }}
       blank={{ title: t('me.lessons.blank-title'), description: t('me.lessons.blank-description') }}
-      page={{
-        page: pages.page,
-        itemCount: progress.data?.items.length ?? 0,
-        hasNext: progress.data?.nextCursor != null,
-      }}
-      pager={
-        <CursorPager
-          hasNext={progress.data?.nextCursor != null}
-          onNext={() => {
-            pages.goNext(progress.data?.nextCursor ?? null);
-          }}
-          onReset={pages.goFirst}
-          page={pages.page}
-          loading={progress.isFetching}
-        />
-      }
     >
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>{t('me.lessons.col.lesson')}</TableHead>
-            <TableHead>{t('me.lessons.col.status')}</TableHead>
-            <TableHead>{t('me.lessons.col.updated')}</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {(progress.data?.items ?? []).map((row) => {
+      <Table label={t('me.history.tab.lessons')}>
+        <THead>
+          <tr>
+            <TH>{t('me.lessons.col.lesson')}</TH>
+            <TH>{t('me.lessons.col.status')}</TH>
+            <TH numeric>{t('me.lessons.col.updated')}</TH>
+          </tr>
+        </THead>
+        <TBody>
+          {items.map((row) => {
             const summary = summarizeLessonProgress({ stepIndex: row.stepIndex, completedAt: row.completedAt });
             return (
-              <TableRow key={row.id}>
-                <TableCell>
-                  <Link href={`/lessons/${encodeURIComponent(row.lessonId)}`} className={TITLE_LINK}>
-                    <StationMarker line={lineForTopic({ id: row.lessonId })} />
-                    {row.lessonTitle === null ? (
-                      <span className="text-muted-foreground">{t('me.history.unreadable')}</span>
-                    ) : (
-                      <span>{row.lessonTitle}</span>
-                    )}
+              <TR key={row.id}>
+                <TD className="font-medium">
+                  <Link href={`/lessons/${encodeURIComponent(row.lessonId)}`} className="hover:text-acc-ink hover:underline">
+                    {row.lessonTitle ?? <span className="text-ink-3">{t('me.history.unreadable')}</span>}
                   </Link>
-                </TableCell>
-                <TableCell>
+                </TD>
+                <TD>
                   <span className="flex flex-wrap items-center gap-2">
-                    <Badge variant={summary.variant}>{summary.label}</Badge>
-                    {summary.detail !== null && <span className="text-sm text-muted-foreground">{summary.detail}</span>}
+                    <Pill tone={summary.variant}>{summary.label}</Pill>
+                    {summary.detail === null ? null : <span className="text-ink-3">{summary.detail}</span>}
                   </span>
-                </TableCell>
-                <TableCell className="font-mono text-sm whitespace-nowrap text-muted-foreground tabular-nums">
-                  {formatMoment(row.updatedAt)}
-                </TableCell>
-              </TableRow>
+                </TD>
+                <TD numeric className="whitespace-nowrap text-ink-2">
+                  {formatWhen(row.updatedAt)}
+                </TD>
+              </TR>
             );
           })}
-        </TableBody>
+        </TBody>
       </Table>
-    </HistoryFrame>
+    </Frame>
   );
 }
 
-function LabHistory(): ReactElement {
+function LabHistory() {
   const pages = useCursorPages();
   const attempts = api.me.listLabAttempts.useQuery(pages.cursor === undefined ? {} : { cursor: pages.cursor });
-
+  const items = attempts.data?.items ?? [];
   return (
-    <HistoryFrame
-      state={attempts}
-      blank={{ title: t('me.labs.blank-title'), description: t('me.labs.blank-description') }}
-      page={{
+    <Frame
+      query={attempts}
+      pages={pages}
+      nextCursor={attempts.data?.nextCursor}
+      shape={{
         page: pages.page,
-        itemCount: attempts.data?.items.length ?? 0,
+        itemCount: items.length,
         hasNext: attempts.data?.nextCursor != null,
-        // `me.listLabAttempts` bỏ dòng có lab đã bị gỡ; xem `history-page-notice.ts`.
         skipped: attempts.data?.skipped ?? 0,
       }}
-      pager={
-        <CursorPager
-          hasNext={attempts.data?.nextCursor != null}
-          onNext={() => {
-            pages.goNext(attempts.data?.nextCursor ?? null);
-          }}
-          onReset={pages.goFirst}
-          page={pages.page}
-          loading={attempts.isFetching}
-        />
-      }
+      blank={{ title: t('me.labs.blank-title'), description: t('me.labs.blank-description') }}
     >
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>{t('me.labs.col.lab')}</TableHead>
-            <TableHead>{t('me.labs.col.result')}</TableHead>
-            <TableHead>{t('me.labs.col.score')}</TableHead>
-            <TableHead>{t('me.labs.col.duration')}</TableHead>
-            <TableHead>{t('me.labs.col.started')}</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {(attempts.data?.items ?? []).map((item) => {
-            const summary = summarizeLabAttempt({
-              status: item.status,
-              score: item.score,
-              durationSeconds: item.durationSeconds,
-            });
+      <Table label={t('me.history.tab.labs')}>
+        <THead>
+          <tr>
+            <TH>{t('me.labs.col.lab')}</TH>
+            <TH>{t('me.labs.col.result')}</TH>
+            <TH numeric>{t('me.labs.col.score')}</TH>
+            <TH numeric>{t('me.labs.col.duration')}</TH>
+            <TH numeric>{t('me.labs.col.started')}</TH>
+          </tr>
+        </THead>
+        <TBody>
+          {items.map((item) => {
+            const summary = summarizeLabAttempt({ status: item.status, score: item.score, durationSeconds: item.durationSeconds });
             return (
-              <TableRow key={item.attempt.id}>
-                <TableCell>
-                  <Link href={`/labs/${encodeURIComponent(item.labId)}`} className={TITLE_LINK}>
-                    <StationMarker line={lineForTopic({ id: item.labId })} />
+              <TR key={item.attempt.id}>
+                <TD className="font-medium">
+                  <Link href={`/labs/${encodeURIComponent(item.labId)}`} className="hover:text-acc-ink hover:underline">
                     {item.labTitle}
                   </Link>
-                </TableCell>
-                <TableCell>
-                  <Badge variant={summary.statusVariant}>{summary.statusLabel}</Badge>
-                </TableCell>
-                <TableCell className="font-mono text-sm tabular-nums">{summary.scoreLabel}</TableCell>
-                <TableCell className="font-mono text-sm whitespace-nowrap text-muted-foreground tabular-nums">
+                </TD>
+                <TD>
+                  <Pill tone={summary.statusVariant}>{summary.statusLabel}</Pill>
+                </TD>
+                <TD numeric>{summary.scoreLabel}</TD>
+                <TD numeric className="whitespace-nowrap text-ink-2">
                   {summary.durationLabel}
-                </TableCell>
-                <TableCell className="font-mono text-sm whitespace-nowrap text-muted-foreground tabular-nums">
-                  {formatMoment(item.attempt.startedAt)}
-                </TableCell>
-              </TableRow>
+                </TD>
+                <TD numeric className="whitespace-nowrap text-ink-2">
+                  {formatWhen(item.attempt.startedAt)}
+                </TD>
+              </TR>
             );
           })}
-        </TableBody>
+        </TBody>
       </Table>
-    </HistoryFrame>
+    </Frame>
   );
 }
 
-function QuizHistory(): ReactElement {
+function QuizHistory() {
   const pages = useCursorPages();
   const attempts = api.me.listQuizAttempts.useQuery(pages.cursor === undefined ? {} : { cursor: pages.cursor });
-
+  const items = attempts.data?.items ?? [];
   return (
-    <HistoryFrame
-      state={attempts}
+    <Frame
+      query={attempts}
+      pages={pages}
+      nextCursor={attempts.data?.nextCursor}
+      shape={{ page: pages.page, itemCount: items.length, hasNext: attempts.data?.nextCursor != null }}
       blank={{ title: t('me.quizzes.blank-title'), description: t('me.quizzes.blank-description') }}
-      page={{
-        page: pages.page,
-        itemCount: attempts.data?.items.length ?? 0,
-        hasNext: attempts.data?.nextCursor != null,
-      }}
-      pager={
-        <CursorPager
-          hasNext={attempts.data?.nextCursor != null}
-          onNext={() => {
-            pages.goNext(attempts.data?.nextCursor ?? null);
-          }}
-          onReset={pages.goFirst}
-          page={pages.page}
-          loading={attempts.isFetching}
-        />
-      }
     >
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>{t('me.quizzes.col.quiz')}</TableHead>
-            <TableHead>{t('me.quizzes.col.result')}</TableHead>
-            <TableHead>{t('me.quizzes.col.score')}</TableHead>
-            <TableHead>{t('me.quizzes.col.submitted')}</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {(attempts.data?.items ?? []).map((item) => {
+      <Table label={t('me.history.tab.quizzes')}>
+        <THead>
+          <tr>
+            <TH>{t('me.quizzes.col.quiz')}</TH>
+            <TH>{t('me.quizzes.col.result')}</TH>
+            <TH numeric>{t('me.quizzes.col.score')}</TH>
+            <TH numeric>{t('me.quizzes.col.submitted')}</TH>
+          </tr>
+        </THead>
+        <TBody>
+          {items.map((item) => {
             const summary = summarizeQuizAttempt({ score: item.score });
             return (
-              <TableRow key={item.attemptId}>
-                <TableCell>
-                  <Link href={`/quiz/${encodeURIComponent(item.quizId)}`} className={TITLE_LINK}>
-                    <StationMarker line={lineForTopic({ id: item.quizId })} />
-                    {item.quizTitle ?? t('me.history.unreadable')}
+              <TR key={item.attemptId}>
+                <TD className="font-medium">
+                  <Link href={`/quiz/${encodeURIComponent(item.quizId)}`} className="hover:text-acc-ink hover:underline">
+                    {item.quizTitle}
                   </Link>
-                </TableCell>
-                <TableCell>
-                  <Badge variant={summary.statusVariant}>{summary.statusLabel}</Badge>
-                </TableCell>
-                <TableCell className="font-mono text-sm tabular-nums">{summary.scoreLabel}</TableCell>
-                <TableCell className="font-mono text-sm whitespace-nowrap text-muted-foreground tabular-nums">
-                  {formatMoment(item.submittedAt)}
-                </TableCell>
-              </TableRow>
+                </TD>
+                <TD>
+                  <Pill tone={summary.statusVariant}>{summary.statusLabel}</Pill>
+                </TD>
+                <TD numeric>{summary.scoreLabel}</TD>
+                <TD numeric className="whitespace-nowrap text-ink-2">
+                  {formatWhen(item.submittedAt)}
+                </TD>
+              </TR>
             );
           })}
-        </TableBody>
+        </TBody>
       </Table>
-    </HistoryFrame>
-  );
-}
-
-/**
- * Bốn trạng thái dùng chung của một tab: đang tải · lỗi · rỗng · có dữ liệu.
- *
- * Câu cho trang rỗng KHÔNG cố định: `describeEmptyPage` biết trang hiện tại, còn
- * trang sau hay không, và tầng đọc đã bỏ bao nhiêu dòng. Pager đi kèm cả trang
- * rỗng, vì giấu nó là cắt đường sang trang sau và đường về trang đầu.
- */
-function HistoryFrame(props: {
-  readonly state: {
-    readonly isPending: boolean;
-    readonly isError: boolean;
-    readonly isFetching: boolean;
-    readonly error: unknown;
-    readonly refetch: () => unknown;
-  };
-  readonly page: HistoryPageState;
-  readonly blank: HistoryNotice;
-  readonly pager: ReactNode;
-  readonly children: ReactNode;
-}): ReactElement {
-  const { state, page, blank, pager, children } = props;
-
-  if (state.isPending) {
-    return (
-      <div className="mt-6">
-        <BoardSkeleton rows={4} label={t('me.history.loading')} />
-      </div>
-    );
-  }
-
-  if (state.isError) {
-    const entry = err('me.error.history-load', { reason: describeTrpcError(state.error) });
-    return (
-      <div className="mt-6">
-        <ErrorState
-          title={entry.what}
-          message={entry.next}
-          onRetry={() => void state.refetch()}
-          retrying={state.isFetching}
-        />
-      </div>
-    );
-  }
-
-  const notice = describeEmptyPage(page, blank);
-  return (
-    <div className="mt-6 flex flex-col gap-4">
-      {notice === null ? children : <EmptyState title={notice.title} description={notice.description} />}
-      {shouldShowPager(page) ? pager : null}
-    </div>
+    </Frame>
   );
 }

@@ -4,8 +4,9 @@ import type {
   LearningPathItemView,
   PathItemKind,
 } from '@devops-platform/shared-types/path';
-import type { LineMarkerState } from '@devops-platform/ui';
-import { lineForTopic, type TopicLine } from '../../../lib/topic-line';
+import type { SegmentState } from '@devops-platform/ds';
+import type { IconName } from '@devops-platform/ds/icons';
+import { topicLook, type TopicName } from '../../../lib/topic-look';
 
 /**
  * Mô hình hiển thị của một lộ trình: hàm THUẦN, có test (`path-view.test.ts`).
@@ -46,11 +47,13 @@ export interface PathItemViewModel {
   readonly number: number;
   readonly kindLabel: string;
   readonly title: string;
-  readonly line: TopicLine;
+  /** Màu chủ đề và biểu tượng, suy từ mã nội dung (`dlp-docker-basics` ⇒ docker). */
+  readonly topic: TopicName;
+  readonly icon: IconName;
   readonly openability: ItemOpenability;
   readonly stateLabel: string;
-  /** Trạng thái ga trên đường ray: phần nên làm tiếp là ga hiện tại. */
-  readonly marker: LineMarkerState;
+  /** Ô của dải tiến độ: đã đạt, nên làm tiếp, hay chưa tới. */
+  readonly segment: SegmentState;
   readonly isNext: boolean;
   readonly missingContent: boolean;
   readonly note: string | null;
@@ -75,14 +78,8 @@ export function pathItemHref(item: Pick<LearningPathItemView, 'kind' | 'itemId'>
   return `${PATH_ITEM_KIND_BASE_HREF[item.kind]}/${encodeURIComponent(item.itemId)}`;
 }
 
-/** Tuyến màu của một mắt xích: suy từ mã nội dung (`dlp-docker-basics` ⇒ docker). */
-export function pathItemLine(item: Pick<LearningPathItemView, 'itemId'>): TopicLine {
-  return lineForTopic({ id: item.itemId });
-}
-
-function markerOf(item: LearningPathItemView, isNext: boolean): LineMarkerState {
+function segmentOf(item: LearningPathItemView, isNext: boolean): SegmentState {
   if (item.state === 'passed') return 'done';
-  if (item.state === 'locked') return 'locked';
   return isNext ? 'current' : 'todo';
 }
 
@@ -93,16 +90,18 @@ export function buildPathItemViews(
   return items.map((item) => {
     const openability = itemOpenability(item);
     const isNext = nextItemId !== null && item.itemId === nextItemId;
+    const look = topicLook({ id: item.itemId });
     return {
       key: `${item.kind}:${item.itemId}`,
       item,
       number: item.ordinal + 1,
       kindLabel: pathItemKindLabel(item.kind),
       title: item.title ?? item.itemId,
-      line: pathItemLine(item),
+      topic: look.topic,
+      icon: look.icon,
       openability,
       stateLabel: t(STATE_KEY[item.state]),
-      marker: markerOf(item, isNext),
+      segment: segmentOf(item, isNext),
       isNext,
       missingContent: item.title === null,
       note:
@@ -114,20 +113,6 @@ export function buildPathItemViews(
       href: openability === 'open' ? pathItemHref(item) : null,
     };
   });
-}
-
-/** Nhãn chữ cho một trạng thái ga (đọc bằng trình đọc màn hình trên sơ đồ tuyến). */
-export function stationStateLabel(state: LineMarkerState): string {
-  switch (state) {
-    case 'done':
-      return t('catalog.path.state.passed');
-    case 'locked':
-      return t('catalog.path.state.locked');
-    case 'current':
-      return t('catalog.path.next-action');
-    case 'todo':
-      return t('catalog.path.state.available');
-  }
 }
 
 export interface PathProgressSummary {

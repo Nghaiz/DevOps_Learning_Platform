@@ -16,14 +16,14 @@ import type { Counted, IntentionalThree, Surface } from '../types.ts';
  */
 export const session = {
   // ── Pha phiên (`session-machine.ts`), khớp một-một với `SessionPhase` ──────
-  'session.phase.idle': 'Chưa có phiên',
-  'session.phase.creating': 'Đang tạo phiên…',
-  'session.phase.connecting': 'Đang kết nối…',
-  'session.phase.ready': 'Sandbox sẵn sàng',
-  'session.phase.reconnecting': 'Mất kết nối, đang thử lại…',
+  'session.phase.idle': 'Chưa mở máy',
+  'session.phase.creating': 'Đang dựng máy',
+  'session.phase.connecting': 'Đang nối terminal',
+  'session.phase.ready': 'Máy đang chạy',
+  'session.phase.reconnecting': 'Mất kết nối, đang nối lại',
   'session.phase.exited': 'Shell đã thoát',
-  'session.phase.expired': 'Phiên đã kết thúc',
-  'session.phase.error': 'Lỗi',
+  'session.phase.expired': 'Máy đã tắt',
+  'session.phase.error': 'Có lỗi',
 
   // ── Sức chứa: nhánh CHƯA BIẾT và nhánh HẾT CHỖ (`components/session/capacity.ts`) ──
   'session.capacity.unknown-label': 'Chưa rõ sức chứa',
@@ -36,19 +36,18 @@ export const session = {
     `Máy chủ không đọc được hạn mức của cụm: ${p.error}.`,
   'session.capacity.why-no-profile-cap': 'Máy chủ chưa khai trần cho loại bài này.',
   'session.capacity.exhausted-default':
-    'Sandbox đang đầy theo hạn mức đọc gần nhất. Bạn vẫn bấm Bắt đầu được: con số này là cận dưới, chưa tính máy đang ấm sẵn, nên có thể vẫn vào được. Nếu bị từ chối, hãy thử lại sau vài phút hoặc kết thúc một phiên khác bạn đang mở ở trang Của tôi.',
+    'Cụm đang đầy theo hạn mức đọc gần nhất. Bạn vẫn bấm Bắt đầu được: con số này là cận dưới, chưa tính máy đang ấm sẵn, nên có thể vẫn vào được. Nếu bị từ chối, hãy thử lại sau vài phút hoặc tắt một máy khác bạn đang mở ở Trang của tôi.',
   'session.capacity.exhausted-profile':
-    'Loại bài này đang hết chỗ theo hạn mức đọc gần nhất. Bạn vẫn bấm Bắt đầu được: con số này là cận dưới, chưa tính máy đang ấm sẵn, nên có thể vẫn vào được. Nếu bị từ chối, hãy thử lại sau vài phút hoặc kết thúc một phiên khác bạn đang mở ở trang Của tôi.',
+    'Loại bài này đang hết chỗ theo hạn mức đọc gần nhất. Bạn vẫn bấm Bắt đầu được: con số này là cận dưới, chưa tính máy đang ấm sẵn, nên có thể vẫn vào được. Nếu bị từ chối, hãy thử lại sau vài phút hoặc tắt một máy khác bạn đang mở ở Trang của tôi.',
 
   // ── Khung điều khiển phiên ───────────────────────────────────────────────
   'session.controls.start': 'Bắt đầu',
   'session.controls.restart': 'Làm lại',
   'session.controls.extend': 'Thêm giờ',
-  'session.controls.end': 'Kết thúc phiên',
-  'session.controls.hard-cap':
-    'Phiên này đã chạm thời lượng tối đa. Kết thúc rồi mở phiên mới để làm tiếp.',
+  'session.controls.end': 'Tắt máy',
+  'session.controls.hard-cap': 'Máy này đã chạm thời lượng tối đa. Tắt rồi mở máy mới để làm tiếp.',
   'session.controls.ttl-remaining': (p: { minutes: number }) => `Còn ${p.minutes} phút`,
-  'session.controls.ttl-preview': (p: { minutes: number }) => `Phiên kéo dài ${p.minutes} phút`,
+  'session.controls.ttl-preview': (p: { minutes: number }) => `Máy chạy ${p.minutes} phút`,
 
   // ── Khoang terminal ──────────────────────────────────────────────────────
   // Nhãn a11y nêu đường thoát: `role="application"` tắt chế độ duyệt của trình đọc màn hình.
@@ -56,15 +55,45 @@ export const session = {
   'session.terminal.aria-label-window':
     'Terminal sandbox, cửa sổ riêng. Nhấn Esc rồi Tab để rời khỏi terminal.',
   'session.terminal.booting': 'Đang mở terminal…',
-  'session.terminal.empty': 'Bấm Bắt đầu để dựng sandbox và mở terminal.',
   'session.terminal.escape-hint-prefix': 'Nhấn',
   'session.terminal.escape-hint-then': 'rồi',
   'session.terminal.escape-hint-suffix': 'để rời khỏi terminal',
 
+  // ── Màn chờ trước khi mở máy (`practice-launch.tsx`) ─────────────────────
+  'session.lab.progress-caption': (p: { passed: number; total: number }) => `${p.passed}/${p.total} nhiệm vụ`,
+  'session.launch.title': 'Máy của bạn chưa chạy',
+  'session.launch.body.lesson':
+    'Bấm Bắt đầu để dựng một máy Linux riêng. Làm theo hướng dẫn của bài, terminal mở ngay tại đây.',
+  'session.launch.body.lab':
+    'Bấm Bắt đầu để mở một lần thử. Máy chấm từng nhiệm vụ ngay trên máy này, không cần nộp file nào.',
+  'session.launch.body.playground': 'Một máy trống để thử lệnh. Cài gì, phá gì cũng được, máy tự tắt khi hết giờ.',
+  'session.launch.fact.plain': 'Máy Linux có sẵn công cụ của bài',
+  'session.launch.fact.ide': 'Có trình soạn thảo mã chạy ngay trong trình duyệt',
+  'session.launch.fact.k8s': 'Có sẵn một cụm Kubernetes nhỏ bên trong máy',
+  'session.launch.fact.ttl': (p: { minutes: number }) => `Tự tắt sau ${p.minutes} phút, thêm giờ được`,
+  'session.launch.fact.tier': (p: { tier: string }) => `Cô lập bằng ${p.tier}`,
+  'session.launch.others': (p: { n: number }) =>
+    `Bạn còn ${p.n} máy chạy ở bài khác. Tắt bớt để cụm còn chỗ cho cả lớp.`,
+  'session.launch.others-action': 'Xem máy đang chạy',
+  'session.launch.resumed': 'Đã nối lại máy bạn mở lúc trước. Mọi thứ trong máy vẫn còn nguyên.',
+
+  // ── Nhật ký dựng máy (thay vòng xoay) ────────────────────────────────────
+  'session.boot.title': 'Đang dựng máy cho bạn',
+  'session.boot.step.claim': 'Xin một chỗ trên cụm',
+  'session.boot.step.pod': 'Dựng máy Linux riêng',
+  'session.boot.step.connect': 'Nối terminal',
+  'session.boot.step.ide': 'Khởi động trình soạn thảo',
+
+  // ── Màn hẹp: mỗi lúc một khoang ──────────────────────────────────────────
+  'session.mobile.switch': 'Chọn khung đang xem',
+  'session.mobile.view.read': 'Bài',
+  'session.mobile.view.both': 'Cả hai',
+  'session.mobile.view.work': 'Máy',
+
   // ── Lớp phủ trên terminal theo pha ───────────────────────────────────────
   'session.overlay.elsewhere-title': 'Terminal đang mở ở cửa sổ riêng',
   'session.overlay.elsewhere-detail':
-    'Mỗi phiên chỉ giữ được một kết nối terminal. Đưa về đây thì cửa sổ kia ngắt.',
+    'Mỗi máy chỉ giữ được một kết nối terminal. Đưa về đây thì cửa sổ kia ngắt.',
   'session.overlay.reclaim': 'Đưa về đây',
   'session.overlay.reclaiming': 'Đang đưa terminal về đây…',
   'session.overlay.creating-detail': 'Đang xin một máy ảo trống cho bạn. Thường mất vài chục giây.',
@@ -74,7 +103,7 @@ export const session = {
   'session.overlay.reconnect': 'Nối lại',
   'session.overlay.rate-limited':
     'Bạn vừa dán hoặc gõ quá nhiều dữ liệu cùng lúc nên gateway ngắt kết nối. Nối lại rồi dán từng phần nhỏ hơn, dưới 500 KB mỗi lần.',
-  'session.overlay.new-session': 'Mở phiên mới',
+  'session.overlay.new-session': 'Mở máy mới',
   'session.overlay.popup-blocked':
     'Trình duyệt chặn cửa sổ mới. Cho phép cửa sổ bật lên của trang này rồi bấm lại.',
 
@@ -88,11 +117,14 @@ export const session = {
   'session.workspace.resize': 'Kéo để đổi cỡ hai khung',
 
   // ── Cổng của nút Kiểm tra và nút chạy lệnh ───────────────────────────────
-  'session.check.blocked-no-session': 'Bấm Bắt đầu để mở phiên rồi mới kiểm tra được.',
+  'session.check.blocked-no-session': 'Bấm Bắt đầu để mở máy rồi mới kiểm tra được.',
   'session.check.blocked-wait': 'Chờ terminal nối xong rồi kiểm tra.',
-  'session.check.blocked-expired': 'Phiên đã hết. Mở phiên mới để kiểm tra tiếp.',
+  'session.check.blocked-expired': 'Máy đã tắt. Mở máy mới để kiểm tra tiếp.',
   'session.check.blocked-down': 'Terminal đang ngắt. Nối lại rồi kiểm tra.',
-  'session.exec.blocked-no-session': 'Chưa có phiên',
+  'session.check.blocked-setup': 'Môi trường của bước này đang được chuẩn bị. Chờ xong rồi kiểm tra.',
+  'session.check.blocked-setup-failed':
+    'Môi trường của bước này chưa chuẩn bị được. Bấm Thử lại ở thông báo phía trên.',
+  'session.exec.blocked-no-session': 'Chưa mở máy',
   'session.exec.blocked-elsewhere': 'Terminal đang ở cửa sổ riêng',
   'session.exec.blocked-wait': 'Chờ terminal sẵn sàng',
   'session.exec.blocked-down': 'Terminal đang ngắt',
@@ -106,15 +138,22 @@ export const session = {
   'session.code.region': (p: { language: string }) =>
     `Khối mã ${p.language}, cuộn ngang bằng phím mũi tên`,
   'session.code.zoom': 'Phóng to sơ đồ',
+  'session.code.zoom-close': 'Đóng sơ đồ',
+  'session.code.table': 'Bảng, cuộn ngang bằng phím mũi tên',
+  'session.code.remote-image': 'Ảnh từ trang ngoài, chưa tải để giữ riêng tư',
+  'session.code.remote-image-open': (p: { alt: string }) =>
+    p.alt === '' ? 'Mở ảnh ở tab mới' : `Mở ảnh “${p.alt}” ở tab mới`,
+  'session.code.broken-image': (p: { alt: string }) =>
+    p.alt === '' ? 'Không tải được ảnh' : `Không tải được ảnh “${p.alt}”`,
+  'session.code.new-tab': '(mở ở tab mới)',
 
   // ── Tuyến các bước của bài học ───────────────────────────────────────────
   // "Tiếp" bị luồng e2e bài học neo bằng `name: 'Tiếp', exact: true`.
   'session.steps.list': 'Các bước của bài',
   'session.steps.prev': 'Trước',
   'session.steps.next': 'Tiếp',
-  'session.steps.done': 'Đã đạt',
-  'session.steps.current': 'Đang làm',
-  'session.steps.todo': 'Chưa làm',
+  'session.steps.state-done': 'đã đạt',
+  'session.steps.state-failed': 'chưa đạt',
 
   // ── Dải thông báo ────────────────────────────────────────────────────────
   'session.notice.region': 'Thông báo của phiên',
@@ -124,7 +163,7 @@ export const session = {
 
   // ── Khoang IDE ───────────────────────────────────────────────────────────
   'session.ide.iframe-title': 'Trình soạn thảo trong sandbox',
-  'session.ide.no-session': 'Trình soạn thảo mở cùng sandbox. Bấm Bắt đầu để dựng phiên.',
+  'session.ide.no-session': 'Trình soạn thảo mở cùng máy. Sang tab Terminal và bấm Bắt đầu để dựng máy.',
   'session.ide.booting-title': 'Đang dựng trình soạn thảo',
   // 20 giây là số ĐO ĐƯỢC ở P6 (khởi động nguội Theia).
   'session.ide.booting-detail':
@@ -137,8 +176,7 @@ export const session = {
     `máy chủ trả HTTP ${p.status} cho đường /ide`,
   'session.ide.reason-timeout': (p: { seconds: number }) =>
     `sau ${p.seconds} giây trình soạn thảo vẫn chưa phản hồi`,
-  'session.ide.session-down':
-    'Phiên đã ngắt nên trình soạn thảo cũng dừng. Mở phiên mới ở thanh trên để làm tiếp.',
+  'session.ide.session-down': 'Máy đã tắt nên trình soạn thảo cũng dừng. Sang tab Terminal để mở máy mới.',
   'session.ide.error.probe': (p: { reason: string }) => ({
     what: `Trình soạn thảo chưa mở được: ${p.reason}.`,
     next: 'Bài vẫn làm được bằng terminal, chỉ thiếu trình soạn thảo. Bấm Thử lại, hoặc mở trong tab mới để đọc thông báo thật của máy chủ.',
@@ -153,6 +191,7 @@ export const session = {
   'session.lab.check-one': 'Chấm nhiệm vụ này',
   'session.lab.last-check': 'Lần chấm gần nhất',
   'session.lab.score-label': 'Điểm nếu nộp bây giờ',
+  'session.lab.progress-label': 'Nhiệm vụ đã đạt',
   'session.lab.task-weight': (p: { weight: number }) => `${p.weight} điểm`,
   'session.lab.submit': 'Nộp bài',
   'session.lab.submit-note': 'Nộp bài chốt điểm từ các lượt chấm đã có, không chạy lại lượt chấm nào.',
@@ -175,7 +214,7 @@ export const session = {
   'session.lab.leaderboard-loading': 'Đang tải bảng xếp hạng…',
   'session.lab.leaderboard-empty': 'Chưa có ai nộp lab này. Nộp xong, bạn đứng đầu bảng.',
   'session.lab.leaderboard-anonymous': 'Ẩn danh',
-  'session.lab.leaderboard-self': ' (bạn)',
+  'session.lab.leaderboard-self': 'Bạn',
   'session.lab.col-rank': '#',
   'session.lab.col-learner': 'Người học',
   'session.lab.col-score': 'Điểm',
@@ -184,7 +223,7 @@ export const session = {
     `Lab này cần ${p.capabilities}, thứ nền tảng chưa chạy được, nên vài lệnh sẽ báo lỗi. Các nhiệm vụ còn lại vẫn làm được.`,
   'session.lab.reload': 'Tải lại',
   'session.lab.setup-checking': 'Đang kiểm tra môi trường của lab…',
-  'session.lab.blocked-no-session': 'Bấm Bắt đầu ở thanh trên để dựng sandbox trước khi chấm.',
+  'session.lab.blocked-no-session': 'Bấm Bắt đầu ở khung bên cạnh để mở máy rồi mới chấm được.',
   'session.lab.blocked-submitted':
     'Lần thử này đã nộp nên không chấm lại được. Bấm Làm lại để mở lần thử mới.',
   'session.lab.error.open': {
@@ -201,7 +240,7 @@ export const session = {
   }),
   'session.lab.error.submit': (p: { reason: string }) => ({
     what: `Không nộp được bài: ${p.reason}.`,
-    next: 'Các lượt chấm đã có vẫn được giữ. Bấm Nộp bài lần nữa; nếu phiên đã hết hạn thì bấm Làm lại để mở lần thử mới.',
+    next: 'Các lượt chấm đã có vẫn được giữ. Bấm Nộp bài lần nữa; nếu máy đã tắt thì bấm Làm lại để mở lần thử mới.',
   }),
 
   // ── Trạng thái một nhiệm vụ / một lượt chấm ──────────────────────────────
@@ -259,19 +298,18 @@ export const session = {
     `Bài này cần ${p.capabilities}, thứ nền tảng chưa chạy được, nên vài lệnh sẽ báo lỗi. Nội dung vẫn đọc được.`,
   'session.lesson.error.setup': (p: { reason: string }) => ({
     what: `Không chuẩn bị được môi trường bài học: ${p.reason}.`,
-    next: 'Bấm Thử lại. Nếu vẫn hỏng, kết thúc phiên rồi bấm Bắt đầu để dựng sandbox mới.',
+    next: 'Bấm Thử lại. Nếu vẫn hỏng, tắt máy rồi bấm Bắt đầu để dựng máy mới.',
   }),
 
   // ── Sân chơi ─────────────────────────────────────────────────────────────
   'session.playground.back': 'Sân chơi',
   'session.playground.loading': 'Đang tải sân chơi…',
+  'session.playground.error-title': 'Không mở được sân chơi này',
   'session.playground.unsupported': (p: { capabilities: string }) =>
     `Sân chơi này cần ${p.capabilities}, thứ nền tảng chưa chạy được, nên vài lệnh sẽ báo lỗi.`,
-  'session.playground.empty': (p: { minutes: number }) =>
-    `Bấm Bắt đầu để dựng sandbox và mở terminal. Phiên tự đóng sau ${p.minutes} phút.`,
 
   // ── Cửa sổ terminal riêng ────────────────────────────────────────────────
-  'session.window.title': (p: { sessionId: string }) => `Terminal, phiên ${p.sessionId}`,
+  'session.window.title': (p: { sessionId: string }) => `Terminal, máy ${p.sessionId}`,
   'session.window.connecting': 'Đang kết nối…',
   'session.window.reconnect': 'Nối lại',
   'session.window.retrying': (p: { seconds: number }) => `Thử nối lại sau ${p.seconds} giây`,
@@ -280,18 +318,23 @@ export const session = {
   'session.window.exited': (p: { code: number }) => `Shell đã thoát (mã ${p.code}).`,
   'session.window.closed': (p: { code: number }) => ({
     what: `Kết nối đã đóng (mã ${p.code}).`,
-    next: 'Mỗi phiên chỉ giữ được một kết nối terminal. Nếu tab bài học vừa lấy lại terminal thì cửa sổ này nhường chỗ. Bấm Nối lại để lấy về.',
+    next: 'Mỗi máy chỉ giữ được một kết nối terminal. Nếu tab bài học vừa lấy lại terminal thì cửa sổ này nhường chỗ. Bấm Nối lại để lấy về.',
   }),
 
   // ── Lỗi dùng chung của ba trình học ──────────────────────────────────────
   'session.error.no-session': {
-    what: 'Máy chủ không trả về phiên nào.',
-    next: 'Bấm Bắt đầu để thử lại. Nếu vẫn không có phiên, hãy kết thúc một phiên khác bạn đang mở ở trang Của tôi.',
+    what: 'Máy chủ không trả về máy nào.',
+    next: 'Bấm Bắt đầu để thử lại. Nếu vẫn không được, hãy tắt một máy khác bạn đang mở ở Trang của tôi.',
   },
 } as const satisfies Surface<'session'>;
 
 /** Nhóm đúng ba khoá anh em, khai tường minh kèm ngày và lý do. Rỗng: không nhóm nào đúng ba. */
-export const sessionIntentionalThree = {} as const satisfies IntentionalThree;
+export const sessionIntentionalThree = {
+  'session.launch.body':
+    '2026-10-20: đúng ba loại nội dung có máy ảo riêng (bài học, lab, sân chơi), khớp LaunchKind ở components/session/practice-launch.tsx và ba trình học có terminal.',
+  'session.mobile.view':
+    '2026-10-20: công tắc màn hẹp có đúng ba vị trí (phóng khoang bài, chia đôi, phóng khoang máy), khớp SplitFocus ở components/session/workspace-split.tsx.',
+} as const satisfies IntentionalThree;
 
 /** Khoá đếm, giữ kiểu tường minh để `count()` nhận ra. Chưa có khoá `Counted` nào. */
 export type SessionCountedKeys = Extract<(typeof session)[keyof typeof session], Counted>;

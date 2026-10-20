@@ -1,11 +1,10 @@
 'use client';
 
 import type { ReactElement } from 'react';
-import { CircleAlert, Save, TriangleAlert } from 'lucide-react';
 import { count, t } from '@devops-platform/copy';
-import { Button } from '@devops-platform/ui';
 import { SaveState, type SaveStatus } from '../../../components/author/studio';
 import type { FieldIssue } from './cluster-form';
+import { Button, Icon } from '@devops-platform/ds';
 
 /**
  * Cụm lưu trên thanh chế độ dính của trình soạn đề: lỗi của lượt lưu, ô trạng
@@ -33,8 +32,8 @@ export function SaveToolbar(props: {
   return (
     <>
       {props.serverError !== null && !props.pending && (
-        <p role="alert" className="flex max-w-md animate-rise items-start gap-1.5 text-xs text-destructive">
-          <TriangleAlert aria-hidden className="mt-px size-3.5 shrink-0" />
+        <p role="alert" className="flex max-w-md animate-enter items-start gap-1.5 text-xs text-bad-ink">
+          <Icon name="warning" size={14} className="mt-px shrink-0" />
           <span className="flex flex-col">
             <span className="font-semibold">{t('author.studio.action-error.save')}</span>
             <span>{props.serverError}</span>
@@ -47,19 +46,19 @@ export function SaveToolbar(props: {
           onClick={() => {
             props.onJump(first.path);
           }}
-          className="inline-flex h-8 animate-rise items-center gap-1.5 px-1 text-xs font-medium text-destructive underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="inline-flex h-8 animate-enter items-center gap-1.5 px-1 text-xs font-medium text-bad-ink underline-offset-4 hover:underline focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-focus"
         >
-          <CircleAlert aria-hidden className="size-3.5 shrink-0" />
+          <Icon name="warning" size={14} className="shrink-0" />
           {count('author.problem.new.issues-title', props.localIssues.length)}
         </button>
       )}
       <SaveState status={props.status} />
-      <Button
+      <Button variant="primary"
         type="button"
         onClick={props.onSave}
         loading={props.pending}
         disabled={props.disabled}
-        iconLeft={<Save aria-hidden className="size-4" />}
+        icon="save"
       >
         {props.label}
       </Button>

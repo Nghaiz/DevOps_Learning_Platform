@@ -17,6 +17,11 @@ describe('formatMoment', () => {
   it('chuỗi ISO hợp lệ ⇒ có nội dung', () => {
     expect(formatMoment('2026-09-06T10:00:00.000Z')).not.toBe('không rõ');
   });
+
+  it('giờ:phút, không có giây', () => {
+    expect(formatMoment('2026-09-06T10:30:45.000Z')).not.toMatch(/\d{2}:\d{2}:\d{2}/);
+    expect(formatMoment('2026-09-06T10:30:45.000Z')).toMatch(/\d{2}:\d{2}/);
+  });
 });
 
 describe('formatDay', () => {

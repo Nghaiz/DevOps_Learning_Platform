@@ -28,6 +28,7 @@ import { useCallback, type ReactElement } from 'react';
 import { CICD_LEVELS, type CicdLevel, type TheoryDoc } from '@devops-platform/games';
 
 import { CicdLevelScreen } from './cicd-level-screen';
+import { LegacySkin } from '../legacy-skin';
 
 export interface CicdLevelRouteProps {
   readonly level: CicdLevel;
@@ -59,6 +60,7 @@ export function CicdLevelRoute({ level, theory }: CicdLevelRouteProps): ReactEle
   }, [router, next]);
 
   return (
+    <LegacySkin>
     <CicdLevelScreen
       key={level.id}
       level={level}
@@ -66,5 +68,6 @@ export function CicdLevelRoute({ level, theory }: CicdLevelRouteProps): ReactEle
       onExit={onExit}
       {...(next === undefined ? {} : { onNext })}
     />
+    </LegacySkin>
   );
 }

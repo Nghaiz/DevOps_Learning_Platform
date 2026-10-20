@@ -1,14 +1,12 @@
 'use client';
 
 import type { ReactElement } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
 import { t } from '@devops-platform/copy';
-import { Button } from '@devops-platform/ui';
 import { TextAreaField, TextField, issueFor } from '../../../components/author/field';
-import type { TopicLine } from '../../../components/kit';
 import type { FieldIssue } from './cluster-form';
 import { ItemBlock } from './item-block';
 import { emptyHint, type HintFormState } from './problem-form';
+import { Button } from '@devops-platform/ds';
 
 /**
  * Gợi ý CÓ GIÁ, khác hẳn gợi ý miễn phí của bài học.
@@ -20,7 +18,6 @@ import { emptyHint, type HintFormState } from './problem-form';
 export function HintListFields(props: {
   readonly hints: readonly HintFormState[];
   readonly issues: readonly FieldIssue[];
-  readonly line: TopicLine;
   readonly nextKey: () => string;
   readonly onChange: (hints: readonly HintFormState[]) => void;
 }): ReactElement {
@@ -31,7 +28,7 @@ export function HintListFields(props: {
   return (
     <div className="flex flex-col gap-6">
       {props.hints.length === 0 && (
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-ink-2">
           {t('problem.hint-fields-chua-co-goi-y-nao-bai-khong-co-goi-y-van-xuat-ban-duoc-nhung-voi-bai-kho-tr')}
         </p>
       )}
@@ -42,7 +39,6 @@ export function HintListFields(props: {
           <ItemBlock
             key={hint.key}
             index={index}
-            line={props.line}
             path={base}
             title={`${t('problem.hint-fields-goi-y')} ${String(index + 1)}`}
             actions={
@@ -50,7 +46,7 @@ export function HintListFields(props: {
                 type="button"
                 variant="ghost"
                 size="sm"
-                iconLeft={<Trash2 aria-hidden className="size-4" />}
+                icon="trash"
                 onClick={() => {
                   props.onChange(props.hints.filter((_, i) => i !== index));
                 }}
@@ -100,8 +96,8 @@ export function HintListFields(props: {
       <div>
         <Button
           type="button"
-          variant="outline"
-          iconLeft={<Plus aria-hidden className="size-4" />}
+          variant="secondary"
+          icon="plus"
           onClick={() => {
             const next = emptyHint(props.nextKey());
             props.onChange([...props.hints, { ...next, id: `goi-y-${String(props.hints.length + 1)}` }]);

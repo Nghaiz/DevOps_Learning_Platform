@@ -41,11 +41,10 @@ import type { IntentionalThree, Surface } from '../types.ts';
 export const author = {
   // ── Tiêu đề tab trình duyệt ───────────────────────────────────────────────
   //
-  // Dấu phân cách là U+00B7 chứ không phải một gạch ngang dài, theo tiền lệ
-  // `catalog.problem.meta-title` của lane 16.C.
-  'author.meta.list': 'Soạn bài · DevOps Learning Platform',
-  'author.meta.new': 'Tạo bài mới · DevOps Learning Platform',
-  'author.meta.edit': 'Sửa bài · DevOps Learning Platform',
+  // Chỉ tên trang: khuôn `%s | DevOps Lab` ở `app/layout.tsx` tự gắn tên site.
+  'author.meta.list': 'Soạn bài',
+  'author.meta.new': 'Tạo bài mới',
+  'author.meta.edit': 'Sửa bài',
 
   // ── Điều hướng chung ──────────────────────────────────────────────────────
   'author.nav.back-to-list': 'Về danh sách bài',
@@ -75,9 +74,9 @@ export const author = {
    * "0 bước" cho một playground là đúng số học và sai nghĩa, nên nhánh
    * playground cố ý không nhắc tới con số nào.
    */
-  'author.item.desc.lesson': (p: { kind: string; n: number }) => `${p.kind} · ${String(p.n)} bước`,
-  'author.item.desc.lab': (p: { kind: string; n: number }) => `${p.kind} · ${String(p.n)} task`,
-  'author.item.desc.playground': (p: { kind: string }) => `${p.kind} · không có bước`,
+  'author.item.desc.lesson': (p: { kind: string; n: number }) => `${p.kind}, ${String(p.n)} bước`,
+  'author.item.desc.lab': (p: { kind: string; n: number }) => `${p.kind}, ${String(p.n)} task`,
+  'author.item.desc.playground': (p: { kind: string }) => `${p.kind}, không có bước`,
 
   /*
    * ── Mốc sửa gần nhất ─────────────────────────────────────────────────────
@@ -111,8 +110,8 @@ export const author = {
   'author.list.title': 'Soạn bài',
   'author.list.lead':
     'Bài học, lab và sân chơi bạn đang viết. Lưu nháp bao nhiêu lần cũng được; người học chỉ thấy bài sau khi bạn xuất bản.',
-  'author.list.kicker': (p: { total: number; drafts: number }) =>
-    `Xưởng soạn · ${String(p.total)} bài · ${String(p.drafts)} nháp`,
+  'author.list.summary': (p: { total: number; drafts: number }) =>
+    `${String(p.total)} bài, trong đó ${String(p.drafts)} bản nháp`,
   'author.list.board-label': 'Bài của bạn, bài sửa gần nhất ở trên',
   'author.list.new-cta': 'Tạo bài mới',
   'author.list.error-title': 'Không tải được danh sách bài',
@@ -135,8 +134,8 @@ export const author = {
   'author.new.identity-heading': 'Định danh, không sửa lại được',
   'author.new.kind.label': 'Loại nội dung',
   'author.new.kind.hint':
-    'Bài học dẫn từng bước · Lab giao việc rồi chấm · Sân chơi là sandbox trống. Không đổi được sau khi tạo.',
-  'author.new.id.label': 'Id',
+    'Bài học dẫn từng bước. Lab giao việc rồi chấm. Sân chơi là sandbox trống. Không đổi được sau khi tạo.',
+  'author.new.id.label': 'Mã định danh',
   'author.new.id.placeholder': 'dlp-chan-doan-cpu',
   'author.new.id.hint':
     'Chỉ [a-z0-9-], 3 tới 63 ký tự. Id đi vào bảng tiến độ và điểm của người học nên nó là vĩnh viễn: đổi id sau này sẽ làm tiến độ cũ mồ côi.',
@@ -216,7 +215,7 @@ export const author = {
   'author.studio.save.saving': 'Đang lưu',
   'author.studio.save.error': 'Không lưu được',
   'author.studio.rail.issues': 'Ô cần sửa',
-  'author.studio.rail.issues-clean': 'Chưa thấy ô nào sai. Máy chủ vẫn kiểm lại lúc lưu và lúc xuất bản.',
+  'author.studio.rail.issues-clean': 'Các ô đã nhập không có lỗi. Máy chủ vẫn kiểm lại lúc lưu và lúc xuất bản.',
   'author.studio.rail.readiness': 'Xuất bản',
   'author.studio.publish.save-first.title': 'Lưu trước khi xuất bản',
   'author.studio.publish.save-first.body':
@@ -232,6 +231,7 @@ export const author = {
   'author.studio.list.filter-label': 'Lọc theo trạng thái',
   'author.studio.list.search-label': 'Tìm theo tên hoặc mã',
   'author.studio.list.search-placeholder': 'Tên bài hoặc mã',
+  'author.studio.problems.search-placeholder': 'Tên đề hoặc mã',
   'author.studio.list.loading': 'Đang tải danh sách',
   'author.studio.list.no-match': (p: { query: string }) =>
     `Không có bài nào khớp "${p.query}". Thử từ khác, hoặc xoá ô tìm.`,
@@ -239,7 +239,7 @@ export const author = {
   'author.studio.field.step': (p: { n: number }) => `Bước ${String(p.n)}`,
   'author.studio.field.task': (p: { n: number }) => `Task ${String(p.n)}`,
   'author.studio.field.asset': (p: { n: number }) => `Tệp ${String(p.n)}`,
-  'author.studio.field.joined': (p: { group: string; field: string }) => `${p.group} · ${p.field}`,
+  'author.studio.field.joined': (p: { group: string; field: string }) => `${p.group}, ${p.field}`,
 
   /*
    * ── Bài tập Kubernetes (OJ), lane 16.G2 ───────────────────────────────────
@@ -255,9 +255,9 @@ export const author = {
    * chặn bởi số màn hình.
    */
 
-  'author.problem.meta.list': 'Đề bài · DevOps Learning Platform',
-  'author.problem.meta.new': 'Tạo đề mới · DevOps Learning Platform',
-  'author.problem.meta.edit': 'Sửa đề · DevOps Learning Platform',
+  'author.problem.meta.list': 'Đề bài',
+  'author.problem.meta.new': 'Tạo đề mới',
+  'author.problem.meta.edit': 'Sửa đề',
 
   'author.problem.state.draft': 'Nháp',
   'author.problem.state.published': 'Đã xuất bản',
@@ -271,7 +271,6 @@ export const author = {
   'author.problem.list.title': 'Đề bài',
   'author.problem.list.lead':
     'Đề cho bộ chấm của các game: dựng sẵn một trạng thái hỏng, nêu mục tiêu, chấm bằng vị từ. Nháp không hiện với người học, kể cả khi họ có đường dẫn.',
-  'author.problem.list.kicker': 'Xưởng soạn · đề bài',
   'author.problem.list.board-label': 'Đề của bạn',
   'author.problem.list.new-cta': 'Tạo đề mới',
   'author.problem.list.error-title': 'Không tải được danh sách đề',
@@ -281,7 +280,6 @@ export const author = {
   'author.problem.list.empty-body':
     'Một đề không dạy lý thuyết. Nó dựng sẵn một trạng thái hỏng và chấm bằng vị từ có sẵn trong bảng, nên bạn không phải viết dòng logic engine nào.',
   'author.problem.list.empty-cta': 'Tạo đề đầu tiên',
-  'author.problem.list.row-topics': (p: { topics: string }) => ` · ${p.topics}`,
   'author.problem.list.row-untried': 'Chưa ai thử.',
   'author.problem.list.row-solved': (p: { solvers: number; attempts: number }) =>
     `${String(p.solvers)}/${String(p.attempts)} người thử đã giải được.`,
@@ -458,8 +456,13 @@ export const author = {
   'author.problem.publish.heading': 'Xuất bản',
   'author.problem.publish.blocked-title': {
     zero: 'Không còn chỗ nào chặn lượt xuất bản',
-    one: 'Còn 1 chỗ phải sửa trước khi xuất bản được',
-    many: (n: number) => `Còn ${String(n)} chỗ phải sửa trước khi xuất bản được`,
+    one: 'Còn 1 điều kiện chưa đạt để xuất bản.',
+    many: (n: number) => `Còn ${String(n)} điều kiện chưa đạt để xuất bản.`,
+  },
+  'author.problem.publish.blocked-rail': {
+    zero: 'Không còn chỗ nào chặn lượt xuất bản',
+    one: 'Còn 1 điều kiện chưa đạt để xuất bản. Xem ở chế độ Xuất bản.',
+    many: (n: number) => `Còn ${String(n)} điều kiện chưa đạt để xuất bản. Xem ở chế độ Xuất bản.`,
   },
   'author.problem.publish.ok-title': 'Bài đã đủ điều kiện xuất bản',
   'author.problem.publish.ok-body':
@@ -609,8 +612,8 @@ export const author = {
   'author.draft-form-view-chuan-bi-moi-truong': 'Chuẩn bị môi trường',
   'author.draft-form-view-chay-mot-lan-khi-dung-lab-lab-co-y-khong-co-setup-theo-tung-task-thu-tu-lam':
     'Chạy một lần khi dựng lab. Lab không có setup theo từng task, vì người học làm task theo thứ tự nào cũng được.',
-  'author.draft-form-view-setup-foreground': 'Setup foreground',
-  'author.draft-form-view-setup-background': 'Setup background',
+  'author.draft-form-view-setup-foreground': 'Lệnh gõ vào terminal của người học',
+  'author.draft-form-view-setup-background': 'Lệnh chuẩn bị chạy ngầm',
   'author.draft-form-view-cac-task': 'Các task',
   'author.draft-form-view-cac-task-ghi-chu':
     'Người học làm task theo thứ tự nào cũng được. Điểm lab tính theo tổng trọng số các task đạt.',
@@ -651,21 +654,21 @@ export const author = {
   'author.draft-meta-fields-chua-chon': 'Chưa chọn',
   'author.draft-meta-fields-thoi-luong-uoc-tinh-phut': 'Thời lượng ước tính (phút)',
   'author.draft-meta-fields-bo-trong-neu-chua-uoc-tinh-duoc': 'Bỏ trống nếu chưa ước tính được.',
-  'author.draft-meta-fields-tier-sandbox': 'Tier sandbox',
+  'author.draft-meta-fields-tier-sandbox': 'Hạng sandbox',
   'author.draft-meta-fields-cum-hien-chay-sysbox-hai-tier-con-lai-chua-co-node-nao-phuc-vu':
-    'Cụm hiện chạy sysbox; hai tier còn lại chưa có node nào phục vụ.',
+    'Cụm hiện chạy sysbox; hai hạng còn lại chưa có node nào phục vụ.',
   'author.draft-meta-fields-giao-dien': 'Giao diện',
   'author.draft-meta-fields-ide-mo-them-khung-soan-thao-canh-terminal-layout-ide-cua-p6':
-    'IDE mở thêm khung soạn thảo cạnh terminal (layout ide của P6).',
+    'IDE mở thêm khung soạn thảo cạnh terminal.',
   'author.draft-meta-fields-terminal-thuong': 'Terminal thường',
   'author.draft-meta-fields-ide-noi-dung-editor-terminal': 'IDE (nội dung | editor | terminal)',
   'author.draft-meta-fields-bo-cong-cu-them-cho-bai-nay': 'Bộ công cụ thêm cho bài này',
   'author.draft-meta-fields-mac-dinh-khong-bat-gi-sandbox-da-co-san-bo-lenh-thuong-dung-chi-chon-thu-no':
     'Mặc định không bật gì, sandbox đã có sẵn bộ lệnh thường dùng. Chỉ chọn thứ nội dung bài thật sự gõ tới: mỗi công cụ là một lượt cài trong pod lúc mở phiên.',
-  'author.draft-meta-fields-backend-image-id': 'Backend image id',
+  'author.draft-meta-fields-backend-image-id': 'Mã image gốc',
   'author.draft-meta-fields-nguyen-van-imageid-cua-upstream-giu-de-truy-nguyen-no-khong-quyet-dinh-sand':
-    'Nguyên văn imageid của upstream. Giữ để truy nguyên; nó KHÔNG quyết định sandbox chạy gì: phần đó do capability bên dưới.',
-  'author.draft-meta-fields-capability-sandbox-phai-co': 'Capability sandbox phải có',
+    'Nguyên văn imageid của upstream. Giữ để truy nguyên; nó KHÔNG quyết định sandbox chạy gì: phần đó do năng lực sandbox bên dưới.',
+  'author.draft-meta-fields-capability-sandbox-phai-co': 'Năng lực sandbox cần có',
   'author.draft-meta-fields-chon-thieu-thi-nguoi-hoc-gap': 'Chọn thiếu thì người học gặp',
   'author.draft-meta-fields-command-not-found': 'command not found',
   'author.draft-meta-fields-giua-bai-chon-thua-thi-bai-chiem-mot-sandbox-nang-hon-muc-can':
@@ -712,7 +715,7 @@ export const author = {
   'author.preview-panel-playground-khong-co-noi-dung-de-xem-truoc':
     'Sân chơi không có nội dung để xem trước',
   'author.preview-panel-nguoi-hoc-nhan-dung-mot-sandbox-trong-voi-tier-capability-va-thoi-han-da-kh':
-    'Người học nhận đúng một sandbox trống với tier, capability và thời hạn đã khai ở tab Soạn. Không có bước nào, không có script chấm nào.',
+    'Người học nhận đúng một sandbox trống với hạng, năng lực sandbox và thời hạn đã khai ở tab Soạn. Không có bước nào, không có script chấm nào.',
   'author.preview-panel-chua-co-gi-de-xem-truoc': 'Chưa có gì để xem trước',
   'author.preview-panel-bai-hoc-chua-co-buoc-nao':
     'Bài học chưa có bước nào, hoặc nguồn nội dung chưa nhận bản nháp. Thêm nội dung ở tab Soạn rồi quay lại đây.',
@@ -774,7 +777,7 @@ export const author = {
   'author.publish-panel-bai-quay-ve-nhap-ma-may-chu-khong-ghi-lai-ly-do-nao-thuong-la-tien-trinh-ch':
     'Bài quay về Nháp mà máy chủ không ghi lại lý do nào. Thường là tiến trình chạy thử bị mất giữa chừng (pod web khởi động lại), hoặc lượt chạy đã quá hạn treo. Bấm Xuất bản lại; nếu lặp lại nhiều lần thì báo người vận hành.',
   'author.publish-panel-bai-nay-khong-co-script-nao-luot-chay-thu-cua-no-la-chinh-viec-sandbox-dung':
-    'Bài này không có script nào. Lượt chạy thử của nó là chính việc sandbox dựng lên được với tier và capability đã khai.',
+    'Bài này không có script nào. Lượt chạy thử của nó là chính việc sandbox dựng lên được với hạng và năng lực sandbox đã khai.',
   'author.publish-panel-chua-chay-lan-nao-day-la-nhung-gi-luot-xuat-ban-se-chay-dung-thu-tu':
     'Chưa chạy lần nào. Đây là những gì lượt xuất bản sẽ chạy, đúng thứ tự:',
   'author.publish-panel-dang-chay-may-chu-khong-phat-tien-do-tung-buoc-nen-moi-dong-duoi-day-con-o':
@@ -936,9 +939,9 @@ export const author = {
   'author.builder.hint.primer': 'Markdown, tối đa 250 từ. Không phải lời giải.',
   'author.builder.hint.takeaways': 'Mỗi dòng một ý, mỗi ý một câu.',
 
-  'author.builder.option.chapter-1': '1 · Nắn lịch sử',
-  'author.builder.option.chapter-2': '2 · Làm việc nhóm',
-  'author.builder.option.chapter-3': '3 · Cứu hộ',
+  'author.builder.option.chapter-1': 'Chương 1: Nắn lịch sử',
+  'author.builder.option.chapter-2': 'Chương 2: Làm việc nhóm',
+  'author.builder.option.chapter-3': 'Chương 3: Cứu hộ',
   'author.builder.option.no-theory': 'Không kèm bài đọc',
 
   'author.builder.objective.legend': (p: { n: number }) => `Mục tiêu ${String(p.n)}`,

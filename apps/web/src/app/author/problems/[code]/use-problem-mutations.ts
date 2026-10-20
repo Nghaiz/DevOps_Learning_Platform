@@ -1,10 +1,10 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useToast } from '@devops-platform/ui';
 import { t } from '@devops-platform/copy';
 import { api } from '../../../../lib/trpc-react';
 import { describeTrpcError } from '../../../../lib/trpc';
+import { toast } from '@devops-platform/ds';
 
 /** Một hành động của trang sửa, ở dạng nơi hiển thị cần: chạy, đang chạy, lỗi của chính nó. */
 export interface ProblemAction {
@@ -30,7 +30,6 @@ export interface ProblemAction {
  */
 export function useProblemMutations(code: string) {
   const router = useRouter();
-  const { toast } = useToast();
   const utils = api.useUtils();
 
   const invalidateAll = (): void => {
@@ -41,29 +40,25 @@ export function useProblemMutations(code: string) {
   const update = api.problems.update.useMutation({
     onSuccess: () => {
       invalidateAll();
-      toast({ title: t('author.problem.toast.saved'), variant: 'success' });
+      toast.success(t('author.problem.toast.saved'));
     },
   });
   const publish = api.problems.publish.useMutation({
     onSuccess: () => {
       invalidateAll();
-      toast({
-        title: t('author.problem.toast.published'),
-        description: t('author.problem.toast.published-body'),
-        variant: 'success',
-      });
+      toast.success(t('author.problem.toast.published'), { description: t('author.problem.toast.published-body') });
     },
   });
   const archive = api.problems.archive.useMutation({
     onSuccess: () => {
       invalidateAll();
-      toast({ title: t('author.problem.toast.archived') });
+      toast(t('author.problem.toast.archived'));
     },
   });
   const remove = api.problems.delete.useMutation({
     onSuccess: () => {
       void utils.problems.mine.invalidate();
-      toast({ title: t('author.problem.toast.deleted') });
+      toast(t('author.problem.toast.deleted'));
       router.push('/author/problems');
     },
   });

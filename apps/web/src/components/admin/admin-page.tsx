@@ -1,48 +1,63 @@
 import type { ReactElement, ReactNode } from 'react';
 import { t, type ErrorEntry } from '@devops-platform/copy';
 import Link from 'next/link';
-import { Button, ErrorState, Skeleton } from '@devops-platform/ui';
-import { PageContainer, PosterHeader, ToolHeader } from '../kit';
+import { BackLink, Button, ErrorBlock, Page, PageHeader, Pager, RowsSkeleton } from '@devops-platform/ds';
 
 /**
- * Khung của một màn quản trị (bản dựng lại PTIT).
+ * Thanh phân trang theo con trỏ của các bảng quản trị: trang đầu, trang trước, trang sau.
+ * Nút nào không làm được thì khoá chứ không biến mất, để hàng nút không nhảy chỗ.
+ */
+export function AdminPager(props: {
+  readonly page: number;
+  readonly hasNext: boolean;
+  readonly loading: boolean;
+  readonly onNext: () => void;
+  readonly onFirst: () => void;
+  /** Lùi một trang. Thiếu thì chỉ còn "Về đầu" (bảng không giữ ngăn xếp con trỏ). */
+  readonly onPrevious?: () => void;
+}): ReactElement {
+  const back = props.page > 1;
+  return (
+    <Pager
+      status={t('common.pager.page', { page: props.page })}
+      previousLabel={t('common.pager.prev')}
+      nextLabel={t('common.pager.next')}
+      firstLabel={t('common.pager.first')}
+      loading={props.loading}
+      onFirst={back ? props.onFirst : undefined}
+      onPrevious={back ? (props.onPrevious ?? props.onFirst) : undefined}
+      onNext={props.hasNext ? props.onNext : undefined}
+    />
+  );
+}
+
+/**
+ * Khung của một màn quản trị.
  *
  * ⛔ KHÔNG dựng `<main>`: vỏ ứng dụng sở hữu landmark đó và bọc mọi trang
- * (`components/session/landmark-contract.test.ts` gác điều này). `<h1>` do
- * `PosterHeader` / `ToolHeader` của kit render, mỗi màn đúng một cái.
+ * (`components/session/landmark-contract.test.ts` gác điều này). Mỗi màn đúng một `<h1>`,
+ * do `PageHeader` render.
  *
- * Quản trị là section DUY NHẤT có dải poster màu mực, chữ giấy: `section="admin"`
- * tự chọn tông `ink` từ bảng section của vỏ, nên ở đây không có class màu nào.
- * Thanh chuyển bảy trang con (`SectionSwitcher`) nằm sẵn ở mép dưới poster; nó
- * thay cho thanh nav riêng của nhánh quản trị trước đây.
+ * Các trang con của Quản trị nằm trên thanh mục con của vỏ (dưới thanh điều hướng trên
+ * cùng), nên khung này chỉ còn đầu trang và nội dung.
  */
 export function AdminPage(props: {
-  readonly kicker: string;
   readonly title: string;
   readonly lead: string;
   readonly aside?: ReactNode;
   readonly children: ReactNode;
 }): ReactElement {
   return (
-    <>
-      <PosterHeader
-        section="admin"
-        kicker={props.kicker}
-        title={props.title}
-        lead={props.lead}
-        {...(props.aside === undefined ? {} : { aside: props.aside })}
-      />
-      <PageContainer className="pb-16">{props.children}</PageContainer>
-    </>
+    <Page className="pb-16">
+      <PageHeader title={props.title} lead={props.lead} {...(props.aside === undefined ? {} : { actions: props.aside })} />
+      {props.children}
+    </Page>
   );
 }
 
 /**
- * Khung của một trang chi tiết (một lớp, một kỳ thi): `ToolHeader` với đường
- * dẫn mono, không có thanh chuyển trang con vì độ sâu tối đa là hai tầng.
- *
- * Mắt xích đầu "Quản trị" luôn có mặt và trỏ về `/admin`, nên nơi gọi chỉ khai
- * phần riêng của nó.
+ * Khung của một trang chi tiết (một lớp, một kỳ thi): liên kết quay về mục cha, tiêu
+ * đề, trạng thái và thao tác. Độ sâu tối đa là hai tầng, nên một liên kết quay lại là đủ.
  */
 export function AdminDetailPage(props: {
   readonly crumbs: readonly { readonly href?: string; readonly label: string }[];
@@ -51,69 +66,72 @@ export function AdminDetailPage(props: {
   readonly actions?: ReactNode;
   readonly children: ReactNode;
 }): ReactElement {
+  const parent = [{ href: '/admin', label: t('admin.crumb.root') }, ...props.crumbs]
+    .reverse()
+    .find((crumb) => crumb.href !== undefined);
   return (
-    <>
-      <ToolHeader
-        crumbs={[{ href: '/admin', label: t('admin.crumb.root') }, ...props.crumbs]}
+    <Page className="pb-16">
+      <PageHeader
         title={props.title}
-        {...(props.status === undefined ? {} : { status: props.status })}
+        {...(parent?.href === undefined
+          ? {}
+          : {
+              back: (
+                <BackLink asChild>
+                  <Link href={parent.href}>{parent.label}</Link>
+                </BackLink>
+              ),
+            })}
         {...(props.actions === undefined ? {} : { actions: props.actions })}
-      />
-      <PageContainer className="pb-16">{props.children}</PageContainer>
-    </>
+      >
+        {props.status === undefined ? null : <div className="flex flex-wrap items-center gap-2">{props.status}</div>}
+      </PageHeader>
+      {props.children}
+    </Page>
   );
 }
 
-/**
- * Khung xương của một ledger đang tải: các vạch cao đúng một dòng bảng, để
- * bảng thật hiện ra không đẩy trang nhảy.
- */
+/** Khung chờ của một bảng đang tải: các vạch cao đúng một dòng, để bảng thật hiện ra không đẩy trang nhảy. */
 export function LedgerSkeleton({ rows = 6 }: { readonly rows?: number }): ReactElement {
-  return (
-    <div className="flex flex-col gap-px border-t border-border" aria-busy="true">
-      {Array.from({ length: rows }, (_, index) => (
-        <Skeleton key={index} className="h-12 w-full" />
-      ))}
-    </div>
-  );
+  return <RowsSkeleton rows={rows} label={t('admin.loading')} />;
 }
 
 /**
- * Ghi chú phạm vi / tự đính chính dưới một ledger ("20 người ở trang 1, còn
- * trang sau"). Chữ mono nhỏ như nhãn ga, đứng sát bảng nó nói về.
+ * Ghi chú phạm vi / tự đính chính dưới một bảng ("20 người ở trang 1, còn trang sau"),
+ * đứng sát bảng nó nói về.
  *
- * `role="status"` chứ không `alert`: đây là thông tin, không phải lỗi, và
- * `alert` ngắt lời trình đọc màn hình.
+ * `role="status"` chứ không `alert`: đây là thông tin, không phải lỗi, và `alert` ngắt
+ * lời trình đọc màn hình.
  */
 export function AdminNote({ children }: { readonly children: ReactNode }): ReactElement {
   return (
-    <p role="status" className="font-mono text-xs text-muted-foreground">
+    <p role="status" className="text-xs text-ink-3">
       {children}
     </p>
   );
 }
 
 /**
- * Nút "Về đầu" cho trạng thái lỗi và trạng thái trống của một ledger phân trang.
+ * Nút "Về đầu" cho trạng thái lỗi và trạng thái trống của một bảng phân trang.
  *
- * Ở trang 2 trở đi, lỗi hay trang trống THAY CHỖ cả bảng lẫn thanh phân trang,
- * nên nút "Về đầu" của `CursorPager` biến mất cùng bảng và người dùng kẹt lại ở
- * một trang không đọc được. Ở trang 1 thì không có gì để về: trả `null`.
+ * Ở trang 2 trở đi, lỗi hay trang trống THAY CHỖ cả bảng lẫn thanh phân trang, nên nút
+ * "Về đầu" của thanh phân trang biến mất cùng bảng và người dùng kẹt lại ở một trang
+ * không đọc được. Ở trang 1 thì không có gì để về: trả `null`.
  */
 export function FirstPageButton(props: { readonly page: number; readonly onFirst: () => void }): ReactElement | null {
   if (props.page <= 1) {
     return null;
   }
   return (
-    <Button variant="outline" size="sm" onClick={props.onFirst}>
+    <Button variant="secondary" size="sm" icon="arrow-left" onClick={props.onFirst}>
       {t('admin.pager.first')}
     </Button>
   );
 }
 
 /**
- * Lỗi tải một ledger của trang quản trị: hai nửa của `ErrorEntry` vào hai khe
- * của `ErrorState`, nút "Tải lại", và "Về đầu" khi lỗi xảy ra ở trang sau.
+ * Lỗi tải một bảng của trang quản trị: hai nửa của `ErrorEntry` vào hai khe của
+ * `ErrorBlock`, nút "Tải lại", và "Về đầu" khi lỗi xảy ra ở trang sau.
  */
 export function LedgerError(props: {
   readonly failure: ErrorEntry;
@@ -124,24 +142,23 @@ export function LedgerError(props: {
   readonly onFirst?: () => void;
 }): ReactElement {
   const first =
-    props.page === undefined || props.onFirst === undefined ? null : (
-      <FirstPageButton page={props.page} onFirst={props.onFirst} />
-    );
+    props.page === undefined || props.onFirst === undefined ? null : <FirstPageButton page={props.page} onFirst={props.onFirst} />;
   return (
-    <ErrorState
+    <ErrorBlock
       title={props.failure.what}
-      message={props.failure.next}
       onRetry={props.onRetry}
       retrying={props.retrying}
       retryLabel={t('admin.reload')}
       {...(first === null ? {} : { actions: first })}
-    />
+    >
+      {props.failure.next}
+    </ErrorBlock>
   );
 }
 
 /**
- * Lỗi mở một trang chi tiết (một lớp, một kỳ thi): "Tải lại" và lối về danh
- * sách. Câu `next` của các lỗi này hứa cả hai việc, nên cả hai nút phải có mặt.
+ * Lỗi mở một trang chi tiết (một lớp, một kỳ thi): "Tải lại" và lối về danh sách. Câu
+ * `next` của các lỗi này hứa cả hai việc, nên cả hai nút phải có mặt.
  */
 export function DetailError(props: {
   readonly failure: ErrorEntry;
@@ -151,17 +168,18 @@ export function DetailError(props: {
   readonly backLabel: string;
 }): ReactElement {
   return (
-    <ErrorState
+    <ErrorBlock
       title={props.failure.what}
-      message={props.failure.next}
       onRetry={props.onRetry}
       retrying={props.retrying}
       retryLabel={t('admin.reload')}
       actions={
-        <Button asChild variant="outline" size="sm">
+        <Button asChild variant="secondary" size="sm" icon="arrow-left">
           <Link href={props.backHref}>{props.backLabel}</Link>
         </Button>
       }
-    />
+    >
+      {props.failure.next}
+    </ErrorBlock>
   );
 }

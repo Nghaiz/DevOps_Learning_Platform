@@ -1,24 +1,23 @@
 'use client';
 
 import { useId, type ReactElement, type ReactNode } from 'react';
-import { CircleAlert } from 'lucide-react';
-import { Input, Label, Textarea } from '@devops-platform/ui';
+import { Icon, Input, Label, Textarea } from '@devops-platform/ds';
 import type { FieldIssue } from './draft-form';
 import { fieldPathProps } from './studio/field-anchor';
 
 /**
  * Khối nhập dùng lại khắp Xưởng soạn: nhãn trên, ô, câu giải thích, lỗi.
  *
- * `useId()` chứ không phải một chuỗi tự đặt: cùng một tên ô lặp lại ở nhiều
- * bước (`markdown` có một ô cho mỗi bước), nên một `id` cố định sẽ trùng và
- * `htmlFor` trỏ vào ô ĐẦU TIÊN, bấm nhãn của bước 3 nhảy focus lên bước 1. Trùng
- * `id` cũng là lỗi axe `duplicate-id`.
+ * `useId()` chứ không phải một chuỗi tự đặt: cùng một tên ô lặp lại ở nhiều bước
+ * (`markdown` có một ô cho mỗi bước), nên một `id` cố định sẽ trùng và `htmlFor` trỏ vào
+ * ô ĐẦU TIÊN, bấm nhãn của bước 3 nhảy focus lên bước 1. Trùng `id` cũng là lỗi axe
+ * `duplicate-id`.
  *
- * `aria-describedby` nối cả câu giải thích lẫn lỗi, LỖI ĐỨNG CUỐI: một ô có cả
- * hai mà chỉ khai một thì trình đọc màn hình đọc thiếu đúng nửa quan trọng.
+ * `aria-describedby` nối cả câu giải thích lẫn lỗi, LỖI ĐỨNG CUỐI: một ô có cả hai mà
+ * chỉ khai một thì trình đọc màn hình đọc thiếu đúng nửa quan trọng.
  *
- * `path` rải `data-field-path` lên khối bọc, để bảng kiểm bên phải đưa focus về
- * đúng ô này khi người soạn bấm vào một lỗi (`studio/field-anchor.ts`).
+ * `path` rải `data-field-path` lên khối bọc, để bảng kiểm bên phải đưa focus về đúng ô
+ * này khi người soạn bấm vào một lỗi (`studio/field-anchor.ts`).
  */
 
 export function issueFor(issues: readonly FieldIssue[], path: string): string | null {
@@ -39,23 +38,20 @@ export function Field({ label, hint, error, path, children }: FieldShellProps): 
   const hintId = `${id}-hint`;
   const errorId = `${id}-error`;
   const describedBy =
-    [hint === undefined ? null : hintId, error == null ? null : errorId].filter((x) => x !== null).join(' ') ||
-    undefined;
+    [hint === undefined ? null : hintId, error == null ? null : errorId].filter((x) => x !== null).join(' ') || undefined;
 
   return (
     <div className="flex flex-col gap-1.5" {...fieldPathProps(path)}>
-      <Label htmlFor={id} className="text-[13px] font-semibold">
-        {label}
-      </Label>
+      <Label htmlFor={id}>{label}</Label>
       {children({ id, describedBy, invalid: error != null })}
-      {hint !== undefined && (
-        <p id={hintId} className="text-xs leading-relaxed text-muted-foreground">
+      {hint === undefined ? null : (
+        <p id={hintId} className="text-xs leading-relaxed text-ink-3">
           {hint}
         </p>
       )}
-      {error != null && (
-        <p id={errorId} className="flex animate-rise items-start gap-1.5 text-xs font-medium text-destructive">
-          <CircleAlert aria-hidden className="mt-px size-3.5 shrink-0" />
+      {error == null ? null : (
+        <p id={errorId} className="flex animate-enter items-start gap-1.5 text-xs font-medium text-bad-ink">
+          <Icon name="warning" size={14} className="mt-px shrink-0" />
           <span>{error}</span>
         </p>
       )}
@@ -114,7 +110,7 @@ export function TextAreaField(props: {
           aria-describedby={describedBy}
           invalid={invalid}
           rows={props.rows ?? 4}
-          className={props.mono === true ? 'font-mono text-xs' : undefined}
+          mono={props.mono === true}
           value={props.value}
           placeholder={props.placeholder}
           disabled={props.disabled}

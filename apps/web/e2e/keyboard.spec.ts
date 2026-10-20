@@ -95,11 +95,12 @@ const REQUIRED_KEYBOARD_PATHS = ['/labs/:id', '/lessons/:id'] as const;
  */
 const MAX_TAB_STOPS_CHECKED = 18;
 
-/** D10 — cửa sổ Esc-Esc. Chép từ `packages/terminal/src/escape-focus.ts`. */
+/** D10 — cửa sổ giữa Esc và Tab. Chép từ `packages/terminal/src/escape-focus.ts`. */
 const ESCAPE_WINDOW_MS = 500;
 
 /** Byte Escape đi vào PTY. Bằng chứng "phím thật vẫn tới nơi" của vế (a) D10. */
 const ESC_BYTE = 0x1b;
+const TAB_BYTE = 0x09;
 
 // ══════════════════════════════════════════════════════════════════ tiện ích
 
@@ -430,37 +431,50 @@ test.describe('bàn phím — đi hết luồng chính', () => {
   });
 
   /**
-   * Bốn section học tập trên header (bản dựng lại PTIT, `components/shell/nav.ts`
-   * NAV_SECTIONS): mỗi section là một liên kết tới trang con đầu tiên của nó.
+   * Bốn mục học tập trên thanh trên cùng (bản dựng lại 2026-10, `components/shell/nav.ts`):
+   * mỗi mục là một liên kết tới TRANG TỔNG QUAN của mục; trang con nằm trên thanh mục con
+   * ngay bên dưới (`components/shell/section-bar.tsx`).
    *
    * Chép tay ở đây chứ không import: nếu spec import chính hằng của sản phẩm thì
    * một lần xoá nhầm một section sẽ làm spec quét ít hơn mà vẫn xanh.
    */
   const PRIMARY_NAV: { label: string; path: string }[] = [
-    { label: 'Học', path: '/paths' },
-    { label: 'Thực hành', path: '/labs' },
-    { label: 'Luyện đề', path: '/problems' },
+    { label: 'Học', path: '/learn' },
+    { label: 'Thực hành', path: '/practice' },
+    { label: 'Luyện đề', path: '/judge' },
     { label: 'Trò chơi', path: '/games' },
   ];
 
-  test('mega menu mở bằng bàn phím và Tab đi vào được trang con', async ({ page }) => {
+  /**
+   * Không còn mega menu: mục trên cùng dẫn tới trang tổng quan, trang con nằm trên thanh mục
+   * con. Ô này đi đúng đường đó chỉ bằng Tab và Enter, và chỉ nhận focus nằm TRONG đúng thanh
+   * (thân trang /me cũng có liên kết tới vài trang con, Tab trúng chúng không chứng minh gì).
+   */
+  test('mục trên cùng rồi thanh mục con đi được chỉ bằng bàn phím', async ({ page }) => {
     await openScreen(page, '/me', 'user');
     await parkMouse(page);
     const nav = page.getByRole('navigation', { name: 'Điều hướng chính' });
-    const toggle = nav.getByRole('button', { name: 'Mở danh sách mục Học' });
-    await toggle.focus();
-    await page.keyboard.press('Enter');
-    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    const learn = nav.getByRole('link', { name: 'Học', exact: true });
     let reached = false;
-    for (let i = 0; i < 12 && !reached; i += 1) {
+    for (let i = 0; i < 30 && !reached; i += 1) {
       await page.keyboard.press('Tab');
-      const info = await activeInfo(page);
-      if (info === null) break;
-      reached = info.href === '/lessons';
+      reached = await learn.evaluate((el) => el === document.activeElement);
     }
-    expect(reached, 'Tab từ nút mở mega menu "Học" không tới được /lessons').toBe(true);
-    await page.keyboard.press('Escape');
-    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(reached, 'Tab từ đầu /me không tới được mục "Học" của điều hướng chính').toBe(true);
+    await page.keyboard.press('Enter');
+    await page.waitForURL('**/learn', { timeout: 20_000 });
+
+    const subnav = page.getByRole('navigation', { name: 'Các trang trong mục Học' });
+    const lessons = subnav.getByRole('link', { name: 'Bài học', exact: true });
+    await expect(lessons, 'trang /learn không có thanh mục con với trang "Bài học"').toBeVisible();
+    reached = false;
+    for (let i = 0; i < 30 && !reached; i += 1) {
+      await page.keyboard.press('Tab');
+      reached = await lessons.evaluate((el) => el === document.activeElement);
+    }
+    expect(reached, 'Tab trên /learn không tới được trang con "Bài học" của thanh mục con').toBe(true);
+    await page.keyboard.press('Enter');
+    await page.waitForURL('**/lessons', { timeout: 20_000 });
   });
 
   for (const item of PRIMARY_NAV) {
@@ -480,7 +494,9 @@ test.describe('bàn phím — đi hết luồng chính', () => {
         await page.keyboard.press('Tab');
         const info = await activeInfo(page);
         if (info === null) break;
-        reached = info.href === item.path;
+        // Chỉ tính focus nằm trên CHÍNH mục của điều hướng chính: thân /me cũng có liên kết
+        // tới vài trang, Tab trúng chúng thì ô xanh mà điều hướng chẳng được đo.
+        reached = info.href === item.path && (await link.evaluate((el) => el === document.activeElement));
       }
       expect(
         reached,
@@ -571,11 +587,11 @@ test.describe('bàn phím — đi hết luồng chính', () => {
 
 // ═══════════════════════════════════════════════════ D10 — Esc trong terminal
 
-test.describe('D10 — thoát terminal bằng Esc Esc', () => {
+test.describe('D10 — thoát terminal bằng Esc rồi Tab', () => {
   test.afterEach(async ({ page }) => {
     // Only end the session this test opened. Leaving it alive consumes a real
     // sandbox slot and makes a later test depend on this test's cleanup.
-    const end = page.getByRole('button', { name: 'Kết thúc phiên', exact: true });
+    const end = page.getByRole('button', { name: 'Tắt máy', exact: true });
     if (await end.isVisible()) {
       await end.press('Enter');
       await expect(end).toBeHidden({ timeout: 60_000 });
@@ -691,7 +707,7 @@ test.describe('D10 — thoát terminal bằng Esc Esc', () => {
     // The READY control frame is the observable proof of the real gateway
     // handshake; the slow Esc case must not pass on a disconnected terminal.
     await expect(
-      page.locator('[aria-live="polite"]').getByText('Sandbox sẵn sàng', { exact: true }),
+      page.getByTestId('dlp-session-controls').getByText('Máy đang chạy', { exact: true }),
     ).toBeVisible({ timeout: 30_000 });
     return 'ok';
   }
@@ -700,24 +716,25 @@ test.describe('D10 — thoát terminal bằng Esc Esc', () => {
     return process.env.E2E_REQUIRE_SESSION === '1';
   }
 
-  test('Esc ĐƠN vẫn tới PTY, và Esc Esc rời khỏi terminal', async ({ page, api }, testInfo) => {
-    test.setTimeout(240_000);
-
-    // Bắt frame WebSocket TRƯỚC khi phiên mở. Đây là bằng chứng duy nhất không
-    // giả được cho vế (a) của D10: nếu detector nuốt phím thì xterm không chạy
-    // `_keyDown`, `onData` không bắn, và không byte nào đi qua dây.
-    // (`terminal-escape.browser.test.tsx` khẳng định đúng điều này ở tầng unit
-    // bằng một socket giả; ở đây là dây thật.)
-    const sentEscapes: number[] = [];
+  /** Bắt byte Esc và Tab đi lên WebSocket: bằng chứng duy nhất không giả được rằng phím tới PTY. */
+  function watchKeyBytes(page: Page): { escapes: number[]; tabs: number[] } {
+    const sent = { escapes: [] as number[], tabs: [] as number[] };
     page.on('websocket', (ws) => {
       ws.on('framesent', (frame) => {
         const payload = frame.payload;
         if (typeof payload === 'string') return;
         for (const byte of payload) {
-          if (byte === ESC_BYTE) sentEscapes.push(Date.now());
+          if (byte === ESC_BYTE) sent.escapes.push(Date.now());
+          if (byte === TAB_BYTE) sent.tabs.push(Date.now());
         }
       });
     });
+    return sent;
+  }
+
+  test('Esc ĐƠN và Esc Esc vẫn tới PTY, còn Esc rồi Tab rời khỏi terminal', async ({ page, api }, testInfo) => {
+    test.setTimeout(240_000);
+    const sent = watchKeyBytes(page);
 
     const opened = await openTerminal(page, api);
     test.skip(
@@ -730,18 +747,11 @@ test.describe('D10 — thoát terminal bằng Esc Esc', () => {
     const terminal = page.getByTestId('dlp-terminal');
 
     /*
-      ── Vế (c) của D10: container tự nói ra đường thoát ──────────────────────
+      ── Container tự nói ra đường thoát (D10) và chỉ có MỘT điểm dừng Tab (M8) ──
 
-      Gộp vào ô này chứ không tách ô riêng, vì mỗi ô riêng là thêm MỘT phiên
-      sandbox thật: cụm lab có trần ~20 pod (P12) và suite chạy `workers: 1`,
-      nên ba phiên nối tiếp chỉ để khẳng định ba thuộc tính tĩnh là trả giá
-      bằng vài phút mỗi lượt chạy mà không mua thêm phép đo nào.
-
-      Vì sao ba thứ này KHÔNG được để axe gác hộ: `role="application"` tắt chế
-      độ duyệt của trình đọc màn hình. Một container `application` thiếu tên,
-      thiếu `tabIndex`, hoặc có tên nhưng KHÔNG nói cách ra, vẫn qua mọi luật
-      tĩnh — vì theo ARIA nó hợp lệ. Thứ biến nó thành lỗi là ngữ cảnh, và
-      ngữ cảnh thì phải khẳng định bằng tay.
+      `role="application"` tắt chế độ duyệt của trình đọc màn hình, nên container phải có
+      tên nói được cách ra. M8: container KHÔNG mang tabindex; textarea của xterm là điểm
+      dừng duy nhất, nếu không thì Tab đầu tiên rơi vào một <div> gõ không đi đâu cả.
     */
     const surface = await terminal.evaluate((el) => ({
       role: el.getAttribute('role'),
@@ -751,66 +761,66 @@ test.describe('D10 — thoát terminal bằng Esc Esc', () => {
     expect(surface.role, 'container terminal thiếu role="application" (D10)').toBe('application');
     expect(
       surface.tabIndex,
-      'container terminal không có tabindex="0" — nó nằm ngoài vòng Tab, nên người ' +
-        'dùng bàn phím không vào được terminal ngay cả khi mọi thứ khác đúng.',
-    ).toBe('0');
-    // Khớp Ý (có nhắc Esc), không khớp CHUỖI. Một phép so bằng nguyên văn sẽ
-    // đỏ mỗi lần ai đó sửa câu chữ, và cái sửa đó không phải hồi quy — trong
-    // khi thứ D10 thật sự đòi là nhãn PHẢI nêu được đường ra.
+      'M8: container terminal mang tabindex, tức HAI điểm dừng Tab và điểm đầu là một <div> chết.',
+    ).toBeNull();
+    await expect(
+      terminal.locator('textarea').first(),
+      'textarea của xterm không nằm trong vòng Tab: người dùng bàn phím không vào được terminal.',
+    ).toHaveAttribute('tabindex', '0');
     expect(
       surface.ariaLabel,
-      `aria-label của terminal («${surface.ariaLabel}») không nhắc tới Esc. ` +
-        `role="application" tắt chế độ duyệt, nên câu đầu tiên người dùng nghe ` +
-        `phải nói được cách thoát — nếu không, terminal là một bẫy đối với họ.`,
+      `aria-label của terminal («${surface.ariaLabel}») không nhắc tới Esc. role="application" ` +
+        'tắt chế độ duyệt, nên câu đầu tiên người dùng nghe phải nói được cách thoát.',
     ).toMatch(/esc/i);
-
-    // Gợi ý nhìn thấy được (D10: "khi terminal có focus hiện gợi ý"). Trong bản
-    // dựng hiện tại dòng này LUÔN hiện và chỉ đậm lên khi focus — cố ý, vì một
-    // dòng chữ nhảy ra lúc focus sẽ đổi chiều cao khoang và bắt xterm fit lại.
-    // Nên ô này khẳng định "có gợi ý", không khẳng định "gợi ý chỉ hiện khi focus".
     await expect(
-      page.getByText(/Esc\s*Esc\s*để rời khỏi terminal/i),
-      'không thấy gợi ý "Esc Esc để rời khỏi terminal" cạnh terminal — người dùng ' +
-        'chuột/bàn phím không có cách nào đoán ra cử chỉ này.',
+      page.getByText(/Nhấn\s*Esc\s*rồi\s*Tab\s*để rời khỏi terminal/i),
+      'không thấy gợi ý "Nhấn Esc rồi Tab để rời khỏi terminal" cạnh terminal.',
     ).toBeVisible();
 
     await terminal.locator('textarea').first().focus();
     expect((await activeInfo(page))?.inTerminal, 'focus không vào được terminal').toBe(true);
 
-    // ── Vế (a): Esc ĐƠN ─────────────────────────────────────────────────────
-    const before = sentEscapes.length;
+    // ── (a) Esc ĐƠN: là phím của terminal ──────────────────────────────────
+    const before = sent.escapes.length;
     await page.keyboard.press('Escape');
     await page.waitForTimeout(300);
-
     expect(
-      sentEscapes.length - before,
-      'Nhấn Esc một lần mà KHÔNG có byte 0x1b nào đi vào WebSocket. Detector D10 ' +
-        'đang nuốt phím Escape — vim sẽ không rời được insert mode.',
+      sent.escapes.length - before,
+      'Nhấn Esc một lần mà KHÔNG có byte 0x1b nào đi vào WebSocket: vim sẽ không rời được insert mode.',
     ).toBeGreaterThan(0);
-    expect(
-      (await activeInfo(page))?.inTerminal,
-      'Esc ĐƠN đã đá focus ra khỏi terminal. D10 chốt một lần Esc là phím của ' +
-        'terminal, không phải cử chỉ rời đi.',
-    ).toBe(true);
+    expect((await activeInfo(page))?.inTerminal, 'Esc ĐƠN đã đá focus ra khỏi terminal.').toBe(true);
 
-    // ── Vế (b): Esc Esc nhanh ───────────────────────────────────────────────
-    // Chờ qua cửa sổ để lần Esc ở trên không ghép cặp với lần đầu của cặp mới.
+    // ── (b) M1: Esc Esc nhanh là thói quen vim, KHÔNG được rời focus ────────
     await page.waitForTimeout(ESCAPE_WINDOW_MS + 200);
-    const beforePair = sentEscapes.length;
+    const beforePair = sent.escapes.length;
     await page.keyboard.press('Escape');
     await page.keyboard.press('Escape');
     await page.waitForTimeout(400);
+    expect(
+      (await activeInfo(page))?.inTerminal,
+      'M1: Esc Esc nhanh đã đá focus ra khỏi terminal. Người gõ Esc hai lần cho chắc về normal ' +
+        'mode của vim sẽ mất terminal đúng lúc đó.',
+    ).toBe(true);
+    expect(sent.escapes.length - beforePair, 'cả hai byte Esc phải tới PTY').toBeGreaterThanOrEqual(2);
 
+    // ── (c) Esc rồi Tab trong cửa sổ: rời terminal, Tab KHÔNG tới PTY ────────
+    await page.waitForTimeout(ESCAPE_WINDOW_MS + 200);
+    const escBeforeExit = sent.escapes.length;
+    const tabsBeforeExit = sent.tabs.length;
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('Tab');
+    await page.waitForTimeout(400);
     expect(
       (await activeInfo(page))?.inTerminal ?? false,
-      'Esc Esc nhanh KHÔNG đưa focus ra khỏi terminal. `role="application"` mà ' +
-        'không có lối ra là một bẫy focus — nặng hơn lỗi a11y mà nó định chữa.',
+      'Esc rồi Tab KHÔNG đưa focus ra khỏi terminal. role="application" mà không có lối ra là ' +
+        'một bẫy focus, nặng hơn lỗi a11y mà nó định chữa.',
     ).toBe(false);
+    expect(sent.escapes.length - escBeforeExit, 'byte Esc của cử chỉ rời vẫn phải tới PTY').toBeGreaterThan(0);
     expect(
-      sentEscapes.length - beforePair,
-      'D10 chốt CẢ HAI byte Esc vẫn được thả cho PTY (một \\x1b thừa là vô hại ở ' +
-        'mọi TUI, còn một nhánh code có quyền huỷ sự kiện thì sớm muộn sẽ huỷ nhầm).',
-    ).toBeGreaterThanOrEqual(2);
+      sent.tabs.length - tabsBeforeExit,
+      'Tab của cử chỉ rời đi lọt xuống PTY: shell nhận một lượt hoàn thành lệnh mà người dùng không gõ.',
+    ).toBe(0);
+
     await testInfo.attach('terminal-escape-evidence.json', {
       contentType: 'application/json',
       body: Buffer.from(
@@ -818,7 +828,8 @@ test.describe('D10 — thoát terminal bằng Esc Esc', () => {
           {
             realGatewayReady: true,
             singleEscapeBytes: beforePair - before,
-            fastPairEscapeBytes: sentEscapes.length - beforePair,
+            escEscBytes: escBeforeExit - beforePair,
+            exitTabBytes: sent.tabs.length - tabsBeforeExit,
             focusOutsideTerminal: !((await activeInfo(page))?.inTerminal ?? false),
             escapeWindowMs: ESCAPE_WINDOW_MS,
           },
@@ -830,8 +841,9 @@ test.describe('D10 — thoát terminal bằng Esc Esc', () => {
     await page.screenshot({ path: testInfo.outputPath('terminal-escape.png') });
   });
 
-  test(`Esc … hơn ${ESCAPE_WINDOW_MS}ms … Esc thì KHÔNG rời terminal`, async ({ page, api }) => {
+  test(`Esc … hơn ${ESCAPE_WINDOW_MS}ms … Tab thì KHÔNG rời terminal`, async ({ page, api }) => {
     test.setTimeout(240_000);
+    const sent = watchKeyBytes(page);
 
     const opened = await openTerminal(page, api);
     test.skip(
@@ -844,16 +856,20 @@ test.describe('D10 — thoát terminal bằng Esc Esc', () => {
     await terminal.locator('textarea').first().focus();
     expect((await activeInfo(page))?.inTerminal).toBe(true);
 
+    const tabsBefore = sent.tabs.length;
     await page.keyboard.press('Escape');
     await page.waitForTimeout(ESCAPE_WINDOW_MS + 200);
-    await page.keyboard.press('Escape');
+    await page.keyboard.press('Tab');
     await page.waitForTimeout(400);
 
     expect(
       (await activeInfo(page))?.inTerminal,
-      `Hai lần Esc cách nhau hơn ${ESCAPE_WINDOW_MS}ms vẫn rời terminal. Cửa sổ D10 ` +
-        `không được thực thi — người đang gõ vim sẽ bị đá ra khỏi terminal ở lần Esc ` +
-        `thứ hai bất kỳ, bao lâu sau cũng vậy.`,
+      `Esc rồi Tab cách nhau hơn ${ESCAPE_WINDOW_MS}ms vẫn rời terminal. Cửa sổ D10 không được ` +
+        'thực thi: phím Tab hoàn thành lệnh của shell sẽ đá người học ra ngoài bất cứ lúc nào.',
     ).toBe(true);
+    expect(
+      sent.tabs.length - tabsBefore,
+      'Tab ngoài cửa sổ là phím của shell (hoàn thành lệnh) mà không tới PTY.',
+    ).toBeGreaterThan(0);
   });
 });
