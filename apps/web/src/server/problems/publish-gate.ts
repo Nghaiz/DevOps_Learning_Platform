@@ -69,7 +69,7 @@ export function publishIssues(body: PublishCandidate): readonly z.core.$ZodIssue
     issues.push({
       code: 'custom',
       path: ['objectives'],
-      message: 'Cần ít nhất một testcase — không có thì bài không chấm được',
+      message: 'Cần ít nhất một testcase, không có thì bài không chấm được',
       input: body.objectives,
     });
   }
@@ -78,7 +78,7 @@ export function publishIssues(body: PublishCandidate): readonly z.core.$ZodIssue
     issues.push({
       code: 'custom',
       path: ['objectives'],
-      message: 'Id mục tiêu bị trùng — điểm sẽ tính sai vì bên chấm khử trùng theo id',
+      message: 'Id mục tiêu bị trùng nên điểm sẽ tính sai, vì bên chấm khử trùng theo id',
       input: body.objectives,
     });
   }
@@ -87,7 +87,7 @@ export function publishIssues(body: PublishCandidate): readonly z.core.$ZodIssue
     issues.push({
       code: 'custom',
       path: ['hints'],
-      message: 'Id gợi ý bị trùng — mở một cái sẽ mở luôn cái kia',
+      message: 'Id gợi ý bị trùng nên mở một gợi ý sẽ mở luôn gợi ý kia',
       input: body.hints,
     });
   }

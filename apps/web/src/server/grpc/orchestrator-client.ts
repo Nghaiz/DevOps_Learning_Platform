@@ -167,11 +167,11 @@ const ORCHESTRATOR_MESSAGE_BY_CODE: Partial<Record<TRPCError['code'], string>> =
   BAD_REQUEST: 'Yêu cầu gửi tới dịch vụ sandbox không hợp lệ. Hãy tải lại trang rồi thử lại.',
   UNAUTHORIZED: 'Phiên đăng nhập đã hết hạn. Hãy đăng nhập lại rồi thử lại.',
   FORBIDDEN: 'Bạn không có quyền trên phiên sandbox này.',
-  NOT_FOUND: 'Không tìm thấy phiên sandbox — có thể nó đã hết hạn hoặc bị thu hồi. Hãy tạo phiên mới.',
+  NOT_FOUND: 'Không tìm thấy phiên sandbox. Có thể nó đã hết hạn hoặc bị thu hồi, hãy tạo phiên mới.',
   CONFLICT: 'Phiên sandbox này đã tồn tại. Hãy tải lại trang để xem phiên đang chạy.',
   TIMEOUT: 'Dịch vụ sandbox phản hồi quá lâu. Hãy thử lại sau giây lát.',
   TOO_MANY_REQUESTS:
-    'Nền tảng đã đạt trần số sandbox đồng thời. Hãy chờ ít phút rồi thử lại — phiên của người khác kết thúc là có chỗ.',
+    'Nền tảng đã đạt trần số sandbox đồng thời. Hãy chờ ít phút rồi thử lại, phiên của người khác kết thúc là có chỗ.',
   NOT_IMPLEMENTED: 'Chức năng này của dịch vụ sandbox chưa sẵn sàng.',
 };
 

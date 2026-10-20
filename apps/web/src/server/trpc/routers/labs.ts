@@ -184,7 +184,7 @@ async function probeSetup(
 /** Câu người học đọc cho mỗi trạng thái setup chưa xong. */
 function describeUnreadySetup(probe: SetupProbe): string {
   if (probe.state === 'running') {
-    return 'Môi trường của bài đang được dựng — đợi vài giây rồi chấm lại.';
+    return 'Môi trường của bài đang được dựng. Đợi vài giây rồi chấm lại.';
   }
   if (probe.state === 'absent') {
     // Lab CÓ khai `background` mà pod không có dấu phóng nào: phiên này có trước
@@ -579,7 +579,7 @@ export const labsRouter = createTRPCRouter({
     const attempt = await requireOwnAttempt(ctx, input.attemptId);
     assertAttemptBelongsToLab(attempt, input.labId);
     if (attempt.submittedAt !== null) {
-      throw new TRPCError({ code: 'CONFLICT', message: 'Lần thử này đã được nộp — không chấm lại được' });
+      throw new TRPCError({ code: 'CONFLICT', message: 'Lần thử này đã nộp nên không chấm lại được' });
     }
 
     const lab = await requireLab(attempt.labId);

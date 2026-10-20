@@ -93,7 +93,7 @@ function assertSubmitRateLimit(userId: string): void {
   ) {
     throw new TRPCError({
       code: 'TOO_MANY_REQUESTS',
-      message: 'Nộp quá nhanh — thử lại sau một phút',
+      message: 'Nộp quá nhanh. Thử lại sau một phút',
     });
   }
 }

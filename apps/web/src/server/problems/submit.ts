@@ -67,7 +67,7 @@ function assertSubmitRateLimit(userId: string): void {
   if (!checkRateLimit(`problems:submit:${userId}`, Date.now(), RATE_LIMIT_WINDOW_MS, SUBMIT_LIMIT_PER_MIN)) {
     throw new TRPCError({
       code: 'TOO_MANY_REQUESTS',
-      message: `Bạn đang nộp bài quá nhanh — tối đa ${String(SUBMIT_LIMIT_PER_MIN)} lượt mỗi phút. Hãy đợi một chút rồi nộp lại.`,
+      message: `Bạn đang nộp bài quá nhanh. Mỗi phút chỉ nộp được ${String(SUBMIT_LIMIT_PER_MIN)} lượt, hãy đợi một chút rồi nộp lại.`,
     });
   }
 }

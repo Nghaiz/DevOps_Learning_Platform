@@ -172,12 +172,12 @@ function gatewayError(raw: unknown): TRPCError {
     case 'SESSION_NOT_FOUND':
       return new TRPCError({
         code: 'NOT_FOUND',
-        message: 'Phiên sandbox đã kết thúc — hãy khởi động lại bài học',
+        message: 'Phiên sandbox đã kết thúc. Bấm Bắt đầu để mở phiên mới cho bài học',
       });
     case 'SESSION_NOT_ACTIVE':
       return new TRPCError({
         code: 'CONFLICT',
-        message: 'Phiên sandbox chưa sẵn sàng — đợi provisioning xong rồi thử lại',
+        message: 'Phiên sandbox chưa sẵn sàng. Đợi máy dựng xong rồi thử lại',
       });
     case 'FORBIDDEN':
     case 'UNAUTHENTICATED':

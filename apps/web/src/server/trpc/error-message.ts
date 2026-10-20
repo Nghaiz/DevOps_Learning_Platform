@@ -48,7 +48,7 @@ const SAFE_MESSAGE_BY_CODE: Partial<Record<TRPCError['code'], string>> = {
   BAD_REQUEST: 'Dữ liệu gửi lên không hợp lệ. Hãy kiểm tra lại các ô đã nhập rồi gửi lại.',
   UNAUTHORIZED: 'Phiên đăng nhập đã hết hạn. Hãy đăng nhập lại rồi thử lại.',
   FORBIDDEN: 'Bạn không có quyền thực hiện thao tác này.',
-  NOT_FOUND: 'Không tìm thấy dữ liệu bạn yêu cầu — có thể nó đã bị xoá. Hãy tải lại trang.',
+  NOT_FOUND: 'Không tìm thấy dữ liệu bạn yêu cầu, có thể nó đã bị xoá. Hãy tải lại trang.',
   TIMEOUT: 'Máy chủ xử lý quá lâu nên yêu cầu bị huỷ. Hãy thử lại.',
   CONFLICT: 'Dữ liệu vừa bị một thao tác khác thay đổi. Hãy tải lại trang rồi thử lại.',
   PAYLOAD_TOO_LARGE: 'Dữ liệu gửi lên quá lớn. Hãy giảm kích thước rồi gửi lại.',

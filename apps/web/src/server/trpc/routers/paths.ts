@@ -241,7 +241,7 @@ export const pathsRouter = createTRPCRouter({
     if (!isItemUnlocked(detail.items, ref)) {
       throw new TRPCError({
         code: 'FORBIDDEN',
-        message: 'Item còn khoá — hoàn thành item trước đó đã',
+        message: 'Mục này còn khoá. Hãy hoàn thành mục trước đó đã',
       });
     }
 
@@ -389,7 +389,7 @@ export const pathsRouter = createTRPCRouter({
       .where(eq(learningPathItems.pathId, input.pathId))
       .limit(1);
     if (item === undefined) {
-      throw new TRPCError({ code: 'BAD_REQUEST', message: 'Lộ trình rỗng — thêm item trước đã' });
+      throw new TRPCError({ code: 'BAD_REQUEST', message: 'Lộ trình chưa có mục nào. Hãy thêm mục trước đã' });
     }
 
     await ctx.db

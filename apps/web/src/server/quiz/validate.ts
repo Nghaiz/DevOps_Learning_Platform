@@ -47,7 +47,7 @@ function issuesForQuestion(question: QuizQuestionFull, at: string): readonly Con
   if (question.choices.length > 0 && correct.length === question.choices.length) {
     issues.push({
       path: `${at}.choices`,
-      message: 'mọi lựa chọn đều đúng — câu hỏi này không đo được gì',
+      message: 'mọi lựa chọn đều đúng nên câu hỏi này không đo được gì',
     });
   }
 
@@ -64,7 +64,7 @@ function issuesForQuestion(question: QuizQuestionFull, at: string): readonly Con
   if (question.kind === 'single' && correct.length > 1) {
     issues.push({
       path: `${at}.choices`,
-      message: `câu một-đáp-án có ${String(correct.length)} đáp án đúng — không lượt trả lời nào đạt được`,
+      message: `câu một-đáp-án có ${String(correct.length)} đáp án đúng nên không lượt trả lời nào đạt được`,
     });
   }
 

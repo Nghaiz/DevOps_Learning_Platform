@@ -94,7 +94,7 @@ export async function shellcheckScript(script: string): Promise<ShellcheckReport
     return {
       available: false,
       findings: [],
-      unavailableReason: `script dài quá ${String(MAX_SCRIPT_BYTES)} byte — không kiểm`,
+      unavailableReason: `script dài quá ${String(MAX_SCRIPT_BYTES)} byte nên không kiểm`,
     };
   }
 
