@@ -65,9 +65,7 @@ export function ResetPasswordForm() {
     return (
       <div className="flex flex-col gap-8">
         <div role="status" className="flex animate-enter gap-4 border border-t-2 border-rule border-t-ok-mid bg-paper px-5 py-4">
-          <span className="grid size-10 shrink-0 place-items-center rounded-full bg-ok-tint text-ok-ink">
-            <Icon name="key" size={20} />
-          </span>
+          <Icon name="key" size={28} tint="neutral" className="mt-0.5 text-ok-ink" />
           <div className="flex flex-col gap-1.5">
             <p className="font-display text-lg font-semibold text-ink">{t('auth.reset.success-title')}</p>
             <p className="text-sm text-ink-2">{t('auth.reset.success-body')}</p>

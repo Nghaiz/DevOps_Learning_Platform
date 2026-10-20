@@ -853,17 +853,46 @@
 }
 
 /*
- * Vùng cuộn ngang (bảng, dải tab ở màn hẹp): bóng mờ hiện ở mép nào còn nội dung bị che, và tự
- * tắt khi đã cuộn tới mép đó. Hai lớp phủ màu nền cuộn THEO nội dung (`local`) và che bóng ở
- * mép đã hết; hai lớp bóng đứng yên (`scroll`). Nền khác `canvas` thì đặt `--scroll-bg`.
- * Thiếu nó thì một bảng bị cắt ở mép 390px trông như bảng đã hết cột (rà ảnh 2026-10-20).
+ * Vùng cuộn ngang (bảng, dải tab ở màn hẹp): nội dung mờ dần ở mép nào còn phần bị che, và mép
+ * đó rõ lại khi đã cuộn tới nó. Thiếu nó thì một bảng bị cắt ở mép 390px trông như bảng đã hết
+ * cột (rà ảnh 2026-10-20).
+ *
+ * Làm bằng mặt nạ chạy theo dòng thời gian cuộn của chính phần tử, KHÔNG bằng lớp phủ màu nền:
+ * bản trước phủ màu `canvas` lên hai mép, nên trên panel nền `paper` (thanh tab của lab) nó hiện
+ * thành một mảng sáng dù chẳng có gì để cuộn. Không cuộn được thì dòng thời gian không hoạt động,
+ * hai biến giữ giá trị đầu 0px và mặt nạ phủ kín, tức không mờ gì. Trình duyệt chưa có
+ * `animation-timeline` thì cũng thế: mất gợi ý cuộn, không mất nội dung.
  */
+@property --scroll-fade-l {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+@property --scroll-fade-r {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+@keyframes scroll-fade-x {
+  from {
+    --scroll-fade-l: 0px;
+    --scroll-fade-r: 2.5rem;
+  }
+  to {
+    --scroll-fade-l: 2.5rem;
+    --scroll-fade-r: 0px;
+  }
+}
 @utility scroll-shadow-x {
-  background:
-    linear-gradient(to right, var(--scroll-bg, var(--canvas)) 30%, transparent) left center / 40px 100% no-repeat local,
-    linear-gradient(to left, var(--scroll-bg, var(--canvas)) 30%, transparent) right center / 40px 100% no-repeat local,
-    radial-gradient(farthest-side at 0 50%, color-mix(in oklch, var(--ink) 18%, transparent), transparent) left center / 14px 100% no-repeat scroll,
-    radial-gradient(farthest-side at 100% 50%, color-mix(in oklch, var(--ink) 18%, transparent), transparent) right center / 14px 100% no-repeat scroll;
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    var(--ink) var(--scroll-fade-l),
+    var(--ink) calc(100% - var(--scroll-fade-r)),
+    transparent
+  );
+  animation: scroll-fade-x linear both;
+  animation-timeline: scroll(self inline);
 }
 
 /* Đang kéo tay nắm chia khoang: iframe (IDE) không được nuốt sự kiện chuột. */

@@ -80,7 +80,7 @@ export function PreviewPanel(props: {
                   isActive ? 'border-acc-mid bg-acc-tint text-acc-ink' : 'border-rule-2 bg-paper text-ink-2 hover:border-control hover:text-ink',
                 )}
               >
-                <span aria-hidden className="text-xs tabular-nums opacity-70">
+                <span aria-hidden className="text-xs tabular-nums">
                   {index + 1}
                 </span>
                 <span className="truncate">

@@ -146,7 +146,7 @@ export function ClassPicker(props: {
                       {selected ? <Icon name="check" size={16} /> : null}
                     </span>
                     <span className="flex-1 font-medium">{item.name}</span>
-                    <span className="text-xs tabular-nums opacity-70">{item.memberCount}</span>
+                    <span className="text-xs tabular-nums">{item.memberCount}</span>
                   </label>
                 );
               })

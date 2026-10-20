@@ -77,15 +77,15 @@ export function GameSelectField(props: {
                     if (ARROW_KEYS.has(event.key)) event.preventDefault();
                   }}
                 />
-                <span
-                  aria-hidden="true"
-                  className="inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-tp-solid text-on-solid transition-transform duration-150 group-hover:-translate-y-0.5"
-                >
-                  <Icon name={look.icon} size={20} />
-                </span>
+                <Icon
+                  name={look.icon}
+                  size={28}
+                  tint="neutral"
+                  className="text-tp-ink transition-transform duration-150 group-hover:-translate-y-0.5"
+                />
                 <span className="flex min-w-0 flex-1 flex-col">
                   <span className="font-semibold">{game.label}</span>
-                  <span className="font-mono text-xs opacity-75">{game.codePrefix}</span>
+                  <span className="font-mono text-xs">{game.codePrefix}</span>
                 </span>
                 {selected && <Icon name="check" size={16} className="shrink-0 animate-enter" />}
               </label>

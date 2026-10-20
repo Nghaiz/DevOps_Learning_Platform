@@ -35,7 +35,7 @@ export function StateChip(props: {
       data-state={props.state}
       tone={TONE[props.state]}
       icon={ICON[props.state]}
-      className={cn(props.state === 'publishing' && 'animate-breathe', props.state === 'archived' && 'opacity-80', props.className)}
+      className={cn(props.state === 'publishing' && 'animate-breathe', props.className)}
     >
       {props.label}
     </Pill>

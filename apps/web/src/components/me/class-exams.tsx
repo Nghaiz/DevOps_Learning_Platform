@@ -43,17 +43,21 @@ export function ClassExams({ headingLevel = 2 }: { readonly headingLevel?: 2 | 3
               title={item.title}
               link={<Link href={`/exams/${encodeURIComponent(item.id)}`}>{item.title}</Link>}
               description={`${item.className}. ${renderCopy(examWhen(item, (iso) => formatWhen(iso)))}`}
-              meta={
-                <Pill tone={window === 'open' ? 'ok' : 'info'} dot live={window === 'open'}>
-                  {t(EXAM_WINDOW_KEYS[window])}
-                </Pill>
-              }
-              trailing={
-                window === 'open' ? (
-                  <Button asChild size="sm" variant="primary">
-                    <Link href={`/exams/${encodeURIComponent(item.id)}`}>{t('me.exams.enter')}</Link>
-                  </Button>
-                ) : undefined
+              below={
+                /*
+                 * Trạng thái và nút nằm DƯỚI mô tả chứ không ở cột phải: khung này thường đứng
+                 * trong cột phụ hẹp, và hai thứ đó chiếm ngang làm tên kỳ thi bị cắt còn vài chữ.
+                 */
+                <div className="flex flex-wrap items-center gap-3">
+                  <Pill tone={window === 'open' ? 'ok' : 'info'} dot live={window === 'open'}>
+                    {t(EXAM_WINDOW_KEYS[window])}
+                  </Pill>
+                  {window === 'open' ? (
+                    <Button asChild size="sm" variant="primary" className="relative z-10">
+                      <Link href={`/exams/${encodeURIComponent(item.id)}`}>{t('me.exams.enter')}</Link>
+                    </Button>
+                  ) : null}
+                </div>
               }
             />
           ))}

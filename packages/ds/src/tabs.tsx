@@ -155,7 +155,7 @@ export const Chip = forwardRef<HTMLButtonElement, ChipProps>(function Chip(
         <Icon name={icon} size={16} tint={topic === undefined ? 'neutral' : 'topic'} className={topic === undefined ? undefined : 'text-tp-ink'} />
       )}
       {children}
-      {count === undefined ? null : <span className="text-xs tabular-nums opacity-70">{count}</span>}
+      {count === undefined ? null : <span className="text-xs tabular-nums">{count}</span>}
     </button>
   );
 });

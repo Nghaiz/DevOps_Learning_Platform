@@ -14,7 +14,6 @@ import {
   RowList,
   RowsSkeleton,
   Segmented,
-  cn,
   type IconName,
   type Tone,
 } from '@devops-platform/ds';
@@ -148,19 +147,19 @@ export function ExamsClient(): ReactElement {
 }
 
 const WINDOW_GLYPH: Readonly<Record<ExamWindow, { readonly icon: IconName; readonly tone: string }>> = {
-  upcoming: { icon: 'hourglass', tone: 'bg-warn-tint text-warn-ink' },
-  open: { icon: 'exam', tone: 'bg-ok-tint text-ok-ink' },
-  closed: { icon: 'lock', tone: 'bg-well-2 text-ink-3' },
+  upcoming: { icon: 'hourglass', tone: 'text-warn-ink' },
+  open: { icon: 'exam', tone: 'text-ok-ink' },
+  closed: { icon: 'lock', tone: 'text-ink-3' },
 };
 
-/** Hình đầu dòng theo cửa sổ của kỳ thi. Chữ đi kèm ở `WindowPill`, hình chỉ để quét mắt. */
+/**
+ * Hình đầu dòng theo cửa sổ của kỳ thi. Chữ đi kèm ở `WindowPill`, hình chỉ để quét mắt.
+ * Glyph trần như ở khung kỳ thi của trang tổng quan, sắc thái nằm ở màu nét và lớp tô; không
+ * đặt trong đĩa tròn tô màu (rà ảnh 2026-10-20: cùng một kỳ thi từng có hai cách vẽ).
+ */
 function WindowGlyph({ slot }: { readonly slot: ExamWindow }): ReactElement {
   const spec = WINDOW_GLYPH[slot];
-  return (
-    <span aria-hidden="true" className={cn('grid size-10 place-items-center rounded-full', spec.tone)}>
-      <Icon name={spec.icon} size={20} />
-    </span>
-  );
+  return <Icon name={spec.icon} size={26} tint="neutral" className={spec.tone} />;
 }
 
 const WINDOW_TONE: Readonly<Record<ExamWindow, Tone>> = {

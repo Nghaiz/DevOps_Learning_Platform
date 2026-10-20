@@ -173,7 +173,7 @@ export function Row({ title, description, below, leading, meta, trailing, topic,
       data-topic={topic}
       data-current={current || undefined}
       className={cn(
-        'group relative flex items-center gap-4 border-b border-rule transition-colors duration-150',
+        'group @container relative flex items-center gap-4 border-b border-rule transition-colors duration-150',
         dense ? 'py-2.5' : 'py-3.5',
         className,
       )}
@@ -195,7 +195,12 @@ export function Row({ title, description, below, leading, meta, trailing, topic,
         {description === undefined ? null : <p className="line-clamp-2 text-sm text-ink-2">{description}</p>}
         {below === undefined ? null : <div className="pt-1.5">{below}</div>}
       </div>
-      {meta === undefined ? null : <div className="hidden shrink-0 items-center gap-6 text-sm text-ink-2 md:flex">{meta}</div>}
+      {/*
+       * Cột phụ hiện theo bề rộng của CHÍNH dòng (container query), không theo màn hình: một danh
+       * sách nằm trong cột phụ 300px ở màn rộng từng hiện đủ cột phụ và ép tên xuống hai chữ một
+       * dòng (rà ảnh 2026-10-20, khung kỳ thi ở trang tổng quan).
+       */}
+      {meta === undefined ? null : <div className="hidden shrink-0 items-center gap-6 text-sm text-ink-2 @lg:flex">{meta}</div>}
       {trailing === undefined ? null : <div className="relative z-10 shrink-0">{trailing}</div>}
     </li>
   );

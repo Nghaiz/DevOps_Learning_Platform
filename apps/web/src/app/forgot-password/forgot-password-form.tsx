@@ -69,9 +69,7 @@ export function ForgotPasswordForm() {
 
       {submitted === null ? null : (
         <div role="status" className="flex animate-enter gap-4 border border-t-2 border-rule border-t-ok-mid bg-paper px-5 py-4">
-          <span className="grid size-10 shrink-0 place-items-center rounded-full bg-ok-tint text-ok-ink">
-            <Icon name="mail" size={20} />
-          </span>
+          <Icon name="mail" size={28} tint="neutral" className="mt-0.5 text-ok-ink" />
           <div className="flex flex-col gap-2">
             <p className="font-display text-lg font-semibold text-ink">{t('auth.forgot.success-title')}</p>
             <p className="text-sm text-ink-2">{t('auth.forgot.success-body', { email: submitted })}</p>
