@@ -36,7 +36,7 @@ global:
 image:
   # Tag chung chỉ là mặc định cho thành phần thiếu tag riêng (hiện không có thành phần nào thiếu),
   # nhưng 11-sideload-images.sh đòi nó khác rỗng. Giữ bằng tag web như rev 114.
-  tag: sha-bdd7d09
+  tag: sha-90d1090
 
 # ⛔ TAG THEO TỪNG THÀNH PHẦN — SỬA Ở P12/12.A (2026-09-04) SAU MỘT SỰ CỐ THẬT.
 #
@@ -155,10 +155,10 @@ web:
   #   đây vừa deploy P15 vừa đưa file về khớp cụm. `p14d` vẫn còn trên node nên
   #   đường lùi là sửa lại một dòng này rồi chạy `12-helm-deploy.sh`.
   image:
-    # 2026-10-20, bản dựng lại giao diện: image XÂY TAY ở máy dev từ commit `bdd7d097` của
+    # 2026-10-20, bản dựng lại giao diện: image XÂY TAY ở máy dev từ commit `90d10902` của
     # nhánh feat/web-redesign rồi side-load, KHÔNG phải CI publish (nói ra vì `sha-` tự nó
     # không phân biệt được hai đường). Sau khi merge, tag CI của commit merge thay được dòng này.
-    tag: sha-bdd7d09
+    tag: sha-90d1090
   replicaCount: 1
   # ⛔ `rateLimitTrustProxy` CỐ Ý KHÔNG nằm ở đây — xem web-deployment.yaml.
   # Bản đầu của chặng 3.A đặt nó `'1'` ngay trong hồ sơ này, và đó là một lỗ
