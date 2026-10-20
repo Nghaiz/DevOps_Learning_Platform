@@ -394,24 +394,57 @@ export async function tabUntil(
 const MUST_NOT_FIRE = ['landmark-unique', 'landmark-no-duplicate-main', 'landmark-one-main'];
 
 /**
- * Chờ mọi hiệu ứng CÓ HẠN chạy xong trước khi đo tương phản.
+ * Thuộc tính mà axe đọc để tính tương phản (tên camelCase như `getKeyframes()` trả về).
+ * Hiệu ứng không chạm thuộc tính nào trong đây thì không đổi kết quả `color-contrast`.
+ */
+const CONTRAST_PROPERTIES = ['opacity', 'color', 'backgroundColor', 'background', 'visibility'];
+
+/**
+ * Các hiệu ứng CÓ HẠN đang chạy và đang đổi một thuộc tính trong `properties`, mỗi
+ * hiệu ứng một dòng `tên @ phần tử`. Chạy trong trình duyệt qua `page.evaluate`, nên
+ * không được tham chiếu gì ngoài tham số của chính nó.
+ */
+function runningContrastAnimations(properties: readonly string[]): string[] {
+  return document.getAnimations().flatMap((animation) => {
+    const effect = animation.effect;
+    if (animation.playState !== 'running' || !(effect instanceof KeyframeEffect)) return [];
+    if (effect.getComputedTiming().iterations === Infinity) return [];
+    const touched = effect.getKeyframes().flatMap((frame) => Object.keys(frame));
+    if (!touched.some((property) => properties.includes(property))) return [];
+    const name =
+      animation instanceof CSSAnimation
+        ? animation.animationName
+        : animation instanceof CSSTransition
+          ? `transition ${animation.transitionProperty}`
+          : animation.id || 'web-animation';
+    const target = effect.target;
+    const classes = target?.getAttribute('class')?.trim().split(/\s+/).join('.');
+    const where = target === null ? '?' : `${target.tagName.toLowerCase()}${classes ? `.${classes}` : ''}`;
+    return [`${name} @ ${where}`];
+  });
+}
+
+/**
+ * Chờ mọi hiệu ứng CÓ HẠN làm đổi tương phản chạy xong trước khi đo.
  *
  * Các bảng HUD vào màn bằng `animate-rise` (mờ dần lên). axe tính tương phản
  * theo opacity HIỆN TẠI, nên một lượt quét rơi vào giữa hiệu ứng báo
  * `color-contrast` cho chữ mà người dùng chỉ thấy mờ trong ~200ms. CI đỏ kiểu đó
  * theo nhịp máy (ô "đường ống rỗng" xanh ở lượt này, đỏ ở lượt sau). Hiệu ứng lặp
  * vô hạn (nhịp ga) không bao giờ "xong" nên được bỏ qua.
+ *
+ * Chỉ chờ hiệu ứng chạm `CONTRAST_PROPERTIES`. Bản đầu chờ MỌI hiệu ứng có hạn,
+ * và ô AC-6 của sandbox Git đỏ ở mọi lượt CI: mỗi cạnh đồ thị chạy `git-edge-flow`
+ * (`stroke-dashoffset`, 2,5s × 3 = 7,5s), dài hơn hạn chờ 5s, dù nó không đổi
+ * màu hay độ mờ của chữ nào. Hết giờ thì thông báo lỗi liệt kê hiệu ứng còn chạy.
  */
 async function waitForFiniteAnimations(page: Page): Promise<void> {
-  await page.waitForFunction(
-    () =>
-      document.getAnimations().every((animation) => {
-        const iterations = animation.effect?.getComputedTiming().iterations;
-        return animation.playState !== 'running' || iterations === Infinity;
-      }),
-    undefined,
-    { timeout: 5_000 },
-  );
+  await expect
+    .poll(() => page.evaluate(runningContrastAnimations, CONTRAST_PROPERTIES), {
+      message: 'còn hiệu ứng có hạn đổi tương phản chưa chạy xong sau 5s',
+      timeout: 5_000,
+    })
+    .toEqual([]);
 }
 
 export async function scanAxe(page: Page, testInfo: TestInfo, label: string): Promise<void> {
