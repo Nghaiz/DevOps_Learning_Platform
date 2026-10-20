@@ -6,31 +6,25 @@ import { err, errText, t } from '@devops-platform/copy';
 import {
   Button,
   Checkbox,
-  ContentView,
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogTitle,
-  ErrorState,
-  Label,
-  Meter,
-  Skeleton,
+  ConfirmDialog,
+  ErrorBlock,
+  Pill,
+  ProgressLine,
+  RowsSkeleton,
+  TBody,
+  TD,
+  TH,
+  THead,
+  TR,
   Table,
-  TableBody,
-  TableCaption,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
-  TopicBadge,
+  TopicGlyph,
   cn,
-} from '@devops-platform/ui';
+} from '@devops-platform/ds';
+import { ContentView } from '@devops-platform/ds/content';
 import {
   IdePane,
   NoticeStrip,
@@ -42,39 +36,49 @@ import {
   WorkspacePanel,
   WorkspaceSplit,
   checkBlockedReason,
-  contentViewLabels,
+  describeCapacity,
   execBlockedReason,
+  ideAvailable,
   outcomeKind,
   resolveShellFallbackNotice,
   resolveTaskVisualState,
-  shouldShowIdePane,
   useResolvedTerminalTheme,
   useTerminalHandoff,
   type PracticeNotice,
+  type SplitFocus,
 } from '../../../components/session';
+import { PracticeError, PracticeFrame, PracticeSkeleton } from '../../../components/session/practice-frame';
+import { PracticeLaunch } from '../../../components/session/practice-launch';
+import { contentLabels } from '../../../components/session/practice-labels';
+import { useResumeMachine, type ActiveMachine } from '../../../components/session/use-resume-machine';
 import { useWorkspaceTabs } from '../../../components/session/use-workspace-tabs';
-import { lineForTopic } from '../../../lib/topic-line';
+import { useCapacity } from '../../../components/shell/use-capacity';
+import { tierLabel } from '../../../components/catalog/catalog-labels';
+import { topicLook } from '../../../lib/topic-look';
 import { api } from '../../../lib/trpc-react';
 import { describeTrpcError } from '../../../lib/trpc';
+import { canReconnect } from '../../../lib/use-sandbox-session';
 import { useLabSession } from './use-lab-session';
 import { CheckResultPanel, type CheckOutcome } from '../../lessons/[id]/check-result-panel';
 import { summarizeLabScore } from './score-summary';
 
 /**
- * Trình học LAB, kiểu KodeKloud: tuyến dọc các nhiệm vụ cạnh khoang làm việc,
- * nhiệm vụ đang chọn bung đề + nút chấm + kết quả, điểm tổng trên thanh trên.
+ * Trình học LAB: danh sách nhiệm vụ cạnh khoang làm việc, nhiệm vụ đang chọn bung đề +
+ * nút chấm + kết quả, điểm tổng ở đầu danh sách.
  *
- * Ba hợp đồng giữ nguyên: khung phiên là `SessionControls` (dùng chung), không
- * có máy trạng thái thứ hai quanh WebSocket (`useLabSession`), mọi nhãn điểm ra
- * từ `summarizeLabScore`.
+ * Ba hợp đồng giữ nguyên: khung phiên là `SessionControls` (dùng chung), không có máy
+ * trạng thái thứ hai quanh WebSocket (`useLabSession`), mọi nhãn điểm ra từ
+ * `summarizeLabScore`.
  *
- * Kết quả chấm khoá theo `lần thử + nhiệm vụ` và mỗi lượt mang `seq` (M6): một
- * lượt đang bay không thể rơi vào nhiệm vụ khác, cũng không rơi vào lần thử mới.
+ * Kết quả chấm khoá theo `lần thử + nhiệm vụ` và mỗi lượt mang `seq`: một lượt đang bay
+ * không thể rơi vào nhiệm vụ khác, cũng không rơi vào lần thử mới.
  */
 interface TaskCheck {
   readonly seq: number;
   readonly outcome: CheckOutcome;
 }
+
+const LABELS = contentLabels();
 
 function formatDuration(seconds: number): string {
   return t('session.lab.duration', { minutes: Math.floor(seconds / 60), seconds: seconds % 60 });
@@ -86,14 +90,34 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
   const session = useLabSession(labId, userId);
   const attemptId = session.attemptId;
   const handoff = useTerminalHandoff(session.state.sessionId);
+  const capacity = useCapacity();
+
+  /*
+    Mở lại trang giữa chừng: tra lần thử CHƯA NỘP gắn với máy đang chạy rồi nhận cả hai.
+    Lab không ghi `session_origins` (lần thử là sự thật của nó), nên phải đọc
+    `labs.listAttempts` để có `attemptId` cho máy tìm thấy trong `me.activeSessions`.
+  */
+  const recentAttempts = api.labs.listAttempts.useQuery({ labId, limit: 5 });
+  const resumable = useCallback(
+    (machine: ActiveMachine) =>
+      (recentAttempts.data?.items ?? []).find(
+        (item) => item.attempt.sessionId === machine.id && item.attempt.submittedAt === null,
+      ) ?? null,
+    [recentAttempts.data],
+  );
+  const resume = useResumeMachine({
+    session,
+    belongs: (machine) => machine.content?.kind === 'lab' && machine.content.id === labId && resumable(machine) !== null,
+    ready: !recentAttempts.isPending,
+    onAdopt: (machine) => {
+      const found = resumable(machine);
+      if (found !== null) session.adoptAttempt(found.attempt.id, machine);
+    },
+    handoff: handoff.state,
+  });
 
   const me = api.me.get.useQuery({});
   const terminalTheme = useResolvedTerminalTheme(me.data?.preferences.terminalTheme ?? null);
-
-  const capacity = api.capacity.get.useQuery(
-    {},
-    { refetchInterval: 15_000, enabled: session.state.sessionId === null },
-  );
 
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [checks, setChecks] = useState<Readonly<Record<string, TaskCheck>>>({});
@@ -102,11 +126,9 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [restartConfirmOpen, setRestartConfirmOpen] = useState(false);
   const [popupBlocked, setPopupBlocked] = useState(false);
+  const [focus, setFocus] = useState<SplitFocus>('both');
 
-  const attemptQuery = api.labs.getAttempt.useQuery(
-    { attemptId: attemptId ?? '' },
-    { enabled: attemptId !== null },
-  );
+  const attemptQuery = api.labs.getAttempt.useQuery({ attemptId: attemptId ?? '' }, { enabled: attemptId !== null });
 
   /*
     Setup của lab chạy NỀN, nên `startAttempt` trả về TRƯỚC khi cảnh dựng xong.
@@ -126,9 +148,7 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
 
   const onCheckTask = useCallback(
     (taskId: string) => {
-      if (attemptId === null) {
-        return;
-      }
+      if (attemptId === null) return;
       const key = `${attemptId}:${taskId}`;
       checkSeq.current += 1;
       const seq = checkSeq.current;
@@ -145,9 +165,7 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
             void utils.labs.getAttempt.invalidate({ attemptId });
           },
           // ⛔ Lỗi hạ tầng KHÔNG được hiện thành "bài sai".
-          onError: (error) => {
-            land({ kind: 'error', message: describeTrpcError(error) });
-          },
+          onError: (error) => land({ kind: 'error', message: describeTrpcError(error) }),
         },
       );
     },
@@ -155,9 +173,7 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
   );
 
   const onSubmit = useCallback(() => {
-    if (attemptId === null) {
-      return;
-    }
+    if (attemptId === null) return;
     setSubmitError(null);
     submit.mutate(
       { labId, attemptId },
@@ -174,41 +190,53 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
     );
   }, [attemptId, labId, submit, utils]);
 
-  // ⛔ `interfaceLayout` (trường nội dung), KHÔNG `profile` (profile tài nguyên).
-  const showIde = shouldShowIdePane(labQuery.data?.lab.interfaceLayout ?? null);
-  const tabs = useWorkspaceTabs({
-    terminal: session.terminal,
-    hasEditor: showIde,
-    sessionId: session.state.sessionId,
-  });
+  // ⛔ Có IDE hay không đọc từ `profile` của MÁY CHỦ (xem `ideAvailable`).
+  const profile = labQuery.data?.profile ?? '';
+  const showIde = ideAvailable(profile);
+  const tabs = useWorkspaceTabs({ terminal: session.terminal, hasEditor: showIde, sessionId: session.state.sessionId });
 
   const onPopOut = useCallback(() => {
     setPopupBlocked(!handoff.popOut());
   }, [handoff]);
 
-  if (labQuery.isPending) {
-    return <LabSkeleton />;
-  }
+  const onExec = useCallback(
+    (command: string, interrupt: boolean) => {
+      setFocus((current) => (current === 'read' ? 'both' : current));
+      tabs.exec(command, interrupt);
+    },
+    [tabs],
+  );
+
+  // Ảnh trong đề đi qua cùng route với bài học: bài soạn trên giao diện (kể cả lab) giữ
+  // asset ở `content_assets` theo mã nội dung, và route đó phục vụ đúng nguồn ấy.
+  const resolveAssetUrl = useCallback(
+    (relative: string): string | null => {
+      const cleaned = relative.replace(/^\.?\//, '');
+      if (!cleaned.startsWith('assets/')) return null;
+      return `/api/scenarios/${encodeURIComponent(labId)}/${cleaned}`;
+    },
+    [labId],
+  );
+
+  if (labQuery.isPending) return <PracticeSkeleton label={t('session.lab.loading')} />;
   if (labQuery.isError) {
     return (
-      <div className="flex h-dvh items-center justify-center bg-background p-6">
-        <ErrorState
-          title={err('session.lab.error.open').what}
-          message={describeTrpcError(labQuery.error)}
-          onRetry={() => void labQuery.refetch()}
-          retrying={labQuery.isFetching}
-          className="max-w-lg"
-        />
-      </div>
+      <PracticeError
+        title={err('session.lab.error.open').what}
+        message={describeTrpcError(labQuery.error)}
+        backHref="/labs"
+        backLabel={t('session.lab.back')}
+        onRetry={() => void labQuery.refetch()}
+        retrying={labQuery.isFetching}
+      />
     );
   }
 
-  const { lab, profile, unsupportedCapabilities } = labQuery.data;
+  const { lab, unsupportedCapabilities } = labQuery.data;
   const attemptData = attemptQuery.data;
   const sessionId = session.state.sessionId;
   const phase = session.state.phase;
-  const line = lineForTopic({ topic: lab.topic ?? null, id: lab.id });
-  const topicLine = line === 'ink' ? undefined : line;
+  const look = topicLook({ topic: lab.topic ?? null, id: lab.id });
 
   const summary = summarizeLabScore({
     lab,
@@ -216,8 +244,7 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
     submittedAt: attemptData?.attempt.submittedAt ?? null,
   });
   const submitted = summary.submitted;
-  const selected =
-    summary.displays.find((display) => display.task.id === selectedTaskId) ?? summary.displays[0];
+  const selected = summary.displays.find((display) => display.task.id === selectedTaskId) ?? summary.displays[0];
   const checkFor = (taskId: string): CheckOutcome | null =>
     attemptId === null ? null : (checks[`${attemptId}:${taskId}`]?.outcome ?? null);
 
@@ -228,7 +255,7 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
 
   const phaseReason = checkBlockedReason({ phase, hasSession: sessionId !== null, handoff: handoff.state });
   const checkReason =
-    attemptId === null
+    attemptId === null || sessionId === null
       ? t('session.lab.blocked-no-session')
       : submitted
         ? t('session.lab.blocked-submitted')
@@ -237,12 +264,7 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
           : setupPending
             ? (setupNotice?.message ?? t('session.lab.setup-checking'))
             : null;
-  const execReason = execBlockedReason({
-    phase,
-    hasSession: sessionId !== null,
-    terminalAttached: session.terminal !== null,
-    handoff: handoff.state,
-  });
+  const execReason = execBlockedReason({ phase, hasSession: sessionId !== null, terminalAttached: session.terminal !== null, handoff: handoff.state });
 
   const shellNotice = resolveShellFallbackNotice({
     sessionId,
@@ -258,7 +280,7 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
             tone: 'destructive' as const,
             text: errText('session.lab.error.attempt', { reason: describeTrpcError(attemptQuery.error) }),
             action: (
-              <Button size="sm" variant="secondary" onClick={() => void attemptQuery.refetch()} loading={attemptQuery.isFetching}>
+              <Button size="sm" variant="secondary" icon="refresh" onClick={() => void attemptQuery.refetch()} loading={attemptQuery.isFetching}>
                 {t('session.lab.reload')}
               </Button>
             ),
@@ -279,6 +301,7 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
       : []),
     ...(shellNotice === null ? [] : [{ id: `shell:${sessionId ?? ''}`, tone: 'warning' as const, text: shellNotice.lines.join(' ') }]),
     ...(popupBlocked ? [{ id: 'popup', tone: 'warning' as const, text: t('session.overlay.popup-blocked') }] : []),
+    ...(resume.resumed && sessionId !== null ? [{ id: `resumed:${sessionId}`, tone: 'info' as const, text: t('session.launch.resumed') }] : []),
   ];
 
   const selectedOutcome = selected === undefined ? null : checkFor(selected.task.id);
@@ -289,19 +312,23 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
 
   const taskBody =
     selected === undefined ? null : (
-      <div className="px-2">
+      <div>
         <ContentView
           blocks={parseContentBlocks(selected.task.markdown)}
           leadingTitle={selected.task.title}
           diagrams={lab.diagrams}
-          resolveAssetUrl={() => null}
-          onExec={tabs.exec}
+          resolveAssetUrl={resolveAssetUrl}
+          onExec={onExec}
           execEnabled={execReason === null}
           execDisabledReason={execReason}
-          labels={contentViewLabels()}
+          labels={LABELS}
+          linksInNewTab
+          density="compact"
         />
-        <div className="mt-5 flex flex-wrap items-center gap-3 border-t-2 border-foreground pt-4">
+        <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-rule pt-4">
           <Button
+            variant="primary"
+            icon="target"
             onClick={() => onCheckTask(selected.task.id)}
             disabled={checkReason !== null || selectedOutcome?.kind === 'running'}
             loading={selectedOutcome?.kind === 'running'}
@@ -309,7 +336,7 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
             {t('session.lab.check-one')}
           </Button>
           {/* Lý do khoá là CHỮ: nút disabled không nhận focus. */}
-          {checkReason !== null && <span className="text-sm text-muted-foreground">{checkReason}</span>}
+          {checkReason === null ? null : <span className="text-sm text-ink-3">{checkReason}</span>}
         </div>
         {selectedOutcome !== null ? (
           <CheckResultPanel outcome={selectedOutcome} />
@@ -321,23 +348,26 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
 
   const taskPane = (
     <div className="flex flex-col gap-5 px-4 py-5 md:px-6">
-      {lab.description !== null && <p className="max-w-[68ch] text-sm text-muted-foreground">{lab.description}</p>}
+      {lab.description === null ? null : <p className="max-w-[68ch] text-sm text-ink-2">{lab.description}</p>}
 
       {/* Bảng điểm: MỘT chỗ khẳng định điểm trong cả trang. */}
-      <div role="status" className={cn('border-2 border-foreground p-4', summary.tone === 'success' && 'bg-success/10')}>
+      <div
+        role="status"
+        className={cn('flex flex-col gap-2.5 rounded-md p-4', summary.tone === 'success' ? 'bg-ok-wash' : summary.tone === 'warning' ? 'bg-warn-wash' : 'bg-well')}
+      >
         <div className="flex items-baseline justify-between gap-3">
-          <p className="font-display text-3xl font-extrabold tabular-nums">{summary.score.percent}%</p>
-          <p className="font-mono text-xs text-muted-foreground">{t('session.lab.score-label')}</p>
+          <p className="font-display text-3xl font-semibold tabular-nums text-ink">{summary.score.percent}%</p>
+          <p className="text-xs text-ink-3">{t('session.lab.score-label')}</p>
         </div>
-        <Meter
-          className="mt-2"
-          value={summary.score.percent}
-          max={100}
-          tone={summary.tone === 'success' ? 'success' : summary.tone === 'warning' ? 'warning' : (topicLine ?? 'primary')}
+        <ProgressLine
+          role="meter"
+          value={summary.score.percent / 100}
           label={t('session.lab.score-label')}
+          tone={summary.tone === 'success' ? 'ok' : summary.tone === 'warning' ? 'warn' : 'acc'}
+          size="sm"
         />
-        <p className="mt-3 text-sm font-medium text-foreground">{summary.headline}</p>
-        {summary.caveat !== null && <p className="mt-1 text-xs text-muted-foreground">{summary.caveat}</p>}
+        <p className="text-sm font-medium text-ink">{summary.headline}</p>
+        {summary.caveat === null ? null : <p className="text-xs text-ink-2">{summary.caveat}</p>}
       </div>
 
       <TaskChecklist
@@ -349,101 +379,89 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
         }))}
         selectedId={selected?.task.id ?? null}
         onSelect={setSelectedTaskId}
-        {...(topicLine === undefined ? {} : { line: topicLine })}
       >
         {taskBody}
       </TaskChecklist>
 
-      {attemptId !== null && !submitted && (
-        <div className="border-t border-border pt-4">
-          {submitError !== null && <p className="mb-3 text-sm text-destructive">{submitError}</p>}
-          <Button variant="ink" onClick={() => setConfirmOpen(true)} loading={submit.isPending}>
-            {t('session.lab.submit')}
-          </Button>
-          <p className="mt-2 text-xs text-muted-foreground">{t('session.lab.submit-note')}</p>
-          <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-            <DialogContent>
-              <DialogTitle>{t('session.lab.submit-confirm-title')}</DialogTitle>
-              <DialogDescription>
-                {t('session.lab.submit-confirm-body', { percent: summary.score.percent })}
-                {summary.uncheckedCount > 0 && ` ${t('session.lab.submit-confirm-unchecked', { count: summary.uncheckedCount })}`}
-              </DialogDescription>
-              <DialogFooter>
-                <DialogClose asChild>
-                  <Button variant="outline">{t('session.lab.submit-cancel')}</Button>
-                </DialogClose>
-                <Button onClick={onSubmit} loading={submit.isPending}>
-                  {t('session.lab.submit')}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+      {attemptId !== null && !submitted ? (
+        <div className="flex flex-col gap-2 border-t border-rule pt-4">
+          {submitError === null ? null : <p className="text-sm text-bad-ink">{submitError}</p>}
+          <div>
+            <Button variant="ink" icon="send" onClick={() => setConfirmOpen(true)} loading={submit.isPending}>
+              {t('session.lab.submit')}
+            </Button>
+          </div>
+          <p className="text-xs text-ink-3">{t('session.lab.submit-note')}</p>
+          <ConfirmDialog
+            open={confirmOpen}
+            onOpenChange={setConfirmOpen}
+            title={t('session.lab.submit-confirm-title')}
+            body={`${t('session.lab.submit-confirm-body', { percent: summary.score.percent })}${
+              summary.uncheckedCount > 0 ? ` ${t('session.lab.submit-confirm-unchecked', { count: summary.uncheckedCount })}` : ''
+            }`}
+            confirmLabel={t('session.lab.submit')}
+            cancelLabel={t('session.lab.submit-cancel')}
+            tone="primary"
+            confirming={submit.isPending}
+            onConfirm={onSubmit}
+          />
         </div>
-      )}
+      ) : null}
 
-      {submitted && attemptData !== undefined && (
-        <div className="border-t-4 border-foreground pt-4">
-          <p className="type-title">{summary.headline}</p>
-          <p className="mt-1 text-sm text-muted-foreground">
+      {submitted && attemptData !== undefined ? (
+        <div className="flex flex-col gap-2 border-t border-rule pt-4">
+          <p className="font-display text-lg font-semibold text-ink">{summary.headline}</p>
+          <p className="text-sm text-ink-2">
             {attemptData.durationSeconds !== null
               ? t('session.lab.duration-line', { duration: formatDuration(attemptData.durationSeconds) })
               : t('session.lab.duration-unknown')}
           </p>
-          {lab.leaderboard && (
-            <div className="mt-4 flex items-center gap-2">
+          {lab.leaderboard ? (
+            <div className="pt-2">
               <Checkbox
                 id="dlp-lab-leaderboard-optin"
                 checked={attemptData.attempt.displayNamePublic}
                 disabled={setDisplayPreference.isPending}
+                label={t('session.lab.leaderboard-optin')}
                 onCheckedChange={(next) => {
                   const attempt = attemptId;
-                  if (attempt === null) {
-                    return;
-                  }
+                  if (attempt === null) return;
                   setDisplayPreference.mutate(
                     { attemptId: attempt, displayNamePublic: next === true },
                     { onSuccess: () => void utils.labs.getAttempt.invalidate({ attemptId: attempt }) },
                   );
                 }}
               />
-              <Label htmlFor="dlp-lab-leaderboard-optin" className="font-normal">
-                {t('session.lab.leaderboard-optin')}
-              </Label>
             </div>
-          )}
+          ) : null}
         </div>
-      )}
+      ) : null}
     </div>
   );
 
   /*
-    Nút "Mở phiên mới" của lớp phủ terminal, ở lab, là một LẦN THỬ mới: điểm về
-    0% và lần thử đang dở không nộp được từ trang nữa. Nên nó mang nhãn "Làm lại"
-    như nút Bắt đầu trên thanh, và hỏi lại khi còn một lần thử chưa nộp. Đã nộp
-    thì không mất gì, bấm là làm lại luôn.
+    Nút "Mở máy mới" của lớp phủ terminal, ở lab, là một LẦN THỬ mới: điểm về 0% và lần
+    thử đang dở không nộp được từ trang nữa. Nên nó mang nhãn "Làm lại", và hỏi lại khi
+    còn một lần thử chưa nộp. Đã nộp thì không mất gì, bấm là làm lại luôn.
   */
-  const restartAttempt =
-    attemptId === null
-      ? undefined
-      : {
-          label: t('session.controls.restart'),
-          onSelect: () => {
-            if (submitted) {
-              session.start();
-            } else {
-              setRestartConfirmOpen(true);
-            }
-          },
-        };
+  const requestRestart = (): void => {
+    if (attemptId === null || submitted) session.start();
+    else setRestartConfirmOpen(true);
+  };
+  const restartAttempt = attemptId === null ? undefined : { label: t('session.controls.restart'), onSelect: requestRestart };
 
   const content = (
-    <div className="h-full overflow-y-auto bg-card text-card-foreground">
+    <div className="h-full overflow-y-auto bg-paper">
       {lab.leaderboard ? (
         <Tabs defaultValue="tasks" className="flex flex-col">
-          <div className="sticky top-0 z-10 border-b border-border bg-card px-4 py-2 md:px-6">
+          <div className="sticky top-0 z-10 border-b border-rule bg-paper px-4 md:px-6">
             <TabsList>
-              <TabsTrigger value="tasks">{t('session.lab.tasks-tab', { count: lab.tasks.length })}</TabsTrigger>
-              <TabsTrigger value="leaderboard">{t('session.lab.leaderboard-tab')}</TabsTrigger>
+              <TabsTrigger value="tasks" icon="target">
+                {t('session.lab.tasks-tab', { count: lab.tasks.length })}
+              </TabsTrigger>
+              <TabsTrigger value="leaderboard" icon="award">
+                {t('session.lab.leaderboard-tab')}
+              </TabsTrigger>
             </TabsList>
           </div>
           <TabsContent value="tasks" className="mt-0">
@@ -459,84 +477,98 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
     </div>
   );
 
+  const launch = (
+    <PracticeLaunch
+      kind="lab"
+      startLabel={attemptId === null ? t('session.controls.start') : t('session.controls.restart')}
+      onStart={requestRestart}
+      starting={session.starting}
+      tierLabel={tierLabel(lab.tier)}
+      profile={profile}
+      capacity={describeCapacity(capacity.data, profile)}
+      otherMachines={resume.others}
+    />
+  );
+
   return (
-    <div className="flex h-dvh min-h-0 flex-col overflow-hidden bg-background text-foreground">
-      <WorkspaceBar
-        backHref="/labs"
-        backLabel={t('session.lab.back')}
-        title={lab.title}
-        {...(topicLine === undefined ? {} : { badge: <TopicBadge line={topicLine} size="sm" /> })}
-        progress={
-          <div className="flex flex-col gap-1">
-            <span className="font-mono text-[11px] text-chrome-muted tabular-nums">
-              {summary.passedCount}/{summary.taskCount} · {summary.score.percent}%
-            </span>
-            <Meter
-              value={summary.passedCount}
-              max={summary.taskCount}
-              segments={summary.taskCount}
-              tone={topicLine ?? 'primary'}
-              label={t('session.lab.score-label')}
+    <PracticeFrame
+      bar={
+        <WorkspaceBar
+          backHref="/labs"
+          backLabel={t('session.lab.back')}
+          title={lab.title}
+          badge={<TopicGlyph topic={look.topic} icon={look.icon} size={22} />}
+          progress={
+            <ProgressLine
+              value={summary.taskCount === 0 ? 0 : summary.passedCount / summary.taskCount}
+              label={t('session.lab.progress-label')}
+              caption={`${String(summary.passedCount)}/${String(summary.taskCount)}`}
+              size="xs"
             />
-          </div>
-        }
-        controls={
-          /* `profile` từ `labs.get`: cùng năng lực mà `startAttempt` đưa cho pod sắp tạo. */
-          <SessionControls
-            session={session}
-            actions={{ start: session.start, end: session.end, extend: session.extend }}
-            capacity={capacity.data ?? null}
-            profile={profile}
-            startLabel={attemptId === null ? t('session.controls.start') : t('session.controls.restart')}
-          />
-        }
-      />
-      <NoticeStrip notices={notices} />
-      <div className="min-h-0 flex-1">
-        <WorkspaceSplit
-          storageKey={showIde ? 'dlp-lab-split-ide' : 'dlp-lab-split'}
-          {...(showIde ? { defaultRatio: 0.36 } : {})}
-          content={content}
-          side={
-            <WorkspacePanel
-              {...(showIde ? { editor: <IdePane sessionId={sessionId} phase={phase} /> } : {})}
-              terminal={
-                <TerminalPane
-                  session={session}
-                  theme={terminalTheme}
-                  handoff={handoff}
-                  {...(restartAttempt === undefined ? {} : { newSession: restartAttempt })}
-                />
-              }
-              activeTab={tabs.activeTab}
-              onActivate={tabs.onActivate}
-              onPopOut={sessionId === null ? null : onPopOut}
-              status={<SessionStatusPill phase={phase} />}
-              storageKey="dlp-lab-workspace"
+          }
+          controls={
+            /* `profile` từ `labs.get`: cùng năng lực mà `startAttempt` đưa cho pod sắp tạo. */
+            <SessionControls
+              session={session}
+              actions={{ start: session.start, end: session.end, extend: session.extend }}
+              capacity={capacity.data}
+              profile={profile}
             />
           }
         />
-      </div>
-      <Dialog open={restartConfirmOpen} onOpenChange={setRestartConfirmOpen}>
-        <DialogContent>
-          <DialogTitle>{t('session.lab.restart-confirm-title')}</DialogTitle>
-          <DialogDescription>{t('session.lab.restart-confirm-body', { percent: summary.score.percent })}</DialogDescription>
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button variant="outline">{t('session.lab.restart-cancel')}</Button>
-            </DialogClose>
-            <Button
-              onClick={() => {
-                setRestartConfirmOpen(false);
-                session.start();
-              }}
-            >
-              {t('session.controls.restart')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
+      }
+      notices={<NoticeStrip notices={notices} />}
+    >
+      <WorkspaceSplit
+        storageKey={showIde ? 'dlp-lab-split-ide' : 'dlp-lab-split'}
+        defaultRatio={showIde ? 0.36 : 0.42}
+        focus={focus}
+        onFocusChange={setFocus}
+        content={content}
+        side={
+          <WorkspacePanel
+            {...(showIde
+              ? {
+                  editor: (
+                    <IdePane
+                      sessionId={sessionId}
+                      phase={phase}
+                      sessionGone={phase === 'expired' || (phase === 'error' && !canReconnect(session.state))}
+                    />
+                  ),
+                }
+              : {})}
+            terminal={
+              <TerminalPane
+                session={session}
+                theme={terminalTheme}
+                handoff={handoff}
+                placeholder={launch}
+                {...(restartAttempt === undefined ? {} : { newSession: restartAttempt })}
+              />
+            }
+            activeTab={tabs.activeTab}
+            onActivate={tabs.onActivate}
+            onPopOut={sessionId === null ? null : onPopOut}
+            status={<SessionStatusPill phase={phase} />}
+            storageKey="dlp-lab-workspace"
+          />
+        }
+      />
+      <ConfirmDialog
+        open={restartConfirmOpen}
+        onOpenChange={setRestartConfirmOpen}
+        title={t('session.lab.restart-confirm-title')}
+        body={t('session.lab.restart-confirm-body', { percent: summary.score.percent })}
+        confirmLabel={t('session.controls.restart')}
+        cancelLabel={t('session.lab.restart-cancel')}
+        tone="danger"
+        onConfirm={() => {
+          setRestartConfirmOpen(false);
+          session.start();
+        }}
+      />
+    </PracticeFrame>
   );
 }
 
@@ -545,74 +577,67 @@ function LeaderboardPanel({ labId }: { labId: string }): ReactElement {
 
   if (query.isPending) {
     return (
-      <div role="status" aria-busy="true" className="flex flex-col gap-2 p-6">
-        <span className="sr-only">{t('session.lab.leaderboard-loading')}</span>
-        <Skeleton className="h-6 w-full" />
-        <Skeleton className="h-6 w-full" />
-        <Skeleton className="h-6 w-2/3" />
+      <div className="p-6">
+        <RowsSkeleton rows={3} label={t('session.lab.leaderboard-loading')} />
       </div>
     );
   }
   if (query.isError) {
     return (
       <div className="p-6">
-        <ErrorState
+        <ErrorBlock
           title={err('session.lab.error.leaderboard').what}
-          message={describeTrpcError(query.error)}
-          onRetry={() => void query.refetch()}
+          retryLabel={t('common.action.retry')}
           retrying={query.isFetching}
-        />
+          onRetry={() => void query.refetch()}
+        >
+          {describeTrpcError(query.error)}
+        </ErrorBlock>
       </div>
     );
   }
   if (query.data.items.length === 0) {
-    return <p className="p-6 text-sm text-muted-foreground">{t('session.lab.leaderboard-empty')}</p>;
+    return <p className="p-6 text-sm text-ink-3">{t('session.lab.leaderboard-empty')}</p>;
   }
 
   return (
-    <div className="overflow-x-auto p-4 md:p-6">
-      <Table>
-        <TableCaption>{t('session.lab.leaderboard-caption')}</TableCaption>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="w-10">{t('session.lab.col-rank')}</TableHead>
-            <TableHead>{t('session.lab.col-learner')}</TableHead>
-            <TableHead className="w-20 text-right">{t('session.lab.col-score')}</TableHead>
-            <TableHead className="w-32 text-right">{t('session.lab.col-time')}</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
+    <div className="p-4 md:p-6">
+      <p className="pb-3 text-sm text-ink-3">{t('session.lab.leaderboard-caption')}</p>
+      <Table label={t('session.lab.leaderboard-tab')}>
+        <THead>
+          <tr>
+            <TH className="w-10">{t('session.lab.col-rank')}</TH>
+            <TH>{t('session.lab.col-learner')}</TH>
+            <TH numeric className="w-20">
+              {t('session.lab.col-score')}
+            </TH>
+            <TH numeric className="w-32">
+              {t('session.lab.col-time')}
+            </TH>
+          </tr>
+        </THead>
+        <TBody>
           {query.data.items.map((row) => (
-            <TableRow key={row.rank} className={row.isSelf ? 'bg-signal text-signal-foreground' : undefined}>
-              <TableCell className="font-mono tabular-nums">{row.rank}</TableCell>
-              <TableCell>
-                {row.displayName ?? <span className="text-muted-foreground">{t('session.lab.leaderboard-anonymous')}</span>}
-                {row.isSelf && t('session.lab.leaderboard-self')}
-              </TableCell>
-              <TableCell className="text-right font-mono tabular-nums">{row.percent}%</TableCell>
-              <TableCell className="text-right font-mono tabular-nums">{formatDuration(row.durationSeconds)}</TableCell>
-            </TableRow>
+            <TR key={row.rank} className={row.isSelf ? 'bg-acc-wash' : undefined}>
+              <TD className="tabular-nums text-ink-2">{row.rank}</TD>
+              <TD>
+                {row.displayName ?? <span className="text-ink-3">{t('session.lab.leaderboard-anonymous')}</span>}
+                {row.isSelf ? (
+                  <Pill tone="acc" className="ml-2">
+                    {t('session.lab.leaderboard-self')}
+                  </Pill>
+                ) : null}
+              </TD>
+              <TD numeric className="font-medium">
+                {row.percent}%
+              </TD>
+              <TD numeric className="text-ink-2">
+                {formatDuration(row.durationSeconds)}
+              </TD>
+            </TR>
           ))}
-        </TableBody>
+        </TBody>
       </Table>
-    </div>
-  );
-}
-
-function LabSkeleton(): ReactElement {
-  return (
-    <div role="status" aria-busy="true" className="flex h-dvh flex-col bg-background">
-      <span className="sr-only">{t('session.lab.loading')}</span>
-      <div className="h-12 shrink-0 bg-chrome" />
-      <div className="flex min-h-0 flex-1 gap-4 p-6">
-        <div className="flex w-2/5 flex-col gap-3">
-          <Skeleton className="h-24 w-full" />
-          <Skeleton className="h-10 w-full" />
-          <Skeleton className="h-10 w-full" />
-          <Skeleton className="h-10 w-3/4" />
-        </div>
-        <Skeleton className="min-h-0 flex-1" />
-      </div>
     </div>
   );
 }

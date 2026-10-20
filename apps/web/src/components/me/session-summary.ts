@@ -1,6 +1,6 @@
 import { err, t } from '@devops-platform/copy';
 import type { ErrorEntry } from '@devops-platform/copy/types';
-import type { BadgeVariant } from '@devops-platform/ui';
+import type { Tone } from '@devops-platform/ds';
 import { TERMINAL_STATUS_FLOOR } from '../../lib/session-reason';
 
 /**
@@ -33,7 +33,7 @@ import { TERMINAL_STATUS_FLOOR } from '../../lib/session-reason';
 
 export interface MySessionStatusView {
   readonly label: string;
-  readonly variant: BadgeVariant;
+  readonly variant: Tone;
   /** Còn sống không (`status < TERMINAL_STATUS_FLOOR`). */
   readonly live: boolean;
 }
@@ -47,15 +47,15 @@ type StatusKey =
   | 'me.session-status.ended'
   | 'me.session-status.failed';
 
-const STATUS: Readonly<Record<number, { key: StatusKey; variant: BadgeVariant }>> = {
-  0: { key: 'me.session-status.unknown', variant: 'outline' },
-  1: { key: 'me.session-status.preparing', variant: 'secondary' },
-  2: { key: 'me.session-status.preparing', variant: 'secondary' },
-  3: { key: 'me.session-status.ready', variant: 'success' },
-  4: { key: 'me.session-status.running', variant: 'success' },
-  5: { key: 'me.session-status.expired', variant: 'outline' },
-  6: { key: 'me.session-status.ended', variant: 'outline' },
-  7: { key: 'me.session-status.failed', variant: 'destructive' },
+const STATUS: Readonly<Record<number, { key: StatusKey; variant: Tone }>> = {
+  0: { key: 'me.session-status.unknown', variant: 'neutral' },
+  1: { key: 'me.session-status.preparing', variant: 'info' },
+  2: { key: 'me.session-status.preparing', variant: 'info' },
+  3: { key: 'me.session-status.ready', variant: 'ok' },
+  4: { key: 'me.session-status.running', variant: 'ok' },
+  5: { key: 'me.session-status.expired', variant: 'neutral' },
+  6: { key: 'me.session-status.ended', variant: 'neutral' },
+  7: { key: 'me.session-status.failed', variant: 'bad' },
 };
 
 /**
@@ -66,7 +66,7 @@ const STATUS: Readonly<Record<number, { key: StatusKey; variant: BadgeVariant }>
 export function describeMySessionStatus(status: number): MySessionStatusView {
   const known = STATUS[status];
   if (known === undefined) {
-    return { label: t('me.session-status.strange', { status }), variant: 'warning', live: false };
+    return { label: t('me.session-status.strange', { status }), variant: 'warn', live: false };
   }
   return {
     label: t(known.key),

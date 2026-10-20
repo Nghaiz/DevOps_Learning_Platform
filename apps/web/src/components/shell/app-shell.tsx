@@ -1,86 +1,92 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
-import { usePathname } from 'next/navigation';
-import { TriangleAlert } from 'lucide-react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { usePathname, useSearchParams } from 'next/navigation';
+import { Icon } from '@devops-platform/ds';
 import { t } from '@devops-platform/copy';
 import { ZOD_JITLESS_APPLIED } from '../../lib/zod-jitless';
 import { isImmersiveRoute } from './immersive-routes';
 import { describeProfileCapacity } from './capacity';
 import { CapacityProvider, useCapacity } from './use-capacity';
-import { CommandPalette } from './command-palette';
+import { CommandMenu } from './command-menu';
 import { SiteFooter } from './site-footer';
 import { SiteHeader } from './site-header';
-import type { Viewer } from './nav';
+import { SectionBar } from './section-bar';
+import { activeSection, sectionsFor, type Viewer } from './nav';
 import { ViewerProvider } from './viewer-context';
 
 /**
- * Vỏ ứng dụng của bản dựng lại PTIT (design-brief §3).
+ * Vỏ ứng dụng. Đây là nơi DUY NHẤT render `<main>` (landmark-contract.test.ts).
  *
- * Ba chế độ, quyết định bằng đường hiện tại:
- * - `/`: trang giới thiệu do phiên 5a dựng. Chỉ providers + `<main>` trần, trang tự
- *   vẽ thanh trên và chân trang của nó.
- * - immersive (`isImmersiveRoute`): bài học, lab, sân chơi, màn game. Không header,
- *   không footer; trang tự vẽ thanh gọn của nó.
- * - còn lại: header chrome + `<main>` + footer.
+ * Ba chế độ: landing (`/`) tự vẽ mọi thứ; trang khu thực hành và cửa sổ terminal là
+ * toàn màn (không thanh trên, không chân trang); còn lại có thanh trên, thanh mục con
+ * nếu đang trong một mục, và chân trang.
  *
- * ⚠ `<main>` xuất hiện ĐÚNG MỘT LẦN trong toàn bộ mã TSX, ở file này
- * (`components/session/landmark-contract.test.ts`). Đừng thêm `<main>` ở trang.
+ * `data-section` đặt ở khung ngoài cùng: mọi thứ bên trong đọc màu nhấn của mục đang
+ * mở qua `--acc-*`, kể cả trang toàn màn.
  */
-export function AppShell({
-  viewer,
-  children,
-}: {
-  readonly viewer: Viewer | null;
-  readonly children: ReactNode;
-}) {
+export function AppShell({ viewer, children }: { readonly viewer: Viewer | null; readonly children: ReactNode }) {
   void ZOD_JITLESS_APPLIED;
   const pathname = usePathname();
+  const search = useSearchParams();
   const [commandOpen, setCommandOpen] = useState(false);
+
   const isLanding = pathname === '/';
   const immersive = !isLanding && isImmersiveRoute(pathname);
   const chrome = !isLanding && !immersive;
+  const sectionId = activeSection(pathname, search.toString());
+  const section = sectionId === null ? null : (sectionsFor(viewer).find((entry) => entry.id === sectionId) ?? null);
+
+  const openCommand = useCallback(() => setCommandOpen(true), []);
+
+  useEffect(() => {
+    if (isLanding) return;
+    const onKey = (event: KeyboardEvent): void => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setCommandOpen((open) => !open);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isLanding]);
 
   return (
     <ViewerProvider viewer={viewer}>
       <CapacityProvider enabled={viewer !== null}>
         <a
           href="#noi-dung"
-          className="sr-only z-50 bg-signal px-4 py-3 font-semibold text-signal-foreground focus:not-sr-only focus:fixed focus:top-2 focus:left-2"
+          className="sr-only z-[70] rounded-md bg-ink px-4 py-3 font-medium text-canvas focus:not-sr-only focus:fixed focus:left-3 focus:top-3"
         >
           {t('shell.skip.label')}
         </a>
-        <div className={chrome ? 'flex min-h-dvh flex-col' : undefined}>
-          {chrome && <SiteHeader viewer={viewer} onOpenCommand={() => setCommandOpen(true)} />}
-          <main
-            id="noi-dung"
-            tabIndex={-1}
-            className={chrome ? 'flex flex-1 flex-col outline-none' : 'outline-none'}
-          >
-            {chrome && viewer && <CapacityFullBanner />}
+        <div data-section={sectionId ?? undefined} className={chrome ? 'flex min-h-dvh flex-col' : undefined}>
+          {chrome ? <SiteHeader viewer={viewer} activeId={sectionId} onOpenCommand={openCommand} /> : null}
+          {chrome && section !== null ? <SectionBar section={section} pathname={pathname} search={search.toString()} /> : null}
+          <main id="noi-dung" tabIndex={-1} className={chrome ? 'flex flex-1 flex-col outline-none' : 'outline-none'}>
+            {chrome && viewer !== null ? <CapacityFullBanner /> : null}
             {children}
           </main>
-          {chrome && <SiteFooter viewer={viewer} />}
+          {chrome ? <SiteFooter /> : null}
         </div>
-        {!isLanding && (
-          <CommandPalette viewer={viewer} open={commandOpen} onOpenChange={setCommandOpen} />
-        )}
+        {isLanding ? null : <CommandMenu viewer={viewer} open={commandOpen} onOpenChange={setCommandOpen} />}
       </CapacityProvider>
     </ViewerProvider>
   );
 }
 
+/** Dải báo kín chỗ, chỉ hiện khi cụm thật sự hết chỗ. */
 function CapacityFullBanner() {
   const { data } = useCapacity();
   if (data === null) return null;
   const reading = describeProfileCapacity(data);
   if (reading === null || reading.tone !== 'full') return null;
   return (
-    <div role="status" className="bg-signal text-signal-foreground">
-      <div className="mx-auto flex max-w-[1440px] items-start gap-3 px-5 py-3 md:px-8">
-        <TriangleAlert className="mt-0.5 size-5 shrink-0" aria-hidden="true" />
-        <p className="text-sm">
-          <strong className="font-semibold">{t('shell.capacity.full-title')}.</strong> {reading.detail}
+    <div role="status" className="border-b border-rule bg-warn-wash">
+      <div className="mx-auto flex max-w-[1200px] items-start gap-3 px-4 py-2.5 text-sm text-warn-ink sm:px-6 lg:px-8">
+        <Icon name="warning" size={18} className="mt-px" />
+        <p>
+          <strong className="font-medium">{t('shell.capacity.full-title')}.</strong> <span className="text-ink-2">{reading.detail}</span>
         </p>
       </div>
     </div>

@@ -66,6 +66,17 @@ export interface SandboxSession {
   end: () => void;
   extend: () => void;
   /**
+   * Nhận một phiên ĐÃ CÓ (tìm thấy qua `me.activeSessions` lúc mở trang) thay vì xin
+   * phiên mới. Tải lại trang giữa bài không còn bỏ lại một pod mồ côi giữ khe quota
+   * tới hết giờ, và người học nối lại đúng máy cũ với mọi thứ trong đó.
+   */
+  adopt: (session: CreatedSession) => void;
+  /**
+   * Cập nhật hạn từ một nguồn KHÁC WebSocket (terminal đang ở cửa sổ riêng thì trang
+   * không nhận tin `expiring` nữa). Giá trị là của MÁY CHỦ, không tự cộng.
+   */
+  syncExpiry: (expiresAt: string | null) => void;
+  /**
    * C1 — mở lại WebSocket vào ĐÚNG pod đang có, không xin pod mới.
    *
    * Dành cho hai pha máy trạng thái không tự thoát ra: `exited` (shell đã thoát,
@@ -121,11 +132,19 @@ export function useSandboxSession(actions: SandboxSessionActions): SandboxSessio
   const [extending, setExtending] = useState(false);
 
   const start = useCallback(() => {
+    // Máy cũ còn id (đang lỗi, shell thoát, hết hạn) thì tắt nó TRƯỚC khi xin máy mới.
+    // Bản trước bỏ mặc nó: mỗi lần bấm "Mở máy mới" sau một lỗi kết nối là thêm một
+    // pod sống tới hết giờ, giữ một khe quota của cả lớp. Lỗi lúc tắt bị bỏ qua có
+    // chủ ý: máy đã mất thì không còn gì để tắt.
+    const previous = state.sessionId;
     dispatch({ type: 'START' });
     setStartError(null);
     setStarting(true);
     void (async () => {
       try {
+        if (previous !== null) {
+          await actions.end(previous).catch(() => undefined);
+        }
         const session = await actions.start();
         dispatch({ type: 'CREATED', session });
         setConnectionKey((key) => key + 1);
@@ -137,7 +156,21 @@ export function useSandboxSession(actions: SandboxSessionActions): SandboxSessio
         setStarting(false);
       }
     })();
-  }, [actions]);
+  }, [actions, state.sessionId]);
+
+  const adopt = useCallback((session: CreatedSession) => {
+    dispatch({ type: 'START' });
+    dispatch({ type: 'CREATED', session });
+    setStartError(null);
+    setConnectionKey((key) => key + 1);
+  }, []);
+
+  const syncExpiry = useCallback(
+    (expiresAt: string | null) => {
+      dispatch({ type: 'EXTENDED', expiresAt, hardCapReached: state.hardCapReached });
+    },
+    [state.hardCapReached],
+  );
 
   // Dispatch ENDED chỉ SAU khi kết thúc xong ở máy chủ — về idle trước rồi lỗi
   // hạ tầng là người dùng thấy "đã kết thúc" trong khi pod vẫn giữ một khe
@@ -260,6 +293,8 @@ export function useSandboxSession(actions: SandboxSessionActions): SandboxSessio
     start,
     end,
     extend,
+    adopt,
+    syncExpiry,
     reconnect,
     onControl,
     onClose,

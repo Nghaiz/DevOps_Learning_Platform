@@ -19,7 +19,7 @@ describe('describeShellPreference', () => {
     const notice = describeShellPreference({ shell: 'pwsh', activeSessionCount: 0 });
     const text = notice.lines.join(' ');
 
-    expect(text).toContain('lần mở phiên TIẾP THEO');
+    expect(text).toContain('lần mở máy tiếp theo');
     expect(text).toContain('bỏ qua tuỳ chọn');
     // Tên shell dự phòng phải là shell THẬT của pod. `.tmux.conf` của image đặt
     // zsh, nên viết "bash" ở đây là nói sai đúng lúc câu này cần đúng nhất.
@@ -35,11 +35,11 @@ describe('describeShellPreference', () => {
     expect(text).not.toContain('có hiệu lực ngay');
   });
 
-  it('đang có phiên chạy: cảnh báo rằng chúng giữ shell cũ', () => {
+  it('đang có máy chạy: cảnh báo rằng chúng giữ shell cũ', () => {
     const notice = describeShellPreference({ shell: 'bash', activeSessionCount: 2 });
 
     expect(notice.tone).toBe('warning');
-    expect(notice.lines.join(' ')).toContain('2 phiên chạy');
+    expect(notice.lines.join(' ')).toContain('2 máy chạy');
     expect(notice.lines.join(' ')).toContain('giữ shell cũ');
   });
 
@@ -53,7 +53,7 @@ describe('describeShellPreference', () => {
       moreSessions: true,
     });
 
-    expect(notice.lines.join(' ')).toContain('ít nhất 20 phiên chạy');
+    expect(notice.lines.join(' ')).toContain('ít nhất 20 máy chạy');
   });
 
   it('không có phiên nào: không thêm câu cảnh báo', () => {
@@ -74,10 +74,10 @@ describe('describeShellPreference', () => {
 });
 
 describe('describeLeaderboardPreference', () => {
-  it('nói rõ phạm vi: chỉ áp cho lần thử SAU', () => {
+  it('nói rõ phạm vi: chỉ áp từ lần thử tới', () => {
     for (const publicName of [true, false]) {
       const text = describeLeaderboardPreference(publicName).lines.join(' ');
-      expect(text).toContain('SAU');
+      expect(text).toContain('Từ lần thử lab tới');
       expect(text).toContain('đã nộp giữ lựa chọn của riêng chúng');
     }
   });
@@ -87,15 +87,19 @@ describe('describeLeaderboardPreference', () => {
     // đã nộp giữ giá trị cũ và đổi qua `labs.setDisplayPreference`.
     const text = describeLeaderboardPreference(false).lines.join(' ');
 
-    expect(text).toContain('Những lần thử lab SAU sẽ ẩn danh');
+    expect(text).toContain('Từ lần thử lab tới, bạn ẩn danh');
     expect(text).not.toContain('mọi bảng');
     expect(text).not.toContain('tất cả');
   });
 });
 
 describe('describeTerminalThemePreference', () => {
-  it('null = đi theo giao diện trang, và nói ra điều đó', () => {
-    expect(describeTerminalThemePreference(null).lines[0]).toContain('theo giao diện');
+  it('null = bảng màu tối mặc định ở MỌI giao diện trang, và nói đúng điều đó', () => {
+    // `resolveTerminalTheme(null)` trả `dlp-dark` bất kể trang sáng hay tối. Câu cũ
+    // "đổi màu theo giao diện trang" hứa một điều mã không làm.
+    const line = describeTerminalThemePreference(null).lines[0] ?? '';
+    expect(line).toContain('tối mặc định');
+    expect(line).not.toContain('theo giao diện');
   });
 
   it('chọn cụ thể = KHÔNG đổi theo giao diện trang nữa', () => {
@@ -126,7 +130,7 @@ describe('describeSessionShellFallback', () => {
     // Nửa "làm gì tiếp" nay là một câu RIÊNG mở đầu bằng động từ viết hoa, nên
     // phép so phân biệt hoa thường phải đi theo. Khẳng định không đổi: câu của
     // `/settings` được mượn nguyên, không viết bản thứ hai.
-    expect(notice?.lines.join(' ')).toContain('Mở lại phiên là áp được');
+    expect(notice?.lines.join(' ')).toContain('Mở lại máy là áp được');
   });
 
   it('shell đã chọn TRÙNG mặc định của máy: im lặng, vì không có gì để báo', () => {

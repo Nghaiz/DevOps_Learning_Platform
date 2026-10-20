@@ -1,70 +1,118 @@
-import type { ReactElement } from 'react';
-import { Check, Lock, Trophy } from 'lucide-react';
+import Link from 'next/link';
+import type { ReactElement, ReactNode } from 'react';
 import type { ScenarioDifficulty } from '@devops-platform/shared-types/scenario';
 import { t } from '@devops-platform/copy';
-import { Difficulty } from '@devops-platform/ui';
-import { lineForTopic, type TopicLine } from '../kit';
+import { Icon, LevelBars, Pill, Row, RowMeta, TopicGlyph } from '@devops-platform/ds';
+import { topicLook, type TopicInput } from '../../lib/topic-look';
 import { DIFFICULTY_LEVEL, difficultyLabel, progressStatusLabel } from './catalog-labels';
 
 /**
- * Mảnh dùng chung cho một dòng của bảng danh mục. Không có `BoardRow` riêng ở
- * đây: dòng là của kit, file này chỉ nối dữ liệu miền vào các khe của nó.
+ * Một dòng của danh mục: biểu tượng chủ đề tô màu chủ đề, tên, mô tả, các cột phụ
+ * thẳng hàng, rồi trạng thái học. Cả dòng bấm được.
  */
+export function CatalogRow(props: {
+  readonly href: string;
+  readonly topic: TopicInput;
+  readonly title: string;
+  readonly description?: string | null | undefined;
+  readonly below?: ReactNode;
+  readonly meta?: ReactNode;
+  readonly state?: ReactNode;
+}): ReactElement {
+  const look = topicLook(props.topic);
+  return (
+    <Row
+      topic={look.topic}
+      leading={<TopicGlyph topic={look.topic} icon={look.icon} size={30} />}
+      title={props.title}
+      link={<Link href={props.href}>{props.title}</Link>}
+      description={props.description ?? undefined}
+      below={props.below}
+      meta={props.meta}
+      trailing={props.state === null || props.state === undefined ? undefined : <div className="hidden sm:block">{props.state}</div>}
+    />
+  );
+}
 
-/** Tuyến màu của một mục nội dung: chủ đề khai trong nội dung thắng, rồi tag, rồi id. */
-export function contentLine(item: {
+/** Đầu vào màu chủ đề của một mục nội dung: chủ đề khai trong nội dung, rồi tag, rồi id. */
+export function contentTopic(item: {
   readonly id: string;
   readonly topic?: string | null | undefined;
   readonly capabilities?: readonly string[];
-}): TopicLine {
-  return lineForTopic({ topic: item.topic ?? null, tags: item.capabilities ?? [], id: item.id });
+}): TopicInput {
+  return { topic: item.topic ?? null, tags: item.capabilities ?? [], id: item.id };
 }
 
-/** Độ khó: thanh bốn vạch + chữ. Không màu, màu dành cho chủ đề. */
+/** Độ khó: ba vạch + chữ, trong một cột rộng cố định để các dòng thẳng nhau. */
 export function RowDifficulty({ level }: { readonly level: ScenarioDifficulty }): ReactElement {
-  return <Difficulty level={DIFFICULTY_LEVEL[level]} showLabel label={difficultyLabel(level)} />;
+  return (
+    <RowMeta width="w-28">
+      <LevelBars level={DIFFICULTY_LEVEL[level]} label={difficultyLabel(level)} />
+    </RowMeta>
+  );
+}
+
+/** Một cột phụ có biểu tượng nhỏ đứng trước. */
+export function RowFact({
+  icon,
+  children,
+  width = 'w-24',
+}: {
+  readonly icon: Parameters<typeof Icon>[0]['name'];
+  readonly children: ReactNode;
+  readonly width?: string;
+}): ReactElement {
+  return (
+    <RowMeta width={width}>
+      {children === null || children === undefined ? null : (
+        <>
+          <Icon name={icon} size={15} className="shrink-0 text-ink-3" />
+          {children}
+        </>
+      )}
+    </RowMeta>
+  );
 }
 
 /**
  * Trạng thái học của một bài. "Chưa bắt đầu" không in gì: đó là trạng thái của
- * hầu hết các dòng, và in nó ra là lặp một chữ trên cả bảng. Trạng thái lạ in
- * GIÁ TRỊ THÔ, để một giá trị mới từ máy chủ không biến mất trong im lặng.
+ * hầu hết các dòng, in ra là lặp một chữ trên cả bảng. Trạng thái lạ in GIÁ TRỊ
+ * THÔ, để một giá trị mới từ máy chủ không biến mất trong im lặng.
  */
 export function ProgressState({ status }: { readonly status: string }): ReactElement | null {
-  if (status === 'not-started') {
-    return null;
-  }
+  if (status === 'not-started') return null;
   const label = progressStatusLabel(status) ?? status;
   if (status === 'completed') {
     return (
-      <span className="inline-flex items-center gap-1.5 type-label text-success">
-        <Check aria-hidden="true" className="size-3.5" strokeWidth={3} />
+      <Pill tone="ok" icon="check">
         {label}
-      </span>
+      </Pill>
     );
   }
   if (status === 'in-progress') {
-    return <span className="bg-signal px-1.5 py-0.5 type-label text-signal-foreground">{label}</span>;
+    return (
+      <Pill tone="info" dot>
+        {label}
+      </Pill>
+    );
   }
-  return <span className="type-label text-muted-foreground">{label}</span>;
+  return <Pill>{label}</Pill>;
 }
 
 /** Cờ "Có xếp hạng" của lab. */
 export function LeaderboardFlag(): ReactElement {
   return (
-    <span className="inline-flex items-center gap-1.5 type-label text-muted-foreground">
-      <Trophy aria-hidden="true" className="size-3.5" />
+    <RowFact icon="award" width="w-28">
       {t('catalog.flag.leaderboard')}
-    </span>
+    </RowFact>
   );
 }
 
 /** Cờ "Học tuần tự" của lộ trình. */
 export function SequentialFlag(): ReactElement {
   return (
-    <span className="inline-flex items-center gap-1.5 type-label text-muted-foreground">
-      <Lock aria-hidden="true" className="size-3.5" />
+    <RowFact icon="lock" width="w-28">
       {t('catalog.flag.sequential')}
-    </span>
+    </RowFact>
   );
 }

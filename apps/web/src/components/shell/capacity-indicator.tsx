@@ -1,144 +1,67 @@
 'use client';
 
-import { Badge, Skeleton, Tooltip, TooltipContent, TooltipTrigger, cn } from '@devops-platform/ui';
+import { Pill, Skeleton, Tip, type Tone } from '@devops-platform/ds';
 import { t } from '@devops-platform/copy';
 import { describeProfileCapacity, formatFetchedAt, type CapacityTone } from './capacity';
 import { useCapacity } from './use-capacity';
 
-/**
- * Màu chấm trạng thái theo thang `--status-*` của 13.A.
- *
- * ## Vì sao màu chuyển từ NỀN badge sang CHẤM
- *
- * Bản cũ tô cả badge theo mức (`secondary` / `warning` / `destructive`). Nó
- * đọc ra là một nhãn đổi màu, không đọc ra là một CHỈ BÁO SỨC CHỨA — và ở mức
- * bình thường, `secondary` xám khiến "Còn 20 chỗ" trôi lẫn vào thanh nav.
- *
- * Nay badge luôn `outline` (chữ `--foreground` trên `--background`: 19.79 sáng
- * / 18.96 tối) và MÀU nằm ở chấm. Đo trên đúng giá trị token đã hạ cánh ở
- * `globals.css`, ngưỡng đồ hoạ 3.0:
- *
- * | chấm trên `--background` | sáng | tối |
- * |---|---|---|
- * | `--status-done` | 5.44 | 7.96 |
- * | `--status-progress` | 5.43 | 7.32 |
- * | `--status-locked` | 5.44 | 7.41 |
- *
- * ## KHÔNG phân biệt bằng riêng màu
- *
- * `describeCapacity` đã cho ba câu chữ khác hẳn nhau — "Còn N chỗ", "Chỉ còn N
- * chỗ", "Hết chỗ" — nên người không phân biệt được màu vẫn đọc ra mức từ chính
- * nhãn. Chấm là lớp thứ hai, không phải lớp duy nhất.
- *
- * ## Mức `full` mất nền đỏ thì có nhẹ đi không
- *
- * Không: khi `tone === 'full'`, vỏ ứng dụng còn dựng `CapacityFullBanner` —
- * một `Alert` chạy hết chiều ngang ngay dưới thanh nav, nói cả việc phải làm
- * tiếp. Cảnh báo được nâng cấp lên banner chứ không bị gỡ.
- */
-const TONE_DOT: Record<CapacityTone, string> = {
-  ok: 'bg-status-done',
-  low: 'bg-status-progress',
-  full: 'bg-status-locked',
-};
+const TONE: Record<CapacityTone, Tone> = { ok: 'ok', low: 'warn', full: 'bad' };
 
-/**
- * "Còn N chỗ" trên thanh điều hướng (13.B mục 7).
- *
- * Hiện ở VỎ chứ không chỉ cạnh nút Bắt đầu, vì AC đòi báo TRƯỚC khi người dùng
- * chạm 429 — mà lúc họ nhìn thấy nút Bắt đầu thì đã đi hết một chuỗi chọn bài.
- *
- * ## Con số này là của BÀI THƯỜNG, và nhãn nói ra điều đó
- *
- * Vỏ ứng dụng không biết người dùng sắp mở bài nào, nên nó chỉ nói được trần
- * của profile MẶC ĐỊNH — và `describeProfileCapacity` dán "cho bài thường" vào
- * câu, cộng một dòng nhắc rằng bài có IDE hoặc lab Kubernetes có trần riêng,
- * thấp hơn.
- *
- * Bản trước KHÔNG nói ra điều đó và đã sai vì chính chỗ ấy: ngày 2026-09-07 nó
- * in "Đang chạy 6/20 phiên (trần cứng 23) → Còn 14 chỗ" đúng lúc
- * `lessons.startSession` trả 429 cho một bài IDE. Trần cứng 23 là
- * `requests.memory 5952Mi ÷ 256Mi` — đúng cho bài thường, sai cho mọi profile
- * khác. Nhãn khẳng định nhiều hơn dữ liệu là cái bẫy đã lặp nhiều lần ở dự án
- * này; ở đây nó được đóng bằng cách thu hẹp lời hứa, không phải bằng số to hơn.
- */
+/** Số chỗ còn trống của cụm sandbox, trên thanh trên cùng (màn rộng). Chi tiết ở tooltip. */
 export function CapacityIndicator() {
   const { data, error, loading } = useCapacity();
 
   if (data === null) {
-    if (loading) {
-      return <Skeleton className="h-8 w-28 bg-chrome-foreground/10" />;
-    }
-    if (error === null) {
-      return null;
-    }
+    if (loading) return <Skeleton className="h-6 w-24 rounded-full" />;
+    if (error === null) return null;
     return (
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Badge variant="outline" className="h-8 border-chrome-border bg-transparent font-mono text-chrome-foreground">{t('shell.capacity.unread-badge')}</Badge>
-        </TooltipTrigger>
-        <TooltipContent className="max-w-xs">
-          {t('shell.capacity.unread-body', { error })}
-        </TooltipContent>
-      </Tooltip>
+      <Tip content={t('shell.capacity.unread-body', { error })}>
+        <button type="button" className="rounded-full">
+          <Pill tone="neutral" dot>
+            {t('shell.capacity.unread-badge')}
+          </Pill>
+        </button>
+      </Tip>
     );
   }
 
   const reading = describeProfileCapacity(data);
   const at = formatFetchedAt(data.fetchedAt);
-
-  // Đọc được payload nhưng KHÔNG biết còn mấy chỗ — quota không đọc được (ca
-  // thật: Role sandbox thiếu quyền `resourcequotas`, một 403 im lặng), hoặc
-  // server không khai profile mặc định.
-  //
-  // ⛔ KHÔNG rơi về `softCapacity`. Chính con số đó đã in "Còn 14 chỗ" ngày
-  // 2026-09-07 đúng lúc `startSession` trả 429 cho một bài IDE: nó bằng
-  // `CAPACITY_HARD_LIMIT − POOL_TARGET`, một hằng số mã hoá giả định "mọi phiên
-  // đều là bài thường". Nói "chưa rõ" là kém vui hơn nhưng ĐÚNG, và người học
-  // không bấm Bắt đầu để đổi lấy một 429.
   if (reading === null) {
     return (
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Badge variant="outline" className="h-8 border-chrome-border bg-transparent font-mono text-chrome-foreground">{t('shell.capacity.unknown-badge')}</Badge>
-        </TooltipTrigger>
-        <TooltipContent className="max-w-xs">
-          <p>{t('shell.capacity.unknown-body')}</p>
-          {data.quotaError === '' ? null : (
-            <p className="mt-1 text-xs opacity-80">
-              {t('shell.capacity.quota-reason', { reason: data.quotaError })}
-            </p>
-          )}
-          {at === null ? null : (
-            <p className="mt-1 text-xs opacity-80">{t('shell.capacity.read-at', { at })}</p>
-          )}
-        </TooltipContent>
-      </Tooltip>
+      <Tip
+        content={
+          <span className="flex flex-col gap-1">
+            <span>{t('shell.capacity.unknown-body')}</span>
+            {data.quotaError === '' ? null : <span className="opacity-80">{t('shell.capacity.quota-reason', { reason: data.quotaError })}</span>}
+            {at === null ? null : <span className="opacity-80">{t('shell.capacity.read-at', { at })}</span>}
+          </span>
+        }
+      >
+        <button type="button" className="rounded-full">
+          <Pill tone="neutral" dot>
+            {t('shell.capacity.unknown-badge')}
+          </Pill>
+        </button>
+      </Tip>
     );
   }
 
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Badge variant="outline" className="h-8 gap-2 border-chrome-border bg-transparent font-mono text-chrome-foreground">
-          {/* Chấm thuần đồ hoạ: nhãn ngay bên cạnh đã nói đủ mức, nên gắn thêm
-              nhãn cho nó là bắt trình đọc màn hình nghe hai lần. */}
-          <span
-            aria-hidden="true"
-            className={cn('size-2 shrink-0', TONE_DOT[reading.tone])}
-          />
+    <Tip
+      content={
+        <span className="flex flex-col gap-1">
+          <span>{reading.detail}</span>
+          {at === null ? null : <span className="opacity-80">{t('shell.capacity.read-at', { at })}</span>}
+          {error === null ? null : <span className="opacity-80">{t('shell.capacity.stale', { error })}</span>}
+        </span>
+      }
+    >
+      <button type="button" className="rounded-full">
+        <Pill tone={TONE[reading.tone]} dot live={reading.tone !== 'full'}>
           {reading.label}
-        </Badge>
-      </TooltipTrigger>
-      <TooltipContent className="max-w-xs">
-        <p>{reading.detail}</p>
-        {at === null ? null : (
-          <p className="mt-1 text-xs opacity-80">{t('shell.capacity.read-at', { at })}</p>
-        )}
-        {error === null ? null : (
-          <p className="mt-1 text-xs opacity-80">{t('shell.capacity.stale', { error })}</p>
-        )}
-      </TooltipContent>
-    </Tooltip>
+        </Pill>
+      </button>
+    </Tip>
   );
 }

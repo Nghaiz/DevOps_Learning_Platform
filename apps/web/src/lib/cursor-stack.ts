@@ -47,3 +47,11 @@ export function pushCursor(stack: CursorStack, nextCursor: string | null): Curso
   }
   return [...stack, nextCursor];
 }
+
+/**
+ * Lùi một trang. Trang 1 thì đứng yên: ngăn xếp không bao giờ rỗng, vì phần tử
+ * đầu (`undefined`) chính là trang 1.
+ */
+export function popCursor(stack: CursorStack): CursorStack {
+  return stack.length <= 1 ? FIRST_PAGE : stack.slice(0, -1);
+}

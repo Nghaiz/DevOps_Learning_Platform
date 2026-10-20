@@ -1,57 +1,45 @@
 import Link from 'next/link';
 import type { ReactElement, ReactNode } from 'react';
-import { ArrowLeft } from 'lucide-react';
-import { cn } from '@devops-platform/ui';
+import { Icon } from '@devops-platform/ds';
 
 export interface WorkspaceBarProps {
   readonly backHref: string;
   readonly backLabel: string;
   /** Tiêu đề trang. Thanh này mang `<h1>` duy nhất của màn thực hành. */
   readonly title: string;
-  /** Huy hiệu tuyến chủ đề đứng trước tiêu đề. */
+  /** Biểu tượng chủ đề đứng trước tiêu đề. */
   readonly badge?: ReactNode;
-  /** Thước tiến độ hoặc điểm. */
+  /** Tiến độ hoặc điểm. */
   readonly progress?: ReactNode;
-  /** Khung điều khiển phiên. */
+  /** Khung điều khiển máy. */
   readonly controls: ReactNode;
 }
 
 /**
- * Thanh trên của màn thực hành: 48px, nền `chrome` tối ở cả hai theme.
+ * Thanh trên của khu thực hành: cao CỐ ĐỊNH 52px, không bao giờ xuống dòng. Mọi thứ
+ * xuất hiện hay biến mất trên thanh (đồng hồ, nút Thêm giờ) chỉ đổi bề ngang của
+ * nó; nếu thanh cao lên thì terminal bên dưới phải fit lại giữa lúc người học gõ.
  *
- * Một thanh duy nhất gánh bốn việc (quay lại, tên bài, tiến độ, điều khiển phiên)
- * thay cho ba dải chồng nhau của bản trước (thanh đầu trang, dải cảnh báo, hàng
- * bước). Mỗi dải là ~40px lấy khỏi terminal, và trên màn 768px cao thì terminal
- * còn lại không đủ 20 dòng.
- *
- * Gốc mang `dark` để mọi token bên trong (badge, nút) phân giải về bản đêm trên nền tối.
+ * Nền theo giao diện sáng/tối của trang. Khoang làm việc bên dưới mới luôn tối.
  */
 export function WorkspaceBar({ backHref, backLabel, title, badge, progress, controls }: WorkspaceBarProps): ReactElement {
   return (
-    <header
-      className={cn(
-        'dark flex min-h-12 shrink-0 flex-wrap items-center gap-x-4 gap-y-1 bg-chrome px-2 py-1.5 text-chrome-foreground',
-        '[color-scheme:dark]',
-      )}
-    >
+    <header className="flex h-[52px] shrink-0 items-center gap-2 overflow-hidden border-b border-rule bg-paper pl-1.5 pr-2 sm:gap-3 sm:pr-3">
       <Link
         href={backHref}
-        className={cn(
-          'flex h-9 shrink-0 items-center gap-2 px-2 font-mono text-xs text-chrome-muted',
-          'transition-colors duration-[var(--motion-fast)] ease-out hover:bg-chrome-border hover:text-chrome-foreground',
-          'outline-none focus-visible:ring-2 focus-visible:ring-ring',
-        )}
+        className="group flex h-9 shrink-0 items-center gap-1.5 rounded-sm px-2 text-sm text-ink-2 outline-none transition-colors duration-150 hover:bg-well hover:text-ink focus-visible:outline-2 focus-visible:outline-focus"
       >
-        <ArrowLeft aria-hidden="true" className="size-4" />
-        <span className="hidden sm:inline">{backLabel}</span>
-        <span className="sr-only sm:hidden">{backLabel}</span>
+        <Icon name="arrow-left" size={18} className="transition-transform duration-150 group-hover:-translate-x-0.5" />
+        <span className="hidden md:inline">{backLabel}</span>
+        <span className="sr-only md:hidden">{backLabel}</span>
       </Link>
-      <div className="flex min-w-0 flex-1 items-center gap-3">
+      <span aria-hidden="true" className="hidden h-5 w-px shrink-0 bg-rule-2 sm:block" />
+      <div className="flex min-w-0 flex-1 items-center gap-2.5">
         {badge}
-        <h1 className="min-w-0 truncate font-display text-base font-extrabold tracking-tight">{title}</h1>
+        <h1 className="min-w-0 truncate font-display text-md font-semibold text-ink">{title}</h1>
       </div>
-      {progress !== undefined && <div className="hidden w-44 shrink-0 md:block">{progress}</div>}
-      <div className="ml-auto min-w-0">{controls}</div>
+      {progress === undefined ? null : <div className="hidden w-44 shrink-0 lg:block">{progress}</div>}
+      <div className="flex min-w-0 shrink-0 items-center">{controls}</div>
     </header>
   );
 }

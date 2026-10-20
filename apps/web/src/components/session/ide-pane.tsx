@@ -1,37 +1,32 @@
 'use client';
 
 import { useEffect, useRef, useState, type ReactElement } from 'react';
-import { ExternalLink, Hourglass, RotateCw } from 'lucide-react';
 import { t, err } from '@devops-platform/copy';
-import { ARC_VIEWBOX, arcSpinnerProps, arcTrackProps } from '@devops-platform/motion/motif';
 import type { SessionPhase } from '@devops-platform/terminal';
-import { Button, cn } from '@devops-platform/ui';
+import { BootLog, Button, Icon } from '@devops-platform/ds';
 import { IDE_BOOT_TIMEOUT_MS, ideSessionUrl } from './ide-layout';
 
 /**
- * Khoang IDE (Theia của P6) trong iframe CÙNG ORIGIN.
+ * Khoang IDE (Theia) trong iframe CÙNG ORIGIN.
  *
  * ## ⛔ Chỉ 2xx mới gắn iframe (đo trên cụm 2026-09-07)
  *
- * Theia bind cổng ~20s sau khi phiên trả về, và thân 503 của gateway VẪN bắn
- * `load`. Nên ở đây `fetch` chính URL đó trước, chỉ gắn iframe khi server trả
- * 2xx. ⛔ KHÔNG `onLoad`: `load` chưa bao giờ là bằng chứng thành công.
+ * Theia bind cổng ~20s sau khi phiên trả về, và thân 503 của gateway VẪN bắn `load`.
+ * Nên ở đây `fetch` chính URL đó trước, chỉ gắn iframe khi server trả 2xx. ⛔ KHÔNG
+ * `onLoad`: `load` chưa bao giờ là bằng chứng thành công.
  *
- * ## Mã nào thì thử lại (M3)
+ * ## Mã nào thì thử lại
  *
- * 5xx và lỗi mạng: upstream chưa lên, thử lại. 404/409/425/429 cũng thử lại:
- * ngay sau khi phiên mở, đường `/ide/session/<id>/` có thể chưa được đăng ký
- * hoặc đang bị giới hạn nhịp, và bản trước coi MỌI 4xx là vĩnh viễn nên một nhịp
- * khởi động chậm thành màn lỗi. Chỉ 401/403 dừng ngay: đó là chuyện quyền, thử
- * 22 lần vẫn ra đúng kết quả đó.
+ * 5xx và lỗi mạng: upstream chưa lên, thử lại. 404/409/425/429 cũng thử lại: ngay sau
+ * khi phiên mở, đường `/ide/session/<id>/` có thể chưa được đăng ký hoặc đang bị giới
+ * hạn nhịp. Chỉ 401/403 dừng ngay: đó là chuyện quyền.
  *
- * ## Theo pha phiên
+ * ## Theo trạng thái MÁY, không theo trạng thái terminal
  *
- * Phiên hết hạn hay lỗi ⇒ lớp phủ nói trình soạn thảo đã dừng, thay vì để một
- * iframe chết trông như còn chạy. Phiên MỚI (id khác) ⇒ thăm dò lại từ đầu.
- *
- * ⚠ `/ide` chưa từng đi qua Traefik trong repo này (mọi phép đo P6 dùng
- * port-forward), nên nút "Mở trong tab mới" là đường thoát bắt buộc.
+ * Lớp phủ "trình soạn thảo đã dừng" chỉ hiện khi máy thật sự không còn
+ * (`sessionGone`). Bản trước hiện nó ở mọi pha `error` của terminal, kể cả lỗi chỉ
+ * của kết nối WebSocket (dán quá cỡ, gateway ngắt) trong khi pod và Theia vẫn chạy
+ * bình thường: người học bị chặn khỏi trình soạn thảo đang sống.
  */
 
 /** Nhịp thăm dò. */
@@ -48,20 +43,20 @@ type BootState =
 
 export interface IdePaneProps {
   readonly sessionId: string | null;
-  /** Pha phiên: `expired`/`error` ⇒ lớp phủ "trình soạn thảo đã dừng". */
+  /** Pha phiên. Chỉ `expired` tự nó nói máy đã mất; các pha khác cần `sessionGone`. */
   readonly phase?: SessionPhase;
+  /** Máy đã bị thu hồi (không chỉ kết nối terminal hỏng). Vắng ⇒ suy từ `phase === 'expired'`. */
+  readonly sessionGone?: boolean;
 }
 
-export function IdePane({ sessionId, phase }: IdePaneProps): ReactElement {
+export function IdePane({ sessionId, phase, sessionGone }: IdePaneProps): ReactElement {
   const [state, setState] = useState<BootState>({ kind: 'probing' });
   const [reloadKey, setReloadKey] = useState(0);
   const [elapsedSec, setElapsedSec] = useState(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (sessionId === null) {
-      return;
-    }
+    if (sessionId === null) return;
     const id = sessionId;
     setState({ kind: 'probing' });
 
@@ -115,36 +110,31 @@ export function IdePane({ sessionId, phase }: IdePaneProps): ReactElement {
 
   // Đồng hồ đếm, TÁCH khỏi vòng thăm dò: gộp vào thì số giây nhảy hai giây một lần.
   useEffect(() => {
-    if (state.kind !== 'probing' || sessionId === null) {
-      return;
-    }
+    if (state.kind !== 'probing' || sessionId === null) return;
     setElapsedSec(0);
     const started = Date.now();
     const id = setInterval(() => {
       setElapsedSec(Math.round((Date.now() - started) / 1000));
     }, ELAPSED_TICK_MS);
-    return () => {
-      clearInterval(id);
-    };
+    return () => clearInterval(id);
   }, [state.kind, sessionId, reloadKey]);
 
   if (sessionId === null) {
     return (
-      <div className="flex h-full w-full items-center justify-center bg-background px-6 text-center text-sm text-muted-foreground">
-        {t('session.ide.no-session')}
+      <div className="flex h-full w-full flex-col items-center justify-center gap-3 bg-canvas px-6 text-center">
+        <Icon name="editor" size={34} className="text-ink-3" />
+        <p className="max-w-xs text-sm text-ink-2">{t('session.ide.no-session')}</p>
       </div>
     );
   }
 
-  const reload = (): void => {
-    setReloadKey((n) => n + 1);
-  };
-  const sessionDown = phase === 'expired' || phase === 'error';
+  const reload = (): void => setReloadKey((n) => n + 1);
+  const gone = sessionGone ?? phase === 'expired';
 
   return (
-    <div className="flex h-full w-full flex-col bg-background">
-      <div className="flex h-8 shrink-0 items-center justify-end gap-1 border-b border-border px-2">
-        <Button size="sm" variant="ghost" className="h-7" iconLeft={<RotateCw aria-hidden="true" className="size-3.5" />} onClick={reload}>
+    <div className="flex h-full w-full flex-col bg-canvas">
+      <div className="flex h-9 shrink-0 items-center justify-end gap-1 border-b border-rule px-2">
+        <Button size="sm" variant="ghost" icon="refresh" className="h-7" onClick={reload}>
           {t('session.ide.reload')}
         </Button>
         {/* Đường thoát BẮT BUỘC: khi iframe trắng, đây là chỗ duy nhất đọc được thông báo thật của máy chủ. */}
@@ -152,60 +142,55 @@ export function IdePane({ sessionId, phase }: IdePaneProps): ReactElement {
           href={ideSessionUrl(sessionId)}
           target="_blank"
           rel="noreferrer"
-          className={cn(
-            'inline-flex h-7 items-center gap-1.5 px-2 font-mono text-xs text-foreground underline-offset-4 hover:underline',
-            'outline-none focus-visible:ring-2 focus-visible:ring-ring',
-          )}
+          className="inline-flex h-7 items-center gap-1.5 rounded-sm px-2 text-sm text-ink-2 outline-none hover:bg-well hover:text-ink focus-visible:outline-2 focus-visible:outline-focus"
         >
-          <ExternalLink aria-hidden="true" className="size-3.5" />
+          <Icon name="external-link" size={15} />
           {t('session.ide.open-new-tab')}
         </a>
       </div>
 
       <div className="relative min-h-0 flex-1">
-        {state.kind === 'ready' && (
+        {state.kind === 'ready' ? (
           <iframe
             key={`${sessionId}:${String(reloadKey)}`}
             src={ideSessionUrl(sessionId)}
             title={t('session.ide.iframe-title')}
-            className="h-full w-full border-0"
+            className="h-full w-full border-0 bg-canvas"
           />
-        )}
+        ) : null}
 
-        {state.kind === 'probing' && <IdeBootScreen elapsedSec={elapsedSec} />}
+        {state.kind === 'probing' ? <IdeBootScreen elapsedSec={elapsedSec} /> : null}
 
-        {state.kind === 'failed' && <IdeFailedScreen reason={state.reason} onRetry={reload} />}
+        {state.kind === 'failed' ? <IdeFailedScreen reason={state.reason} onRetry={reload} /> : null}
 
-        {sessionDown && (
-          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-background/90 px-6 text-center">
-            <Hourglass aria-hidden="true" className="size-6 text-muted-foreground" />
-            <p className="max-w-sm text-sm text-foreground">{t('session.ide.session-down')}</p>
+        {gone ? (
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-canvas/92 px-6 text-center">
+            <Icon name="hourglass" size={26} className="text-ink-3" />
+            <p className="max-w-sm text-sm text-ink">{t('session.ide.session-down')}</p>
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );
 }
 
 /**
- * Màn chờ. Cung KHÔNG XÁC ĐỊNH (không phải thanh chạy tới hạn 45s: lúc thanh đầy
- * chính là lúc thất bại). `role="status"` bọc đúng phần chữ tĩnh; số giây nằm
- * ngoài để trình đọc màn hình không đọc lại mỗi giây.
+ * Màn chờ: nhật ký hai dòng (máy đã có, trình soạn thảo đang lên) và số giây đã chờ.
+ * Không thanh chạy tới hạn 45s: lúc thanh đầy chính là lúc thất bại. Số giây nằm ngoài
+ * vùng `role="status"` để trình đọc màn hình không đọc lại mỗi giây.
  */
 function IdeBootScreen({ elapsedSec }: { readonly elapsedSec: number }): ReactElement {
   return (
-    <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-background px-6 text-center">
-      <svg viewBox={ARC_VIEWBOX} aria-hidden="true" className="size-16 shrink-0 text-signal">
-        <path {...arcTrackProps()} />
-        <path {...arcSpinnerProps()} />
-      </svg>
-
-      <div role="status" className="flex flex-col gap-1">
-        <p className="text-sm font-semibold text-foreground">{t('session.ide.booting-title')}</p>
-        <p className="max-w-sm text-xs text-muted-foreground">{t('session.ide.booting-detail')}</p>
-      </div>
-
-      <p className="font-mono text-xs text-muted-foreground tabular-nums">
+    <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-canvas px-6">
+      <BootLog
+        title={t('session.ide.booting-title')}
+        lines={[
+          { key: 'pod', text: t('session.boot.step.pod'), state: 'done' },
+          { key: 'ide', text: t('session.boot.step.ide'), state: 'active', detail: t('session.ide.booting-detail') },
+        ]}
+        className="w-full max-w-sm"
+      />
+      <p className="w-full max-w-sm pl-[26px] font-mono text-xs tabular-nums text-ink-3">
         {t('session.ide.booting-elapsed', { seconds: elapsedSec })}
       </p>
     </div>
@@ -215,12 +200,12 @@ function IdeBootScreen({ elapsedSec }: { readonly elapsedSec: number }): ReactEl
 /** Màn thất bại: hỏng cái gì + làm gì tiếp (hai nửa tách ở tầng kiểu `ErrorEntry`). */
 function IdeFailedScreen({ reason, onRetry }: { readonly reason: string; readonly onRetry: () => void }): ReactElement {
   const entry = err('session.ide.error.probe', { reason });
-
   return (
-    <div role="alert" className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-background px-6 text-center">
-      <p className="text-sm font-semibold text-destructive">{entry.what}</p>
-      <p className="max-w-md text-xs text-muted-foreground">{entry.next}</p>
-      <Button size="sm" variant="secondary" iconLeft={<RotateCw aria-hidden="true" className="size-3.5" />} onClick={onRetry}>
+    <div role="alert" className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-canvas px-6 text-center">
+      <Icon name="unplug" size={28} className="text-bad-ink" />
+      <p className="max-w-md text-sm font-medium text-ink">{entry.what}</p>
+      <p className="max-w-md text-xs text-ink-2">{entry.next}</p>
+      <Button size="sm" variant="secondary" icon="refresh" onClick={onRetry}>
         {t('session.ide.retry')}
       </Button>
     </div>

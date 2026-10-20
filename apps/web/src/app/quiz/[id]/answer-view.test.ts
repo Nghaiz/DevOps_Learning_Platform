@@ -125,7 +125,7 @@ describe('MULTIPLE_ANSWER_RULE_KEYS — câu chữ lấy theo luật TRONG PAYLO
     // kia đã bị viết lại thành thứ khác vẫn là hỏng, và chỉ phép dựng câu mới
     // thấy được.
     const text = renderCopy({ key: MULTIPLE_ANSWER_RULE_KEYS[QUIZ_MULTIPLE_ANSWER_RULE] });
-    expect(text).toContain('ĐÚNG và ĐỦ');
+    expect(text).toContain('đúng và đủ');
     expect(text).toContain('không có điểm một phần');
   });
 });

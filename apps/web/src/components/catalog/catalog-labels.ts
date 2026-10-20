@@ -120,36 +120,16 @@ export function progressStatusLabel(status: string): string | null {
 }
 
 // ─── Hình thức: ánh xạ miền dữ liệu → hệ thiết kế ───────────────────────────
-//
-// Không có class Tailwind nào và không có chữ hiển thị nào ở đây. Thứ còn lại
-// đúng bằng phần `packages/ui` CỐ Ý không làm: nối tên miền vào tên primitive.
 
 /**
- * `beginner` (miền) → `basic` (primitive `Difficulty`). Hai từ vựng lệch nhau,
- * và cả hai bên cố ý không đổi tên: `ScenarioDifficulty` là hợp đồng dữ liệu,
- * `DifficultyLevel` là hợp đồng hình. Việc nối thuộc về NƠI GỌI, tức là đây.
+ * Độ khó (miền) → số vạch của `LevelBars` (hình). Ba mức của hợp đồng dữ liệu ứng
+ * với ba vạch; không có mức thứ tư để vẽ.
  */
 export const DIFFICULTY_LEVEL = {
-  beginner: 'basic',
-  intermediate: 'intermediate',
-  advanced: 'advanced',
-} as const satisfies Record<ScenarioDifficulty, 'basic' | 'intermediate' | 'advanced' | 'expert'>;
-
-/**
- * Trạng thái tiến độ → trạng thái ga trên dấu tuyến của dòng.
- *
- * ⚠ `not-started` → `todo`, KHÔNG phải `locked`. Ga khoá nói với người học rằng
- * họ không được vào: sai nghĩa, và sai theo hướng chặn người ta lại.
- */
-export const PROGRESS_STATUS_MARKER = {
-  'not-started': 'todo',
-  'in-progress': 'current',
-  completed: 'done',
-} as const satisfies Record<string, 'todo' | 'current' | 'done' | 'locked'>;
-
-export function progressMarker(status: string): 'todo' | 'current' | 'done' {
-  return (PROGRESS_STATUS_MARKER as Readonly<Record<string, 'todo' | 'current' | 'done'>>)[status] ?? 'todo';
-}
+  beginner: 1,
+  intermediate: 2,
+  advanced: 3,
+} as const satisfies Record<ScenarioDifficulty, 1 | 2 | 3>;
 
 // ─── Bộ chọn biên tập ───────────────────────────────────────────────────────
 

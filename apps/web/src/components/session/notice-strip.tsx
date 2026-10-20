@@ -1,26 +1,25 @@
 'use client';
 
 import { useState, type ReactElement, type ReactNode } from 'react';
-import { ChevronDown, ChevronUp, OctagonAlert, TriangleAlert, X } from 'lucide-react';
 import { t } from '@devops-platform/copy';
-import { cn } from '@devops-platform/ui';
+import { Icon, IconButton, cn } from '@devops-platform/ds';
 
 export interface PracticeNotice {
   /** Khoá ổn định: một thông báo đã ẩn không quay lại khi trang render lại. */
   readonly id: string;
-  readonly tone: 'warning' | 'destructive';
+  readonly tone: 'warning' | 'destructive' | 'info';
   readonly text: ReactNode;
   /** Một việc làm được (vd. nút Thử lại). */
   readonly action?: ReactNode;
 }
 
+const TONE_ORDER: Record<PracticeNotice['tone'], number> = { destructive: 0, warning: 1, info: 2 };
+
 /**
- * MỘT dải thông báo cho màn thực hành, thay cho tối đa năm băng `Alert` chồng
- * nhau của bản trước (năng lực thiếu, lỗi mở phiên, shell không áp được, setup
- * hỏng, lỗi đọc lần thử). Năm băng đó có lúc cùng hiện và ăn ~200px khỏi terminal.
- *
- * Dải hiện thông báo NẶNG nhất trước, gập phần còn lại sau một nút đếm, và mỗi
- * thông báo ẩn được. Không có thông báo nào ⇒ không vẽ gì.
+ * MỘT dải thông báo cho khu thực hành, thay cho nhiều băng chồng nhau (năng lực thiếu,
+ * lỗi mở máy, shell không áp được, setup hỏng, lỗi đọc lần thử). Hiện thông báo nặng
+ * nhất, gập phần còn lại sau một nút đếm, và mỗi thông báo ẩn được. Không có thông
+ * báo nào thì không vẽ gì.
  */
 export function NoticeStrip({ notices }: { readonly notices: readonly PracticeNotice[] }): ReactElement | null {
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(new Set());
@@ -29,55 +28,56 @@ export function NoticeStrip({ notices }: { readonly notices: readonly PracticeNo
   const visible = notices
     .filter((notice) => !dismissed.has(notice.id))
     .slice()
-    .sort((a, b) => (a.tone === b.tone ? 0 : a.tone === 'destructive' ? -1 : 1));
-  if (visible.length === 0) {
-    return null;
-  }
+    .sort((a, b) => TONE_ORDER[a.tone] - TONE_ORDER[b.tone]);
+  if (visible.length === 0) return null;
 
   const shown = expanded ? visible : visible.slice(0, 1);
   const hiddenCount = visible.length - shown.length;
 
   return (
-    <section aria-label={t('session.notice.region')} className="shrink-0 border-b border-border bg-card">
+    <section aria-label={t('session.notice.region')} className="shrink-0 border-b border-rule bg-paper">
       <ul>
-        {shown.map((notice) => {
-          const Icon = notice.tone === 'destructive' ? OctagonAlert : TriangleAlert;
-          return (
-            <li
-              key={notice.id}
-              className="flex items-start gap-3 border-b border-border px-4 py-2 text-sm text-foreground last:border-b-0"
-            >
-              <Icon
-                aria-hidden="true"
-                className={cn('mt-0.5 size-4 shrink-0', notice.tone === 'destructive' ? 'text-destructive' : 'text-warning')}
-              />
-              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
-                <div className="min-w-0">{notice.text}</div>
-                {notice.action}
-              </div>
-              <button
-                type="button"
-                onClick={() => setDismissed((prev) => new Set(prev).add(notice.id))}
-                className="grid size-7 shrink-0 place-items-center text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-              >
-                <X aria-hidden="true" className="size-4" />
-                <span className="sr-only">{t('session.notice.dismiss')}</span>
-              </button>
-            </li>
-          );
-        })}
+        {shown.map((notice) => (
+          <li
+            key={notice.id}
+            className={cn(
+              'flex items-start gap-3 border-b border-rule px-3 py-2 text-sm last:border-b-0 sm:px-4',
+              notice.tone === 'destructive' ? 'bg-bad-wash' : notice.tone === 'warning' ? 'bg-warn-wash' : 'bg-info-wash',
+            )}
+          >
+            <Icon
+              name={notice.tone === 'destructive' ? 'danger' : notice.tone === 'warning' ? 'warning' : 'info'}
+              size={18}
+              className={cn(
+                'mt-px shrink-0',
+                notice.tone === 'destructive' ? 'text-bad-ink' : notice.tone === 'warning' ? 'text-warn-ink' : 'text-info-ink',
+              )}
+            />
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1 text-ink">
+              <div className="min-w-0">{notice.text}</div>
+              {notice.action}
+            </div>
+            <IconButton
+              icon="close"
+              size="icon-sm"
+              label={t('session.notice.dismiss')}
+              onClick={() => setDismissed((prev) => new Set(prev).add(notice.id))}
+              className="-my-1 shrink-0"
+            />
+          </li>
+        ))}
       </ul>
-      {(hiddenCount > 0 || expanded) && visible.length > 1 && (
+      {(hiddenCount > 0 || expanded) && visible.length > 1 ? (
         <button
           type="button"
           aria-expanded={expanded}
           onClick={() => setExpanded((value) => !value)}
-          className="flex h-7 w-full items-center gap-1.5 border-t border-border px-4 font-mono text-xs text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+          className="flex h-7 w-full items-center gap-1.5 border-t border-rule px-4 text-xs text-ink-3 outline-none hover:text-ink focus-visible:outline-2 focus-visible:outline-focus"
         >
-          {expanded ? <ChevronUp aria-hidden="true" className="size-3.5" /> : <ChevronDown aria-hidden="true" className="size-3.5" />}
+          <Icon name={expanded ? 'chevron-up' : 'chevron-down'} size={14} />
           {expanded ? t('session.notice.less') : t('session.notice.more', { count: hiddenCount })}
         </button>
-      )}
+      ) : null}
     </section>
   );
 }

@@ -2,33 +2,25 @@
 
 import dynamic from 'next/dynamic';
 import { useCallback, useEffect, useState, type ReactElement, type ReactNode } from 'react';
-import { ExternalLink, Hourglass, LoaderCircle, Terminal, Unplug } from 'lucide-react';
 import { t } from '@devops-platform/copy';
 import type { ThemeName } from '@devops-platform/terminal/themes';
-import { Button, Kbd, cn } from '@devops-platform/ui';
+import { BootLog, Button, Icon, Kbd, cn, type BootLine } from '@devops-platform/ds';
 import { canReconnect, type SandboxSession } from '../../lib/use-sandbox-session';
 import type { TerminalHandoff } from './terminal-handoff';
-import {
-  overlayActionLabel,
-  resolveTerminalOverlay,
-  type OverlayAction,
-  type TerminalOverlay,
-} from './terminal-overlay';
+import { overlayActionLabel, resolveTerminalOverlay, type OverlayAction, type TerminalOverlay } from './terminal-overlay';
 import { useResolvedTerminalTheme } from './use-resolved-terminal-theme';
 import { useFitOnLayoutChange, useWorkspaceLayout } from './workspace-layout';
 
-/** Khung chờ trong lúc chunk xterm đang nạp: ba dòng giả dấu nhắc + câu nói đang chờ gì. */
+/** Khung chờ trong lúc chunk xterm đang nạp: ba dòng giả dấu nhắc, không vòng xoay. */
 function TerminalBootFrame(): ReactElement {
   return (
-    <div className="flex h-full w-full flex-col justify-center gap-4 bg-background px-6">
+    <div className="flex h-full w-full flex-col justify-center gap-4 bg-canvas px-6">
       <div aria-hidden="true" className="flex flex-col gap-2">
-        <span className="h-3 w-2/5 animate-pulse bg-muted" />
-        <span className="h-3 w-3/5 animate-pulse bg-muted" />
-        <span className="h-3 w-1/4 animate-pulse bg-muted" />
+        <span className="h-3 w-2/5 animate-breathe rounded-xs bg-well-2" />
+        <span className="h-3 w-3/5 animate-breathe rounded-xs bg-well-2 [animation-delay:120ms]" />
+        <span className="h-3 w-1/4 animate-breathe rounded-xs bg-well-2 [animation-delay:240ms]" />
       </div>
-      {/* `LoaderCircle` trần chứ không `Spinner`: Spinner tự mang role=status, lồng vào đây là vùng sống lồng vùng sống. */}
-      <p role="status" className="flex items-center gap-2 font-mono text-xs text-muted-foreground">
-        <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />
+      <p role="status" className="font-mono text-xs text-ink-3">
         {t('session.terminal.booting')}
       </p>
     </div>
@@ -46,29 +38,36 @@ const TERMINAL_ARIA_LABEL = t('session.terminal.aria-label');
 
 export interface TerminalPaneProps {
   readonly session: SandboxSession;
-  /** Bỏ trống ⇒ theme đêm mặc định (xem `resolveTerminalTheme`). */
+  /** Bỏ trống ⇒ theme tối mặc định (xem `resolveTerminalTheme`). */
   readonly theme?: ThemeName;
-  /** Hiện khi chưa có phiên. */
+  /** Hiện khi máy chưa chạy (thường là `PracticeLaunch` có nút Bắt đầu). */
   readonly placeholder?: ReactNode;
   /** Bàn giao với cửa sổ terminal riêng. Vắng ⇒ terminal luôn ở trang này. */
   readonly handoff?: TerminalHandoff;
   /**
-   * Thay nút "Mở phiên mới" của lớp phủ. Vắng ⇒ nhãn chung + `session.start()`.
+   * Thay nút "Mở máy mới" của lớp phủ. Vắng ⇒ nhãn chung + `session.start()`.
    *
-   * Lab cần nó: phiên mới ở đó là một LẦN THỬ mới (`labs.startAttempt` với key
-   * mới), điểm về 0% và lần thử đang dở không nộp được từ trang nữa. Nhãn chung
-   * "Mở phiên mới" giấu đúng hệ quả đó.
+   * Lab cần nó: máy mới ở đó là một LẦN THỬ mới (`labs.startAttempt` với key mới),
+   * điểm về 0% và lần thử đang dở không nộp được từ trang nữa.
    */
   readonly newSession?: { readonly label: string; readonly onSelect: () => void };
 }
 
-const TONE_ICON = {
-  wait: LoaderCircle,
-  down: Unplug,
-  elsewhere: ExternalLink,
-} as const;
+/**
+ * Các dòng của nhật ký dựng máy theo pha. `creating` = đang xin chỗ và dựng pod (một
+ * lời gọi duy nhất ở máy chủ, nên hai dòng đầu cùng chạy); `connecting` = pod đã có,
+ * đang mở WebSocket.
+ */
+function bootLines(phase: 'creating' | 'connecting'): readonly BootLine[] {
+  const creating = phase === 'creating';
+  return [
+    { key: 'claim', text: t('session.boot.step.claim'), state: creating ? 'active' : 'done' },
+    { key: 'pod', text: t('session.boot.step.pod'), state: creating ? 'pending' : 'done' },
+    { key: 'connect', text: t('session.boot.step.connect'), state: creating ? 'pending' : 'active' },
+  ];
+}
 
-function OverlayCard({
+function OverlayPanel({
   overlay,
   busy,
   newSessionLabel,
@@ -79,36 +78,32 @@ function OverlayCard({
   readonly newSessionLabel: string | undefined;
   readonly onAction: (action: OverlayAction) => void;
 }): ReactElement {
-  const Icon = overlay.tone === 'down' && overlay.action === 'new-session' ? Hourglass : TONE_ICON[overlay.tone];
+  const glyph = overlay.tone === 'elsewhere' ? 'external-link' : overlay.tone === 'wait' ? 'unplug' : overlay.action === 'new-session' ? 'hourglass' : 'unplug';
   return (
-    <div
-      data-overlay={overlay.tone}
-      className="absolute inset-0 z-10 flex items-center justify-center bg-background/90 p-6 animate-rise"
-    >
-      <div className="flex max-w-md flex-col items-start gap-3 border border-border bg-card p-5">
+    <div data-overlay={overlay.tone} className="absolute inset-0 z-10 flex items-center justify-center bg-canvas/92 p-6 backdrop-blur-[2px] animate-fade">
+      <div className="flex max-w-md flex-col items-start gap-3">
         <span
           aria-hidden="true"
           className={cn(
-            'grid size-10 place-items-center',
-            overlay.tone === 'down' ? 'bg-destructive/15 text-destructive' : 'bg-muted text-foreground',
+            'grid size-11 place-items-center rounded-md',
+            overlay.tone === 'down' ? 'bg-bad-tint text-bad-ink' : overlay.tone === 'wait' ? 'bg-warn-tint text-warn-ink' : 'bg-info-tint text-info-ink',
           )}
         >
-          <Icon className={cn('size-5', overlay.tone === 'wait' && 'animate-spin')} />
+          <Icon name={glyph} size={22} />
         </span>
-        <p className="type-title text-foreground">{overlay.title}</p>
-        {overlay.detail !== null && <p className="text-sm text-muted-foreground">{overlay.detail}</p>}
-        {overlay.action !== null && (
+        <p className="font-display text-lg font-semibold text-ink">{overlay.title}</p>
+        {overlay.detail === null ? null : <p className="text-sm text-ink-2">{overlay.detail}</p>}
+        {overlay.action === null ? null : (
           <Button
             size="sm"
-            variant={overlay.action === 'new-session' ? 'primary' : 'ink'}
+            variant={overlay.action === 'new-session' ? 'primary' : 'secondary'}
+            icon={overlay.action === 'reclaim' ? 'enter' : overlay.action === 'reconnect' ? 'refresh' : 'play'}
             loading={busy}
             onClick={() => {
               if (overlay.action !== null) onAction(overlay.action);
             }}
           >
-            {overlay.action === 'new-session' && newSessionLabel !== undefined
-              ? newSessionLabel
-              : overlayActionLabel(overlay.action)}
+            {overlay.action === 'new-session' && newSessionLabel !== undefined ? newSessionLabel : overlayActionLabel(overlay.action)}
           </Button>
         )}
       </div>
@@ -117,19 +112,15 @@ function OverlayCard({
 }
 
 /**
- * Khoang terminal của ba trình học. Luôn tối (theme đêm) dù ứng dụng sáng hay tối:
- * `WorkspacePanel` đặt phạm vi `.dark` quanh nó.
+ * Khoang terminal của ba trình học. Luôn tối: `WorkspacePanel` đặt phạm vi `.dark`.
  *
  * ## Bất biến
  *
- * - Node terminal mount một lần cho mỗi phiên và KHÔNG bị gỡ khi đổi bề rộng
- *   cửa sổ. Bản trước gỡ nó dưới 1024px (thay bằng một câu "cần màn hình rộng
- *   hơn"), nên kéo cửa sổ qua ngưỡng là đóng WebSocket. Nay màn hẹp xếp chồng
- *   khoang bằng CSS (`WorkspaceSplit`), terminal vẫn ở đó.
- * - Pha khác `ready` ⇒ lớp phủ có lý do + một việc làm được, và phím gõ bị khoá
- *   (`setInputEnabled(false)`).
- * - Terminal ở cửa sổ riêng ⇒ trang thả kết nối (`connectionKey = null`), vì
- *   gateway chỉ cho một WebSocket mỗi phiên.
+ * - Node terminal mount một lần cho mỗi phiên và KHÔNG bị gỡ khi đổi bề rộng cửa sổ.
+ * - Pha khác `ready` ⇒ lớp phủ có lý do + đúng một việc làm được, và phím gõ bị khoá
+ *   (`setInputEnabled(false)`). Đang dựng máy ⇒ nhật ký dựng máy, không vòng xoay.
+ * - Terminal ở cửa sổ riêng ⇒ trang thả kết nối (`connectionKey = null`), vì gateway
+ *   chỉ cho một WebSocket mỗi phiên.
  */
 export function TerminalPane({ session, theme, placeholder, handoff, newSession }: TerminalPaneProps): ReactElement {
   const followedTheme = useResolvedTerminalTheme(undefined);
@@ -162,6 +153,19 @@ export function TerminalPane({ session, theme, placeholder, handoff, newSession 
     if (phase === 'ready') setCloseCode(null);
   }, [phase]);
 
+  if (session.state.sessionId === null) {
+    // Vừa bấm Bắt đầu: phiên chưa có id nhưng máy đang được dựng. Bản trước hiện lại
+    // màn "chưa có máy" đúng lúc này, và người học bấm Bắt đầu lần nữa.
+    if (phase === 'creating') {
+      return (
+        <div className="flex h-full w-full items-center justify-center bg-canvas p-6">
+          <BootLog title={t('session.boot.title')} lines={bootLines('creating')} className="w-full max-w-sm" />
+        </div>
+      );
+    }
+    return <div className="h-full w-full overflow-y-auto bg-canvas">{placeholder ?? null}</div>;
+  }
+
   const overlay = resolveTerminalOverlay({
     phase,
     message: session.state.message,
@@ -170,19 +174,6 @@ export function TerminalPane({ session, theme, placeholder, handoff, newSession 
     canReconnect: canReconnect(session.state),
     closeCode,
   });
-
-  if (session.state.sessionId === null) {
-    return (
-      <div className="flex h-full w-full flex-col items-center justify-center gap-4 bg-background px-6 text-center">
-        <span aria-hidden="true" className="grid size-14 place-items-center border-2 border-border text-muted-foreground">
-          <Terminal className="size-7" />
-        </span>
-        <div className="max-w-sm text-sm text-muted-foreground">
-          {placeholder ?? <span>{t('session.terminal.empty')}</span>}
-        </div>
-      </div>
-    );
-  }
 
   const onAction = (action: OverlayAction): void => {
     switch (action) {
@@ -193,19 +184,18 @@ export function TerminalPane({ session, theme, placeholder, handoff, newSession 
         session.reconnect();
         return;
       case 'new-session':
-        if (newSession === undefined) {
-          session.start();
-        } else {
-          newSession.onSelect();
-        }
+        if (newSession === undefined) session.start();
+        else newSession.onSelect();
         return;
     }
   };
 
+  const booting = handoffState === 'here' && phase === 'connecting';
+
   return (
     // `group-focus-within:` làm gợi ý Esc rồi Tab đậm lên khi terminal có focus, không xuất hiện/biến mất:
     // một dòng nhảy ra lúc focus đổi chiều cao khoang và làm xterm fit lại đúng giây người dùng bấm vào.
-    <div className="group flex h-full w-full flex-col bg-background">
+    <div className="group flex h-full w-full flex-col bg-canvas">
       <div className="relative min-h-0 flex-1">
         <TerminalSurfaceLazy
           wsUrl={session.wsUrl}
@@ -215,23 +205,22 @@ export function TerminalPane({ session, theme, placeholder, handoff, newSession 
           onControl={session.onControl}
           onClose={onClose}
           onReady={session.onTerminalReady}
-          /* Surface chỉ mount khi đã có phiên, tức ngay sau cú bấm Bắt đầu (hoặc Mở phiên mới):
-             đưa focus vào terminal lúc đó là đúng ý người học, không phải giật focus lúc tải trang. */
+          /* Surface chỉ mount khi đã có phiên, tức ngay sau cú bấm Bắt đầu: đưa focus vào
+             terminal lúc đó là đúng ý người học, không phải giật focus lúc tải trang. */
           autoFocus
         />
-        {overlay !== null && (
-          <OverlayCard
-            overlay={overlay}
-            busy={session.starting}
-            newSessionLabel={newSession?.label}
-            onAction={onAction}
-          />
-        )}
+        {booting ? (
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-canvas p-6">
+            <BootLog title={t('session.boot.title')} lines={bootLines('connecting')} className="w-full max-w-sm" />
+          </div>
+        ) : overlay !== null ? (
+          <OverlayPanel overlay={overlay} busy={session.starting} newSessionLabel={newSession?.label} onAction={onAction} />
+        ) : null}
       </div>
       <p
         className={cn(
-          'flex shrink-0 items-center gap-1.5 border-t border-border px-3 py-1 font-mono text-[11px] text-muted-foreground',
-          'transition-colors duration-[var(--motion-fast)] ease-out group-focus-within:text-foreground',
+          'flex h-7 shrink-0 items-center gap-1.5 border-t border-rule px-3 text-[11px] text-ink-3',
+          'transition-colors duration-150 ease-out group-focus-within:text-ink-2',
         )}
       >
         {t('session.terminal.escape-hint-prefix')} <Kbd>Esc</Kbd> {t('session.terminal.escape-hint-then')} <Kbd>Tab</Kbd>{' '}

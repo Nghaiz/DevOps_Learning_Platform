@@ -29,6 +29,7 @@ import { error, errorIntentionalThree } from './surfaces/error.ts';
 import { exam, examIntentionalThree } from './surfaces/exam.ts';
 import { games, gamesIntentionalThree } from './surfaces/games.ts';
 import { home, homeIntentionalThree } from './surfaces/home.ts';
+import { hub, hubIntentionalThree } from './surfaces/hub.ts';
 import { me, meIntentionalThree } from './surfaces/me.ts';
 import { problem, problemIntentionalThree } from './surfaces/problem.ts';
 import { session, sessionIntentionalThree } from './surfaces/session.ts';
@@ -55,6 +56,7 @@ export const SURFACES = {
   me,
   exam,
   games,
+  hub,
 } as const;
 
 /**
@@ -80,6 +82,7 @@ export const SURFACE_PREFIXES = {
   me: ['me'],
   exam: ['exam'],
   games: ['games'],
+  hub: ['hub'],
 } as const satisfies Readonly<Record<keyof typeof SURFACES, readonly string[]>>;
 
 /**
@@ -104,6 +107,7 @@ export const MESSAGES = {
   ...me,
   ...exam,
   ...games,
+  ...hub,
 } as const;
 
 export type CopyKey = keyof typeof MESSAGES;
@@ -128,6 +132,7 @@ export const INTENTIONAL_THREE: IntentionalThree = {
   ...meIntentionalThree,
   ...examIntentionalThree,
   ...gamesIntentionalThree,
+  ...hubIntentionalThree,
 };
 
 /**
@@ -148,4 +153,5 @@ export const SURFACE_INTENTIONAL_THREE = {
   me: meIntentionalThree,
   exam: examIntentionalThree,
   games: gamesIntentionalThree,
+  hub: hubIntentionalThree,
 } as const satisfies Readonly<Record<keyof typeof SURFACES, IntentionalThree>>;

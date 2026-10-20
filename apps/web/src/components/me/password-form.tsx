@@ -1,11 +1,9 @@
 'use client';
 
-import { useId, useState, type FormEvent, type ReactElement } from 'react';
-import { AlertTriangle } from 'lucide-react';
-import { Button, Input, Label } from '@devops-platform/ui';
+import { useState, type FormEvent, type ReactElement } from 'react';
+import { Button, Field, Input, Notice, Section } from '@devops-platform/ds';
 import { t } from '@devops-platform/copy';
 import { authClient } from '../../lib/auth-client';
-import { Split } from '../kit';
 import {
   MIN_PASSWORD_LENGTH,
   describePasswordChangeError,
@@ -24,7 +22,6 @@ import { SaveStatus } from './save-status';
  * (`describePasswordSection`), không phải một khối trống.
  */
 export function PasswordForm({ hasPassword }: { readonly hasPassword: boolean }): ReactElement {
-  const fieldId = useId();
   const section = describePasswordSection(hasPassword);
 
   const [current, setCurrent] = useState('');
@@ -36,12 +33,11 @@ export function PasswordForm({ hasPassword }: { readonly hasPassword: boolean })
 
   if (!section.visible) {
     return (
-      <Split index="02" title={t('me.password.title')}>
-        <div className="max-w-xl border-t-4 border-border bg-card p-5">
-          <p className="type-title">{t('me.password.hidden-title')}</p>
-          <p className="mt-2 text-sm text-muted-foreground">{section.reason}</p>
-        </div>
-      </Split>
+      <Section title={t('me.password.title')} icon="key">
+        <Notice tone="info" title={t('me.password.hidden-title')}>
+          {section.reason}
+        </Notice>
+      </Section>
     );
   }
 
@@ -83,96 +79,72 @@ export function PasswordForm({ hasPassword }: { readonly hasPassword: boolean })
     }
   }
 
-  const errorId = `${fieldId}-error`;
   const touch = (setter: (value: string) => void) => (value: string) => {
     setter(value);
     setDone(false);
   };
 
   return (
-    <Split
-      index="02"
+    <Section
       title={t('me.password.title')}
-      aside={
-        <>
-          <p>{t('me.password.description', { min: MIN_PASSWORD_LENGTH })}</p>
-          <SaveStatus state={state} />
-        </>
-      }
+      description={t('me.password.description', { min: MIN_PASSWORD_LENGTH })}
+      icon="key"
     >
       <form
         onSubmit={(event) => {
           void onSubmit(event);
         }}
-        className="flex max-w-xl flex-col gap-5"
+        className="flex flex-col gap-5"
       >
-        <PasswordField
-          id={`${fieldId}-current`}
-          label={t('me.password.field.current')}
-          autoComplete="current-password"
-          value={current}
-          onChange={touch(setCurrent)}
-          describedBy={error === null ? undefined : errorId}
-        />
-        <PasswordField
-          id={`${fieldId}-next`}
-          label={t('me.password.field.next')}
-          autoComplete="new-password"
-          value={next}
-          onChange={touch(setNext)}
-          describedBy={error === null ? undefined : errorId}
-        />
-        <PasswordField
-          id={`${fieldId}-confirm`}
-          label={t('me.password.field.confirm')}
-          autoComplete="new-password"
-          value={confirm}
-          onChange={touch(setConfirm)}
-          describedBy={error === null ? undefined : errorId}
-        />
+        <Field label={t('me.password.field.current')}>
+          <Input
+            type="password"
+            autoComplete="current-password"
+            value={current}
+            invalid={error !== null}
+            onChange={(event) => touch(setCurrent)(event.target.value)}
+          />
+        </Field>
+        <div className="grid gap-5 sm:grid-cols-2">
+          <Field label={t('me.password.field.next')}>
+            <Input
+              type="password"
+              autoComplete="new-password"
+              value={next}
+              invalid={error !== null}
+              onChange={(event) => touch(setNext)(event.target.value)}
+            />
+          </Field>
+          <Field label={t('me.password.field.confirm')}>
+            <Input
+              type="password"
+              autoComplete="new-password"
+              value={confirm}
+              invalid={error !== null}
+              onChange={(event) => touch(setConfirm)(event.target.value)}
+            />
+          </Field>
+        </div>
 
-        {error !== null && (
-          <p id={errorId} role="alert" className="flex items-start gap-2 text-sm text-destructive">
-            <AlertTriangle aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+        {error === null ? null : (
+          <Notice tone="bad" role="alert">
             {error}
-          </p>
+          </Notice>
         )}
-        {done && <p className="text-sm text-success">{t('me.password.done')}</p>}
+        {done ? (
+          <Notice tone="ok" role="status">
+            {t('me.password.done')}
+          </Notice>
+        ) : null}
 
-        <div>
-          <Button type="submit" loading={saving}>
+        <div className="flex flex-wrap items-center gap-3">
+          <Button type="submit" variant="primary" loading={saving} disabled={!dirty}>
             {t('me.password.submit')}
           </Button>
+          {/* "Đã lưu" đã có câu đầy đủ ở thông báo phía trên, không nói hai lần. */}
+          <SaveStatus state={state === 'saved' ? 'idle' : state} />
         </div>
       </form>
-    </Split>
-  );
-}
-
-function PasswordField(props: {
-  readonly id: string;
-  readonly label: string;
-  readonly autoComplete: string;
-  readonly value: string;
-  readonly onChange: (value: string) => void;
-  readonly describedBy: string | undefined;
-}): ReactElement {
-  return (
-    <div className="flex flex-col gap-2">
-      <Label htmlFor={props.id} className="text-[13px]">
-        {props.label}
-      </Label>
-      <Input
-        id={props.id}
-        type="password"
-        autoComplete={props.autoComplete}
-        value={props.value}
-        aria-describedby={props.describedBy}
-        invalid={props.describedBy !== undefined}
-        onChange={(event) => {
-          props.onChange(event.target.value);
-        }}
-      />
-    </div>
+    </Section>
   );
 }

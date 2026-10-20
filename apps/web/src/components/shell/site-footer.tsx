@@ -1,52 +1,26 @@
-import Link from 'next/link';
+import { LogoMark } from '@devops-platform/ds';
 import { t } from '@devops-platform/copy';
-import { cn } from '@devops-platform/ui';
-import { sectionsFor, type Viewer } from './nav';
-import { SECTION_TONE } from './section-tone';
 
 /**
- * Chân trang: dải chrome, tên sản phẩm cỡ biển ga, cột liên kết theo section.
- * Không hiện trên trang immersive (vỏ ứng dụng quyết định).
+ * Chân trang gọn: một dòng nhận diện và nơi chạy máy ảo. Điều hướng đã có ở thanh
+ * trên và bảng lệnh, không lặp lại ở đây.
  */
-export function SiteFooter({ viewer }: { readonly viewer: Viewer | null }) {
+export function SiteFooter() {
   return (
-    <footer aria-label={t('shell.footer.aria')} className="mt-auto bg-chrome text-chrome-foreground">
-      <div className="mx-auto max-w-[1440px] px-5 pt-14 pb-8 md:px-8">
-        <div className="grid gap-10 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
-          <div>
-            <p className="type-poster leading-none">
-              {t('shell.brand.medium')}
-              <span className="text-primary">.</span>
-            </p>
-            <p className="mt-4 max-w-md text-chrome-muted">{t('shell.footer.note')}</p>
-          </div>
-          <div className="grid grid-cols-2 gap-8 sm:grid-cols-3">
-            {sectionsFor(viewer).map((section) => (
-              <div key={section.id}>
-                <p className="flex items-center gap-2 type-label text-chrome-muted">
-                  <span className={cn('size-2.5', SECTION_TONE[section.tone].bar)} aria-hidden="true" />
-                  {section.label}
-                </p>
-                <ul className="mt-3 grid gap-2">
-                  {section.items.map((entry) => (
-                    <li key={entry.href}>
-                      <Link
-                        href={entry.href}
-                        className="text-sm text-chrome-foreground/85 underline-offset-4 transition-colors hover:text-chrome-foreground hover:underline"
-                      >
-                        {entry.label}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
+    <footer aria-label={t('shell.footer.aria')} className="mt-16 border-t border-rule">
+      <div className="mx-auto flex max-w-[1440px] flex-col gap-3 px-4 py-6 text-sm text-ink-3 sm:flex-row sm:items-center sm:justify-between lg:px-6">
+        <div className="flex items-center gap-3">
+          <LogoMark size={22} />
+          <span>
+            <span className="font-medium text-ink-2">{t('shell.brand.name')}</span>
+            {', '}
+            {t('shell.brand.org')}
+          </span>
         </div>
-        <div className="mt-12 flex flex-col gap-2 border-t border-chrome-border pt-5 text-xs text-chrome-muted sm:flex-row sm:justify-between">
-          <span>{t('shell.brand.org')}</span>
+        <p className="flex flex-col gap-0.5 sm:items-end">
+          <span>{t('shell.footer.note')}</span>
           <span>{t('shell.footer.source')}</span>
-        </div>
+        </p>
       </div>
     </footer>
   );

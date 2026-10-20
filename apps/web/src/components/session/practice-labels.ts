@@ -1,30 +1,24 @@
 import { t } from '@devops-platform/copy';
-import type { ContentViewProps, StepNavProps } from '@devops-platform/ui';
+import type { ContentLabels } from '@devops-platform/ds/content';
 
 /**
- * Câu chữ cho hai component của `packages/ui/src/lesson`. Gói `ui` không phụ
- * thuộc `copy`, nên trang dựng nhãn ở đây rồi truyền xuống: mọi chữ người học
- * đọc vẫn đi qua `t()`.
+ * Chữ cho khối nội dung của `@devops-platform/ds/content` (bài học, lab, câu hỏi
+ * trắc nghiệm, đề bài). Gói `ds` không phụ thuộc `copy`, nên chữ dựng ở đây.
  */
-export function contentViewLabels(): NonNullable<ContentViewProps['labels']> {
+export function contentLabels(): ContentLabels {
   return {
     run: t('session.code.run'),
     runInterrupt: t('session.code.run-interrupt'),
     copy: t('session.code.copy'),
     copied: t('session.code.copied'),
     copyFailed: t('session.code.copy-failed'),
-    region: (language: string) => t('session.code.region', { language }),
-    zoom: t('session.code.zoom'),
-  };
-}
-
-export function stepNavLabels(): StepNavProps['labels'] {
-  return {
-    list: t('session.steps.list'),
-    prev: t('session.steps.prev'),
-    next: t('session.steps.next'),
-    done: t('session.steps.done'),
-    current: t('session.steps.current'),
-    todo: t('session.steps.todo'),
+    codeRegion: (language: string) => t('session.code.region', { language }),
+    tableRegion: t('session.code.table'),
+    zoomDiagram: t('session.code.zoom'),
+    closeDiagram: t('session.code.zoom-close'),
+    remoteImage: t('session.code.remote-image'),
+    openRemoteImage: (alt: string) => t('session.code.remote-image-open', { alt }),
+    brokenImage: (alt: string) => t('session.code.broken-image', { alt }),
+    opensInNewTab: t('session.code.new-tab'),
   };
 }

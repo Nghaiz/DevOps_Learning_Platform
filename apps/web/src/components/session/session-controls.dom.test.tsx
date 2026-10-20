@@ -4,7 +4,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { initialState } from '@devops-platform/terminal';
 import type { SandboxSession } from '../../lib/use-sandbox-session';
 import { SessionControls } from './session-controls';
-import type { ProfileCapacityView } from './capacity';
+import { PracticeLaunch } from './practice-launch';
+import { describeCapacity, type ProfileCapacityView } from './capacity';
 
 /**
  * DÂY NỐI giữa `describeCapacity` và cái nhãn người học thật sự nhìn thấy.
@@ -35,6 +36,8 @@ const CHUA_MO: SandboxSession = {
   end: () => undefined,
   reconnect: () => undefined,
   extend: () => undefined,
+  adopt: () => undefined,
+  syncExpiry: () => undefined,
   onControl: () => undefined,
   onClose: () => undefined,
   onTerminalReady: () => undefined,
@@ -63,21 +66,14 @@ const SU_CO_20260907: ProfileCapacityView = {
 afterEach(cleanup);
 
 describe('SessionControls — nhãn sức chứa nói về ĐÚNG bài đang mở', () => {
-  it('bài IDE ⇒ badge "Hết chỗ" + cảnh báo, và KHÔNG có "14" ở đâu cả', () => {
+  it('bài IDE ⇒ badge "Hết chỗ", và KHÔNG có "14" ở đâu cả', () => {
     render(
       <SessionControls session={CHUA_MO} actions={KHONG_LAM_GI} capacity={SU_CO_20260907} profile="ide" />,
     );
 
     expect(screen.getByText('Hết chỗ')).toBeDefined();
-    /*
-      P16: câu cảnh báo được viết lại khi chuyển sang `packages/copy` (luật V3
-      cấm gạch ngang dài), nên chuỗi cũ "nhiều khả năng sẽ bị từ chối" không còn.
-      KHẲNG ĐỊNH thì giữ nguyên và vẫn là khẳng định đáng giá: cảnh báo phải nói
-      ra khả năng bị từ chối, chứ không chỉ nói "hết chỗ" rồi để đó.
-    */
-    expect(screen.getByText(/Nếu bị từ chối/)).toBeDefined();
-    // Nút vẫn bấm được — cảnh báo TRƯỚC, không phải chặn.
-    expect(screen.getByRole('button', { name: 'Bắt đầu' }).hasAttribute('disabled')).toBe(false);
+    // Nút Bắt đầu KHÔNG ở thanh trên: trang chỉ có một nút, nằm giữa khoang làm việc.
+    expect(screen.queryByRole('button', { name: 'Bắt đầu' })).toBeNull();
     expect(document.body.textContent).not.toContain('14');
   });
 
@@ -118,7 +114,40 @@ describe('SessionControls — nhãn sức chứa nói về ĐÚNG bài đang m�
 
     expect(screen.queryByText('Chưa rõ sức chứa')).toBeNull();
     expect(screen.queryByText(/chỗ$/)).toBeNull();
+  });
+});
+
+describe('PracticeLaunch — nút Bắt đầu DUY NHẤT của trang, cảnh báo TRƯỚC chứ không chặn', () => {
+  const launch = (capacity: ProfileCapacityView | null, profile: string) => (
+    <PracticeLaunch
+      kind="lesson"
+      startLabel="Bắt đầu"
+      onStart={() => undefined}
+      starting={false}
+      profile={profile}
+      capacity={describeCapacity(capacity, profile)}
+      otherMachines={0}
+    />
+  );
+
+  it('bài IDE hết chỗ ⇒ cảnh báo nói ra khả năng bị từ chối, nút vẫn bấm được', () => {
+    render(launch(SU_CO_20260907, 'ide'));
+
+    expect(screen.getByText('Hết chỗ')).toBeDefined();
+    /*
+      Cảnh báo phải nói ra khả năng bị từ chối, chứ không chỉ nói "hết chỗ" rồi để đó.
+      Chuỗi cũ "nhiều khả năng sẽ bị từ chối" đã được viết lại; khẳng định thì giữ.
+    */
+    expect(screen.getByText(/Nếu bị từ chối/)).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Bắt đầu' }).hasAttribute('disabled')).toBe(false);
+    expect(document.body.textContent).not.toContain('14');
+  });
+
+  it('chưa có payload ⇒ vẫn có nút Bắt đầu, không có nhãn chỗ nào', () => {
+    render(launch(null, ''));
+
     expect(screen.getByRole('button', { name: 'Bắt đầu' })).toBeDefined();
+    expect(screen.queryByText(/chỗ$/)).toBeNull();
   });
 });
 
@@ -157,7 +186,6 @@ describe('SessionControls — lab/sân chơi Kubernetes đếm theo trần CỦA
         actions={KHONG_LAM_GI}
         capacity={CON_CHO_LAB_K8S}
         profile="k8s"
-        startLabel="Bắt đầu"
       />,
     );
 

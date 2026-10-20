@@ -1,5 +1,5 @@
 import { t } from '@devops-platform/copy';
-import type { BadgeVariant } from '@devops-platform/ui';
+import type { Tone } from '@devops-platform/ds';
 
 /**
  * Nhãn cho một dòng `me.listProgress` trên `/me` — HÀM THUẦN.
@@ -37,7 +37,7 @@ export interface LessonProgressInput {
 
 export interface LessonProgressSummary {
   readonly label: string;
-  readonly variant: BadgeVariant;
+  readonly variant: Tone;
   /** Câu phụ về vị trí đang đứng; `null` khi bài đã xong (vị trí không còn nghĩa gì). */
   readonly detail: string | null;
 }
@@ -45,13 +45,13 @@ export interface LessonProgressSummary {
 export function summarizeLessonProgress(input: LessonProgressInput): LessonProgressSummary {
   if (input.completedAt !== null) {
     // "Đã xong" đọc từ `completed_at` — một mốc CÓ THẬT trong DB, không suy ra.
-    return { label: t('me.lessons.status-done'), variant: 'success', detail: null };
+    return { label: t('me.lessons.status-done'), variant: 'ok', detail: null };
   }
 
   // `stepIndex` là 0-based; người học đếm từ 1.
   return {
     label: t('me.lessons.status-learning'),
-    variant: 'secondary',
+    variant: 'info',
     detail: t('me.lessons.step', { step: input.stepIndex + 1 }),
   };
 }

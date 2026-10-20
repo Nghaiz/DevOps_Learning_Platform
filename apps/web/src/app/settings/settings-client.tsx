@@ -2,12 +2,10 @@
 
 import Link from 'next/link';
 import type { ReactElement } from 'react';
-import { ArrowLeft } from 'lucide-react';
 import { err, t } from '@devops-platform/copy';
-import { Button, ErrorState, Skeleton } from '@devops-platform/ui';
+import { BackLink, ErrorBlock, Page, PageHeader, Skeleton } from '@devops-platform/ds';
 import { api } from '../../lib/trpc-react';
 import { describeTrpcError } from '../../lib/trpc';
-import { PageContainer, ToolHeader } from '../../components/kit';
 import { PasswordForm } from '../../components/me/password-form';
 import { PreferencesForm } from '../../components/me/preferences-form';
 import { ProfileForm } from '../../components/me/profile-form';
@@ -27,76 +25,53 @@ function describeRole(role: string): string {
 }
 
 /**
- * `/settings`: ba khối Split xếp chồng (hồ sơ, mật khẩu, tuỳ chọn), mỗi khối lưu
- * riêng và tự báo trạng thái lưu ở cột nhãn.
+ * `/settings`: ba khối xếp dọc trong một cột hẹp (hồ sơ, mật khẩu, tuỳ chọn), mỗi
+ * khối lưu riêng và tự báo trạng thái lưu cạnh nút của nó.
  *
- * ⛔ Không `<main>` (C6bis). Cả trang đứng trên MỘT lượt `me.get`; ba khối nhận
- * giá trị đã lưu qua props, nên không khối nào hiện một phiên bản khác của cùng
- * một tuỳ chọn.
+ * ⛔ Không `<main>`. Cả trang đứng trên MỘT lượt `me.get`; ba khối nhận giá trị đã
+ * lưu qua props, nên không khối nào hiện một phiên bản khác của cùng một tuỳ chọn.
  */
 export function SettingsClient(): ReactElement {
   const me = api.me.get.useQuery({});
 
-  const header = (
-    <ToolHeader
-      kicker={t('me.settings.kicker')}
-      title={t('me.settings.title')}
-      actions={
-        <Button asChild variant="outline">
-          <Link href="/me">
-            <ArrowLeft aria-hidden="true" />
-            {t('me.settings.back')}
-          </Link>
-        </Button>
-      }
-    />
-  );
-
-  if (me.isPending) {
-    return (
-      <>
-        {header}
-        <PageContainer className="py-8" >
-          <div aria-busy="true" aria-label={t('me.settings.loading')} className="flex flex-col gap-8">
-            <Skeleton className="h-48 w-full" />
-            <Skeleton className="h-48 w-full" />
-          </div>
-        </PageContainer>
-      </>
-    );
-  }
-
-  if (me.isError) {
-    const entry = err('me.error.profile-load', { reason: describeTrpcError(me.error) });
-    return (
-      <>
-        {header}
-        <PageContainer className="py-8">
-          <ErrorState
-            title={entry.what}
-            message={entry.next}
-            onRetry={() => void me.refetch()}
-            retrying={me.isFetching}
-          />
-        </PageContainer>
-      </>
-    );
-  }
-
-  const { name, email, role, preferences, hasPassword } = me.data;
-
   return (
-    <>
-      {header}
-      <PageContainer className="pb-16">
-        <ProfileForm name={name} email={email} roleLabel={describeRole(role)} />
-        <PasswordForm hasPassword={hasPassword} />
-        <PreferencesForm
-          defaultShell={preferences.defaultShell}
-          terminalTheme={preferences.terminalTheme}
-          leaderboardNamePublic={preferences.leaderboardNamePublic}
-        />
-      </PageContainer>
-    </>
+    <Page width="text" className="pb-16">
+      <PageHeader
+        title={t('me.settings.title')}
+        lead={t('me.settings.lead')}
+        back={
+          <BackLink asChild>
+            <Link href="/me">{t('me.settings.back')}</Link>
+          </BackLink>
+        }
+      />
+      {me.isPending ? (
+        <div aria-busy="true" aria-label={t('me.settings.loading')} className="flex flex-col gap-10 pt-2">
+          <Skeleton className="h-40 w-full" />
+          <Skeleton className="h-56 w-full" />
+        </div>
+      ) : null}
+      {me.isError ? (
+        <ErrorBlock
+          title={err('me.error.profile-load', { reason: describeTrpcError(me.error) }).what}
+          retryLabel={t('common.action.retry')}
+          retrying={me.isFetching}
+          onRetry={() => void me.refetch()}
+        >
+          {err('me.error.profile-load', { reason: describeTrpcError(me.error) }).next}
+        </ErrorBlock>
+      ) : null}
+      {me.isSuccess ? (
+        <div className="flex flex-col divide-y divide-rule [&>*]:py-10 [&>*:first-child]:pt-2">
+          <ProfileForm name={me.data.name} email={me.data.email} roleLabel={describeRole(me.data.role)} />
+          <PasswordForm hasPassword={me.data.hasPassword} />
+          <PreferencesForm
+            defaultShell={me.data.preferences.defaultShell}
+            terminalTheme={me.data.preferences.terminalTheme}
+            leaderboardNamePublic={me.data.preferences.leaderboardNamePublic}
+          />
+        </div>
+      ) : null}
+    </Page>
   );
 }

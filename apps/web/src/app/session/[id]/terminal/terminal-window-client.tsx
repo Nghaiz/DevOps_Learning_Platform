@@ -3,9 +3,8 @@
 import { errText, t } from '@devops-platform/copy';
 import dynamic from 'next/dynamic';
 import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react';
-import { LoaderCircle } from 'lucide-react';
 import { buildSessionWsUrl, type ServerControl } from '@devops-platform/terminal';
-import { Button } from '@devops-platform/ui';
+import { Button, Icon, LogoMark, Pill } from '@devops-platform/ds';
 import { useWindowHandoff } from '../../../../components/session/terminal-handoff';
 import { useResolvedTerminalTheme } from '../../../../components/session/use-resolved-terminal-theme';
 import { api } from '../../../../lib/trpc-react';
@@ -31,8 +30,7 @@ import { api } from '../../../../lib/trpc-react';
 const TerminalSurfaceLazy = dynamic(() => import('../../../../components/session/terminal-surface-lazy'), {
   ssr: false,
   loading: () => (
-    <p role="status" className="flex items-center gap-2 p-6 font-mono text-xs text-muted-foreground">
-      <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />
+    <p role="status" className="p-6 font-mono text-xs text-ink-3">
       {t('session.terminal.booting')}
     </p>
   ),
@@ -130,23 +128,26 @@ export function TerminalWindowClient({ sessionId }: { readonly sessionId: string
   const stopped = phase.kind === 'stopped' || returned;
 
   return (
-    <div className="dark flex h-dvh flex-col bg-background text-foreground [color-scheme:dark]">
-      <div className="flex h-9 shrink-0 items-center gap-2 border-b border-border bg-chrome px-3 text-chrome-foreground">
-        <h1 className="truncate font-mono text-xs">{t('session.window.title', { sessionId })}</h1>
-        {!stopped && phase.kind !== 'ready' && (
-          <span role="status" className="ml-auto flex items-center gap-1.5 font-mono text-xs text-chrome-muted">
-            <LoaderCircle aria-hidden="true" className="size-3.5 animate-spin" />
-            {phase.kind === 'retrying' ? t('session.window.retrying', { seconds: phase.seconds }) : t('session.window.connecting')}
+    <div className="dark flex h-dvh flex-col bg-canvas text-ink [color-scheme:dark]">
+      <div className="flex h-10 shrink-0 items-center gap-2.5 border-b border-rule bg-paper px-3">
+        <LogoMark size={20} />
+        <h1 className="truncate font-mono text-xs text-ink-2">{t('session.window.title', { sessionId })}</h1>
+        {!stopped && phase.kind !== 'ready' ? (
+          <span role="status" className="ml-auto">
+            <Pill tone={phase.kind === 'retrying' ? 'warn' : 'info'} dot live>
+              {phase.kind === 'retrying' ? t('session.window.retrying', { seconds: phase.seconds }) : t('session.window.connecting')}
+            </Pill>
           </span>
-        )}
+        ) : null}
       </div>
 
       {stopped ? (
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 px-6 text-center">
-          <p role="status" className="max-w-md text-sm text-muted-foreground">
+          <Icon name={returned ? 'enter' : 'unplug'} size={30} className="text-ink-3" />
+          <p role="status" className="max-w-md text-sm text-ink-2">
             {returned ? t('session.window.returned') : phase.kind === 'stopped' ? phase.detail : null}
           </p>
-          <Button size="sm" variant="ink" onClick={reconnect}>
+          <Button size="sm" variant="secondary" icon={returned ? 'enter' : 'refresh'} onClick={reconnect}>
             {returned ? t('session.window.take-back') : t('session.window.reconnect')}
           </Button>
         </div>

@@ -33,8 +33,8 @@ describe('summarizeLabAttempt', () => {
     });
 
     expect(summary.statusLabel).toBe('Đạt');
-    expect(summary.statusVariant).toBe('success');
-    expect(summary.scoreLabel).toBe('90% · đạt 3 nhiệm vụ');
+    expect(summary.statusVariant).toBe('ok');
+    expect(summary.scoreLabel).toBe('90%, đạt 3 nhiệm vụ');
     expect(summary.scoreLabel).not.toContain('tới lúc này');
     expect(summary.durationLabel).toBe('2 phút');
   });
@@ -47,7 +47,7 @@ describe('summarizeLabAttempt', () => {
     });
 
     expect(summary.statusLabel).toBe('Chưa đạt');
-    expect(summary.statusVariant).toBe('destructive');
+    expect(summary.statusVariant).toBe('bad');
   });
 });
 
@@ -58,7 +58,7 @@ describe('summarizeQuizAttempt', () => {
     });
 
     expect(summary.statusLabel).toBe('Đạt');
-    expect(summary.scoreLabel).toBe('7/10 câu đúng · 70%');
+    expect(summary.scoreLabel).toBe('7/10 câu đúng (70%)');
   });
 
   it('trượt', () => {
@@ -67,7 +67,7 @@ describe('summarizeQuizAttempt', () => {
     });
 
     expect(summary.statusLabel).toBe('Chưa đạt');
-    expect(summary.statusVariant).toBe('destructive');
+    expect(summary.statusVariant).toBe('bad');
   });
 });
 

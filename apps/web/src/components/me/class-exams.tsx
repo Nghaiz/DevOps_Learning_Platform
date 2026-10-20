@@ -1,0 +1,64 @@
+'use client';
+
+import Link from 'next/link';
+import { Button, Icon, Pill, Row, RowList, RowsSkeleton, Section } from '@devops-platform/ds';
+import { renderCopy, t } from '@devops-platform/copy';
+import { api } from '../../lib/trpc-react';
+import { formatWhen } from '../../lib/format-moment';
+import { EXAM_WINDOW_KEYS, examWhen, examWindow } from '../../app/(session)/exams/exam-status';
+
+/**
+ * Kỳ thi đang mở hoặc sắp mở của lớp. Không có thì một câu ngắn, không vẽ khung
+ * rỗng to: phần lớn sinh viên không có kỳ thi trong hầu hết các ngày.
+ */
+export function ClassExams({ headingLevel = 2 }: { readonly headingLevel?: 2 | 3 }) {
+  const exams = api.examSitting.list.useQuery();
+  if (exams.isError) return null;
+  const items =
+    exams.data === undefined
+      ? []
+      : exams.data.items
+          .map((item) => ({ item, window: examWindow(item, exams.data.serverNow) }))
+          .filter(({ item, window }) => window !== 'closed' && item.submittedAt === null);
+
+  return (
+    <Section
+      title={t('me.exams.title')}
+      level={headingLevel}
+      icon="timer"
+      aside={
+        <Link href="/exams" className="text-acc-ink hover:underline">
+          {t('me.exams.all')}
+        </Link>
+      }
+    >
+      {exams.isPending ? <RowsSkeleton rows={1} label={t('me.exams.title')} /> : null}
+      {exams.isSuccess && items.length === 0 ? <p className="text-sm text-ink-3">{t('me.exams.empty')}</p> : null}
+      {items.length > 0 ? (
+        <RowList label={t('me.exams.title')}>
+          {items.map(({ item, window }) => (
+            <Row
+              key={item.id}
+              leading={<Icon name="exam" size={26} tint="acc" className="text-acc-ink" />}
+              title={item.title}
+              link={<Link href={`/exams/${encodeURIComponent(item.id)}`}>{item.title}</Link>}
+              description={`${item.className}. ${renderCopy(examWhen(item, (iso) => formatWhen(iso)))}`}
+              meta={
+                <Pill tone={window === 'open' ? 'ok' : 'info'} dot live={window === 'open'}>
+                  {t(EXAM_WINDOW_KEYS[window])}
+                </Pill>
+              }
+              trailing={
+                window === 'open' ? (
+                  <Button asChild size="sm" variant="primary">
+                    <Link href={`/exams/${encodeURIComponent(item.id)}`}>{t('me.exams.enter')}</Link>
+                  </Button>
+                ) : undefined
+              }
+            />
+          ))}
+        </RowList>
+      ) : null}
+    </Section>
+  );
+}

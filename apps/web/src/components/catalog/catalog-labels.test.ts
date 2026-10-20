@@ -4,11 +4,9 @@ import { SCENARIO_DIFFICULTIES } from '@devops-platform/shared-types/scenario';
 import {
   DIFFICULTY_LEVEL,
   PROGRESS_STATUS_KEY,
-  PROGRESS_STATUS_MARKER,
   describeCatalogEmpty,
   describeLoadedScope,
   describeResultCount,
-  progressMarker,
   progressStatusLabel,
   type CatalogKind,
 } from './catalog-labels';
@@ -84,10 +82,10 @@ describe('describeCatalogEmpty · năm ca, năm việc phải làm khác nhau', 
     });
 
     expect(author.action).toEqual({ kind: 'author' });
-    expect(say(author.description)).toContain('Xưởng soạn');
+    expect(say(author.description)).toContain('mục Soạn bài');
 
     expect(learner.action.kind).toBe('browse');
-    expect(say(learner.description)).not.toContain('Xưởng soạn');
+    expect(say(learner.description)).not.toContain('mục Soạn bài');
   });
 
   it('gợi ý cho người học trỏ sang trụ cột KHÁC, không vòng về chính trang đang rỗng', () => {
@@ -241,33 +239,11 @@ describe('describeCatalogEmpty · năm ca, năm việc phải làm khác nhau', 
 
 describe('ánh xạ miền dữ liệu → hệ thiết kế', () => {
   /*
-   * Đây là phần lane primitive CỐ Ý không làm: nối tên miền (`beginner`) vào tên
-   * của primitive (`basic`). Một ánh xạ sai không ném lỗi; `Difficulty` vẫn
-   * render, chỉ là sai số vạch. Nên nó bị đóng đinh ở đây.
+   * Một ánh xạ sai không ném lỗi: `LevelBars` vẫn vẽ, chỉ là sai số vạch. Nên nó
+   * bị đóng đinh ở đây, theo đúng thứ tự dễ tới khó.
    */
-  it.each(SCENARIO_DIFFICULTIES)('%s ánh xạ đúng sang mức của Difficulty', (level) => {
-    const token = level === 'beginner' ? 'basic' : level;
-    expect(DIFFICULTY_LEVEL[level]).toBe(token);
-  });
-
-  it('KHÔNG nơi nào sinh ra tên `beginner` phía primitive', () => {
-    expect(Object.values(DIFFICULTY_LEVEL).join(' ')).not.toContain('beginner');
-  });
-
-  it('bảng chỉ chứa TÊN TRẠNG THÁI, không chứa class Tailwind', () => {
-    for (const value of [...Object.values(DIFFICULTY_LEVEL), ...Object.values(PROGRESS_STATUS_MARKER)]) {
-      for (const prefix of ['bg-', 'text-', 'border-']) {
-        expect(value).not.toContain(prefix);
-      }
-    }
-  });
-
-  /*
-   * Hai chiều, theo kỷ luật pinned-baseline: thiếu key thì trạng thái mới mất
-   * hình thức trong im lặng; thừa key thì bảng thành nghĩa địa không ai rà lại.
-   */
-  it('mỗi trạng thái tiến độ có ĐỦ nhãn + dấu ga, và không dư key nào', () => {
-    expect(Object.keys(PROGRESS_STATUS_MARKER).sort()).toEqual(Object.keys(PROGRESS_STATUS_KEY).sort());
+  it('ba mức độ khó ứng với 1, 2, 3 vạch theo đúng thứ tự', () => {
+    expect(SCENARIO_DIFFICULTIES.map((level) => DIFFICULTY_LEVEL[level])).toEqual([1, 2, 3]);
   });
 
   it('mỗi trạng thái có nhãn dựng ra được, và trạng thái lạ trả null chứ không ném', () => {
@@ -275,21 +251,6 @@ describe('ánh xạ miền dữ liệu → hệ thiết kế', () => {
       expect(progressStatusLabel(status)?.length ?? 0).toBeGreaterThan(0);
     }
     expect(progressStatusLabel('abandoned')).toBeNull();
-  });
-
-  it('"chưa bắt đầu" là ga `todo`, KHÔNG phải `locked`, và trạng thái lạ cũng rơi về `todo`', () => {
-    /*
-     * Ga khoá nói với người học rằng bài họ chưa mở là bài họ không được vào:
-     * sai NGHĨA và sai theo hướng chặn người ta lại.
-     */
-    expect(PROGRESS_STATUS_MARKER['not-started']).toBe('todo');
-    expect(Object.values(PROGRESS_STATUS_MARKER)).not.toContain('locked');
-    expect(progressMarker('abandoned')).toBe('todo');
-  });
-
-  it('ba trạng thái mang ba dấu ga KHÁC NHAU', () => {
-    const markers = Object.values(PROGRESS_STATUS_MARKER);
-    expect(new Set(markers).size).toBe(markers.length);
   });
 });
 

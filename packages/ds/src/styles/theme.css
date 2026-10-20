@@ -1,0 +1,843 @@
+/*
+ * Hệ thiết kế `ds` (bản dựng lại 2026-10). Tài liệu: docs/design-system.md.
+ *
+ * File này được `apps/web/src/app/globals.css` nạp SAU `@import 'tailwindcss'`.
+ * Khối biến màu giữa hai dấu mốc @palette do `packages/ds/scripts/palette.mjs --write`
+ * sinh ra; đừng sửa tay, sửa bảng trong script rồi chạy lại. `--check` là cổng chống lệch.
+ *
+ * Giao diện cũ (landing, game K8s, màn chơi Git/CI/CD) KHÔNG đọc các biến ở đây:
+ * chúng nằm trong `.legacy-skin` / `.arena-root`, xem apps/web/src/app/legacy.css.
+ */
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* @palette:begin */
+:root {
+  --canvas: oklch(0.987 0.004 247);
+  --paper: oklch(1 0 0);
+  --well: oklch(0.966 0.006 247);
+  --well-2: oklch(0.942 0.008 247);
+  --ink: oklch(0.235 0.016 262);
+  --ink-2: oklch(0.43 0.016 262);
+  --ink-3: oklch(0.515 0.014 262);
+  --rule: oklch(0.915 0.008 250);
+  --rule-2: oklch(0.855 0.01 250);
+  --control: oklch(0.64 0.014 255);
+  --focus: oklch(0.53 0.17 258);
+  --overlay: oklch(0.235 0.016 262);
+  --s-learn-wash: oklch(0.968 0.015 254);
+  --s-learn-tint: oklch(0.925 0.036 254);
+  --s-learn-soft: oklch(0.855 0.071 254);
+  --s-learn-mid: oklch(0.7 0.14 254);
+  --s-learn-solid: oklch(0.53 0.15 254);
+  --s-learn-ink: oklch(0.455 0.13 254);
+  --s-practice-wash: oklch(0.968 0.022 158);
+  --s-practice-tint: oklch(0.925 0.052 158);
+  --s-practice-soft: oklch(0.855 0.085 158);
+  --s-practice-mid: oklch(0.7 0.14 158);
+  --s-practice-solid: oklch(0.53 0.122 158);
+  --s-practice-ink: oklch(0.455 0.105 158);
+  --s-judge-wash: oklch(0.968 0.02 68);
+  --s-judge-tint: oklch(0.925 0.048 68);
+  --s-judge-soft: oklch(0.855 0.078 68);
+  --s-judge-mid: oklch(0.7 0.129 68);
+  --s-judge-solid: oklch(0.53 0.115 68);
+  --s-judge-ink: oklch(0.455 0.099 68);
+  --s-games-wash: oklch(0.968 0.015 28);
+  --s-games-tint: oklch(0.925 0.037 28);
+  --s-games-soft: oklch(0.855 0.077 28);
+  --s-games-mid: oklch(0.7 0.14 28);
+  --s-games-solid: oklch(0.53 0.15 28);
+  --s-games-ink: oklch(0.455 0.13 28);
+  --s-studio-wash: oklch(0.968 0.021 326);
+  --s-studio-tint: oklch(0.925 0.049 326);
+  --s-studio-soft: oklch(0.855 0.081 326);
+  --s-studio-mid: oklch(0.7 0.133 326);
+  --s-studio-solid: oklch(0.53 0.142 326);
+  --s-studio-ink: oklch(0.455 0.123 326);
+  --s-admin-wash: oklch(0.968 0.007 252);
+  --s-admin-tint: oklch(0.925 0.017 252);
+  --s-admin-soft: oklch(0.855 0.027 252);
+  --s-admin-mid: oklch(0.7 0.045 252);
+  --s-admin-solid: oklch(0.53 0.048 252);
+  --s-admin-ink: oklch(0.455 0.042 252);
+  --t-security-wash: oklch(0.968 0.015 12);
+  --t-security-tint: oklch(0.925 0.038 12);
+  --t-security-soft: oklch(0.855 0.078 12);
+  --t-security-mid: oklch(0.7 0.14 12);
+  --t-security-solid: oklch(0.53 0.15 12);
+  --t-security-ink: oklch(0.455 0.13 12);
+  --t-git-wash: oklch(0.968 0.015 32);
+  --t-git-tint: oklch(0.925 0.037 32);
+  --t-git-soft: oklch(0.855 0.077 32);
+  --t-git-mid: oklch(0.7 0.14 32);
+  --t-git-solid: oklch(0.53 0.15 32);
+  --t-git-ink: oklch(0.455 0.13 32);
+  --t-iac-wash: oklch(0.968 0.018 55);
+  --t-iac-tint: oklch(0.925 0.044 55);
+  --t-iac-soft: oklch(0.855 0.081 55);
+  --t-iac-mid: oklch(0.7 0.133 55);
+  --t-iac-solid: oklch(0.53 0.129 55);
+  --t-iac-ink: oklch(0.455 0.112 55);
+  --t-linux-wash: oklch(0.968 0.02 78);
+  --t-linux-tint: oklch(0.925 0.047 78);
+  --t-linux-soft: oklch(0.855 0.077 78);
+  --t-linux-mid: oklch(0.7 0.126 78);
+  --t-linux-solid: oklch(0.53 0.109 78);
+  --t-linux-ink: oklch(0.455 0.094 78);
+  --t-bash-wash: oklch(0.968 0.019 108);
+  --t-bash-tint: oklch(0.925 0.044 108);
+  --t-bash-soft: oklch(0.855 0.072 108);
+  --t-bash-mid: oklch(0.7 0.119 108);
+  --t-bash-solid: oklch(0.53 0.113 108);
+  --t-bash-ink: oklch(0.455 0.097 108);
+  --t-cicd-wash: oklch(0.968 0.022 150);
+  --t-cicd-tint: oklch(0.925 0.052 150);
+  --t-cicd-soft: oklch(0.855 0.085 150);
+  --t-cicd-mid: oklch(0.7 0.14 150);
+  --t-cicd-solid: oklch(0.53 0.144 150);
+  --t-cicd-ink: oklch(0.455 0.124 150);
+  --t-networking-wash: oklch(0.968 0.02 190);
+  --t-networking-tint: oklch(0.925 0.047 190);
+  --t-networking-soft: oklch(0.855 0.077 190);
+  --t-networking-mid: oklch(0.7 0.118 190);
+  --t-networking-solid: oklch(0.53 0.09 190);
+  --t-networking-ink: oklch(0.455 0.077 190);
+  --t-docker-wash: oklch(0.968 0.019 228);
+  --t-docker-tint: oklch(0.925 0.045 228);
+  --t-docker-soft: oklch(0.855 0.085 228);
+  --t-docker-mid: oklch(0.7 0.134 228);
+  --t-docker-solid: oklch(0.53 0.102 228);
+  --t-docker-ink: oklch(0.455 0.087 228);
+  --t-kubernetes-wash: oklch(0.968 0.014 262);
+  --t-kubernetes-tint: oklch(0.925 0.035 262);
+  --t-kubernetes-soft: oklch(0.855 0.07 262);
+  --t-kubernetes-mid: oklch(0.7 0.14 262);
+  --t-kubernetes-solid: oklch(0.53 0.15 262);
+  --t-kubernetes-ink: oklch(0.455 0.13 262);
+  --t-observability-wash: oklch(0.968 0.017 300);
+  --t-observability-tint: oklch(0.925 0.041 300);
+  --t-observability-soft: oklch(0.855 0.081 300);
+  --t-observability-mid: oklch(0.7 0.133 300);
+  --t-observability-solid: oklch(0.53 0.142 300);
+  --t-observability-ink: oklch(0.455 0.123 300);
+  --t-general-wash: oklch(0.968 0.005 252);
+  --t-general-tint: oklch(0.925 0.013 252);
+  --t-general-soft: oklch(0.855 0.021 252);
+  --t-general-mid: oklch(0.7 0.035 252);
+  --t-general-solid: oklch(0.53 0.037 252);
+  --t-general-ink: oklch(0.455 0.033 252);
+  --st-ok-wash: oklch(0.968 0.022 152);
+  --st-ok-tint: oklch(0.925 0.052 152);
+  --st-ok-soft: oklch(0.855 0.085 152);
+  --st-ok-mid: oklch(0.7 0.14 152);
+  --st-ok-solid: oklch(0.53 0.137 152);
+  --st-ok-ink: oklch(0.455 0.118 152);
+  --st-warn-wash: oklch(0.968 0.02 70);
+  --st-warn-tint: oklch(0.925 0.048 70);
+  --st-warn-soft: oklch(0.855 0.078 70);
+  --st-warn-mid: oklch(0.7 0.129 70);
+  --st-warn-solid: oklch(0.53 0.113 70);
+  --st-warn-ink: oklch(0.455 0.098 70);
+  --st-bad-wash: oklch(0.968 0.015 25);
+  --st-bad-tint: oklch(0.925 0.037 25);
+  --st-bad-soft: oklch(0.855 0.077 25);
+  --st-bad-mid: oklch(0.7 0.14 25);
+  --st-bad-solid: oklch(0.53 0.15 25);
+  --st-bad-ink: oklch(0.455 0.13 25);
+  --st-info-wash: oklch(0.968 0.015 254);
+  --st-info-tint: oklch(0.925 0.036 254);
+  --st-info-soft: oklch(0.855 0.071 254);
+  --st-info-mid: oklch(0.7 0.14 254);
+  --st-info-solid: oklch(0.53 0.15 254);
+  --st-info-ink: oklch(0.455 0.13 254);
+}
+.dark {
+  --canvas: oklch(0.185 0.006 255);
+  --paper: oklch(0.228 0.007 255);
+  --well: oklch(0.214 0.007 255);
+  --well-2: oklch(0.262 0.008 255);
+  --ink: oklch(0.945 0.005 255);
+  --ink-2: oklch(0.8 0.008 255);
+  --ink-3: oklch(0.69 0.01 255);
+  --rule: oklch(0.292 0.008 255);
+  --rule-2: oklch(0.365 0.01 255);
+  --control: oklch(0.58 0.012 255);
+  --focus: oklch(0.74 0.13 255);
+  --overlay: oklch(0.1 0.005 255);
+  --s-learn-wash: oklch(0.232 0.028 254);
+  --s-learn-tint: oklch(0.305 0.055 254);
+  --s-learn-soft: oklch(0.42 0.08 254);
+  --s-learn-mid: oklch(0.68 0.13 254);
+  --s-learn-solid: oklch(0.76 0.125 254);
+  --s-learn-ink: oklch(0.83 0.084 254);
+  --s-practice-wash: oklch(0.232 0.028 158);
+  --s-practice-tint: oklch(0.305 0.055 158);
+  --s-practice-soft: oklch(0.42 0.08 158);
+  --s-practice-mid: oklch(0.68 0.13 158);
+  --s-practice-solid: oklch(0.76 0.125 158);
+  --s-practice-ink: oklch(0.83 0.1 158);
+  --s-judge-wash: oklch(0.232 0.026 68);
+  --s-judge-tint: oklch(0.305 0.051 68);
+  --s-judge-soft: oklch(0.42 0.074 68);
+  --s-judge-mid: oklch(0.68 0.12 68);
+  --s-judge-solid: oklch(0.76 0.115 68);
+  --s-judge-ink: oklch(0.83 0.092 68);
+  --s-games-wash: oklch(0.232 0.028 28);
+  --s-games-tint: oklch(0.305 0.055 28);
+  --s-games-soft: oklch(0.42 0.08 28);
+  --s-games-mid: oklch(0.68 0.13 28);
+  --s-games-solid: oklch(0.76 0.125 28);
+  --s-games-ink: oklch(0.83 0.092 28);
+  --s-studio-wash: oklch(0.232 0.027 326);
+  --s-studio-tint: oklch(0.305 0.052 326);
+  --s-studio-soft: oklch(0.42 0.076 326);
+  --s-studio-mid: oklch(0.68 0.123 326);
+  --s-studio-solid: oklch(0.76 0.119 326);
+  --s-studio-ink: oklch(0.83 0.095 326);
+  --s-admin-wash: oklch(0.232 0.009 252);
+  --s-admin-tint: oklch(0.305 0.018 252);
+  --s-admin-soft: oklch(0.42 0.026 252);
+  --s-admin-mid: oklch(0.68 0.042 252);
+  --s-admin-solid: oklch(0.76 0.04 252);
+  --s-admin-ink: oklch(0.83 0.032 252);
+  --t-security-wash: oklch(0.232 0.028 12);
+  --t-security-tint: oklch(0.305 0.055 12);
+  --t-security-soft: oklch(0.42 0.08 12);
+  --t-security-mid: oklch(0.68 0.13 12);
+  --t-security-solid: oklch(0.76 0.125 12);
+  --t-security-ink: oklch(0.83 0.094 12);
+  --t-git-wash: oklch(0.232 0.028 32);
+  --t-git-tint: oklch(0.305 0.055 32);
+  --t-git-soft: oklch(0.42 0.08 32);
+  --t-git-mid: oklch(0.68 0.13 32);
+  --t-git-solid: oklch(0.76 0.125 32);
+  --t-git-ink: oklch(0.83 0.093 32);
+  --t-iac-wash: oklch(0.232 0.027 55);
+  --t-iac-tint: oklch(0.305 0.052 55);
+  --t-iac-soft: oklch(0.42 0.076 55);
+  --t-iac-mid: oklch(0.68 0.123 55);
+  --t-iac-solid: oklch(0.76 0.119 55);
+  --t-iac-ink: oklch(0.83 0.095 55);
+  --t-linux-wash: oklch(0.232 0.025 78);
+  --t-linux-tint: oklch(0.305 0.05 78);
+  --t-linux-soft: oklch(0.42 0.072 78);
+  --t-linux-mid: oklch(0.68 0.117 78);
+  --t-linux-solid: oklch(0.76 0.113 78);
+  --t-linux-ink: oklch(0.83 0.09 78);
+  --t-bash-wash: oklch(0.232 0.024 108);
+  --t-bash-tint: oklch(0.305 0.047 108);
+  --t-bash-soft: oklch(0.42 0.068 108);
+  --t-bash-mid: oklch(0.68 0.111 108);
+  --t-bash-solid: oklch(0.76 0.106 108);
+  --t-bash-ink: oklch(0.83 0.085 108);
+  --t-cicd-wash: oklch(0.232 0.028 150);
+  --t-cicd-tint: oklch(0.305 0.055 150);
+  --t-cicd-soft: oklch(0.42 0.08 150);
+  --t-cicd-mid: oklch(0.68 0.13 150);
+  --t-cicd-solid: oklch(0.76 0.125 150);
+  --t-cicd-ink: oklch(0.83 0.1 150);
+  --t-networking-wash: oklch(0.232 0.025 190);
+  --t-networking-tint: oklch(0.305 0.05 190);
+  --t-networking-soft: oklch(0.42 0.072 190);
+  --t-networking-mid: oklch(0.68 0.117 190);
+  --t-networking-solid: oklch(0.76 0.113 190);
+  --t-networking-ink: oklch(0.83 0.09 190);
+  --t-docker-wash: oklch(0.232 0.028 228);
+  --t-docker-tint: oklch(0.305 0.055 228);
+  --t-docker-soft: oklch(0.42 0.08 228);
+  --t-docker-mid: oklch(0.68 0.13 228);
+  --t-docker-solid: oklch(0.76 0.125 228);
+  --t-docker-ink: oklch(0.83 0.1 228);
+  --t-kubernetes-wash: oklch(0.232 0.028 262);
+  --t-kubernetes-tint: oklch(0.305 0.055 262);
+  --t-kubernetes-soft: oklch(0.42 0.08 262);
+  --t-kubernetes-mid: oklch(0.68 0.13 262);
+  --t-kubernetes-solid: oklch(0.76 0.12 262);
+  --t-kubernetes-ink: oklch(0.83 0.082 262);
+  --t-observability-wash: oklch(0.232 0.027 300);
+  --t-observability-tint: oklch(0.305 0.052 300);
+  --t-observability-soft: oklch(0.42 0.076 300);
+  --t-observability-mid: oklch(0.68 0.123 300);
+  --t-observability-solid: oklch(0.76 0.119 300);
+  --t-observability-ink: oklch(0.83 0.095 300);
+  --t-general-wash: oklch(0.232 0.007 252);
+  --t-general-tint: oklch(0.305 0.014 252);
+  --t-general-soft: oklch(0.42 0.02 252);
+  --t-general-mid: oklch(0.68 0.033 252);
+  --t-general-solid: oklch(0.76 0.031 252);
+  --t-general-ink: oklch(0.83 0.025 252);
+  --st-ok-wash: oklch(0.232 0.028 152);
+  --st-ok-tint: oklch(0.305 0.055 152);
+  --st-ok-soft: oklch(0.42 0.08 152);
+  --st-ok-mid: oklch(0.68 0.13 152);
+  --st-ok-solid: oklch(0.76 0.125 152);
+  --st-ok-ink: oklch(0.83 0.1 152);
+  --st-warn-wash: oklch(0.232 0.026 70);
+  --st-warn-tint: oklch(0.305 0.051 70);
+  --st-warn-soft: oklch(0.42 0.074 70);
+  --st-warn-mid: oklch(0.68 0.12 70);
+  --st-warn-solid: oklch(0.76 0.115 70);
+  --st-warn-ink: oklch(0.83 0.092 70);
+  --st-bad-wash: oklch(0.232 0.028 25);
+  --st-bad-tint: oklch(0.305 0.055 25);
+  --st-bad-soft: oklch(0.42 0.08 25);
+  --st-bad-mid: oklch(0.68 0.13 25);
+  --st-bad-solid: oklch(0.76 0.125 25);
+  --st-bad-ink: oklch(0.83 0.092 25);
+  --st-info-wash: oklch(0.232 0.028 254);
+  --st-info-tint: oklch(0.305 0.055 254);
+  --st-info-soft: oklch(0.42 0.08 254);
+  --st-info-mid: oklch(0.68 0.13 254);
+  --st-info-solid: oklch(0.76 0.125 254);
+  --st-info-ink: oklch(0.83 0.084 254);
+}
+/* @palette:end */
+
+/* ── Bóng: chỉ cho thứ nổi (menu, popover, dialog, toast) ──────────────────── */
+:root {
+  /* Chữ đặt trên nền đặc (nút chính, thẻ trạng thái đặc): trắng ở theme sáng, nền tối ở theme tối. */
+  --on-solid: oklch(1 0 0);
+  /* Màu con trỏ trong logo (cúc vạn thọ). Chỉ dùng cho dấu nhận diện. */
+  --mark: oklch(0.8 0.155 80);
+  /* Khối lệnh trong bài: nền tối như terminal ở cả hai theme. */
+  --code-bg: oklch(0.255 0.018 262);
+  --code-ink: oklch(0.94 0.008 250);
+  --code-dim: oklch(0.74 0.012 255);
+  --pop-shadow:
+    0 1px 2px oklch(0.235 0.016 262 / 0.06), 0 12px 32px -10px oklch(0.235 0.016 262 / 0.24);
+  --lift-shadow: 0 1px 0 oklch(0.235 0.016 262 / 0.05);
+}
+.dark {
+  --on-solid: oklch(0.185 0.006 255);
+  --mark: oklch(0.83 0.15 82);
+  --code-bg: oklch(0.155 0.006 255);
+  --code-ink: oklch(0.93 0.008 250);
+  --code-dim: oklch(0.72 0.012 255);
+  --pop-shadow: 0 1px 2px oklch(0.1 0.005 255 / 0.5), 0 14px 36px -10px oklch(0.06 0.005 255 / 0.7);
+  --lift-shadow: 0 1px 0 oklch(0.06 0.005 255 / 0.4);
+}
+
+/*
+ * ── Màu nhấn theo mục ─────────────────────────────────────────────────────
+ * Vỏ ứng dụng gắn `data-section` lên khung trang; mọi thứ bên trong đọc `--acc-*`.
+ * Không có mục (trang cá nhân, đăng nhập) thì dùng màu của mục Học.
+ */
+:root,
+[data-section='learn'] {
+  --acc-wash: var(--s-learn-wash);
+  --acc-tint: var(--s-learn-tint);
+  --acc-soft: var(--s-learn-soft);
+  --acc-mid: var(--s-learn-mid);
+  --acc-solid: var(--s-learn-solid);
+  --acc-ink: var(--s-learn-ink);
+}
+[data-section='practice'] {
+  --acc-wash: var(--s-practice-wash);
+  --acc-tint: var(--s-practice-tint);
+  --acc-soft: var(--s-practice-soft);
+  --acc-mid: var(--s-practice-mid);
+  --acc-solid: var(--s-practice-solid);
+  --acc-ink: var(--s-practice-ink);
+}
+[data-section='judge'] {
+  --acc-wash: var(--s-judge-wash);
+  --acc-tint: var(--s-judge-tint);
+  --acc-soft: var(--s-judge-soft);
+  --acc-mid: var(--s-judge-mid);
+  --acc-solid: var(--s-judge-solid);
+  --acc-ink: var(--s-judge-ink);
+}
+[data-section='games'] {
+  --acc-wash: var(--s-games-wash);
+  --acc-tint: var(--s-games-tint);
+  --acc-soft: var(--s-games-soft);
+  --acc-mid: var(--s-games-mid);
+  --acc-solid: var(--s-games-solid);
+  --acc-ink: var(--s-games-ink);
+}
+[data-section='studio'] {
+  --acc-wash: var(--s-studio-wash);
+  --acc-tint: var(--s-studio-tint);
+  --acc-soft: var(--s-studio-soft);
+  --acc-mid: var(--s-studio-mid);
+  --acc-solid: var(--s-studio-solid);
+  --acc-ink: var(--s-studio-ink);
+}
+[data-section='admin'] {
+  --acc-wash: var(--s-admin-wash);
+  --acc-tint: var(--s-admin-tint);
+  --acc-soft: var(--s-admin-soft);
+  --acc-mid: var(--s-admin-mid);
+  --acc-solid: var(--s-admin-solid);
+  --acc-ink: var(--s-admin-ink);
+}
+
+/*
+ * ── Màu chủ đề ────────────────────────────────────────────────────────────
+ * `data-topic` trên dòng/biểu tượng; đọc `--tp-*`. Mặc định là xám-xanh trung tính.
+ */
+:root,
+[data-topic='general'] {
+  --tp-wash: var(--t-general-wash);
+  --tp-tint: var(--t-general-tint);
+  --tp-soft: var(--t-general-soft);
+  --tp-mid: var(--t-general-mid);
+  --tp-solid: var(--t-general-solid);
+  --tp-ink: var(--t-general-ink);
+}
+[data-topic='security'] {
+  --tp-wash: var(--t-security-wash);
+  --tp-tint: var(--t-security-tint);
+  --tp-soft: var(--t-security-soft);
+  --tp-mid: var(--t-security-mid);
+  --tp-solid: var(--t-security-solid);
+  --tp-ink: var(--t-security-ink);
+}
+[data-topic='git'] {
+  --tp-wash: var(--t-git-wash);
+  --tp-tint: var(--t-git-tint);
+  --tp-soft: var(--t-git-soft);
+  --tp-mid: var(--t-git-mid);
+  --tp-solid: var(--t-git-solid);
+  --tp-ink: var(--t-git-ink);
+}
+[data-topic='iac'] {
+  --tp-wash: var(--t-iac-wash);
+  --tp-tint: var(--t-iac-tint);
+  --tp-soft: var(--t-iac-soft);
+  --tp-mid: var(--t-iac-mid);
+  --tp-solid: var(--t-iac-solid);
+  --tp-ink: var(--t-iac-ink);
+}
+[data-topic='linux'] {
+  --tp-wash: var(--t-linux-wash);
+  --tp-tint: var(--t-linux-tint);
+  --tp-soft: var(--t-linux-soft);
+  --tp-mid: var(--t-linux-mid);
+  --tp-solid: var(--t-linux-solid);
+  --tp-ink: var(--t-linux-ink);
+}
+[data-topic='bash'] {
+  --tp-wash: var(--t-bash-wash);
+  --tp-tint: var(--t-bash-tint);
+  --tp-soft: var(--t-bash-soft);
+  --tp-mid: var(--t-bash-mid);
+  --tp-solid: var(--t-bash-solid);
+  --tp-ink: var(--t-bash-ink);
+}
+[data-topic='cicd'] {
+  --tp-wash: var(--t-cicd-wash);
+  --tp-tint: var(--t-cicd-tint);
+  --tp-soft: var(--t-cicd-soft);
+  --tp-mid: var(--t-cicd-mid);
+  --tp-solid: var(--t-cicd-solid);
+  --tp-ink: var(--t-cicd-ink);
+}
+[data-topic='networking'] {
+  --tp-wash: var(--t-networking-wash);
+  --tp-tint: var(--t-networking-tint);
+  --tp-soft: var(--t-networking-soft);
+  --tp-mid: var(--t-networking-mid);
+  --tp-solid: var(--t-networking-solid);
+  --tp-ink: var(--t-networking-ink);
+}
+[data-topic='docker'] {
+  --tp-wash: var(--t-docker-wash);
+  --tp-tint: var(--t-docker-tint);
+  --tp-soft: var(--t-docker-soft);
+  --tp-mid: var(--t-docker-mid);
+  --tp-solid: var(--t-docker-solid);
+  --tp-ink: var(--t-docker-ink);
+}
+[data-topic='kubernetes'] {
+  --tp-wash: var(--t-kubernetes-wash);
+  --tp-tint: var(--t-kubernetes-tint);
+  --tp-soft: var(--t-kubernetes-soft);
+  --tp-mid: var(--t-kubernetes-mid);
+  --tp-solid: var(--t-kubernetes-solid);
+  --tp-ink: var(--t-kubernetes-ink);
+}
+[data-topic='observability'] {
+  --tp-wash: var(--t-observability-wash);
+  --tp-tint: var(--t-observability-tint);
+  --tp-soft: var(--t-observability-soft);
+  --tp-mid: var(--t-observability-mid);
+  --tp-solid: var(--t-observability-solid);
+  --tp-ink: var(--t-observability-ink);
+}
+
+/* ── Thang chữ, bo góc, chuyển động ───────────────────────────────────────── */
+@theme {
+  --font-sans: var(--font-hanken), ui-sans-serif, system-ui, 'Segoe UI', sans-serif;
+  --font-display: var(--font-bricolage), var(--font-hanken), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-intel-mono), ui-monospace, 'Cascadia Code', Consolas, monospace;
+
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1.4;
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1.45;
+  --text-sm: 0.875rem;
+  --text-sm--line-height: 1.55;
+  --text-base: 0.9375rem;
+  --text-base--line-height: 1.6;
+  --text-md: 1rem;
+  --text-md--line-height: 1.65;
+  --text-lg: 1.125rem;
+  --text-lg--line-height: 1.45;
+  --text-xl: 1.375rem;
+  --text-xl--line-height: 1.3;
+  --text-2xl: 1.75rem;
+  --text-2xl--line-height: 1.22;
+  --text-3xl: 2.25rem;
+  --text-3xl--line-height: 1.14;
+  --text-4xl: 3rem;
+  --text-4xl--line-height: 1.08;
+
+  --radius-xs: 3px;
+  --radius-sm: 5px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+
+  --animate-enter: ds-enter 260ms var(--ease-out) both;
+  --animate-fade: ds-fade 180ms var(--ease-out) both;
+  --animate-sweep: ds-sweep 1.4s var(--ease-in-out) infinite;
+  --animate-caret: ds-caret 1.05s steps(1, end) infinite;
+  --animate-breathe: ds-breathe 1.6s ease-in-out infinite;
+  --animate-draw: ds-draw 420ms var(--ease-out) both;
+  --animate-stamp: ds-stamp 360ms var(--ease-out) both;
+  --animate-pop-in: ds-pop-in 160ms var(--ease-out) both;
+  --animate-pop-out: ds-pop-out 110ms ease-in both;
+  --animate-sheet-in: ds-sheet-in 280ms var(--ease-drawer) both;
+  --animate-sheet-out: ds-sheet-out 180ms ease-in both;
+  --animate-rise-in: ds-rise-in 280ms var(--ease-drawer) both;
+  --animate-rise-out: ds-rise-out 180ms ease-in both;
+  --animate-overlay-in: ds-fade 200ms var(--ease-out) both;
+  --animate-overlay-out: ds-fade-out 140ms ease-in both;
+
+  @keyframes ds-pop-in {
+    from {
+      opacity: 0;
+      transform: scale(0.97);
+    }
+  }
+  @keyframes ds-pop-out {
+    to {
+      opacity: 0;
+      transform: scale(0.98);
+    }
+  }
+  @keyframes ds-sheet-in {
+    from {
+      transform: translateX(100%);
+    }
+  }
+  @keyframes ds-sheet-out {
+    to {
+      transform: translateX(100%);
+    }
+  }
+  @keyframes ds-rise-in {
+    from {
+      transform: translateY(100%);
+    }
+  }
+  @keyframes ds-rise-out {
+    to {
+      transform: translateY(100%);
+    }
+  }
+  @keyframes ds-fade-out {
+    to {
+      opacity: 0;
+    }
+  }
+
+  @keyframes ds-enter {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+  }
+  @keyframes ds-fade {
+    from {
+      opacity: 0;
+    }
+  }
+  @keyframes ds-sweep {
+    from {
+      transform: translateX(-100%);
+    }
+    to {
+      transform: translateX(260%);
+    }
+  }
+  @keyframes ds-caret {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0;
+    }
+  }
+  @keyframes ds-breathe {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.55;
+    }
+  }
+  @keyframes ds-draw {
+    from {
+      stroke-dashoffset: 1;
+    }
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+  @keyframes ds-stamp {
+    0% {
+      opacity: 0;
+      transform: scale(1.12);
+    }
+    60% {
+      opacity: 1;
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+}
+
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-paper: var(--paper);
+  --color-well: var(--well);
+  --color-well-2: var(--well-2);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-rule: var(--rule);
+  --color-rule-2: var(--rule-2);
+  --color-control: var(--control);
+  --color-focus: var(--focus);
+  --color-overlay: var(--overlay);
+  --color-on-solid: var(--on-solid);
+
+  --color-acc-wash: var(--acc-wash);
+  --color-acc-tint: var(--acc-tint);
+  --color-acc-soft: var(--acc-soft);
+  --color-acc-mid: var(--acc-mid);
+  --color-acc-solid: var(--acc-solid);
+  --color-acc-ink: var(--acc-ink);
+
+  --color-tp-wash: var(--tp-wash);
+  --color-tp-tint: var(--tp-tint);
+  --color-tp-soft: var(--tp-soft);
+  --color-tp-mid: var(--tp-mid);
+  --color-tp-solid: var(--tp-solid);
+  --color-tp-ink: var(--tp-ink);
+
+  --color-ok-wash: var(--st-ok-wash);
+  --color-ok-tint: var(--st-ok-tint);
+  --color-ok-mid: var(--st-ok-mid);
+  --color-ok-solid: var(--st-ok-solid);
+  --color-ok-ink: var(--st-ok-ink);
+  --color-warn-wash: var(--st-warn-wash);
+  --color-warn-tint: var(--st-warn-tint);
+  --color-warn-mid: var(--st-warn-mid);
+  --color-warn-solid: var(--st-warn-solid);
+  --color-warn-ink: var(--st-warn-ink);
+  --color-bad-wash: var(--st-bad-wash);
+  --color-bad-tint: var(--st-bad-tint);
+  --color-bad-mid: var(--st-bad-mid);
+  --color-bad-solid: var(--st-bad-solid);
+  --color-bad-ink: var(--st-bad-ink);
+  --color-info-wash: var(--st-info-wash);
+  --color-info-tint: var(--st-info-tint);
+  --color-info-mid: var(--st-info-mid);
+  --color-info-solid: var(--st-info-solid);
+  --color-info-ink: var(--st-info-ink);
+
+  --color-learn-wash: var(--s-learn-wash);
+  --color-learn-tint: var(--s-learn-tint);
+  --color-learn-mid: var(--s-learn-mid);
+  --color-learn-solid: var(--s-learn-solid);
+  --color-learn-ink: var(--s-learn-ink);
+  --color-practice-wash: var(--s-practice-wash);
+  --color-practice-tint: var(--s-practice-tint);
+  --color-practice-mid: var(--s-practice-mid);
+  --color-practice-solid: var(--s-practice-solid);
+  --color-practice-ink: var(--s-practice-ink);
+  --color-judge-wash: var(--s-judge-wash);
+  --color-judge-tint: var(--s-judge-tint);
+  --color-judge-mid: var(--s-judge-mid);
+  --color-judge-solid: var(--s-judge-solid);
+  --color-judge-ink: var(--s-judge-ink);
+  --color-games-wash: var(--s-games-wash);
+  --color-games-tint: var(--s-games-tint);
+  --color-games-mid: var(--s-games-mid);
+  --color-games-solid: var(--s-games-solid);
+  --color-games-ink: var(--s-games-ink);
+  --color-studio-wash: var(--s-studio-wash);
+  --color-studio-tint: var(--s-studio-tint);
+  --color-studio-mid: var(--s-studio-mid);
+  --color-studio-solid: var(--s-studio-solid);
+  --color-studio-ink: var(--s-studio-ink);
+  --color-admin-wash: var(--s-admin-wash);
+  --color-admin-tint: var(--s-admin-tint);
+  --color-admin-mid: var(--s-admin-mid);
+  --color-admin-solid: var(--s-admin-solid);
+  --color-admin-ink: var(--s-admin-ink);
+
+  --shadow-pop: var(--pop-shadow);
+  --shadow-lift: var(--lift-shadow);
+}
+
+@layer base {
+  html {
+    color-scheme: light;
+    background: var(--canvas);
+    -webkit-text-size-adjust: 100%;
+  }
+  html.dark {
+    color-scheme: dark;
+  }
+  body {
+    background: var(--canvas);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: var(--text-base);
+    line-height: var(--text-base--line-height);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+  ::selection {
+    background: var(--acc-tint);
+    color: var(--ink);
+  }
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+  h1,
+  h2,
+  h3,
+  h4 {
+    text-wrap: balance;
+  }
+  p,
+  li,
+  dd {
+    text-wrap: pretty;
+  }
+  code,
+  kbd,
+  samp,
+  pre {
+    font-family: var(--font-mono);
+    font-size: 0.92em;
+  }
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklch, var(--ink) 26%, transparent) transparent;
+  }
+}
+
+/* Giảm chuyển động: tắt cả transition lẫn animation, kể cả thứ nằm trong canvas game. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Đang kéo tay nắm chia khoang: iframe (IDE) không được nuốt sự kiện chuột. */
+body:has([data-separator='active']) iframe {
+  pointer-events: none;
+}
+
+/*
+ * ── Biểu tượng ────────────────────────────────────────────────────────────
+ * Lớp tô (`.ds-ic-t`) mặc định là 18% màu nét; trong một mục hay một chủ đề thì
+ * đặt `--ic-tint` để lớp tô lấy màu của mục/chủ đề đó.
+ */
+.ds-ic-t {
+  fill: var(--ic-tint, color-mix(in oklch, currentColor 18%, transparent));
+  stroke: none;
+}
+.ds-ic-f {
+  fill: currentColor;
+  stroke: none;
+}
+
+/*
+ * ── Sơ đồ bài học ─────────────────────────────────────────────────────────
+ * Hợp đồng với scripts/diagrams (docs/diagrams.md): SVG inline trong
+ * figure[data-diagram], nét chính dùng currentColor, màu nhấn mang class
+ * dia-f-* (tô) / dia-s-* (nét). Tên class giữ nguyên, giá trị lấy từ token mới.
+ */
+[data-diagram] {
+  color: var(--ink);
+}
+[data-diagram] .dia-f-paper {
+  fill: var(--paper);
+}
+[data-diagram] .dia-s-paper {
+  stroke: var(--paper);
+}
+[data-diagram] .dia-f-muted {
+  fill: var(--ink-3);
+}
+[data-diagram] .dia-s-muted {
+  stroke: var(--ink-3);
+}
+[data-diagram] .dia-f-blue {
+  fill: var(--t-docker-mid);
+}
+[data-diagram] .dia-s-blue {
+  stroke: var(--t-docker-mid);
+}
+[data-diagram] .dia-f-green {
+  fill: var(--t-cicd-mid);
+}
+[data-diagram] .dia-s-green {
+  stroke: var(--t-cicd-mid);
+}
+[data-diagram] .dia-f-amber {
+  fill: var(--t-linux-mid);
+}
+[data-diagram] .dia-s-amber {
+  stroke: var(--t-linux-mid);
+}
+[data-diagram] .dia-f-red {
+  fill: var(--st-bad-mid);
+}
+[data-diagram] .dia-s-red {
+  stroke: var(--st-bad-mid);
+}
+[data-diagram] .dia-f-violet {
+  fill: var(--t-observability-mid);
+}
+[data-diagram] .dia-s-violet {
+  stroke: var(--t-observability-mid);
+}
+[data-diagram] .dia-f-teal {
+  fill: var(--t-networking-mid);
+}
+[data-diagram] .dia-s-teal {
+  stroke: var(--t-networking-mid);
+}

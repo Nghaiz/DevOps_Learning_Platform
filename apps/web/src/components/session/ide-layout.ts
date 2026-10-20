@@ -18,6 +18,17 @@ export function shouldShowIdePane(interfaceLayout: string | null | undefined): b
 }
 
 /**
+ * Máy có chạy Theia không, đọc từ `profile` mà MÁY CHỦ trả kèm nội dung (`lessons.get`,
+ * `labs.get`). Đây mới là nguồn quyết định pod: `profileForCapabilities` xét
+ * `kubernetes` TRƯỚC `ide`, nên một bài vừa khai `layout: ide` vừa cần Kubernetes nhận
+ * pod `k8s` không có IDE. Trang hỏi `interfaceLayout` thì vẽ tab Editor cho một iframe
+ * trắng mãi mãi; hỏi `profile` thì không.
+ */
+export function ideAvailable(profile: string | null | undefined): boolean {
+  return profile === IDE_LAYOUT;
+}
+
+/**
  * URL của IDE trong iframe. CÙNG ORIGIN có chủ ý (D8): cookie `dlp_sandbox`
  * được phát thêm một bản `Path=/ide`, và cookie phân biệt theo (name, path) nên
  * token vẫn KHÔNG đi tới `/` hay `/api`. CSP khai `frame-src 'self'`.

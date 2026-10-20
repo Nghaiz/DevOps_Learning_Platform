@@ -88,14 +88,14 @@ export const catalog = {
   'catalog.title.quiz': 'Trắc nghiệm',
 
   /**
-   * Tiêu đề tài liệu của các trang danh mục: chữ trên tab trình duyệt và trong
-   * kết quả tìm kiếm, nên nó mang cả tên sản phẩm. Phân cách bằng dấu chấm giữa.
+   * Tiêu đề tài liệu của các trang danh mục. Tên sản phẩm do khuôn `title.template`
+   * của root layout tự ghép vào sau, nên ở đây chỉ còn tên trang.
    */
-  'catalog.meta-title.lessons': 'Bài học · DevOps Learning Platform',
-  'catalog.meta-title.labs': 'Lab · DevOps Learning Platform',
-  'catalog.meta-title.playgrounds': 'Sân chơi · DevOps Learning Platform',
-  'catalog.meta-title.paths': 'Lộ trình · DevOps Learning Platform',
-  'catalog.meta-title.quiz': 'Trắc nghiệm · DevOps Learning Platform',
+  'catalog.meta-title.lessons': 'Bài học',
+  'catalog.meta-title.labs': 'Lab',
+  'catalog.meta-title.playgrounds': 'Sân chơi',
+  'catalog.meta-title.paths': 'Lộ trình',
+  'catalog.meta-title.quiz': 'Trắc nghiệm',
 
   /**
    * Mô tả tài liệu, chỉ vài trang có. Đặt dưới tiền tố của TỪNG trang chứ không
@@ -104,12 +104,10 @@ export const catalog = {
    */
 
   /*
-   * Nhãn mono trên đầu trang: tên section, rồi số mục THẬT. Số tới từ máy chủ
-   * (tổng đã xuất bản) hoặc từ danh sách đã tải hết; không có số thì chỉ in tên
-   * section, không in một con số đoán.
+   * Số mục THẬT cạnh tiêu đề. Số tới từ máy chủ (tổng đã xuất bản) hoặc từ danh
+   * sách đã tải hết; không có số thì không in gì, không in một con số đoán.
    */
-  'catalog.kicker': (p: { section: string; n: number; noun: string }) =>
-    `${p.section} · ${p.n} ${p.noun}`,
+  'catalog.count.published': (p: { n: number; noun: string }) => `${String(p.n)} ${p.noun}`,
 
   'catalog.lead.lessons':
     'Làm theo từng bước, gõ lệnh trên máy ảo của riêng bạn. Bước nào cũng có nút Kiểm tra.',
@@ -118,7 +116,7 @@ export const catalog = {
   'catalog.lead.playgrounds':
     'Máy trống có hạn giờ. Thử lệnh, dựng thử một hệ thống, hỏng thì mở máy khác.',
   'catalog.lead.paths':
-    'Bài học, lab và trắc nghiệm xếp sẵn theo thứ tự. Đi hết một tuyến là nắm được một mảng.',
+    'Bài học, lab và trắc nghiệm xếp sẵn theo thứ tự. Học hết một lộ trình là nắm được một mảng.',
   'catalog.lead.quiz':
     'Vài câu hỏi ngắn để tự kiểm lại phần vừa học. Nộp bài xong mới thấy đáp án và giải thích.',
 
@@ -224,7 +222,7 @@ export const catalog = {
 
   'catalog.empty.blank.title': (p: { noun: string }) => `Chưa có ${p.noun} nào`,
   'catalog.empty.author.body': (p: { noun: string }) =>
-    `Bạn có quyền soạn bài. Tạo ${p.noun} đầu tiên trong Xưởng soạn rồi xuất bản, người học sẽ thấy nó ở đây.`,
+    `Bạn có quyền soạn bài. Tạo ${p.noun} đầu tiên ở mục Soạn bài rồi xuất bản, người học sẽ thấy nó ở đây.`,
 
   /*
    * Gợi ý cho người học khi một trụ cột còn trống. Mỗi gợi ý trỏ sang một trụ
@@ -242,7 +240,7 @@ export const catalog = {
     'Chưa có bộ câu hỏi nào được xuất bản. Làm một lab để tự kiểm bằng thao tác thật.',
 
   'catalog.action.first-page': 'Tải lại từ đầu',
-  'catalog.action.author': 'Mở Xưởng soạn',
+  'catalog.action.author': 'Mở mục Soạn bài',
   'catalog.action.browse-lessons': 'Xem bài học',
   'catalog.action.browse-labs': 'Xem lab',
   'catalog.action.browse-playgrounds': 'Mở sân chơi',
@@ -364,7 +362,7 @@ export const catalog = {
    */
   'catalog.quiz.grading-title': 'Cách chấm',
   'catalog.quiz.rule-all-or-nothing':
-    'Câu nhiều đáp án: phải chọn ĐÚNG và ĐỦ mọi đáp án đúng mới được tính điểm, không có điểm một phần.',
+    'Câu nhiều đáp án: phải chọn đúng và đủ mọi đáp án đúng mới được tính điểm, không có điểm một phần.',
   'catalog.quiz.threshold': (p: { percent: number }) =>
     `Đạt từ ${p.percent}% số câu. Làm lại bao nhiêu lần cũng được.`,
 
@@ -415,11 +413,13 @@ export const catalog = {
   // Mốc đi kèm điểm: "60%" một mình không nói được đạt hay chưa.
   'catalog.quiz.result-title': 'Kết quả',
   'catalog.quiz.score': (p: { correct: number; total: number; percent: number }) =>
-    `${p.correct}/${p.total} câu · ${p.percent}%`,
+    `${p.correct}/${p.total} câu đúng (${p.percent}%)`,
   'catalog.quiz.score-meter': 'Điểm bài làm',
   'catalog.quiz.verdict-pass': (p: { threshold: number }) => `Đạt (mốc ${p.threshold}%)`,
   'catalog.quiz.verdict-fail': (p: { threshold: number }) => `Chưa đạt (mốc ${p.threshold}%)`,
   'catalog.quiz.attempt-number': (p: { n: number }) => `Lần làm thứ ${p.n}`,
+  'catalog.quiz.stamp-pass': 'Đạt',
+  'catalog.quiz.stamp-fail': 'Chưa đạt',
 } as const satisfies Surface<'catalog'>;
 
 /**

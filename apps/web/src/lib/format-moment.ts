@@ -46,3 +46,33 @@ export function formatMoment(iso: string | null): string {
 export function formatDay(iso: string | null): string {
   return parseMoment(iso)?.toLocaleDateString('vi-VN') ?? 'không rõ';
 }
+
+const TIME = new Intl.DateTimeFormat('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false });
+const DAY_MONTH = new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: '2-digit' });
+const FULL_DAY = new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+function sameDay(a: Date, b: Date): boolean {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+/**
+ * Giờ ngắn cho danh sách: "09:14 hôm nay", "21:30 hôm qua", "14:05 ngày 18/10",
+ * và thêm năm khi khác năm. Đọc nhanh hơn chuỗi giây-ngày-tháng-năm đầy đủ.
+ */
+export function formatWhen(iso: string | null, now: Date = new Date()): string {
+  const at = parseMoment(iso);
+  if (at === null) return 'không rõ';
+  const time = TIME.format(at);
+  if (sameDay(at, now)) return `${time} hôm nay`;
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (sameDay(at, yesterday)) return `${time} hôm qua`;
+  if (at.getFullYear() === now.getFullYear()) return `${time} ngày ${DAY_MONTH.format(at)}`;
+  return `${time} ngày ${FULL_DAY.format(at)}`;
+}
+
+/** Chỉ giờ và phút, cho mốc trong cùng ngày ("17:00"). */
+export function formatClock(iso: string | null): string {
+  const at = parseMoment(iso);
+  return at === null ? 'không rõ' : TIME.format(at);
+}

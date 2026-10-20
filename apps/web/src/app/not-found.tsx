@@ -1,53 +1,49 @@
 import Link from 'next/link';
-import { ArrowRight } from 'lucide-react';
+import { Button, EmptyArt, Icon, Page } from '@devops-platform/ds';
 import { t } from '@devops-platform/copy';
-import { Button } from '@devops-platform/ui';
-import { PageContainer, staggerStyle } from '../components/kit';
 import { NAV_SECTIONS } from '../components/shell/nav';
-import { SECTION_TONE } from '../components/shell/section-tone';
 
-/** 404 chung: biển ga cỡ lớn + lối ra về các tuyến chính. */
+/** 404 chung: minh hoạ lạc đường, một câu nói thẳng, và lối ra về các mục chính. */
 export default function NotFound() {
   const exits = NAV_SECTIONS.filter((section) => section.roles === 'everyone');
   return (
-    <PageContainer className="flex flex-1 flex-col justify-center py-16 md:py-24">
-      <div className="grid gap-12 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:items-end">
-        <div className="animate-rise">
-          <p className="type-label text-muted-foreground">{t('common.not-found.kicker')}</p>
-          <p
-            aria-hidden="true"
-            className="mt-2 font-display text-[clamp(6rem,22vw,16rem)] leading-[0.85] font-extrabold text-primary [font-stretch:125%]"
-          >
+    <Page className="flex flex-1 flex-col justify-center py-16 md:py-24">
+      <div className="grid items-center gap-12 lg:grid-cols-[minmax(0,1fr)_380px]">
+        <div className="flex flex-col items-start gap-4">
+          <EmptyArt kind="lost" width={200} className="animate-enter" />
+          <p aria-hidden="true" className="font-mono text-sm text-ink-3">
             {t('common.not-found.code')}
           </p>
-          <h1 className="mt-6 type-display">{t('common.not-found.title')}</h1>
-          <p className="mt-4 max-w-xl type-lead text-muted-foreground">{t('common.not-found.body')}</p>
-          <Button asChild className="mt-8" iconRight={<ArrowRight />}>
+          <h1 className="font-display text-3xl font-semibold tracking-[-0.02em] text-ink sm:text-4xl">
+            {t('common.not-found.title')}
+          </h1>
+          <p className="max-w-[52ch] text-lg text-ink-2">{t('common.not-found.body')}</p>
+          <Button asChild variant="primary" icon="arrow-left" className="mt-2">
             <Link href="/">{t('common.not-found.home')}</Link>
           </Button>
         </div>
-        <ul className="border-y border-border">
-          {exits.map((section, index) => {
-            const first = section.items[0];
-            if (first === undefined) return null;
-            return (
-              <li key={section.id} className="border-b border-border last:border-b-0">
-                <Link
-                  href={first.href}
-                  className="interactive-row stagger flex animate-rise items-center gap-4 px-3 py-4"
-                  style={staggerStyle(index, SECTION_TONE[section.tone].tint)}
-                >
-                  <span className={`grid size-9 place-items-center font-mono text-xs font-bold ${SECTION_TONE[section.tone].fill}`}>
-                    {String(index + 1).padStart(2, '0')}
-                  </span>
-                  <span className="flex-1 type-title">{section.label}</span>
-                  <ArrowRight data-row-arrow className="size-4 text-muted-foreground" aria-hidden="true" />
-                </Link>
-              </li>
-            );
-          })}
+        <ul className="flex flex-col border-t border-rule">
+          {exits.map((section) => (
+            <li key={section.id} data-section={section.id} className="border-b border-rule">
+              <Link
+                href={section.hub}
+                className="group/exit -mx-3 flex items-center gap-3 rounded-md px-3 py-3.5 transition-colors duration-150 hover:bg-acc-wash"
+              >
+                <Icon
+                  name={section.icon}
+                  size={24}
+                  tint="acc"
+                  className="shrink-0 text-acc-ink transition-transform duration-200 ease-out group-hover/exit:-rotate-6"
+                />
+                <span className="flex min-w-0 flex-col">
+                  <span className="font-medium text-ink group-hover/exit:text-acc-ink">{section.label}</span>
+                  <span className="line-clamp-1 text-sm text-ink-3">{section.lead}</span>
+                </span>
+              </Link>
+            </li>
+          ))}
         </ul>
       </div>
-    </PageContainer>
+    </Page>
   );
 }

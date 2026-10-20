@@ -83,7 +83,7 @@ describe('T4 · glob của lane 16.H không còn chuỗi người dùng nằm ng
     // Vài file mốc, đủ để một lượt đổi tên thư mục làm ô này đỏ ngay.
     expect(names).toContain('me-client.tsx');
     expect(names).toContain('settings-client.tsx');
-    expect(names).toContain('active-sessions.tsx');
+    expect(names).toContain('running-machines.tsx');
     expect(names).toContain('history-tabs.tsx');
     expect(names).toContain('preferences-form.tsx');
     expect(names).toContain('password-form.tsx');
@@ -145,7 +145,7 @@ describe('T4 · glob của lane 16.H không còn chuỗi người dùng nằm ng
   it('đối chứng âm: mã đã đi qua bản đồ thì KHÔNG bị bắt', () => {
     // Chốt lại rằng cổng không đỏ với chính hình dạng mà nó yêu cầu người ta
     // viết. Một cổng đỏ cả với lời giải đúng là một cổng sẽ bị tắt.
-    expect(scanLatinLiteral("<p>{t('me.desk.kicker')}</p>")).toEqual([]);
+    expect(scanLatinLiteral("<p>{t('me.home.greeting')}</p>")).toEqual([]);
     expect(scanLatinLiteral('// Chú thích tiếng Việt vẫn hợp lệ')).toEqual([]);
   });
 });
@@ -195,7 +195,7 @@ describe('T4 chiều ngược · mọi khoá của surface me đều có nơi g�
 
   it('đọc được một tập khoá THẬT từ file surface', () => {
     expect(keys.length, 'không trích được khoá nào, regex hoặc đường dẫn sai').toBeGreaterThan(120);
-    expect(keys).toContain('me.desk.kicker');
+    expect(keys).toContain('me.home.greeting');
     expect(keys).toContain('me.error.sessions-load');
     // Bảng miễn trừ phải nằm NGOÀI tập khoá. Không có ô này thì phép cắt ở trên
     // có thể hỏng mà không ai biết cho tới khi bảy tiền tố nhóm bị báo là chết.

@@ -2,8 +2,7 @@
 
 import type { ReactElement, ReactNode } from 'react';
 import { renderCopy, t } from '@devops-platform/copy';
-import { Button } from '@devops-platform/ui';
-import { Board, BoardSkeleton } from '../kit';
+import { Button, RowList, RowsSkeleton } from '@devops-platform/ds';
 import { describeTrpcError, trpcErrorCode } from '../../lib/trpc';
 import { CatalogEmptyState } from './catalog-empty';
 import { CatalogError } from './catalog-error';
@@ -17,12 +16,12 @@ type ListError = Parameters<typeof describeTrpcError>[0];
  * Bốn trạng thái của một trang danh mục, cộng chân "Xem thêm".
  *
  * - Lượt đầu đang tải ⇒ khung chờ có hình đúng như dòng thật.
- * - Lượt đầu lỗi ⇒ ô lỗi thay chỗ bảng.
- * - Không còn mục nào để hiện ⇒ trạng thái rỗng có việc làm tiếp. Nếu chính ô
- *   tìm lọc sạch phần đã tải mà danh sách còn tiếp, chân Xem thêm VẪN hiện: đó
- *   là cách duy nhất để tìm tiếp.
- * - Có mục ⇒ bảng tuyến, rồi dòng đếm và nút Xem thêm. Lượt tải thêm lỗi thì ô
- *   lỗi nằm ở chân, các mục đã hiện giữ nguyên.
+ * - Lượt đầu lỗi ⇒ ô lỗi thay chỗ danh sách.
+ * - Không còn mục nào để hiện ⇒ trạng thái rỗng có việc làm tiếp. Nếu chính ô tìm
+ *   lọc sạch phần đã tải mà danh sách còn tiếp, chân Xem thêm VẪN hiện: đó là cách
+ *   duy nhất để tìm tiếp.
+ * - Có mục ⇒ danh sách, rồi dòng đếm và nút Xem thêm. Lượt tải thêm lỗi thì ô lỗi
+ *   nằm ở chân, các mục đã hiện giữ nguyên.
  */
 export function CatalogResults(props: {
   readonly kind: CatalogKind;
@@ -34,13 +33,13 @@ export function CatalogResults(props: {
   /** Tải lại đúng lượt thứ `index` (0 = lượt đầu). */
   readonly onRetry: (index: number) => void;
   readonly isFetching: (index: number) => boolean;
-  /** Các `BoardRow`. */
+  /** Các `CatalogRow`. */
   readonly children: ReactNode;
 }): ReactElement {
   const { pages, controls } = props;
 
   if (pages.status === 'pending') {
-    return <BoardSkeleton label={t('catalog.loading.list')} />;
+    return <RowsSkeleton rows={6} label={t('catalog.loading.list')} />;
   }
 
   if (pages.status === 'error') {
@@ -59,33 +58,35 @@ export function CatalogResults(props: {
 
   const loaded = pages.items.length;
   const footer = (
-    <div className="mt-6 flex flex-col gap-4">
+    <div className="flex flex-col gap-4 pt-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <p aria-live="polite" className="font-mono text-sm text-muted-foreground tabular-nums">
-          {loaded > 0 &&
-            renderCopy(
-              describeResultCount({
-                kind: props.kind,
-                shown: props.shown,
-                loaded,
-                hasNext: pages.hasNext,
-                hasActiveFilter: controls.hasActiveFilter,
-                searching: controls.hasSearch,
-              }),
-            )}
+        <p aria-live="polite" className="text-sm tabular-nums text-ink-3">
+          {loaded > 0
+            ? renderCopy(
+                describeResultCount({
+                  kind: props.kind,
+                  shown: props.shown,
+                  loaded,
+                  hasNext: pages.hasNext,
+                  hasActiveFilter: controls.hasActiveFilter,
+                  searching: controls.hasSearch,
+                }),
+              )
+            : null}
         </p>
-        {pages.hasNext && pages.moreError === null && (
+        {pages.hasNext && pages.moreError === null ? (
           <Button
-            variant="outline"
+            variant="secondary"
+            icon="chevron-down"
             loading={pages.loadingMore}
             disabled={pages.nextCursor === null}
             onClick={() => controls.goNext(pages.nextCursor)}
           >
             {t('catalog.pager.more')}
           </Button>
-        )}
+        ) : null}
       </div>
-      {pages.moreError !== null && (
+      {pages.moreError === null ? null : (
         <CatalogError
           title={t('catalog.pager.page', { page: pages.moreError.page })}
           message={describeTrpcError(pages.moreError.error)}
@@ -116,14 +117,14 @@ export function CatalogResults(props: {
           onClearSearch={controls.clearSearch}
           onFirstPage={controls.goFirst}
         />
-        {loaded > 0 && footer}
+        {loaded > 0 ? footer : null}
       </div>
     );
   }
 
   return (
     <div>
-      <Board label={t('catalog.board.label', { noun: catalogNoun(props.kind) })}>{props.children}</Board>
+      <RowList label={t('catalog.board.label', { noun: catalogNoun(props.kind) })}>{props.children}</RowList>
       {footer}
     </div>
   );

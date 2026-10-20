@@ -5,13 +5,6 @@
  * barrel gom cả module `'use client'` lẫn module thuần, và một Server Component
  * chỉ cần một hằng số điểm ngắt sẽ kéo theo cả nhánh client.
  */
-export {
-  NAV_COLLAPSE_MAX_PX,
-  TERMINAL_MIN_WIDTH_PX,
-  DESKTOP_TARGET_MIN_PX,
-  meetsTerminalWidth,
-} from './breakpoints';
-export { useMinWidth } from './use-min-width';
 export { useCapacity, CAPACITY_REFETCH_MS } from './use-capacity';
 export type { CapacityState } from './use-capacity';
 export {
@@ -32,6 +25,7 @@ export type {
 export { useViewer } from './viewer-context';
 export {
   PRIMARY_NAV,
+  SECTION_HUBS,
   userMenuItems,
   sectionsFor,
   sectionById,
@@ -45,9 +39,7 @@ export type {
   NavItem,
   PrimaryNavItem,
   SectionId,
-  SectionTone,
   NavSectionDef,
-  NavIconName,
   NavAudience,
   Viewer,
   ViewerRole,

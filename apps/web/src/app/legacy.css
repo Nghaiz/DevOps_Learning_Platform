@@ -1,0 +1,1065 @@
+/*
+ * Giao diện CŨ (bản PTIT "Bảng tuyến"), chỉ còn cho những vùng chủ dự án yêu cầu giữ nguyên:
+ * game K8s (`.arena-root`) và màn chơi Git / CI/CD (bọc trong `.legacy-skin`).
+ * Landing tự mang token `--l-*` riêng nên không đọc file này.
+ *
+ * Mọi token ở đây CHỈ có hiệu lực bên trong hai phạm vi trên. Trang mới dùng hệ `ds`
+ * (packages/ds/src/styles/theme.css) và cổng scripts/check-design-bans.mjs chặn việc
+ * dùng lại lớp/biến của file này ở ngoài vùng giữ nguyên.
+ *
+ * Sinh từ globals.css cũ (main cabcc87f) bằng một phép biến đổi cơ học: :root/.dark
+ * thành phạm vi, thang chữ và font thành biến có phạm vi. Đừng thêm thứ mới vào đây.
+ */
+
+.legacy-skin,
+.arena-root {
+  /*
+   * ── Mặt nền và chữ ────────────────────────────────────────────────────────
+   * `--foreground` sáng KHÔNG phải xám trung tính: nó là `#373D4E`, đúng mực
+   * wordmark PTIT. Trùng giá trị là CỐ Ý — đó là
+   * lý do chữ trên trang đọc ra như một phần của nhận diện chứ không phải một
+   * xám mặc định. `a` của nó gần 0 tuyệt đối và `b` âm ⇒ một xám LẠNH thuần,
+   * hue 269.7 sát ngay hue 263.7 của navy thương hiệu.
+   *
+   * 10.83:1 trên trắng — dư xa ngưỡng 4.5 của SC 1.4.3.
+   */
+  --background: oklch(0.97 0.005 95.1);
+  --foreground: oklch(0.212 0.035 268.5);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.212 0.035 268.5);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.212 0.035 268.5);
+
+  /*
+   * ── Thương hiệu ĐỎ ────────────────────────────────────────────────────────
+   * `oklch(0.519 0.186 26.7)` = `#BC2626`, đo trực tiếp từ file logo gốc
+   * (`apps/web/public/logo-ptit-mark.svg`, nét chữ "PTIT" bên trong biểu tượng).
+   * Bản wordmark kèm dòng "Học viện Công nghệ Bưu chính Viễn thông" đã bị bỏ
+   * theo yêu cầu 2026-09-10: hệ chỉ dùng biểu tượng, không dùng tên học viện
+   * dạng chữ. Không phải
+   * một đỏ "trông hợp lý" rồi ghim lại — nó là màu có thật của nhận diện.
+   *
+   * 6.10:1 trên trắng (đủ cho cả vai trò link, SC 1.4.3), và chữ trắng
+   * `--primary-foreground` trên mặt nút đo được 5.84:1.
+   *
+   * ⚠ `--destructive` cũng đỏ và CỐ Ý không né: hai mặt tô chỉ cách nhau
+   * 1.06:1 ở nhánh sáng — mắt đọc ra "cùng một màu". Việc tách làm ở tầng
+   * HÌNH DẠNG chứ không ở tầng màu (primary nền ĐẶC, destructive VIỀN + rỗng +
+   * icon `TriangleAlert` bắt buộc). Đổi một trong hai màu cho "khác nhau hơn"
+   * là hiểu sai quyết định này: design §2.2 đã quét và mọi đỏ đủ đỏ để đọc ra
+   * "nguy hiểm" đều nằm trong khoảng 3:1 của đỏ thương hiệu. Hết đường ở tầng
+   * màu — xem `p16-tokens.md` §2.
+   */
+  --primary: oklch(0.578 0.22 29);
+  --primary-foreground: oklch(1 0 0);
+
+  /*
+   * `--secondary`/`--muted` là MẶT NỀN, không mang thương hiệu — chúng lấy hue
+   * 263.7 (hue đo được của `--brand-navy` `#051A53`), không phải hue đỏ 26.7:
+   * tô sắc ấm lên mặt nền cho ra xám ngả nâu, đục. Nền LẠNH dưới điểm nhấn ĐỎ
+   * là tương phản có chủ ý.
+   *
+   * `--accent` thì NGƯỢC LẠI đi theo hue đỏ: nó là vệt highlight/hover, tức
+   * một chạm thương hiệu thật sự, không phải mặt nền.
+   */
+  --secondary: oklch(0.937 0.01 93.6);
+  --secondary-foreground: oklch(0.212 0.035 268.5);
+  --muted: oklch(0.937 0.01 93.6);
+  --muted-foreground: oklch(0.472 0.032 269.2);
+  --accent: oklch(0.937 0.01 93.6);
+  --accent-foreground: oklch(0.212 0.035 268.5);
+
+  /*
+   * `--destructive` đạt 5.94:1 trên `--muted`. Con số đó ĐÓNG một khoảng trống
+   * mà hệ cũ phải ghim bằng absence pin (4.37:1 — "cấm đặt nút/badge
+   * destructive vào khối `bg-muted`"). Theo
+   * `rules/pinned-baseline-test-companion.md`, pin đó phải bị XOÁ và cặp
+   * `--destructive`/`--muted` phải vào `TEXT_PAIRS` ở cả hai theme — ghim lại
+   * một con số mới là biến một lần sửa thành baseline vĩnh viễn.
+   */
+  --destructive: oklch(0.5 0.182 29.1);
+  --destructive-foreground: oklch(1 0 0);
+  --success: oklch(0.53 0.139 150.1);
+  --success-foreground: oklch(1 0 0);
+  --warning: oklch(0.549 0.131 58.2);
+  --warning-foreground: oklch(1 0 0);
+
+  /*
+   * ⚠ `--input` KHÔNG bằng `--border`, dù shadcn/ui gốc để hai cái giống nhau.
+   *
+   * `--border` là ranh giới TRANG TRÍ (viền thẻ, kẻ dòng bảng, `Separator`) —
+   * ngoại lệ tường minh của SC 1.4.11, nên 1.30:1 của nó không phải lỗi.
+   * `--input` là ranh giới NHẬN DẠNG CONTROL (`border-input` ở input/textarea/
+   * select/checkbox/radio-group/Button variant="outline"; `bg-input` là rãnh
+   * Switch lúc tắt) — SC 1.4.11 đòi 3:1 cho đúng thứ đó, và giá trị bằng
+   * `--border` cho một ô nhập gần như VÔ HÌNH cho tới khi focus.
+   *
+   * Nó không tự lộ ra: `axe-core` KHÔNG có rule nào đo contrast của VIỀN (chỉ
+   * đo chữ), nên cổng axe sẽ xanh trên đúng lỗi này. Số đo phải tính tay —
+   * `packages/ui/src/theme/tokens.contract.test.ts` giữ phép đo đó lại.
+   *
+   * `0.63` cho 3.50:1 trên `--background`/`--card` và 3.21:1 trên `--muted` —
+   * dư ~0.2..0.5 so với ngưỡng 3.0 để sai số chuyển oklch→sRGB giữa các trình
+   * duyệt không kéo tụt xuống dưới.
+   */
+  --border: oklch(0.873 0.013 91.5);
+  --input: oklch(0.6 0.02 271);
+
+  /*
+   * BẰNG `--primary` theo thiết kế. Hệ quả: mọi vòng focus vẽ SÁT một mặt
+   * `bg-primary` là 1.00:1 — vô hình. Miễn trừ cặp `--ring`/`--primary` khỏi
+   * bảng đo CHỈ đứng vững chừng nào offset thật sự có mặt:
+   *
+   *   • `ring-offset-2` + `ring-offset-background` (Button, Switch, Checkbox)
+   *     — hai class này BẮT BUỘC đi cùng nhau. Thiếu vế thứ hai thì Tailwind
+   *     rơi về `--tw-ring-offset-color: #fff` của chính nó, tức một khe TRẮNG
+   *     trên nền tối.
+   *   • `ring-current` (StepNav, nút đóng Toast) — cho hai chỗ mà offset là
+   *     SAI chứ không phải thiếu: hàng bước nằm trong `overflow-x-auto` nên
+   *     vòng đẩy ra ngoài bị CẮT ở mép cuộn, còn nút đóng toast thì màu nền
+   *     trang không hề kề nó.
+   */
+  --ring: oklch(0.536 0.257 268.3);
+
+  /*
+   * ── Token thương hiệu — tái hiện NHẬN DIỆN, không phải màu giao diện ───────
+   * Khai MỘT LẦN ở đây. CẤM lặp ở `.dark`, và cổng phải khẳng định sự vắng mặt
+   * đó: một màu logo đổi theo theme thì không còn là màu logo.
+   *
+   * CỐ Ý không có dòng `--color-brand-*` nào trong `@theme inline` — không sinh
+   * `bg-brand-navy`/`text-brand-navy`. Chúng chỉ được đọc qua
+   * `var(--brand-*)` từ SVG nội tuyến của `packages/ui`/`packages/motion`.
+   * Đó là cách duy nhất giữ chúng ở đúng vai trò.
+   *
+   * ⚠ Bản SVG trong `apps/web/public/` mang hex TRẦN chứ không `var(--brand-*)`
+   * — bắt buộc, không phải bỏ sót: một SVG nạp qua `<img src>` hay qua
+   * `rel="icon"` là TÀI LIỆU RIÊNG, nó không thấy biến CSS của trang. Thư mục
+   * `public/` cũng nằm ngoài vùng quét của luật "JSX không mang màu trần"
+   * (`p16-tokens.md` §9 quét `apps/web/src` + `packages/<gói>/src`, đuôi
+   * `.ts|.tsx|.css`).
+   *
+   * ⚠ Viết `packages/<gói>/src` chứ KHÔNG dùng dấu sao: chuỗi sao-gạch-chéo
+   * ĐÓNG chú thích CSS ngay giữa câu, và phần còn lại rơi ra ngoài thành rác cú
+   * pháp. Nó hỏng ở đúng chỗ khó ngờ nhất — đo 2026-09-10: postcss ném
+   * `Unknown word đuôi` ở dòng này, trong khi harness đọc token của chính file
+   * vẫn báo 114 ô xanh, vì regex `--name: value;` của nó không quan tâm phần
+   * rác. Chỉ trình biên dịch thật mới bắt được.
+   */
+  --brand-navy: oklch(0.247 0.107 263.7);
+
+  /* Landing diorama: RGB values are shared with the Three.js material adapter.
+   * This cinematic surface keeps its contrast in both application themes. */
+  --journey-bg: rgb(10, 16, 33);
+  --journey-panel: rgb(22, 32, 52);
+  --journey-ink: rgb(238, 245, 255);
+  --journey-muted: rgb(163, 183, 210);
+  --journey-coral: rgb(255, 126, 107);
+  --journey-cyan: rgb(82, 209, 247);
+  --journey-violet: rgb(171, 149, 255);
+  --journey-mint: rgb(109, 230, 185);
+  --journey-amber: rgb(255, 205, 117);
+  --journey-metal: rgb(84, 107, 135);
+
+  /*
+   * ── Git Odyssey ───────────────────────────────────────────────────────────
+   * Palette của một trò chơi, không phải của giao diện nền. Nó KHÔNG đổi theo
+   * theme: `.git-odyssey` đặt `color-scheme: dark` và tự vẽ toàn bộ mặt nền của
+   * mình, nên khai một lần ở `:root` là đủ — lặp ở `.dark` chỉ tạo thêm một chỗ
+   * để quên đồng bộ, đúng lý do đã ghi cho `--brand-*`.
+   *
+   * ⚠ Tiền tố `--odyssey-`, KHÔNG phải `--git-`, vì hai lý do độc lập:
+   *
+   *   1. `.git-odyssey` khai biến RUNTIME `--git-land`/`--git-tower`/`--git-flora`
+   *      mà `[data-chapter='2'|'3']` ghi đè. Trùng tên thì dòng gán thành
+   *      `--git-land: var(--git-land)` — tự tham chiếu, CSS coi là
+   *      invalid-at-computed-value-time, biến rơi về guaranteed-invalid và cảnh
+   *      mất màu trong im lặng.
+   *   2. Các file `.tsx` của game đọc `var(--git-abyss, var(--background))`,
+   *      `var(--git-muted, var(--muted-foreground))`, `var(--git-border, var(--border))`
+   *      — tức CÓ nhánh dự phòng cho khi component render NGOÀI `.git-odyssey`.
+   *      Khai `--git-*` ở `:root` sẽ làm mọi nhánh dự phòng đó ngừng chạy: chúng
+   *      không lỗi, chỉ lặng lẽ đổi màu ở đúng những chỗ được thiết kế để đổi.
+   *
+   * Nên palette sống ở đây dưới tên `--odyssey-*`, và `.git-odyssey` là nơi DUY
+   * NHẤT gán chúng sang tên `--git-*` — đúng phạm vi cũ, không rộng hơn một chút.
+   */
+  --odyssey-abyss: rgb(8 14 29);
+  --odyssey-panel: rgb(16 27 46);
+  --odyssey-raised: rgb(24 37 60);
+  --odyssey-border-line: rgb(41 58 83);
+  --odyssey-ink: rgb(237 244 255);
+  --odyssey-muted-ink: rgb(166 183 208);
+  --odyssey-teal: rgb(101 227 205);
+  --odyssey-violet: rgb(188 155 255);
+  --odyssey-coral: rgb(255 150 126);
+  --odyssey-gold: rgb(249 206 120);
+  --odyssey-star: rgb(228 249 255);
+  --odyssey-success: rgb(118 227 178);
+  --odyssey-danger: rgb(255 155 159);
+  --odyssey-input-line: rgb(88 112 143);
+
+  /* Ba vùng cảnh, một bộ cho mỗi chương. */
+  --odyssey-ch1-land: rgb(35 79 85);
+  --odyssey-ch1-tower: rgb(22 54 64);
+  --odyssey-ch1-flora: rgb(73 182 155);
+  --odyssey-ch2-land: rgb(64 52 99);
+  --odyssey-ch2-tower: rgb(41 31 71);
+  --odyssey-ch2-flora: rgb(140 106 189);
+  --odyssey-ch3-land: rgb(101 58 71);
+  --odyssey-ch3-tower: rgb(66 39 51);
+  --odyssey-ch3-flora: rgb(191 113 107);
+
+  /*
+   * Mặt nền và ánh sáng riêng của từng khoang. Những cái mang sẵn alpha là
+   * SCRIM — một tấm kính mờ phủ lên cảnh phía sau — nên độ trong là một phần
+   * định nghĩa của chúng, không phải một biến thể đậm nhạt tuỳ chỗ dùng.
+   */
+  --odyssey-map-grid: rgb(60 84 115 / 26.6667%);
+  --odyssey-legend-scrim: rgb(12 20 36 / 93.3333%);
+  --odyssey-feedback-scrim: rgb(18 45 45 / 94.902%);
+  --odyssey-feedback-border: rgb(55 97 92);
+  --odyssey-feedback-error-scrim: rgb(56 32 43 / 94.902%);
+  --odyssey-feedback-error-border: rgb(105 65 76);
+  --odyssey-inspector-scrim: rgb(20 33 56 / 96.0784%);
+  --odyssey-objective-met: rgb(23 61 52 / 20%);
+  --odyssey-objective-met-border: rgb(57 115 98);
+  --odyssey-hint-surface: rgb(64 54 38 / 33.3333%);
+  --odyssey-reference-scrim: rgb(21 32 57 / 98.0392%);
+  --odyssey-victory-scrim: rgb(18 36 54 / 96.0784%);
+  --odyssey-verdict-accepted: rgb(18 55 44);
+  --odyssey-terminal-bg: rgb(8 14 25);
+  --odyssey-form-focus: rgb(16 28 45);
+  --odyssey-placeholder: rgb(132 150 178);
+  --odyssey-heading-tint: rgb(43 53 90);
+  --odyssey-pipeline-bg: rgb(13 23 40);
+  --odyssey-cta-shadow: rgb(47 118 109);
+  /* Đen thuần, một token cho BỐN độ đậm bóng đang dùng — độ trong sống ở chỗ
+   * dùng qua `color-mix()`, không đẻ thêm token. */
+  --odyssey-shadow-ink: rgb(0 0 0);
+
+  /*
+   * ── Độ khó ────────────────────────────────────────────────────────────────
+   * GIỮ NGUYÊN byte-identical từ hệ trước. `p16-tokens.md` §0 đặt ba nhóm
+   * `--difficulty-*`/`--kind-*`/`--status-*` NGOÀI phạm vi hợp đồng và cho
+   * đúng hai đường: giữ nguyên, hoặc mở thay đổi hợp đồng. Tự đặt giá trị mới
+   * là vi phạm.
+   *
+   * Số đo của chúng vẫn đúng sau khi nền đổi hue: ở oklch, xoay hue và thêm
+   * chroma trong khi giữ L gần như không đụng độ chói tương đối
+   * (`oklch(0.145 0.012 262.881)` → Y = 0.0030353, `oklch(0.145 0.016 263.7)`
+   * → Y = 0.0030356), và `--background`/`--card` sáng vẫn là trắng tuyệt đối.
+   *
+   * Cặp đặc/chữ theo đúng quy ước shadcn (`--x` là NỀN, `--x-foreground` là chữ
+   * trên nền đó). MỘT token phục vụ ba chỗ: nền badge, viền trái thẻ, chấm chỉ
+   * mục — nên nó chịu ĐỒNG THỜI hai ngưỡng: ≥4.5 cho chữ nằm trên nó (SC 1.4.3)
+   * và ≥3.0 khi chính nó là đồ hoạ trên `--background`/`--card`/`--muted`
+   * (SC 1.4.11).
+   *
+   * Ràng buộc thứ hai là thứ CẤM biến badge thành chip pastel: một nền nhạt
+   * `oklch(0.85 …)` đọc chữ tối rất tốt nhưng chỉ được ~1.6:1 so với nền trang,
+   * tức viền trái và chấm chỉ mục sẽ VÔ HÌNH. Vì vậy chip phải ĐẶC và đủ tối để
+   * chữ trắng đạt 4.5 — đó là lý do thang sáng nằm quanh L≈0.52.
+   *
+   * Ba hue là thang NÓNG DẦN (lam-lục → hổ phách → tím), CỐ Ý không có lục: lục
+   * để dành riêng cho `--status-done`.
+   */
+  --difficulty-basic: oklch(0.514 0.085 195);
+  --difficulty-basic-foreground: oklch(0.985 0 0);
+  --difficulty-intermediate: oklch(0.53 0.11 65);
+  --difficulty-intermediate-foreground: oklch(0.985 0 0);
+  --difficulty-advanced: oklch(0.547 0.2 305);
+  --difficulty-advanced-foreground: oklch(0.985 0 0);
+  --difficulty-expert: oklch(0.5 0.19 18);
+  --difficulty-expert-foreground: oklch(0.985 0 0);
+
+  /*
+   * ── Loại tài nguyên k8s ───────────────────────────────────────────────────
+   * Tám token này là tám NHÓM, không phải tám `ResourceKind`.
+   * `apps/web/src/components/k8s-arena/arena-contract.ts` giữ bảng `KIND_TOKEN`
+   * ánh xạ 23 giá trị `ResourceKind` (`packages/games/src/k8s/contract.ts:22`)
+   * xuống đúng tám nhóm này — ví dụ `ReplicaSet`/`Deployment`/`StatefulSet`/
+   * `DaemonSet` đều về `kind-controller`.
+   *
+   * Ghi rõ vì brief của lane này nói "khớp tập khoá `ResourceKind`", và hiểu
+   * theo nghĩa đen thì phải có 23 token. Bất biến ĐÚNG là: miền giá trị của
+   * `KIND_TOKEN` ⊆ tám tên ở đây. Đo 2026-09-10: 25 dòng map, đúng 8 giá trị
+   * đích, khớp trọn vẹn.
+   */
+  --kind-pod: oklch(0.55 0.15 250);
+  --kind-controller: oklch(0.56 0.16 295);
+  --kind-batch: oklch(0.56 0.15 330);
+  --kind-network: oklch(0.55 0.09 195);
+  --kind-config: oklch(0.56 0.11 85);
+  --kind-storage: oklch(0.55 0.13 55);
+  --kind-security: oklch(0.54 0.15 20);
+  --kind-cluster: oklch(0.55 0.08 160);
+
+  /*
+   * ── Trạng thái học ────────────────────────────────────────────────────────
+   * `--status-progress` giữ hue 262.881 (lam) — không phải bỏ sót. Một chấm
+   * "đang học" màu đỏ đọc thẳng ra "lỗi": cùng họ màu với `--destructive`, và
+   * tệ hơn, cùng họ với chính nút hành động chính. Lam không tranh chấp ngữ
+   * nghĩa với thứ gì nên nó mang được nghĩa trung lập "đang diễn ra".
+   *
+   * ⚠ 262.881 ở đây KHÔNG được kéo về 263.7 như các mặt nền: ba token
+   * `--status-*` nằm trong nhóm bị `p16-tokens.md` §0 khoá byte-identical. Sai
+   * lệch 0.8° là vô hình, nhưng "vô hình" không phải giấy phép sửa một giá trị
+   * mà hợp đồng nói rõ là không được chạm.
+   *
+   * `--status-locked` gần trung tính (chroma 0.012) chứ không xám tuyệt đối: nó
+   * vẫn phải đạt 3:1 khi làm chấm/viền nên không được phép nhạt đi; hạ chroma
+   * là cách duy nhất còn lại để nó lùi về sau về mặt thị giác.
+   */
+  --status-progress: oklch(0.533 0.2 262.881);
+  --status-progress-foreground: oklch(0.985 0 0);
+  --status-done: oklch(0.509 0.13 150);
+  --status-done-foreground: oklch(0.985 0 0);
+  --status-locked: oklch(0.523 0.012 262.881);
+  --status-locked-foreground: oklch(0.985 0 0);
+
+  /*
+   * ── Nâng nền ──────────────────────────────────────────────────────────────
+   * Ba BẬC NGỮ NGHĨA, không phải ba kích cỡ tuỳ ý: 1 = thẻ lúc nghỉ, 2 = thẻ
+   * lúc hover, 3 = popover/dropdown/dialog. KHÔNG có bậc 4. Dùng sai bậc thì
+   * phân cấp thị giác nói dối về thứ đang thật sự nổi lên trên.
+   *
+   * Mỗi bậc là HAI lớp — một lớp sát (nét tiếp xúc) và một lớp toả (khối) — vì
+   * một lớp duy nhất luôn phải chọn giữa "sắc nét nhưng phẳng" và "mềm nhưng
+   * nhoè". Bóng mang sắc lạnh cùng hue nền (263.7) thay vì đen thuần: bóng đen
+   * tuyệt đối trên nền trắng ngả xám bẩn.
+   *
+   * ⛔ Bóng KHÔNG phải cơ chế tương phản. Một thẻ tách khỏi nền CHỈ bằng bóng
+   * sẽ biến mất với người bật chế độ tương phản cao của hệ điều hành (Windows
+   * High Contrast bỏ hẳn `box-shadow`). Mọi mặt thẻ vì vậy PHẢI mang thêm
+   * `border-border`, và mọi ranh giới nhận dạng control phải mang `border-input`.
+   */
+  --elevation-1:
+    0 1px 2px -1px oklch(0.2 0.03 263.7 / 0.1), 0 1px 3px 0 oklch(0.2 0.03 263.7 / 0.08);
+  --elevation-2:
+    0 2px 4px -2px oklch(0.2 0.03 263.7 / 0.12), 0 6px 16px -4px oklch(0.2 0.03 263.7 / 0.12);
+  --elevation-3:
+    0 4px 8px -4px oklch(0.2 0.03 263.7 / 0.16), 0 16px 40px -8px oklch(0.2 0.03 263.7 / 0.2);
+
+  /*
+   * ── Chuyển động ───────────────────────────────────────────────────────────
+   * KHÔNG lặp ở `.dark`, cùng lý do đã ghi cho `--radius` ngay dưới.
+   *
+   * ⚠ `--ease-out` TRÙNG TÊN với biến theme sẵn có của Tailwind v4 một cách CÓ
+   * CHỦ Ý. Vì `@import 'tailwindcss'` nằm ở đầu file, khai báo này thắng theo
+   * thứ tự nguồn, nên tiện ích `ease-out` của TOÀN HỆ cũng nhận đường cong này.
+   * `p16-tokens.md` §0 đặt nó ngoài phạm vi và cấm đổi — đổi nó là đổi tiện ích
+   * `ease-out` ở mọi chỗ, không chỉ ở đây.
+   *
+   * Đường cong giảm tốc mạnh (0.16, 1, 0.3, 1): nhanh lúc đầu rồi dừng êm, nên
+   * chuyển động cảm thấy "phản hồi tức thì" thay vì "trôi".
+   */
+  --motion-fast: 150ms;
+  --motion-base: 220ms;
+  --motion-slow: 320ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /*
+   * ── Hình học ──────────────────────────────────────────────────────────────
+   * 0.75rem chứ không 0.625rem của hệ cũ. Motif của cả hệ là một vòng ellipse
+   * (`--arc-*` ngay dưới); một bo góc nhỏ hơn đọc ra "hộp có góc vát" thay vì
+   * "hình cong". 12px là bậc nhỏ nhất mà một thẻ 320px vẫn đọc ra cong ở góc.
+   * Mọi bậc khác suy ra bằng `calc()` trong `@theme inline` — KHÔNG khai số
+   * cứng ở component.
+   *
+   * ⚠ CỐ Ý chỉ khai ở `:root`, cấm lặp ở `.dark`. Nó là số đo HÌNH HỌC, không
+   * phải màu, và `.dark` đặt trên `<html>` nên `:root` vẫn khớp cùng phần tử —
+   * giá trị luôn phân giải được ở cả hai theme. Lặp lại chỉ tạo thêm một chỗ
+   * để quên đồng bộ, đổi lấy con số không. Cùng luật cho `--motion-*`,
+   * `--ease-out`, `--brand-*`, `--arc-*`, `--measure`, `--section-y`, và toàn
+   * bộ `--text-*`/`--leading-*`/`--spacing` trong `@theme` phía dưới.
+   */
+  --radius: 0.75rem;
+
+  /*
+   * `--measure` = 68ch chứ không 65ch: `ch` đo theo bề rộng chữ `0`, mà Be
+   * Vietnam Pro có chữ hẹp hơn trung bình, nên 65ch ở font này ra dòng NGẮN
+   * hơn ý định. Dùng qua `max-w-[var(--measure)]`.
+   *
+   * `--section-y` là nhịp dọc của một chặng landing page — thứ DUY NHẤT thang
+   * khoảng cách của Tailwind không cho sẵn. Dùng qua `py-[var(--section-y)]`.
+   * Một token này là lý do trang chủ bảy chặng không cần một điểm ngắt nào cho
+   * nhịp dọc.
+   */
+  --measure: 68ch;
+  --section-y: clamp(3rem, 2rem + 4.44vw, 6rem);
+
+  /*
+   * ── Motif ellipse ─────────────────────────────────────────────────────────
+   * Logo PTIT có một vòng ellipse HỞ quét quanh chữ PTIT và không khép lại.
+   * Biểu tượng phổ quát của DevOps là vòng lặp CI/CD. Lõi của Kubernetes —
+   * mà chính bài học của dự án gọi tên ở
+   * `packages/games/src/k8s/levels/l06.ts:68` — là reconciliation loop. Cùng
+   * một hình, cùng một ý. Nó phải là MỘT hình dùng chung, không phải hai hình
+   * vẽ riêng ở trang chủ và ở khoang lab rồi lệch nhau ở lần sửa thứ hai.
+   *
+   * Toạ độ chuẩn hoá: `viewBox="0 0 100 100"`, tâm (50, 50). Cung chạy
+   * 120° → 420°, tức khe hở nằm ở nêm 60°..120° (phía trên bên phải). Tỉ lệ
+   * trục 42/30 = 1.4 là thứ làm nó đọc ra LÀ logo chứ không phải một spinner
+   * bất kỳ; khép khe hở lại là bỏ motif.
+   *
+   * ⚠ Mọi phần tử cung BẮT BUỘC mang `vector-effect="non-scaling-stroke"`.
+   * Không phải trang trí: với tỉ lệ trục 1.4, bất kỳ phép co giãn KHÔNG ĐỀU
+   * nào của container cũng làm bề dày nét BIẾN THIÊN dọc theo cung nếu thiếu
+   * cờ này — và nó hỏng im lặng, cung vẫn vẽ, chỉ là chỗ dày chỗ mỏng.
+   *
+   * `packages/motion` tiêu thụ các token này (lane khác).
+   */
+  --arc-rx: 42;
+  --arc-ry: 30;
+  --arc-tilt: -22deg;
+  --arc-start: 120deg;
+  --arc-sweep: 300deg;
+  --arc-gap: 60deg;
+
+  /*
+   * ═══ Bảng tuyến (2026-10-03) — token mới của bản dựng lại PTIT ═══════════════
+   * SSOT: plans/fe-ptit-rebuild/design-brief.md §2. ink = khối đảo màu (tooltip,
+   * tab đang chọn); chrome = thanh header/footer, TỐI ở cả hai theme; brand = đỏ
+   * dùng làm CHỮ (primary chỉ làm nền đặc); signal = vàng sao PTIT, chỉ làm nền
+   * dưới chữ ink. line-* = màu tuyến của từng chủ đề (nền, chữ trên nền, chữ an
+   * toàn trên trang).
+   */
+  --ink: oklch(0.212 0.035 268.5);
+  --ink-foreground: oklch(0.97 0.005 95.1);
+  --chrome: oklch(0.212 0.035 268.5);
+  --chrome-foreground: oklch(0.97 0.005 95.1);
+  --chrome-muted: oklch(0.72 0.02 268);
+  --chrome-border: oklch(0.32 0.03 268);
+  --brand: oklch(0.521 0.2 29);
+  --signal: oklch(0.924 0.201 110.1);
+  --signal-foreground: oklch(0.212 0.035 268.5);
+  --shadow-hard: oklch(0.212 0.035 268.5);
+  --r-control: 0px;
+  --r-surface: 0px;
+  --float-shadow: 6px 6px 0 0 var(--shadow-hard);
+  --line-linux: oklch(0.808 0.166 82.7);
+  --line-linux-foreground: oklch(0.212 0.035 268.5);
+  --line-linux-ink: oklch(0.508 0.108 73.3);
+  --line-docker: oklch(0.546 0.219 262);
+  --line-docker-foreground: oklch(1 0 0);
+  --line-docker-ink: oklch(0.501 0.205 263);
+  --line-k8s: oklch(0.488 0.214 270.8);
+  --line-k8s-foreground: oklch(1 0 0);
+  --line-k8s-ink: oklch(0.455 0.198 271.1);
+  --line-git: oklch(0.649 0.201 32.8);
+  --line-git-foreground: oklch(0.212 0.035 268.5);
+  --line-git-ink: oklch(0.545 0.179 33.8);
+  --line-cicd: oklch(0.622 0.163 151);
+  --line-cicd-foreground: oklch(0.212 0.035 268.5);
+  --line-cicd-ink: oklch(0.509 0.132 151.2);
+  --line-net: oklch(0.654 0.112 207.8);
+  --line-net-foreground: oklch(0.212 0.035 268.5);
+  --line-net-ink: oklch(0.505 0.087 208.6);
+  --line-obs: oklch(0.752 0.181 125.2);
+  --line-obs-foreground: oklch(0.212 0.035 268.5);
+  --line-obs-ink: oklch(0.487 0.123 125.5);
+  --line-sec: oklch(0.579 0.214 2.8);
+  --line-sec-foreground: oklch(1 0 0);
+  --line-sec-ink: oklch(0.515 0.192 3.5);
+  --line-iac: oklch(0.537 0.232 293.3);
+  --line-iac-foreground: oklch(1 0 0);
+  --line-iac-ink: oklch(0.487 0.225 292.4);
+
+  /* Font, thang chữ và bo góc cũ: hệ mới đặt các biến cùng tên ở :root. */
+  --font-display: var(--font-archivo), var(--font-be-vietnam-pro), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-be-vietnam-pro), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, 'Cascadia Code', 'Cascadia Mono', 'Segoe UI Mono', Consolas, 'Liberation Mono', monospace;
+  --radius-sm: var(--radius-legacy-sm, 0px);
+  --radius-md: var(--radius-legacy-md, 0px);
+  --radius-lg: var(--radius-legacy-lg, 0px);
+  --radius-xl: var(--radius-legacy-xl, 0px);
+  /*
+   * ── Khoảng cách ───────────────────────────────────────────────────────────
+   * KHÔNG dựng một thang mới. Tailwind v4 đã sinh cả thang từ một biến duy
+   * nhất; ở đây chỉ ghim biến đó. Khai một bảng `--space-1..24` song song là
+   * tạo ra hai nguồn sự thật cho cùng một con số, và lần sửa thứ hai sẽ lệch.
+   */
+  --spacing: 0.25rem;
+
+  /*
+   * ── Thang cỡ chữ ──────────────────────────────────────────────────────────
+   * `clamp()` neo ở hai đầu 360px và 1440px; dưới 360 giữ min, trên 1440 giữ
+   * max. Trang chủ vì vậy không cần một `@media` nào cho cỡ chữ.
+   *
+   * ⛔ CẤM biểu thức thuần `vw` không có số hạng `rem`. `font-size: 4vw` bỏ qua
+   * HOÀN TOÀN cài đặt cỡ chữ của người dùng — đó là cách trượt SC 1.4.4 Resize
+   * Text. Mọi dòng dưới đây hoặc là `rem` cố định, hoặc là `clamp()` có số hạng
+   * `rem` VÀ min/max bằng `rem`.
+   *
+   * ⚠ `--text-base` CỐ Ý không co giãn. Một cỡ chữ thân bài trôi theo viewport
+   * làm độ dài dòng đo được thành thứ không đoán được — đó là lý do thường gặp
+   * nhất khiến "fluid type" đọc ra sai. Chỉ cỡ TRÌNH BÀY mới co giãn; thứ người
+   * ta đọc lâu thì cố định.
+   *
+   * ⚠ Các dòng `--text-*--line-height` là BẮT BUỘC, không phải thừa. Bảng theme
+   * mặc định của Tailwind v4.3.3 khai sẵn cặp đó cho mọi cỡ
+   * (`node_modules/tailwindcss/theme.css:347-372` — ví dụ
+   * `--text-base--line-height: calc(1.5 / 1)`), và ghi đè `--text-base` KHÔNG
+   * xoá cặp ấy. Bỏ trống chúng thì `text-base` vẫn phát `line-height: 1.5` của
+   * Tailwind, âm thầm đè lên bảng giãn dòng ngay dưới. Đây là hệ quả cơ học của
+   * §3.2 + §3.3 của hợp đồng, không phải một quyết định mới.
+   */
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: var(--leading-normal);
+  --text-xs: 0.75rem;
+  --text-xs--line-height: var(--leading-normal);
+  --text-sm: 0.875rem;
+  --text-sm--line-height: var(--leading-normal);
+  --text-base: 1rem;
+  --text-base--line-height: var(--leading-normal);
+  --text-lg: clamp(1.0625rem, 1.021rem + 0.19vw, 1.1875rem);
+  --text-lg--line-height: var(--leading-normal);
+  --text-xl: clamp(1.25rem, 1.167rem + 0.37vw, 1.5rem);
+  --text-xl--line-height: var(--leading-normal);
+  --text-2xl: clamp(1.5rem, 1.374rem + 0.56vw, 1.875rem);
+  --text-2xl--line-height: var(--leading-snug);
+  --text-3xl: clamp(1.875rem, 1.667rem + 0.93vw, 2.5rem);
+  --text-3xl--line-height: var(--leading-snug);
+  --text-4xl: clamp(2.25rem, 1.917rem + 1.48vw, 3.25rem);
+  --text-4xl--line-height: var(--leading-tight);
+  --text-5xl: clamp(2.75rem, 2.167rem + 2.59vw, 4.5rem);
+  --text-5xl--line-height: var(--leading-tight);
+
+  /*
+   * ── Giãn dòng ─────────────────────────────────────────────────────────────
+   * 1.6 chứ không 1.5, và lý do là TIẾNG VIỆT. SC 1.4.12 đòi giao diện phải
+   * CHỊU ĐƯỢC line-height 1.5; nhưng dấu tiếng Việt xếp chồng cao (`ế`, `ộ`,
+   * `ỹ`, `ằ`) nên ở 1.5 dấu của dòng dưới chạm phần bụng chữ của dòng trên
+   * trong đúng những từ có dấu mũ cộng thanh. 1.6 chừa biên cho chồng dấu, và
+   * vẫn còn dư địa khi người dùng ép 1.5 bằng bookmarklet a11y.
+   *
+   * `--leading-relaxed` KHÔNG khai lại — giữ mặc định 1.625 của Tailwind; hợp
+   * đồng không pin nó.
+   */
+  --leading-tight: 1.15;
+  --leading-snug: 1.35;
+  --leading-normal: 1.6;
+  --leading-loose: 1.75;
+
+}
+
+.legacy-skin.dark,
+.dark .legacy-skin,
+.arena-root.dark,
+.dark .arena-root {
+  /*
+   * Thang trung tính tối mang chroma 0.016 ở hue 263.7 thay vì xám tuyệt đối.
+   * Xám 0-chroma đọc ra "chưa ai chọn màu này"; một chút lạnh làm nền trông
+   * được thiết kế mà mắt vẫn nhận là trung tính.
+   *
+   * 263.7 là hue ĐO ĐƯỢC của `--brand-navy` `#051A53`, không phải 262.881 thừa
+   * kế từ bảng lam đã chết. Đổi này KHÔNG làm lệch một phép đo nào, và đó là
+   * điều kiểm được chứ không phải điều mong:
+   *
+   *     oklch(0.145 0.012 262.881) → Y = 0.0030353   (hệ cũ)
+   *     oklch(0.145 0.016 263.7)   → Y = 0.0030356   (hệ này)
+   *
+   * Ở oklch, thêm chroma trong khi giữ L gần như không đụng độ chói tương đối,
+   * nên mọi tỉ lệ tính trên mặt nền tối giữ nguyên tới hai chữ số — và các
+   * token kế thừa (`--success`, `--warning`) không cần đo lại.
+   *
+   * `--foreground` là 0.97, KHÔNG phải trắng tinh. Trắng 100% trên nền gần đen
+   * gây loang sáng (halation) ở người cận và người loạn thị; 0.97 cho 18.15:1,
+   * thừa xa 4.5, nên đẩy lên 1.0 không mua được gì.
+   */
+  --background: oklch(0.159 0.016 266.6);
+  --foreground: oklch(0.937 0.01 93.6);
+  --card: oklch(0.202 0.029 268.7);
+  --card-foreground: oklch(0.937 0.01 93.6);
+  --popover: oklch(0.202 0.029 268.7);
+  --popover-foreground: oklch(0.937 0.01 93.6);
+
+  /*
+   * Cùng hue 26.7, nhưng L đi NGƯỢC chiều nhánh sáng và lý do là ảnh gương của
+   * nhau: ở `:root` chữ trên nút là TRẮNG nên contrast kéo L xuống; ở đây chữ
+   * là GẦN ĐEN nên contrast kéo L LÊN. L=0.68, C=0.19 giữ màu trong sRGB
+   * và cho chữ link đạt 4.82:1 trên muted, 5.71:1 trên card; chữ trên nút
+   * đạt 6.31:1. Ring giữ cùng màu, trắng trong khe focus vẫn đạt 3.14:1.
+   */
+  --primary: oklch(0.589 0.222 29);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.237 0.032 268.1);
+  --secondary-foreground: oklch(0.937 0.01 93.6);
+  --muted: oklch(0.237 0.032 268.1);
+  --muted-foreground: oklch(0.709 0.026 267.8);
+
+  /*
+   * `--accent` tối = `--muted` tối, KHÁC hẳn nhánh sáng (nơi accent là một chạm
+   * đỏ thật). Trên nền tối, một vệt hover mang sắc đỏ đọc ra "được chọn" hoặc
+   * "cảnh báo" thay vì "con trỏ đang ở đây" — mặt hover phải trung tính.
+   */
+  --accent: oklch(0.237 0.032 268.1);
+  --accent-foreground: oklch(0.937 0.01 93.6);
+  --destructive: oklch(0.733 0.158 26.2);
+  --destructive-foreground: oklch(0.159 0.016 266.6);
+  --success: oklch(0.767 0.173 153.8);
+  --success-foreground: oklch(0.159 0.016 266.6);
+  --warning: oklch(0.824 0.149 73.3);
+  --warning-foreground: oklch(0.159 0.016 266.6);
+
+  --border: oklch(0.298 0.031 266.2);
+  /*
+   * 38%, KHÔNG phải 16%. Ở 16% lớp trắng này composite ra #313131 trên nền
+   * trang (số học 8-bit trên hex: 255×0.16 + 7×0.84 = 46.7) ⇒ 1.53:1 — viền ô
+   * nhập và rãnh Switch lúc tắt gần như VÔ HÌNH ở chế độ tối.
+   *
+   * ⚠ Nó sống sót lâu vì cổng contrast tự tính SAI: `tokens.contract.test.ts`
+   * từng trộn alpha trong linear-light thay vì trong sRGB đã mã hoá gamma (CSS
+   * Color 4 §12 — composite chạy SAU khi màu đã chuyển sang không gian đích).
+   * Công thức sai báo 16% đạt 4.01:1, tức nó ĐÃ CHỨNG NHẬN cho đúng thứ nó sinh
+   * ra để chặn, và hai con số sai đó được chép sang ba nơi trước khi ai đó phát
+   * hiện. Đầy đủ ở `docs/design-system.md` §1a.
+   *
+   * 38% cho 3.49:1 trên `--background`, 3.56:1 trên `--card`, 3.42:1 trên
+   * `--muted`. GIỮ dạng trong suốt thay vì đổi sang oklch đục: chính alpha là
+   * thứ kéo ba con số sát nhau (chênh 0.14). Một giá trị đục vừa đủ 3.0 trên
+   * `--muted` sẽ vọt lên gần 4.0 trên `--background` — tức viền đậm nhạt khác
+   * hẳn nhau tuỳ nó nằm trong khối nào.
+   *
+   * `--border` ngay trên CỐ Ý vẫn 12% (1.33:1): ranh giới TRANG TRÍ, ngoại lệ
+   * tường minh của SC 1.4.11.
+   */
+  --input: oklch(0.58 0.033 268);
+  --ring: oklch(0.732 0.133 274.3);
+
+  /*
+   * ⚠ KHÔNG có `--brand-*` ở đây, và đó là quyết định có cổng gác, không phải
+   * chỗ bỏ sót — xem khối `--brand-*` ở `:root`.
+   */
+
+  /*
+   * Cùng ba hue của nhánh sáng nhưng ĐẢO vai: nền tối ⇒ chip phải SÁNG, chữ
+   * trên nó phải tối. Byte-identical với hệ trước (`p16-tokens.md` §0).
+   *
+   * L=0.7 đồng nhất cho cả sáu chip — bằng nhau về độ sáng nên không chip nào
+   * tự nhiên "hét" to hơn chip khác. Chroma thì BUỘC phải khác nhau: gamut sRGB
+   * cho phép độ bão hoà rất khác nhau theo hue ở cùng một L (tại L=0.7, lam-lục
+   * tối đa 0.119 còn lục tới 0.193). Ép chung một chroma sẽ đẩy vài màu ra
+   * ngoài gamut, và khi đó số đo không còn tả thứ hiển thị.
+   *
+   * Mặt nền khó nhất KHÔNG phải `--background` mà là `--muted` (0.269 — sáng
+   * nhất trong ba mặt tối), nên nó mới là ràng buộc quyết định.
+   */
+  --difficulty-basic: oklch(0.7 0.115 195);
+  --difficulty-basic-foreground: oklch(0.145 0 0);
+  --difficulty-intermediate: oklch(0.7 0.145 65);
+  --difficulty-intermediate-foreground: oklch(0.145 0 0);
+  --difficulty-advanced: oklch(0.7 0.175 305);
+  --difficulty-advanced-foreground: oklch(0.145 0 0);
+  --difficulty-expert: oklch(0.7 0.16 18);
+  --difficulty-expert-foreground: oklch(0.145 0 0);
+  --kind-pod: oklch(0.72 0.15 250);
+  --kind-controller: oklch(0.73 0.15 295);
+  --kind-batch: oklch(0.73 0.14 330);
+  --kind-network: oklch(0.74 0.12 195);
+  --kind-config: oklch(0.76 0.13 85);
+  --kind-storage: oklch(0.74 0.12 55);
+  --kind-security: oklch(0.71 0.14 20);
+  --kind-cluster: oklch(0.72 0.07 160);
+
+  --status-progress: oklch(0.7 0.145 262.881);
+  --status-progress-foreground: oklch(0.145 0 0);
+  --status-done: oklch(0.7 0.18 150);
+  --status-done-foreground: oklch(0.145 0 0);
+  --status-locked: oklch(0.7 0.012 262.881);
+  --status-locked-foreground: oklch(0.145 0 0);
+
+  /*
+   * Bóng ở chế độ tối là ĐEN THUẦN và đậm hơn hẳn nhánh sáng. Bóng "cùng hue
+   * nền" của nhánh sáng vô dụng ở đây: nền vốn đã tối, một bóng chỉ hơi tối hơn
+   * nền thì không nhìn thấy gì. Alpha cao (0.4–0.7) là thứ duy nhất còn tạo
+   * được cảm giác nâng lên.
+   */
+  --elevation-1: 0 1px 2px -1px oklch(0 0 0 / 0.5), 0 1px 3px 0 oklch(0 0 0 / 0.4);
+  --elevation-2: 0 2px 4px -2px oklch(0 0 0 / 0.6), 0 6px 16px -4px oklch(0 0 0 / 0.5);
+  --elevation-3: 0 4px 8px -4px oklch(0 0 0 / 0.7), 0 16px 40px -8px oklch(0 0 0 / 0.6);
+
+  --ink: oklch(0.937 0.01 93.6);
+  --ink-foreground: oklch(0.159 0.016 266.6);
+  --chrome: oklch(0.13 0.02 266);
+  --chrome-foreground: oklch(0.937 0.01 93.6);
+  --chrome-muted: oklch(0.709 0.026 267.8);
+  --chrome-border: oklch(0.27 0.03 266);
+  --brand: oklch(0.708 0.184 27.3);
+  --shadow-hard: oklch(0 0 0 / 0.65);
+  --line-linux-ink: oklch(0.862 0.15 86.1);
+  --line-docker-ink: oklch(0.733 0.137 262.9);
+  --line-k8s-ink: oklch(0.75 0.124 277.5);
+  --line-git-ink: oklch(0.756 0.143 35.8);
+  --line-cicd-ink: oklch(0.779 0.158 155.4);
+  --line-net-ink: oklch(0.797 0.122 205.1);
+  --line-obs-ink: oklch(0.849 0.179 123.7);
+  --line-sec-ink: oklch(0.731 0.183 358.7);
+  --line-iac-ink: oklch(0.741 0.148 297.6);
+  /* Nền tuyến và vàng tín hiệu: cùng giá trị ở hai theme (màu nhận diện tuyến). */
+  --signal: oklch(0.924 0.201 110.1);
+  --signal-foreground: oklch(0.212 0.035 268.5);
+  --line-linux: oklch(0.808 0.166 82.7);
+  --line-linux-foreground: oklch(0.212 0.035 268.5);
+  --line-docker: oklch(0.546 0.219 262);
+  --line-docker-foreground: oklch(1 0 0);
+  --line-k8s: oklch(0.488 0.214 270.8);
+  --line-k8s-foreground: oklch(1 0 0);
+  --line-git: oklch(0.649 0.201 32.8);
+  --line-git-foreground: oklch(0.212 0.035 268.5);
+  --line-cicd: oklch(0.622 0.163 151);
+  --line-cicd-foreground: oklch(0.212 0.035 268.5);
+  --line-net: oklch(0.654 0.112 207.8);
+  --line-net-foreground: oklch(0.212 0.035 268.5);
+  --line-obs: oklch(0.752 0.181 125.2);
+  --line-obs-foreground: oklch(0.212 0.035 268.5);
+  --line-sec: oklch(0.579 0.214 2.8);
+  --line-sec-foreground: oklch(1 0 0);
+  --line-iac: oklch(0.537 0.232 293.3);
+  --line-iac-foreground: oklch(1 0 0);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-difficulty-basic: var(--difficulty-basic);
+  --color-difficulty-basic-foreground: var(--difficulty-basic-foreground);
+  --color-difficulty-intermediate: var(--difficulty-intermediate);
+  --color-difficulty-intermediate-foreground: var(--difficulty-intermediate-foreground);
+  --color-difficulty-advanced: var(--difficulty-advanced);
+  --color-difficulty-advanced-foreground: var(--difficulty-advanced-foreground);
+  --color-difficulty-expert: var(--difficulty-expert);
+  --color-difficulty-expert-foreground: var(--difficulty-expert-foreground);
+  --color-kind-pod: var(--kind-pod);
+  --color-kind-controller: var(--kind-controller);
+  --color-kind-batch: var(--kind-batch);
+  --color-kind-network: var(--kind-network);
+  --color-kind-config: var(--kind-config);
+  --color-kind-storage: var(--kind-storage);
+  --color-kind-security: var(--kind-security);
+  --color-kind-cluster: var(--kind-cluster);
+  --color-status-progress: var(--status-progress);
+  --color-status-progress-foreground: var(--status-progress-foreground);
+  --color-status-done: var(--status-done);
+  --color-status-done-foreground: var(--status-done-foreground);
+  --color-status-locked: var(--status-locked);
+  --color-status-locked-foreground: var(--status-locked-foreground);
+
+  /*
+   * Namespace `--shadow-*` ⇒ Tailwind sinh `shadow-elevation-1|2|3`. Bóng PHẢI
+   * đi qua đây. ⛔ CẤM `shadow-[var(--elevation-1)]`: dạng arbitrary vẫn đổi
+   * theo theme nhưng bỏ qua bảng theme, nên mỗi chỗ gọi lại tự chọn bậc — đúng
+   * thứ mà ba BẬC ngữ nghĩa sinh ra để chặn.
+   */
+  --shadow-elevation-1: var(--elevation-1);
+  --shadow-elevation-2: var(--elevation-2);
+  --shadow-elevation-3: var(--elevation-3);
+
+  /*
+   * Bốn bậc bo góc suy từ `--radius` (0.75rem = 12px):
+   *   sm  6px  badge, chip, checkbox, ô nhỏ
+   *   md  9px  button, input, select, textarea
+   *   lg 12px  card, dialog, popover
+   *   xl 18px  panel hero, khối 3D, modal trên màn rộng
+   * `--radius-full` cho pill, avatar, đầu nét của cung tiến độ.
+   */
+  --color-ink: var(--ink);
+  --color-ink-foreground: var(--ink-foreground);
+  --color-chrome: var(--chrome);
+  --color-chrome-foreground: var(--chrome-foreground);
+  --color-chrome-muted: var(--chrome-muted);
+  --color-chrome-border: var(--chrome-border);
+  --color-brand: var(--brand);
+  --color-signal: var(--signal);
+  --color-signal-foreground: var(--signal-foreground);
+  --color-line-linux: var(--line-linux);
+  --color-line-linux-foreground: var(--line-linux-foreground);
+  --color-line-linux-ink: var(--line-linux-ink);
+  --color-line-docker: var(--line-docker);
+  --color-line-docker-foreground: var(--line-docker-foreground);
+  --color-line-docker-ink: var(--line-docker-ink);
+  --color-line-k8s: var(--line-k8s);
+  --color-line-k8s-foreground: var(--line-k8s-foreground);
+  --color-line-k8s-ink: var(--line-k8s-ink);
+  --color-line-git: var(--line-git);
+  --color-line-git-foreground: var(--line-git-foreground);
+  --color-line-git-ink: var(--line-git-ink);
+  --color-line-cicd: var(--line-cicd);
+  --color-line-cicd-foreground: var(--line-cicd-foreground);
+  --color-line-cicd-ink: var(--line-cicd-ink);
+  --color-line-net: var(--line-net);
+  --color-line-net-foreground: var(--line-net-foreground);
+  --color-line-net-ink: var(--line-net-ink);
+  --color-line-obs: var(--line-obs);
+  --color-line-obs-foreground: var(--line-obs-foreground);
+  --color-line-obs-ink: var(--line-obs-ink);
+  --color-line-sec: var(--line-sec);
+  --color-line-sec-foreground: var(--line-sec-foreground);
+  --color-line-sec-ink: var(--line-sec-ink);
+  --color-line-iac: var(--line-iac);
+  --color-line-iac-foreground: var(--line-iac-foreground);
+  --color-line-iac-ink: var(--line-iac-ink);
+  --shadow-float: var(--float-shadow);
+  /*
+   * Bo góc: bản dựng lại vuông TOÀN BỘ (design-brief §0.1). Thang cũ vẫn được
+   * khai vì game K8s (`.arena-root`) còn dùng `rounded-md`/`rounded-lg` — nó
+   * đọc lại giá trị cũ từ khối đóng băng `.arena-root.dark` cuối file.
+   */
+  --radius-control: var(--r-control);
+  --radius-surface: var(--r-surface);
+
+  /*
+   * Font. `--font-be-vietnam-pro` do `next/font/google` sinh ra thành biến CSS
+   * trên `<html>` (xem layout.tsx). Fallback là stack THẬT, không chỉ mỗi biến
+   * font — nếu biến chưa kịp gắn (lỗi mạng lúc build, `next/font` fail) trang
+   * vẫn đọc được thay vì rơi về serif mặc định của trình duyệt.
+   *
+   * ⚠ `--font-mono` là stack HỆ và phải giữ nguyên như vậy: code inline
+   * (`kubectl get pods`) KHÔNG tải thêm font nào — 0 lần `url(`, 0 lần
+   * `@font-face`. Terminal là chuyện khác và nằm NGOÀI `--font-mono`: nó giữ
+   * `dlp-terminal-nf.woff2` đang có, vì file đó dựng riêng cho glyph Nerd Font
+   * hai ô của xterm.
+   */
+}
+
+.legacy-skin,
+.arena-root {
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  font-feature-settings: 'ss01', 'cv11';
+}
+:where(.legacy-skin, .arena-root) ::selection {
+  background: var(--signal);
+  color: var(--signal-foreground);
+}
+:where(.legacy-skin, .arena-root) :focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+@keyframes dlp-arc-sweep {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+
+/* Chữ: tiêu đề dạng biển ga. line-height >= 1.02 vì dấu tiếng Việt chồng tầng. */
+@utility type-poster {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-stretch: 112%;
+  font-size: clamp(2.75rem, 1.6rem + 5vw, 6.5rem);
+  line-height: 1.02;
+  letter-spacing: -0.025em;
+}
+@utility type-display {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-stretch: 110%;
+  font-size: clamp(2rem, 1.4rem + 2.6vw, 3.5rem);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+}
+@utility type-headline {
+  font-family: var(--font-display);
+  font-weight: 750;
+  font-stretch: 106%;
+  font-size: clamp(1.5rem, 1.2rem + 1.2vw, 2.25rem);
+  line-height: 1.1;
+  letter-spacing: -0.015em;
+}
+@utility type-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-stretch: 104%;
+  font-size: 1.25rem;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+@utility type-lead {
+  font-size: 1.125rem;
+  line-height: 1.6;
+}
+@utility type-label {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: 0.6875rem;
+  line-height: 1.4;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* Kết cấu: tô bằng currentColor, chỉnh độ đậm bằng class text-* + opacity. */
+@utility bg-dots {
+  background-image: radial-gradient(currentColor 1px, transparent 1.2px);
+  background-size: 14px 14px;
+}
+@utility bg-hatch {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    currentColor 0 1px,
+    transparent 1px 9px
+  );
+}
+@utility bg-rails {
+  background-image: repeating-linear-gradient(
+    0deg,
+    currentColor 0 1px,
+    transparent 1px 12px
+  );
+}
+
+/* Chuyển động: nhanh 140, vừa 220, chậm 360. Khối giảm chuyển động ở trên tắt hết. */
+@keyframes dlp-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes dlp-wipe {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+@keyframes dlp-reveal-down {
+  from {
+    clip-path: inset(0 0 100% 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+@keyframes dlp-pulse-station {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in oklch, var(--signal) 70%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 6px color-mix(in oklch, var(--signal) 0%, transparent);
+  }
+}
+@utility animate-rise {
+  animation: dlp-rise 360ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@utility animate-wipe {
+  transform-origin: left;
+  animation: dlp-wipe 360ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@utility animate-reveal-down {
+  animation: dlp-reveal-down 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@utility animate-pulse-station {
+  animation: dlp-pulse-station 1.8s ease-in-out infinite;
+}
+@utility stagger {
+  animation-delay: calc(min(var(--i, 0), 12) * 30ms);
+}
+
+/*
+ * Dòng bảng tuyến: rê vào thì màu tuyến (--row-tint) quét từ trái sang, mũi tên
+ * [data-row-arrow] trượt 4px. Không dùng viền trái làm dấu hiệu (design-brief §0.3).
+ */
+@utility interactive-row {
+  position: relative;
+  isolation: isolate;
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: color-mix(in oklch, var(--row-tint, var(--muted)) 14%, transparent);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  &:hover::before,
+  &:focus-visible::before {
+    transform: scaleX(1);
+  }
+  & [data-row-arrow] {
+    transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  &:hover [data-row-arrow],
+  &:focus-visible [data-row-arrow] {
+    transform: translateX(4px);
+  }
+}
+
+
+/*
+ * ═══ ĐÓNG BĂNG game K8s ══════════════════════════════════════════════════════
+ * Chủ dự án: "trong canvas game k8s để nguyên". `arena-root.tsx` gắn class
+ * `dark` lên gốc của nó, nên nó đọc token tối của trang. Bản dựng lại đổi token
+ * đó, vì vậy khối này chép lại GIÁ TRỊ HIỆU LỰC trước khi đổi (main 5b0c728:
+ * globals.css .dark + lớp phủ --workspace-* của practice.css), cộng thang bo góc
+ * và font mono cũ. Hai class nên thắng `.dark` bất kể thứ tự.
+ * Đừng "dọn" khối này khi chưa đổi chính game K8s.
+ */
+.arena-root.dark {
+  --background: rgb(23 27 34);
+  --foreground: rgb(230 233 239);
+  --card: rgb(32 37 46);
+  --card-foreground: rgb(230 233 239);
+  --popover: rgb(32 37 46);
+  --popover-foreground: rgb(230 233 239);
+  --primary: rgb(239 168 138);
+  --primary-foreground: rgb(48 32 23);
+  --secondary: rgb(42 48 58);
+  --secondary-foreground: rgb(230 233 239);
+  --muted: rgb(42 48 58);
+  --muted-foreground: rgb(173 181 194);
+  --accent: rgb(59 43 39);
+  --accent-foreground: rgb(243 182 152);
+  --border: rgb(55 62 73);
+  --input: rgb(119 129 143);
+  --ring: rgb(239 168 138);
+  --destructive: oklch(0.704 0.175 29);
+  --destructive-foreground: oklch(0.145 0.016 263.7);
+  --success: oklch(0.696 0.17 150.741);
+  --success-foreground: oklch(0.145 0.016 263.7);
+  --warning: oklch(0.769 0.188 70.08);
+  --warning-foreground: oklch(0.145 0.016 263.7);
+  /* Viền nút outline và tab đang chọn dùng --ink: trả về màu viền ô nhập cũ cho đỡ chói. */
+  --ink: rgb(119 129 143);
+  --ink-foreground: rgb(230 233 239);
+  --radius-legacy-sm: calc(0.75rem - 6px);
+  --radius-legacy-md: calc(0.75rem - 3px);
+  --radius-legacy-lg: 0.75rem;
+  --radius-legacy-xl: calc(0.75rem + 6px);
+  --r-control: calc(0.75rem - 3px);
+  --r-surface: 0.75rem;
+  --float-shadow: var(--elevation-3);
+  --font-jetbrains-mono: ui-monospace;
+}

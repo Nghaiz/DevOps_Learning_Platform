@@ -1,0 +1,52 @@
+{
+  "name": "@devops-platform/ds",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "//": "Hệ thiết kế của bản dựng lại 2026-10 (docs/design-system.md). @devops-platform/ui là bộ cũ, chỉ còn cho landing, game K8s và màn chơi Git/CI/CD.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./icons": "./src/icons/index.ts",
+    "./content": "./src/content/index.ts",
+    "./theme-script": "./src/theme/theme-script.ts"
+  },
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@devops-platform/motion": "workspace:*",
+    "@devops-platform/scenario": "workspace:*",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "cmdk": "^1.1.1",
+    "radix-ui": "^1.6.7",
+    "react-markdown": "^10.1.0",
+    "react-resizable-panels": "^4.14.6",
+    "rehype-sanitize": "^6.0.0",
+    "remark-gfm": "^4.0.1",
+    "sonner": "2.0.8",
+    "tailwind-merge": "^3.6.0"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.7",
+    "@types/node": "^26.5.1",
+    "@types/react": "^19.2.0",
+    "@typescript/native": "npm:typescript@^7.0.2",
+    "eslint": "^10.10.0",
+    "eslint-config-prettier": "^10.1.8",
+    "jsdom": "^30.0.1",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
+    "typescript-eslint": "^8.70.0",
+    "vitest": "^5.0.0"
+  }
+}
