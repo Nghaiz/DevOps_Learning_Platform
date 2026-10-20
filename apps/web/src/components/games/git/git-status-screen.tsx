@@ -4,10 +4,9 @@ import { ArrowLeft, RotateCcw } from 'lucide-react';
 import Link from 'next/link';
 import { t } from '@devops-platform/copy';
 import { Button, Spinner, TopicBadge } from '@devops-platform/ui';
-import { PageContainer } from '../../kit';
 
 /**
- * Màn chờ / màn lỗi của chế độ làm bài Git OJ: biển ga trống, một câu nói chuyện
+ * Màn chờ / màn lỗi của chế độ làm bài Git OJ: dấu chủ đề, một câu nói chuyện
  * gì đang xảy ra, và đúng một việc để làm tiếp khi có lỗi.
  */
 export function GitStatusScreen({
@@ -20,7 +19,7 @@ export function GitStatusScreen({
   readonly onRetry?: (() => void) | undefined;
 }) {
   return (
-    <PageContainer className="py-16 md:py-24">
+    <div className="mx-auto w-full max-w-[1200px] px-5 py-16 md:px-8 md:py-24">
       <div className="max-w-2xl border-t-4 border-line-git pt-8">
         <div className="flex items-center gap-3">
           <TopicBadge line="git" />
@@ -48,6 +47,6 @@ export function GitStatusScreen({
           </div>
         ) : null}
       </div>
-    </PageContainer>
+    </div>
   );
 }

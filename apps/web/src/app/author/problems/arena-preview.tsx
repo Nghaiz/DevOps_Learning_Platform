@@ -1,13 +1,12 @@
 'use client';
 
 import type { ReactElement } from 'react';
-import { ArrowUpRight } from 'lucide-react';
 import { t } from '@devops-platform/copy';
 import type { GameId } from '@devops-platform/games';
-import { Alert, AlertDescription, AlertTitle, Button, cn } from '@devops-platform/ui';
 import type { SaveStatus } from '../../../components/author/studio';
-import { Split, lineFillClass, lineForTopic } from '../../../components/kit';
+import { FormBlock } from '../../../components/author/studio';
 import { GAME_NAME, problemPreviewHref } from './game-plugin-view';
+import { Button, GameArt, Notice, type GameArtKind } from '@devops-platform/ds';
 
 /**
  * Mở game với chính bài đang soạn, để người soạn tự làm thử.
@@ -28,58 +27,53 @@ import { GAME_NAME, problemPreviewHref } from './game-plugin-view';
  * Icon `ResourceKind`, nếu một ngày cần, lấy từ `packages/ui`, KHÔNG từ
  * `components/k8s-arena/**`.
  */
+const ART: Readonly<Partial<Record<GameId, GameArtKind>>> = {
+  k8s: 'k8s',
+  git: 'git',
+  cicd: 'cicd',
+  netpol: 'netpol',
+  dockerfile: 'dockerfile',
+};
+
 export function ArenaPreview(props: {
   readonly code: string | null;
   readonly gameId: GameId;
   readonly saveStatus: SaveStatus;
 }): ReactElement {
   const href = props.code === null ? null : problemPreviewHref(props.gameId, props.code);
-  const line = lineForTopic({ gameId: props.gameId });
+  const art = ART[props.gameId];
 
   return (
-    <Split index="01" title={t('author.problem.arena.heading')} aside={t('author.problem.arena.lead')}>
+    <FormBlock title={t('author.problem.arena.heading')} note={t('author.problem.arena.lead')}>
       {props.code === null ? (
-        <Alert variant="warning">
-          <AlertTitle>{t('author.problem.arena.no-code-title')}</AlertTitle>
-          <AlertDescription>{t('author.problem.arena.no-code-body')}</AlertDescription>
-        </Alert>
+        <Notice tone="warn" title={t('author.problem.arena.no-code-title')}>{t('author.problem.arena.no-code-body')}</Notice>
       ) : href === null ? (
-        <Alert variant="warning">
-          <AlertTitle>{t('author.problem.arena.no-route-title')}</AlertTitle>
-          <AlertDescription>
+        <Notice tone="warn" title={t('author.problem.arena.no-route-title')}>
             {t('author.problem.arena.no-route-body', { game: GAME_NAME[props.gameId] })}
-          </AlertDescription>
-        </Alert>
+          </Notice>
       ) : (
         <div className="flex flex-col gap-4">
           {props.saveStatus !== 'saved' && (
-            <Alert variant="warning" className="animate-rise">
-              <AlertTitle>{t('author.problem.arena.stale-title')}</AlertTitle>
-              <AlertDescription>{t('author.problem.arena.stale-body')}</AlertDescription>
-            </Alert>
+            <Notice tone="warn" title={t('author.problem.arena.stale-title')} className="animate-enter">{t('author.problem.arena.stale-body')}</Notice>
           )}
-          <div className={cn('relative flex flex-wrap items-center gap-4 overflow-hidden p-5', lineFillClass(line))}>
-            <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-hatch opacity-10" />
+          <div className="relative flex flex-wrap items-center gap-5 overflow-hidden rounded-lg bg-tp-wash p-5">
+            {art === undefined ? null : <GameArt kind={art} width={120} className="hidden sm:block" />}
             <p className="relative min-w-0 flex-1">
-              <span className="block type-label opacity-80">{GAME_NAME[props.gameId]}</span>
-              <span className="block font-mono text-2xl font-medium">{props.code}</span>
+              <span className="block text-sm text-tp-ink">{GAME_NAME[props.gameId]}</span>
+              <span className="block font-mono text-2xl font-medium text-ink">{props.code}</span>
             </p>
             {/*
               `target="_blank"` để trang soạn không mất thứ đang gõ; `rel` đi kèm vì
               thiếu nó thì tab mới với tới được `window.opener`.
             */}
-            <Button asChild variant="ink">
-              <a href={href} target="_blank" rel="noopener noreferrer" className="group relative">
+            <Button asChild variant="primary" iconRight="external-link">
+              <a href={href} target="_blank" rel="noopener noreferrer">
                 {t('author.problem.arena.open', { code: props.code })}
-                <ArrowUpRight
-                  aria-hidden
-                  className="size-4 transition-transform duration-150 group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
-                />
               </a>
             </Button>
           </div>
         </div>
       )}
-    </Split>
+    </FormBlock>
   );
 }

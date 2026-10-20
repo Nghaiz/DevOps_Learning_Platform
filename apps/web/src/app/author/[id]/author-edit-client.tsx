@@ -3,11 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Alert, AlertDescription, AlertTitle, Button, ErrorState, Skeleton, useToast } from '@devops-platform/ui';
 import { renderCopy, t } from '@devops-platform/copy';
 import { api } from '../../../lib/trpc-react';
 import { describeTrpcError } from '../../../lib/trpc';
-import { PageContainer, ToolHeader } from '../../../components/kit';
 import { DraftFormView } from '../../../components/author/draft-form-view';
 import { toDraftInput, type DraftFormState, type FieldIssue } from '../../../components/author/draft-form';
 import { draftFromBody, draftFromPreview } from '../../../components/author/draft-from-preview';
@@ -29,6 +27,7 @@ import {
   saveStatusOf,
 } from '../../../components/author/studio';
 import { LessonRail } from './lesson-rail';
+import { BackLink, Button, ErrorBlock, Notice, Page, PageHeader, Skeleton, toast } from '@devops-platform/ds';
 
 /** Payload so sánh được của một biểu mẫu; `null` khi biểu mẫu chưa thành payload hợp lệ. */
 function snapshotOf(kind: AuthoredItem['kind'], form: DraftFormState): string | null {
@@ -61,7 +60,6 @@ function snapshotOf(kind: AuthoredItem['kind'], form: DraftFormState): string | 
  */
 export function AuthorEditClient({ contentId }: { readonly contentId: string }): ReactElement {
   const router = useRouter();
-  const { toast } = useToast();
   const utils = api.useUtils();
 
   const [publishStarted, setPublishStarted] = useState(false);
@@ -119,11 +117,9 @@ export function AuthorEditClient({ contentId }: { readonly contentId: string }):
       void utils.authoring.preview.invalidate();
       void utils.authoring.get.invalidate();
       const outcome = describeSaveOutcome(result, contentId);
-      toast({
-        title: renderCopy(outcome.title),
-        ...(outcome.detail === null ? {} : { description: renderCopy(outcome.detail) }),
-        variant: outcome.tone === 'warning' ? 'default' : 'success',
-      });
+      const options = outcome.detail === null ? undefined : { description: renderCopy(outcome.detail) };
+      if (outcome.tone === 'warning') toast.warning(renderCopy(outcome.title), options);
+      else toast.success(renderCopy(outcome.title), options);
       if (outcome.navigate) router.push(`/author/${encodeURIComponent(outcome.editId)}`);
     },
     onError: (error) => {
@@ -147,7 +143,7 @@ export function AuthorEditClient({ contentId }: { readonly contentId: string }):
       setArchiveOpen(false);
       setArchiveError(null);
       void utils.authoring.list.invalidate();
-      toast({ title: t('author.edit.archived.title'), description: t('author.edit.archived.body') });
+      toast.success(t('author.edit.archived.title'), { description: t('author.edit.archived.body') });
     },
     onError: (error) => {
       setArchiveError(describeTrpcError(error));
@@ -198,28 +194,32 @@ export function AuthorEditClient({ contentId }: { readonly contentId: string }):
   if (listQuery.isPending) return <EditorSkeleton />;
   if (listQuery.isError || item === null) {
     return (
-      <>
-        <ToolHeader
-          crumbs={[{ label: t('shell.section.studio') }, { href: '/author', label: t('shell.nav.author') }]}
+      <Page className="pb-16">
+        <PageHeader
+          back={
+            <BackLink asChild>
+              <Link href="/author">{t('shell.nav.author')}</Link>
+            </BackLink>
+          }
           title={listQuery.isError ? t('author.edit.load-error.title') : t('author.edit.not-found.title')}
         />
-        <PageContainer>
-          <div className="flex flex-col items-start gap-4 py-10">
-            <ErrorState
-              title={listQuery.isError ? t('author.edit.load-error.title') : t('author.edit.not-found.title')}
-              message={
-                listQuery.isError
-                  ? describeTrpcError(listQuery.error)
-                  : renderCopy({ key: 'author.edit.not-found.body', params: { id: contentId } })
-              }
-              {...(listQuery.isError ? { onRetry: () => void listQuery.refetch(), retrying: listQuery.isFetching } : {})}
-            />
-            <Button variant="outline" asChild>
-              <Link href="/author">{t('author.nav.back-to-list')}</Link>
-            </Button>
-          </div>
-        </PageContainer>
-      </>
+        <div className="flex flex-col items-start gap-4">
+          <ErrorBlock
+            className="w-full"
+            title={listQuery.isError ? t('author.edit.load-error.title') : t('author.edit.not-found.title')}
+            {...(listQuery.isError
+              ? { onRetry: () => void listQuery.refetch(), retrying: listQuery.isFetching, retryLabel: t('common.action.retry') }
+              : {})}
+          >
+            {listQuery.isError
+              ? describeTrpcError(listQuery.error)
+              : renderCopy({ key: 'author.edit.not-found.body', params: { id: contentId } })}
+          </ErrorBlock>
+          <Button variant="secondary" icon="arrow-left" asChild>
+            <Link href="/author">{t('author.nav.back-to-list')}</Link>
+          </Button>
+        </div>
+      </Page>
     );
   }
 
@@ -228,17 +228,13 @@ export function AuthorEditClient({ contentId }: { readonly contentId: string }):
 
   return (
     <StudioEditorFrame
-      crumbs={[
-        { label: t('shell.section.studio') },
-        { href: '/author', label: t('shell.nav.author') },
-        { label: item.id },
-      ]}
+      crumbs={[{ href: '/author', label: t('shell.nav.author') }, { label: item.id }]}
       title={item.title}
       status={<StateChip state={item.state} label={t(STATE_KEYS[item.state])} />}
       toolbar={
         <>
           <SaveState status={saveStatus} />
-          <Button onClick={onSave} loading={update.isPending} disabled={form === null}>
+          <Button variant="primary" icon="save" onClick={onSave} loading={update.isPending} disabled={form === null}>
             {t('common.action.save')}
           </Button>
         </>
@@ -246,18 +242,12 @@ export function AuthorEditClient({ contentId }: { readonly contentId: string }):
       notice={
         <>
           {item.state === 'published' && (
-            <Alert variant="warning">
-              <AlertTitle>{t('author.edit.live-warning.title')}</AlertTitle>
-              <AlertDescription>
+            <Notice tone="warn" title={t('author.edit.live-warning.title')}>
                 {renderCopy({ key: 'author.edit.live-warning.body', params: { draftId: `${item.id}__draft` } })}
-              </AlertDescription>
-            </Alert>
+              </Notice>
           )}
           {saveError !== null && (
-            <Alert variant="destructive">
-              <AlertTitle>{t('author.studio.action-error.save')}</AlertTitle>
-              <AlertDescription>{saveError}</AlertDescription>
-            </Alert>
+            <Notice tone="bad" title={t('author.studio.action-error.save')}>{saveError}</Notice>
           )}
         </>
       }
@@ -287,12 +277,7 @@ export function AuthorEditClient({ contentId }: { readonly contentId: string }):
       <StudioPanel value="soan">
         {bodyQuery.isPending && <Skeleton className="h-96 w-full" />}
         {bodyQuery.isError && (
-          <ErrorState
-            title={t('author.edit.body-error.title')}
-            message={describeTrpcError(bodyQuery.error)}
-            onRetry={() => void bodyQuery.refetch()}
-            retrying={bodyQuery.isFetching}
-          />
+          <ErrorBlock title={t('author.edit.body-error.title')} retryLabel={t('common.action.retry')} onRetry={() => void bodyQuery.refetch()} retrying={bodyQuery.isFetching}>{describeTrpcError(bodyQuery.error)}</ErrorBlock>
         )}
         {form !== null && (
           <DraftFormView
@@ -307,21 +292,13 @@ export function AuthorEditClient({ contentId }: { readonly contentId: string }):
       </StudioPanel>
 
       <StudioPanel value="xem-truoc">
-        <p className="text-sm text-muted-foreground">{t('author.edit.preview.note')}</p>
+        <p className="text-sm text-ink-2">{t('author.edit.preview.note')}</p>
         {previewQuery.isPending && <Skeleton className="h-96 w-full" />}
         {previewQuery.isError && (
-          <ErrorState
-            title={t('author.edit.preview.error.title')}
-            message={describeTrpcError(previewQuery.error)}
-            onRetry={() => void previewQuery.refetch()}
-            retrying={previewQuery.isFetching}
-          />
+          <ErrorBlock title={t('author.edit.preview.error.title')} retryLabel={t('common.action.retry')} onRetry={() => void previewQuery.refetch()} retrying={previewQuery.isFetching}>{describeTrpcError(previewQuery.error)}</ErrorBlock>
         )}
         {previewRejected && (
-          <Alert variant="warning">
-            <AlertTitle>{t('author.edit.preview.rejected.title')}</AlertTitle>
-            <AlertDescription>{t('author.edit.preview.rejected.body')}</AlertDescription>
-          </Alert>
+          <Notice tone="warn" title={t('author.edit.preview.rejected.title')}>{t('author.edit.preview.rejected.body')}</Notice>
         )}
         {previewData !== null && <PreviewPanel contentId={contentId} payload={previewData} />}
       </StudioPanel>
@@ -366,12 +343,12 @@ export function AuthorEditClient({ contentId }: { readonly contentId: string }):
 
 function EditorSkeleton(): ReactElement {
   return (
-    <PageContainer>
+    <Page>
       <div className="flex flex-col gap-4 py-10" aria-hidden>
         <Skeleton className="h-10 w-2/3" />
         <Skeleton className="h-12 w-full" />
         <Skeleton className="h-96 w-full" />
       </div>
-    </PageContainer>
+    </Page>
   );
 }

@@ -2,10 +2,9 @@
 
 import { useCallback, useState, type ReactElement } from 'react';
 import { t } from '@devops-platform/copy';
-import { Sheet, SheetContent, SheetTitle } from '@devops-platform/ui';
-import { ConfirmDialog } from '../kit/confirm-dialog';
 import { ExamForm } from './exam-form';
 import type { ExamComposeInput, ExamFormValues } from './exam-form-model';
+import { ConfirmDialog, Sheet, SheetContent } from '@devops-platform/ds';
 
 /**
  * Tấm trượt phải chứa form ra đề, dùng chung cho "Tạo kỳ thi" (`/admin/exams`)
@@ -17,8 +16,8 @@ import type { ExamComposeInput, ExamFormValues } from './exam-form-model';
  * trước: không hỏi thì một cú Esc lỡ tay xoá cả đề vừa gõ. Lượt lưu thành công
  * đóng tấm bằng `onOpenChange(false)` của nơi gọi, không đi qua câu hỏi này.
  *
- * Rộng hơn mặc định `max-w-md` của `Sheet`: hai ô ngày giờ đứng cạnh nhau và
- * ô chọn lớp cần đủ chỗ cho tên lớp dài.
+ * Bề rộng `lg` của `Sheet`: hai ô ngày giờ đứng cạnh nhau và ô chọn lớp cần đủ chỗ cho
+ * tên lớp dài.
  */
 export function ExamFormSheet(props: {
   readonly open: boolean;
@@ -66,15 +65,9 @@ export function ExamFormSheet(props: {
           }
           requestClose();
         }}
-        side="right"
       >
-        {/* Không có `SheetDescription`: câu dẫn nằm ở từng bước. `undefined` tường minh tắt cảnh báo của Radix. */}
-        <SheetContent
-          closeLabel={t('admin.exams.form.close')}
-          className="max-w-2xl gap-6 md:p-8"
-          aria-describedby={undefined}
-        >
-          <SheetTitle className="pr-10">{props.title}</SheetTitle>
+        {/* Không có mô tả: câu dẫn nằm ở từng bước của form. */}
+        <SheetContent title={props.title} closeLabel={t('admin.exams.form.close')} width="lg">
           <ExamForm
             initial={props.initial}
             attemptCount={props.attemptCount}
@@ -87,22 +80,11 @@ export function ExamFormSheet(props: {
           />
         </SheetContent>
       </Sheet>
-      <ConfirmDialog
-        open={askDiscard}
-        onOpenChange={setAskDiscard}
-        title={t('admin.exams.form.discard-title')}
-        body={t('admin.exams.form.discard-body')}
-        loss={null}
-        blockedReason={null}
-        error={null}
-        confirmLabel={t('admin.exams.form.discard-confirm')}
-        confirming={false}
-        onConfirm={() => {
+      <ConfirmDialog open={askDiscard} onOpenChange={setAskDiscard} title={t('admin.exams.form.discard-title')} body={t('admin.exams.form.discard-body')} loss={null} blockedReason={null} error={null} confirmLabel={t('admin.exams.form.discard-confirm')} cancelLabel={t('common.action.cancel')} confirming={false} onConfirm={() => {
           setAskDiscard(false);
           setDirty(false);
           onOpenChange(false);
-        }}
-      />
+        }} />
     </>
   );
 }

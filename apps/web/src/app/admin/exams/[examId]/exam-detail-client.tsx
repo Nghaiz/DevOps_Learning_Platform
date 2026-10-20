@@ -3,24 +3,9 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useState, type ReactElement, type ReactNode } from 'react';
-import { Download, Pencil } from 'lucide-react';
 import type { inferRouterOutputs } from '@trpc/server';
 import { err, t } from '@devops-platform/copy';
-import {
-  Badge,
-  Button,
-  EmptyState,
-  ErrorState,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-  useToast,
-} from '@devops-platform/ui';
 import type { AppRouter } from '../../../../server/trpc/routers/app-router';
-import { Split } from '../../../../components/kit';
 import { api } from '../../../../lib/trpc-react';
 import { describeTrpcError } from '../../../../lib/trpc';
 import { formatDay, formatMoment } from '../../../../lib/format-moment';
@@ -30,7 +15,6 @@ import {
   DetailError,
   LedgerSkeleton,
 } from '../../../../components/admin/admin-page';
-import { ConfirmDialog } from '../../../../components/kit/confirm-dialog';
 import { ExamFormSheet, useSheetServerError } from '../../../../components/admin/exam-form-sheet';
 import { ExamStateBadge } from '../../../../components/admin/exam-state-badge';
 import {
@@ -39,6 +23,7 @@ import {
   examWindowState,
   type ExamComposeInput,
 } from '../../../../components/admin/exam-form-model';
+import { Button, ConfirmDialog, Empty, ErrorBlock, Pill, Section, Table, TBody, TD, TH, THead, TR, toast } from '@devops-platform/ds';
 
 type Exam = inferRouterOutputs<AppRouter>['exams']['get'];
 
@@ -50,13 +35,13 @@ const CSV_REVOKE_DELAY_MS = 30_000;
  *
  * ## Lỗi cũ mà trang này sửa
  *
- * · Trang chỉ hiện TÊN kỳ thi, dù `exams.get` trả đủ cửa sổ thi, thời lượng,
+ * - Trang chỉ hiện TÊN kỳ thi, dù `exams.get` trả đủ cửa sổ thi, thời lượng,
  *   lớp, cách sinh đề và danh sách bài. Người chấm phải mở lại form ở đâu đó
  *   để biết đề có những bài nào.
- * · `exams.update` và `exams.remove` có sẵn ở máy chủ mà giao diện không gọi.
- * · `download()` không bắt lỗi: một lượt `scoreboardCsv` hỏng là một promise
+ * - `exams.update` và `exams.remove` có sẵn ở máy chủ mà giao diện không gọi.
+ * - `download()` không bắt lỗi: một lượt `scoreboardCsv` hỏng là một promise
  *   bị từ chối không ai nghe, nút bấm không có phản hồi nào.
- * · Hai query chờ nhau: bảng điểm lỗi thì cả trang thành một khối lỗi. Nay
+ * - Hai query chờ nhau: bảng điểm lỗi thì cả trang thành một khối lỗi. Nay
  *   thông tin và bảng điểm đọc độc lập, mỗi phần tự báo lỗi của mình.
  *
  * ## CSV tải qua Blob, không qua một route riêng
@@ -76,7 +61,7 @@ export function AdminExamDetailClient({ examId }: { readonly examId: string }): 
         crumbs={[{ href: '/admin/exams', label: t('admin.exams.title') }]}
         title={t('admin.exams.detail-title')}
       >
-        <div className="pt-10">
+        <div>
           {exam.isPending ? (
             <LedgerSkeleton rows={4} />
           ) : (
@@ -108,25 +93,23 @@ function ExamDetail({ exam }: { readonly exam: Exam }): ReactElement {
       actions={
         <>
           <CsvButton examId={exam.id} />
-          <Button variant="outline" onClick={() => setEditing(true)} iconLeft={<Pencil aria-hidden="true" />}>
+          <Button variant="secondary" onClick={() => setEditing(true)} icon="edit">
             {t('admin.exams.edit')}
           </Button>
-          <Button variant="destructive" onClick={() => setRemoving(true)}>
+          <Button variant="danger" icon="trash" onClick={() => setRemoving(true)}>
             {t('admin.exams.remove')}
           </Button>
         </>
       }
     >
-      <Split index="01" title={t('admin.exams.info-title')}>
-        <ExamFacts exam={exam} />
-      </Split>
-      <Split
-        index="02"
-        title={t('admin.exams.scoreboard-title')}
-        aside={t('admin.exams.scoreboard-description')}
-      >
-        <ExamScoreboard examId={exam.id} />
-      </Split>
+      <div className="flex flex-col gap-14">
+        <Section title={t('admin.exams.info-title')} icon="info">
+          <ExamFacts exam={exam} />
+        </Section>
+        <Section title={t('admin.exams.scoreboard-title')} description={t('admin.exams.scoreboard-description')} icon="award">
+          <ExamScoreboard examId={exam.id} />
+        </Section>
+      </div>
 
       <EditExamSheet exam={exam} open={editing} onOpenChange={setEditing} />
       <RemoveExamDialog exam={exam} open={removing} onOpenChange={setRemoving} />
@@ -140,23 +123,23 @@ function ExamFacts({ exam }: { readonly exam: Exam }): ReactElement {
       <Fact label={t('admin.exams.field.class')}>
         <Link
           href={`/admin/classes/${exam.classId}`}
-          className="font-semibold text-brand underline-offset-4 hover:underline"
+          className="font-medium text-acc-ink underline-offset-4 hover:underline"
         >
           {exam.className}
         </Link>
       </Fact>
       <Fact label={t('admin.exams.field.window')}>
-        <span className="font-mono text-sm">{describeExamWindow(exam, formatMoment)}</span>
+        <span className="text-sm tabular-nums">{describeExamWindow(exam, formatMoment)}</span>
       </Fact>
       <Fact label={t('admin.exams.field.duration')}>
-        <span className="font-mono text-sm">{t('admin.exams.minutes', { minutes: exam.durationMinutes })}</span>
+        <span className="text-sm tabular-nums">{t('admin.exams.minutes', { minutes: exam.durationMinutes })}</span>
       </Fact>
       <Fact label={t('admin.exams.field.strategy')}>
         {exam.seedStrategy === 'fixed' ? t('admin.exams.strategy-fixed') : t('admin.exams.strategy-per-student')}
       </Fact>
       <Fact label={t('admin.exams.field.problems')}>
         <div className="flex flex-col gap-2">
-          <span className="text-sm text-muted-foreground">
+          <span className="text-sm text-ink-2">
             {t('admin.exams.problems-count', { count: exam.problemCodes.length })}
           </span>
           <ol className="flex flex-wrap gap-2">
@@ -164,9 +147,9 @@ function ExamFacts({ exam }: { readonly exam: Exam }): ReactElement {
               <li key={code}>
                 <Link
                   href={`/problems/${encodeURIComponent(code)}`}
-                  className="flex h-8 items-center gap-2 border border-border bg-card px-2.5 font-mono text-xs transition-colors hover:border-ink hover:bg-muted"
+                  className="flex h-8 items-center gap-2 rounded-full border border-rule-2 bg-paper px-3 font-mono text-xs transition-colors hover:border-acc-mid hover:bg-acc-wash"
                 >
-                  <span className="text-muted-foreground tabular-nums">{String(index + 1).padStart(2, '0')}</span>
+                  <span className="font-sans text-ink-3 tabular-nums">{index + 1}</span>
                   {code}
                 </Link>
               </li>
@@ -175,10 +158,10 @@ function ExamFacts({ exam }: { readonly exam: Exam }): ReactElement {
         </div>
       </Fact>
       <Fact label={t('admin.exams.field.attempts')}>
-        <span className="font-mono text-sm">{t('admin.exams.attempts', { count: exam.attemptCount })}</span>
+        <span className="text-sm tabular-nums">{t('admin.exams.attempts', { count: exam.attemptCount })}</span>
       </Fact>
       <Fact label={t('admin.exams.field.created')}>
-        <span className="font-mono text-sm">{formatDay(exam.createdAt)}</span>
+        <span className="text-sm tabular-nums">{formatDay(exam.createdAt)}</span>
       </Fact>
     </dl>
   );
@@ -187,15 +170,14 @@ function ExamFacts({ exam }: { readonly exam: Exam }): ReactElement {
 function Fact({ label, children }: { readonly label: string; readonly children: ReactNode }): ReactElement {
   return (
     <>
-      <dt className="type-label pt-0.5 text-muted-foreground">{label}</dt>
-      <dd className="min-w-0 text-foreground">{children}</dd>
+      <dt className="pt-0.5 text-sm text-ink-3">{label}</dt>
+      <dd className="min-w-0 text-ink">{children}</dd>
     </>
   );
 }
 
 function CsvButton({ examId }: { readonly examId: string }): ReactElement {
   const utils = api.useUtils();
-  const { toast } = useToast();
   const [busy, setBusy] = useState(false);
 
   const download = useCallback(async () => {
@@ -218,21 +200,21 @@ function CsvButton({ examId }: { readonly examId: string }): ReactElement {
       // blob. Không thu hồi thì object URL giữ cả file trong bộ nhớ tab tới khi
       // tab đóng, mà người chấm tải bảng điểm nhiều lần.
       window.setTimeout(() => URL.revokeObjectURL(url), CSV_REVOKE_DELAY_MS);
-      toast({ variant: 'success', title: t('admin.exams.csv-done', { file: file.fileName }) });
+      toast.success(t('admin.exams.csv-done', { file: file.fileName }));
     } catch (error: unknown) {
       const failure = err('admin.error.exam-csv', { reason: describeTrpcError(error) });
-      toast({ variant: 'destructive', title: failure.what, description: failure.next });
+      toast.error(failure.what, { description: failure.next });
     } finally {
       setBusy(false);
     }
-  }, [examId, toast, utils]);
+  }, [examId, utils]);
 
   return (
     <Button
-      variant="outline"
+      variant="secondary"
       onClick={() => void download()}
       loading={busy}
-      iconLeft={<Download aria-hidden="true" />}
+      icon="download"
     >
       {t('admin.exams.csv-download')}
     </Button>
@@ -245,12 +227,11 @@ function EditExamSheet(props: {
   readonly onOpenChange: (open: boolean) => void;
 }): ReactElement {
   const [serverError, setServerError] = useSheetServerError(props.open);
-  const { toast } = useToast();
   const utils = api.useUtils();
 
   const update = api.exams.update.useMutation({
     onSuccess: (updated) => {
-      toast({ variant: 'success', title: t('admin.exams.updated-toast', { title: updated.title }) });
+      toast.success(t('admin.exams.updated-toast', { title: updated.title }));
       void utils.exams.get.invalidate({ examId: updated.id });
       void utils.exams.list.invalidate();
       void utils.exams.scoreboard.invalidate({ examId: updated.id });
@@ -293,13 +274,12 @@ function RemoveExamDialog(props: {
   readonly onOpenChange: (open: boolean) => void;
 }): ReactElement {
   const [serverError, setServerError] = useState<string | null>(null);
-  const { toast } = useToast();
   const utils = api.useUtils();
   const router = useRouter();
 
   const remove = api.exams.remove.useMutation({
     onSuccess: () => {
-      toast({ variant: 'success', title: t('admin.exams.removed-toast', { title: props.exam.title }) });
+      toast.success(t('admin.exams.removed-toast', { title: props.exam.title }));
       void utils.exams.list.invalidate();
       void utils.admin.audit.list.invalidate();
       props.onOpenChange(false);
@@ -331,6 +311,7 @@ function RemoveExamDialog(props: {
       blockedReason={null}
       error={serverError}
       confirmLabel={t('admin.exams.remove-confirm')}
+      cancelLabel={t('common.action.cancel')}
       confirming={remove.isPending}
       onConfirm={() => remove.mutate({ examId: props.exam.id })}
     />
@@ -346,13 +327,7 @@ function ExamScoreboard({ examId }: { readonly examId: string }): ReactElement {
   if (board.isError) {
     const failure = err('admin.error.exam-scoreboard', { reason: describeTrpcError(board.error) });
     return (
-      <ErrorState
-        title={failure.what}
-        message={failure.next}
-        onRetry={() => void board.refetch()}
-        retrying={board.isFetching}
-        retryLabel={t('admin.reload')}
-      />
+      <ErrorBlock title={failure.what} onRetry={() => void board.refetch()} retrying={board.isFetching} retryLabel={t('admin.reload')}>{failure.next}</ErrorBlock>
     );
   }
 
@@ -361,41 +336,39 @@ function ExamScoreboard({ examId }: { readonly examId: string }): ReactElement {
     <div className="flex flex-col gap-4">
       <AdminNote>{t('admin.exams.csv-note')}</AdminNote>
       {data.rows.length === 0 ? (
-        <EmptyState title={t('admin.exams.sb-empty-title')} description={t('admin.exams.sb-empty-body')} />
+        <Empty title={t('admin.exams.sb-empty-title')}>{t('admin.exams.sb-empty-body')}</Empty>
       ) : (
         // Mỗi bài MỘT cột: lọc theo bài là việc người chấm làm nhiều nhất ("ai
         // chưa qua bài 3?"). `Table` tự cuộn ngang trong khối của nó.
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead scope="col">{t('admin.exams.sb-col-name')}</TableHead>
-              <TableHead scope="col">{t('admin.exams.sb-col-started')}</TableHead>
-              <TableHead scope="col">{t('admin.exams.sb-col-submitted')}</TableHead>
-              <TableHead scope="col">{t('admin.exams.sb-col-auto')}</TableHead>
+        <Table label={t('admin.exams.scoreboard-title')}>
+          <THead>
+            <tr>
+              <TH scope="col">{t('admin.exams.sb-col-name')}</TH>
+              <TH scope="col">{t('admin.exams.sb-col-started')}</TH>
+              <TH scope="col">{t('admin.exams.sb-col-submitted')}</TH>
+              <TH scope="col">{t('admin.exams.sb-col-auto')}</TH>
               {data.problemCodes.map((code) => (
-                <TableHead key={code} scope="col" className="font-mono">
+                <TH key={code} scope="col" className="font-mono">
                   {code}
-                </TableHead>
+                </TH>
               ))}
-              <TableHead scope="col" className="text-right">
+              <TH scope="col" numeric>
                 {t('admin.exams.sb-col-solved')}
-              </TableHead>
-              <TableHead scope="col" className="text-right">
+              </TH>
+              <TH scope="col" numeric>
                 {t('admin.exams.sb-col-cases')}
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
+              </TH>
+            </tr>
+          </THead>
+          <TBody>
             {data.rows.map((row) => (
-              <TableRow key={row.userId}>
-                <TableHead scope="row" className="text-left font-semibold text-foreground">
-                  {row.name}
-                </TableHead>
-                <TableCell className="font-mono text-xs">{formatMoment(row.startedAt)}</TableCell>
-                <TableCell className="font-mono text-xs">
+              <TR key={row.userId}>
+                <TD className="font-medium text-ink">{row.name}</TD>
+                <TD className="whitespace-nowrap text-xs tabular-nums">{formatMoment(row.startedAt)}</TD>
+                <TD className="whitespace-nowrap text-xs tabular-nums">
                   {row.submittedAt === null ? t('admin.exams.sb-still-working') : formatMoment(row.submittedAt)}
-                </TableCell>
-                <TableCell>
+                </TD>
+                <TD>
                   {/*
                     BA trạng thái, không phải hai. `null` = lượt chưa khoá, và ô
                     trống nói đúng điều đó; ghi "Không" sẽ khẳng định người này
@@ -406,19 +379,19 @@ function ExamScoreboard({ examId }: { readonly examId: string }): ReactElement {
                     : row.autoSubmitted
                       ? t('admin.exams.auto-yes')
                       : t('admin.exams.auto-no')}
-                </TableCell>
+                </TD>
                 {row.cells.map((cell) => (
-                  <TableCell key={cell.problemCode}>
+                  <TD key={cell.problemCode}>
                     <VerdictBadge cell={cell} />
-                  </TableCell>
+                  </TD>
                 ))}
-                <TableCell className="text-right font-mono tabular-nums">{row.solvedCount}</TableCell>
-                <TableCell className="text-right font-mono tabular-nums">
+                <TD numeric>{row.solvedCount}</TD>
+                <TD numeric>
                   {row.passedTotal}/{row.caseTotal}
-                </TableCell>
-              </TableRow>
+                </TD>
+              </TR>
             ))}
-          </TableBody>
+          </TBody>
         </Table>
       )}
     </div>
@@ -441,25 +414,25 @@ function VerdictBadge({
   };
 }): ReactElement {
   if (cell.passed === null || cell.total === null) {
-    return <span className="text-muted-foreground">&middot;</span>;
+    return <span className="text-ink-3">-</span>;
   }
   if (cell.failCode !== null) {
     return (
-      <Badge variant="destructive" icon={null}>
+      <Pill tone="bad">
         CE
-      </Badge>
+      </Pill>
     );
   }
   if (cell.solved) {
     return (
-      <Badge variant="success" icon={null}>
+      <Pill tone="ok" icon="check">
         AC
-      </Badge>
+      </Pill>
     );
   }
   return (
-    <Badge variant="warning" icon={null}>
+    <Pill tone="warn">
       WA ({cell.passed}/{cell.total})
-    </Badge>
+    </Pill>
   );
 }

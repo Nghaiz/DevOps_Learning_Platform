@@ -7,14 +7,14 @@
  */
 
 import { useState, type ReactElement } from 'react';
-import { Camera, Target, X } from 'lucide-react';
 
 import { t } from '@devops-platform/copy';
 import type { WorldSpec } from '@devops-platform/games';
-import { Button, Num } from '@devops-platform/ui';
+import { Num } from '@devops-platform/ui';
 
 import { BuilderStep, GIT_FILL } from './builder-step';
 import type { DraftPatch } from './draft-state';
+import { Button } from '@devops-platform/ds';
 
 /**
  * Số commit của một spec, để người soạn biết mình vừa chụp cái gì.
@@ -56,10 +56,10 @@ export function CaptureStep({
       lead={t('author.builder.lead.capture')}
     >
       <div className="flex flex-wrap gap-2">
-        <Button
+        <Button variant="primary"
           size="sm"
           className={GIT_FILL}
-          iconLeft={<Camera aria-hidden />}
+          icon="camera"
           data-testid="git-builder-set-setup"
           onClick={() => {
             patch({ setup: captureSpec() });
@@ -71,7 +71,7 @@ export function CaptureStep({
         <Button
           size="sm"
           variant="ink"
-          iconLeft={<Target aria-hidden />}
+          icon="target"
           data-testid="git-builder-set-target"
           onClick={() => {
             patch({ target: captureSpec() });
@@ -83,7 +83,7 @@ export function CaptureStep({
         <Button
           size="sm"
           variant="ghost"
-          iconLeft={<X aria-hidden />}
+          icon="close"
           disabled={target === null}
           onClick={() => {
             patch({ target: null });
@@ -95,19 +95,19 @@ export function CaptureStep({
 
       <dl
         data-testid="git-builder-capture-state"
-        className="divide-y divide-border border-y border-border"
+        className="divide-y divide-rule border-y border-rule"
       >
         <div className="flex items-baseline justify-between gap-3 py-2.5">
-          <dt className="type-label text-muted-foreground">{t('author.builder.capture.setup')}</dt>
-          <dd key={`setup-${String(shots.setup)}`} className="animate-rise text-sm">
+          <dt className="text-xs font-medium text-ink-3">{t('author.builder.capture.setup')}</dt>
+          <dd key={`setup-${String(shots.setup)}`} className="animate-enter text-sm">
             <Num>{countCommits(setup)}</Num> {t('author.builder.capture.unit')}
           </dd>
         </div>
         <div className="flex items-baseline justify-between gap-3 py-2.5">
-          <dt className="type-label text-muted-foreground">{t('author.builder.capture.target')}</dt>
-          <dd key={`target-${String(shots.target)}`} className="animate-rise text-sm">
+          <dt className="text-xs font-medium text-ink-3">{t('author.builder.capture.target')}</dt>
+          <dd key={`target-${String(shots.target)}`} className="animate-enter text-sm">
             {target === null ? (
-              <span className="text-muted-foreground">{t('author.builder.capture.unset')}</span>
+              <span className="text-ink-2">{t('author.builder.capture.unset')}</span>
             ) : (
               <>
                 <Num tone="git">{countCommits(target)}</Num> {t('author.builder.capture.unit')}

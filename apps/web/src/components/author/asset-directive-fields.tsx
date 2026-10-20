@@ -2,10 +2,9 @@
 
 import { t } from '@devops-platform/copy';
 import { useId, type CSSProperties, type ReactElement } from 'react';
-import { FileInput, Plus, Trash2 } from 'lucide-react';
-import { Alert, AlertDescription, Button } from '@devops-platform/ui';
 import type { AssetDirectiveFormState, FieldIssue } from './draft-form';
 import { TextField, issueFor } from './field';
+import { Button, Icon, Notice } from '@devops-platform/ds';
 
 /**
  * `ScenarioAsset[]`: chỉ thị CHÉP FILE VÀO POD lúc dựng sandbox.
@@ -37,15 +36,13 @@ export function AssetDirectiveFields(props: {
 
   return (
     <div className="flex flex-col gap-6">
-      <Alert>
-        <AlertDescription>
+      <Notice tone="info">
           {t('author.asset-directive-fields-khoi-nay-khong-tai-tep-len-no-khai-mot-file')}
-        </AlertDescription>
-      </Alert>
+        </Notice>
 
       {value.length === 0 ? (
-        <p className="flex items-center gap-2 text-sm text-muted-foreground">
-          <FileInput aria-hidden className="size-4 shrink-0" />
+        <p className="flex items-center gap-2 text-sm text-ink-2">
+          <Icon name="upload" size={16} className="shrink-0" />
           {t('author.asset-directive-fields-chua-co-chi-thi')}
         </p>
       ) : (
@@ -70,7 +67,7 @@ export function AssetDirectiveFields(props: {
       )}
 
       <div>
-        <Button variant="outline" iconLeft={<Plus aria-hidden />} onClick={props.onAdd} disabled={disabled}>
+        <Button variant="secondary" icon="plus" onClick={props.onAdd} disabled={disabled}>
           {t('author.asset-directive-fields-them-chi-thi')}
         </Button>
       </div>
@@ -93,18 +90,18 @@ function DirectiveRow(props: {
   return (
     <section
       aria-labelledby={headingId}
-      className="stagger animate-rise border-t border-border py-5"
+      className="animate-enter border-t border-rule py-5"
       style={{ '--i': index } as CSSProperties}
     >
       <div className="mb-4 flex items-center justify-between gap-3">
-        <h3 id={headingId} className="flex items-center gap-2 font-mono text-xs font-medium tracking-wide text-line-cicd-ink">
-          <span aria-hidden className="size-2.5 bg-line-cicd" />
+        <h3 id={headingId} className="flex items-center gap-2 font-mono text-xs font-medium tracking-wide text-acc-ink">
+          <span aria-hidden className="size-2.5 bg-acc-solid" />
           {t('author.asset-directive-fields-chi-thi')} {index + 1}
         </h3>
         <Button
-          variant="destructive"
+          variant="danger"
           size="sm"
-          iconLeft={<Trash2 aria-hidden />}
+          icon="trash"
           disabled={disabled}
           onClick={props.onRemove}
         >

@@ -2,12 +2,12 @@
 
 import type { ReactElement } from 'react';
 import { t } from '@devops-platform/copy';
-import { Switch } from '@devops-platform/ui';
 import { Field, issueFor } from '../../../components/author/field';
 import { CheckTile, CheckTileGroup } from './check-tile';
 import type { FieldIssue } from './cluster-form';
 import type { ProblemFormState } from './problem-form';
 import { RESOURCE_KINDS } from './vocabulary';
+import { Switch } from '@devops-platform/ds';
 
 /**
  * Giới hạn loại tài nguyên người làm được tạo: cách kiểm soát nhịp của một bài.

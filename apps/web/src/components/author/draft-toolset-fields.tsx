@@ -2,8 +2,6 @@
 
 import { t } from '@devops-platform/copy';
 import { useId, type ReactElement, type ReactNode } from 'react';
-import { CircleAlert } from 'lucide-react';
-import { Checkbox, Label } from '@devops-platform/ui';
 import {
   SANDBOX_TOOLS,
   SCENARIO_CAPABILITIES,
@@ -11,6 +9,7 @@ import {
   type ScenarioCapability,
 } from '@devops-platform/shared-types/scenario';
 import { fieldPathProps } from './studio/field-anchor';
+import { Checkbox, Icon, Label } from '@devops-platform/ds';
 
 /**
  * Hai nhóm chọn NHIỀU của mục Sandbox: bộ công cụ cài thêm và capability.
@@ -40,7 +39,7 @@ const TOOL_DESCRIPTIONS: Readonly<Record<SandboxTool, string>> = {
   yq: t('author.draft-meta-fields-doc-va-sua-yaml-json-tu-dong-lenh-hay-dung-voi-manifest-kubernetes'),
 };
 
-const CHECKED_TINT = 'has-[[data-state=checked]]:bg-line-cicd/12';
+const CHECKED_TINT = 'has-[[data-state=checked]]:bg-acc-wash';
 
 function toggled<T>(list: readonly T[], item: T, checked: boolean): readonly T[] {
   return checked ? [...list, item] : list.filter((entry) => entry !== item);
@@ -60,13 +59,13 @@ export function ToolsetGroup(props: {
       hint={t('author.draft-meta-fields-mac-dinh-khong-bat-gi-sandbox-da-co-san-bo-lenh-thuong-dung-chi-chon-thu-no')}
       error={props.error}
     >
-      <div className="grid gap-px border border-border bg-border @xl:grid-cols-2">
+      <div className="grid gap-px border border-rule bg-rule @xl:grid-cols-2">
         {SANDBOX_TOOLS.map((tool) => {
           const boxId = `${id}-${tool}`;
           return (
             <div
               key={tool}
-              className={`relative flex items-start gap-3 bg-background px-3 py-3 transition-colors duration-150 hover:bg-muted ${CHECKED_TINT}`}
+              className={`relative flex items-start gap-3 bg-canvas px-3 py-3 transition-colors duration-150 hover:bg-well ${CHECKED_TINT}`}
             >
               <Checkbox
                 id={boxId}
@@ -82,7 +81,7 @@ export function ToolsetGroup(props: {
                 <Label htmlFor={boxId} className="font-mono text-sm font-medium after:absolute after:inset-0">
                   {tool}
                 </Label>
-                <p id={`${boxId}-hint`} className="text-xs leading-relaxed text-muted-foreground">
+                <p id={`${boxId}-hint`} className="text-xs leading-relaxed text-ink-2">
                   {TOOL_DESCRIPTIONS[tool]}
                 </p>
               </div>
@@ -108,7 +107,7 @@ export function CapabilityGroup(props: {
       hint={
         <>
           {t('author.draft-meta-fields-chon-thieu-thi-nguoi-hoc-gap')}{' '}
-          <code className="font-mono text-foreground">{t('author.draft-meta-fields-command-not-found')}</code>{' '}
+          <code className="font-mono text-ink">{t('author.draft-meta-fields-command-not-found')}</code>{' '}
           {t('author.draft-meta-fields-giua-bai-chon-thua-thi-bai-chiem-mot-sandbox-nang-hon-muc-can')}
         </>
       }
@@ -120,7 +119,7 @@ export function CapabilityGroup(props: {
           return (
             <div
               key={capability}
-              className={`relative flex h-10 items-center gap-2 border border-border px-3 transition-colors duration-150 hover:border-ink has-[[data-state=checked]]:border-line-cicd ${CHECKED_TINT}`}
+              className={`relative flex h-10 items-center gap-2 border border-rule px-3 transition-colors duration-150 hover:border-rule-2 has-[[data-state=checked]]:border-acc-mid ${CHECKED_TINT}`}
             >
               <Checkbox
                 id={boxId}
@@ -158,14 +157,14 @@ function ChoiceGroup(props: {
       aria-describedby={props.error == null ? hintId : `${hintId} ${errorId}`}
       {...fieldPathProps(props.path)}
     >
-      <legend className="mb-1 text-[13px] font-semibold text-foreground">{props.legend}</legend>
-      <p id={hintId} className="text-xs leading-relaxed text-muted-foreground">
+      <legend className="mb-1 text-[13px] font-semibold text-ink">{props.legend}</legend>
+      <p id={hintId} className="text-xs leading-relaxed text-ink-2">
         {props.hint}
       </p>
       <div className="pt-1">{props.children}</div>
       {props.error != null && (
-        <p id={errorId} className="flex animate-rise items-start gap-1.5 text-xs font-medium text-destructive">
-          <CircleAlert aria-hidden className="mt-px size-3.5 shrink-0" />
+        <p id={errorId} className="flex animate-enter items-start gap-1.5 text-xs font-medium text-bad-ink">
+          <Icon name="warning" size={14} className="mt-px shrink-0" />
           <span>{props.error}</span>
         </p>
       )}

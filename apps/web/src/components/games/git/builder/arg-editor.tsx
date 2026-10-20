@@ -19,12 +19,12 @@
  */
 
 import type { ReactElement } from 'react';
-import { TriangleAlert } from 'lucide-react';
 
 import { t } from '@devops-platform/copy';
 import { PREDICATE_ARGS, missingArgs, type GitObjective } from '@devops-platform/games';
 
 import { AreaField, CheckField, TextField } from './builder-fields';
+import { Icon } from '@devops-platform/ds';
 
 export interface ArgEditorProps {
   /** Tiền tố id ổn định của dòng mục tiêu, để id ô không đổi khi xoá dòng khác. */
@@ -41,7 +41,7 @@ export function ArgEditor({ idPrefix, index, objective, onChange }: ArgEditorPro
 
   if (specs.length === 0) {
     return (
-      <p className="text-xs leading-relaxed text-muted-foreground">
+      <p className="text-xs leading-relaxed text-ink-2">
         {objective.check === 'graphShapeMatches'
           ? t('author.builder.objective.no-args-graph')
           : t('author.builder.objective.no-args')}
@@ -54,7 +54,7 @@ export function ArgEditor({ idPrefix, index, objective, onChange }: ArgEditorPro
   };
 
   return (
-    <div className="flex flex-col gap-3 bg-muted p-3">
+    <div className="flex flex-col gap-3 bg-well p-3">
       {specs.map((spec) => {
         const id = `${idPrefix}-arg-${spec.name}`;
         const raw = objective.args?.[spec.name];
@@ -115,10 +115,10 @@ export function ArgEditor({ idPrefix, index, objective, onChange }: ArgEditorPro
       })}
       {missing.length > 0 && (
         <p
-          className="flex animate-rise gap-2 text-xs leading-relaxed text-destructive"
+          className="flex animate-enter gap-2 text-xs leading-relaxed text-bad-ink"
           data-testid={`git-builder-missing-arg-${String(index)}`}
         >
-          <TriangleAlert aria-hidden className="mt-0.5 size-3.5 shrink-0" />
+          <Icon name="warning" size={14} className="mt-0.5 shrink-0" />
           <span>{t('author.builder.objective.missing', { names: missing.join(', ') })}</span>
         </p>
       )}

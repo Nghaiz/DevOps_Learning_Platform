@@ -14,9 +14,8 @@
  */
 
 import { useState, type ReactElement } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { Checkbox, cn, Icon, Input, Label, Textarea } from '@devops-platform/ds';
 
-import { Checkbox, Input, Label, Textarea, cn } from '@devops-platform/ui';
 
 interface FieldBase {
   readonly id: string;
@@ -39,7 +38,7 @@ function FieldHint({
 }) {
   if (id === undefined || text === undefined) return null;
   return (
-    <p id={id} className="text-xs leading-relaxed text-muted-foreground">
+    <p id={id} className="text-xs leading-relaxed text-ink-2">
       {text}
     </p>
   );
@@ -206,9 +205,9 @@ export function SelectField({
             onChange(e.target.value);
           }}
           className={cn(
-            'h-10 w-full appearance-none rounded-none border border-input bg-card pr-9 pl-3 text-base text-foreground sm:text-sm',
-            'outline-none transition-colors duration-[var(--motion-fast)] ease-out hover:border-ink',
-            'focus-visible:border-ink focus-visible:ring-2 focus-visible:ring-ring',
+            'h-10 w-full appearance-none rounded-none border border-rule-2 bg-paper pr-9 pl-3 text-base text-ink sm:text-sm',
+            'outline-none transition-colors duration-[var(--motion-fast)] ease-out hover:border-rule-2',
+            'focus-visible:border-rule-2 focus-visible:outline-2 focus-visible:outline-focus',
             mono === true && 'font-mono',
           )}
         >
@@ -218,10 +217,7 @@ export function SelectField({
             </option>
           ))}
         </select>
-        <ChevronDown
-          aria-hidden
-          className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-muted-foreground"
-        />
+        <Icon name="chevron-down" size={16} className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-ink-2" />
       </div>
       <FieldHint id={hintId} text={hint} />
     </div>

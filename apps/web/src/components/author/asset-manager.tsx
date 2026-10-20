@@ -2,13 +2,12 @@
 
 import { t } from '@devops-platform/copy';
 import { useId, useRef, useState, type ReactElement } from 'react';
-import { ImageUp } from 'lucide-react';
-import { Alert, AlertDescription, AlertTitle, Button, useToast } from '@devops-platform/ui';
 import { CONTENT_ASSET_TYPES, MAX_CONTENT_ASSET_BYTES } from '@devops-platform/shared-types/authoring';
 import { api } from '../../lib/trpc-react';
 import { describeTrpcError } from '../../lib/trpc';
 import { AssetList } from './asset-list';
 import { bytesToBase64, formatBytes, validateAssetFile } from './asset-upload';
+import { Button, Icon, Notice, toast } from '@devops-platform/ds';
 
 /**
  * Tệp đính kèm của một bài: tải lên, liệt kê, xoá.
@@ -31,7 +30,6 @@ import { bytesToBase64, formatBytes, validateAssetFile } from './asset-upload';
  * (`MAX_CONTENT_ASSET_BYTES`, `CONTENT_ASSET_TYPES`), không gõ lại "2 MB".
  */
 export function AssetManager({ contentId }: { readonly contentId: string }): ReactElement {
-  const { toast } = useToast();
   const utils = api.useUtils();
   const fileInput = useRef<HTMLInputElement>(null);
   const [localError, setLocalError] = useState<string | null>(null);
@@ -42,8 +40,7 @@ export function AssetManager({ contentId }: { readonly contentId: string }): Rea
   const upload = api.authoring.uploadAsset.useMutation({
     onSuccess: (asset) => {
       void utils.authoring.listAssets.invalidate();
-      toast({
-        title: t('author.asset-manager-da-tai-len'),
+      toast.success(t('author.asset-manager-da-tai-len'), {
         description: t('author.asset-manager-dan-doan-markdown-o-bang-duoi-de-nhung', {
           assetFilename: String(asset.filename),
         }),
@@ -57,7 +54,7 @@ export function AssetManager({ contentId }: { readonly contentId: string }): Rea
   const remove = api.authoring.deleteAsset.useMutation({
     onSuccess: () => {
       void utils.authoring.listAssets.invalidate();
-      toast({ title: t('author.asset-manager-da-xoa-tep') });
+      toast.success(t('author.asset-manager-da-xoa-tep'));
     },
     onError: (error) => {
       setLocalError(describeTrpcError(error));
@@ -85,23 +82,23 @@ export function AssetManager({ contentId }: { readonly contentId: string }): Rea
     <div className="flex flex-col gap-8">
       <section
         aria-labelledby={titleId}
-        className="relative isolate grid animate-rise gap-5 overflow-hidden border border-ink bg-card p-5 md:grid-cols-[auto_minmax(0,1fr)_auto] md:items-center md:p-6"
+        className="relative isolate grid animate-enter gap-5 overflow-hidden border border-rule-2 bg-paper p-5 md:grid-cols-[auto_minmax(0,1fr)_auto] md:items-center md:p-6"
       >
-        <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 bg-dots text-line-cicd opacity-20" />
-        <span aria-hidden className="grid size-12 place-items-center bg-line-cicd text-line-cicd-foreground">
-          <ImageUp className="size-6" />
+        <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 bg-dots text-acc-ink opacity-20" />
+        <span aria-hidden className="grid size-12 place-items-center bg-acc-solid text-on-solid">
+          <Icon name="upload" size={24} />
         </span>
         <div className="flex min-w-0 flex-col gap-1">
-          <h2 id={titleId} className="type-title">
+          <h2 id={titleId} className="font-display text-lg font-semibold text-ink">
             {t('author.asset-manager-anh-nhung-trong-noi-dung-bai')}
           </h2>
-          <p className="text-sm text-foreground">
+          <p className="text-sm text-ink">
             {t('author.asset-manager-dinh-dang-va-tran', {
               types: accepted.join(', '),
               max: formatBytes(MAX_CONTENT_ASSET_BYTES),
             })}
           </p>
-          <p className="text-xs leading-relaxed text-muted-foreground">
+          <p className="text-xs leading-relaxed text-ink-2">
             {t('author.asset-manager-khong-phai-khoi-chep-file-vao-pod')}
           </p>
         </div>
@@ -124,8 +121,9 @@ export function AssetManager({ contentId }: { readonly contentId: string }): Rea
           }}
         />
         <Button
+          variant="primary"
           loading={upload.isPending}
-          iconLeft={<ImageUp aria-hidden />}
+          icon="upload"
           onClick={() => {
             fileInput.current?.click();
           }}
@@ -135,10 +133,7 @@ export function AssetManager({ contentId }: { readonly contentId: string }): Rea
       </section>
 
       {localError !== null && (
-        <Alert variant="destructive" className="animate-rise">
-          <AlertTitle>{t('author.asset-manager-khong-tai-len-duoc')}</AlertTitle>
-          <AlertDescription>{localError}</AlertDescription>
-        </Alert>
+        <Notice tone="bad" title={t('author.asset-manager-khong-tai-len-duoc')} className="animate-enter">{localError}</Notice>
       )}
 
       <AssetList

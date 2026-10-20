@@ -3,11 +3,10 @@
 import { useId, useMemo, useState, type ReactElement } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getQueryKey } from '@trpc/react-query';
-import { Check } from 'lucide-react';
 import { err, t } from '@devops-platform/copy';
-import { Button, Input, Label, Skeleton, cn } from '@devops-platform/ui';
 import { api } from '../../lib/trpc-react';
 import { describeTrpcError } from '../../lib/trpc';
+import { Button, cn, Icon, Input, Label, Skeleton } from '@devops-platform/ds';
 
 /**
  * Ô chọn lớp của form ra đề: TÌM được, và đọc HẾT các trang của `classes.list`.
@@ -90,7 +89,7 @@ export function ClassPicker(props: {
 
   return (
     <fieldset className="flex flex-col gap-2" aria-describedby={props.error === undefined ? undefined : errorId}>
-      <legend className="text-sm font-semibold text-foreground">{t('admin.exams.form.class-label')}</legend>
+      <legend className="text-sm font-medium text-ink">{t('admin.exams.form.class-label')}</legend>
 
       <Label htmlFor={props.inputId} className="sr-only">
         {t('admin.exams.form.class-search')}
@@ -107,19 +106,19 @@ export function ClassPicker(props: {
 
       {all.isPending ? (
         <div className="flex flex-col gap-1" aria-busy="true">
-          <p className="text-xs text-muted-foreground">{t('admin.exams.form.class-loading')}</p>
+          <p className="text-xs text-ink-2">{t('admin.exams.form.class-loading')}</p>
           <Skeleton className="h-10 w-full" />
           <Skeleton className="h-10 w-full" />
         </div>
       ) : all.isError ? (
         <ClassesError reason={describeTrpcError(all.error)} onRetry={() => void all.refetch()} retrying={all.isFetching} />
       ) : items.length === 0 ? (
-        <p className="text-sm text-muted-foreground">{t('admin.exams.form.class-none')}</p>
+        <p className="text-sm text-ink-2">{t('admin.exams.form.class-none')}</p>
       ) : (
         <>
-          <div id={listId} className={cn('overflow-y-auto border border-border bg-card', VISIBLE_ROWS_CLASS)}>
+          <div id={listId} className={cn('overflow-y-auto rounded-md border border-rule-2 bg-paper', VISIBLE_ROWS_CLASS)}>
             {matches.length === 0 ? (
-              <p className="p-3 text-sm text-muted-foreground">
+              <p className="p-3 text-sm text-ink-2">
                 {t('admin.exams.form.class-no-match', { query: query.trim() })}
               </p>
             ) : (
@@ -129,10 +128,10 @@ export function ClassPicker(props: {
                   <label
                     key={item.id}
                     className={cn(
-                      'flex cursor-pointer items-center gap-3 border-b border-border px-3 py-2.5 text-sm last:border-b-0',
-                      'transition-colors duration-(--motion-fast)',
-                      selected ? 'bg-ink text-ink-foreground' : 'hover:bg-muted',
-                      'has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-inset',
+                      'flex cursor-pointer items-center gap-3 border-b border-rule px-3 py-2.5 text-sm last:border-b-0',
+                      'transition-colors duration-150',
+                      selected ? 'bg-acc-tint text-acc-ink' : 'hover:bg-well',
+                      'has-[:focus-visible]:outline-2 has-[:focus-visible]:-outline-offset-2 has-[:focus-visible]:outline-focus',
                     )}
                   >
                     <input
@@ -144,16 +143,16 @@ export function ClassPicker(props: {
                       className="sr-only"
                     />
                     <span aria-hidden="true" className="flex size-4 items-center justify-center">
-                      {selected ? <Check className="size-4" /> : null}
+                      {selected ? <Icon name="check" size={16} /> : null}
                     </span>
                     <span className="flex-1 font-medium">{item.name}</span>
-                    <span className="font-mono text-xs opacity-70 tabular-nums">{item.memberCount}</span>
+                    <span className="text-xs tabular-nums opacity-70">{item.memberCount}</span>
                   </label>
                 );
               })
             )}
           </div>
-          <p className="font-mono text-xs text-muted-foreground">
+          <p className="text-xs text-ink-3">
             {all.data.truncated
               ? t('admin.exams.form.class-truncated', { count: items.length })
               : t('admin.exams.form.class-count', { count: items.length })}
@@ -162,10 +161,10 @@ export function ClassPicker(props: {
       )}
 
       {picked === undefined ? null : (
-        <p className="text-sm font-medium text-foreground">{t('admin.exams.form.class-picked', { name: picked.name })}</p>
+        <p className="text-sm font-medium text-ink">{t('admin.exams.form.class-picked', { name: picked.name })}</p>
       )}
       {props.error === undefined ? null : (
-        <p id={errorId} className="text-sm text-destructive">
+        <p id={errorId} className="text-sm text-bad-ink">
           {props.error}
         </p>
       )}
@@ -184,10 +183,10 @@ function ClassesError({
 }): ReactElement {
   const failure = err('admin.error.exam-classes', { reason });
   return (
-    <div role="alert" className="flex flex-col items-start gap-2 border border-destructive/40 bg-destructive/10 p-3 text-sm">
-      <p className="text-destructive">{failure.what}</p>
-      <p className="text-foreground">{failure.next}</p>
-      <Button type="button" variant="outline" size="sm" onClick={onRetry} loading={retrying}>
+    <div role="alert" className="flex flex-col items-start gap-2 rounded-md bg-bad-wash p-3 text-sm">
+      <p className="text-bad-ink">{failure.what}</p>
+      <p className="text-ink">{failure.next}</p>
+      <Button type="button" variant="secondary" size="sm" onClick={onRetry} loading={retrying}>
         {t('admin.exams.form.class-retry')}
       </Button>
     </div>

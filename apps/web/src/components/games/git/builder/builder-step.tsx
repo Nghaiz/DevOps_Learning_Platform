@@ -14,20 +14,20 @@
  */
 
 import type { CSSProperties, ReactElement, ReactNode } from 'react';
+import { cn } from '@devops-platform/ds';
 
-import { cn } from '@devops-platform/ui';
 
 /**
  * Nền cam của tuyến Git cho nút chính của một bước. Đè lên biến thể `primary`
- * của `Button`; `cn` (tailwind-merge) bỏ `bg-primary` đi nên không có hai nền.
+ * của `Button`; `cn` (tailwind-merge) bỏ `bg-acc-solid` đi nên không có hai nền.
  */
-export const GIT_FILL = 'bg-line-git text-line-git-foreground hover:brightness-95';
+export const GIT_FILL = 'bg-tp-solid text-on-solid hover:brightness-95';
 
 export type StepAccent = 'git' | 'primary';
 
 const ACCENT: Record<StepAccent, string> = {
-  git: 'bg-line-git text-line-git-foreground',
-  primary: 'bg-primary text-primary-foreground',
+  git: 'bg-tp-solid text-on-solid',
+  primary: 'bg-acc-solid text-on-solid',
 };
 
 export interface BuilderStepProps {
@@ -57,7 +57,7 @@ export function BuilderStep({
     <section
       aria-labelledby={id}
       data-testid={testId}
-      className="stagger flex animate-rise flex-col gap-4 border-t border-border pt-5"
+      className="flex animate-enter flex-col gap-4 border-t border-rule pt-5"
       style={{ '--i': index } as CSSProperties}
     >
       <header className="flex items-center gap-3">
@@ -70,12 +70,12 @@ export function BuilderStep({
         >
           {String(index).padStart(2, '0')}
         </span>
-        <h2 id={id} className="type-title min-w-0 text-foreground">
+        <h2 id={id} className="font-display text-lg font-semibold text-ink min-w-0 text-ink">
           {title}
         </h2>
       </header>
       {lead !== undefined && (
-        <p data-testid={leadTestId} className="text-sm leading-relaxed text-muted-foreground">
+        <p data-testid={leadTestId} className="text-sm leading-relaxed text-ink-2">
           {lead}
         </p>
       )}

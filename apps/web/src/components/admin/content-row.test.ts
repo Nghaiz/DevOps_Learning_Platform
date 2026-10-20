@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { CONTENT_KINDS, CONTENT_STATES } from '@devops-platform/shared-types/authoring';
 import {
   CONTENT_STATE_FILTERS,
-  contentStateVariant,
+  contentStateTone,
   describeContentKind,
   describeContentState,
   filterContentByState,
@@ -30,7 +30,7 @@ describe('nhãn nội dung', () => {
   });
 
   it('trạng thái lạ không đội lốt "đã xuất bản"', () => {
-    expect(contentStateVariant('quarantined')).not.toBe(contentStateVariant('published'));
+    expect(contentStateTone('quarantined')).not.toBe(contentStateTone('published'));
   });
 });
 

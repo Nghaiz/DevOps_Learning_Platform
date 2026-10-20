@@ -1,18 +1,16 @@
 'use client';
 
 import type { ReactElement } from 'react';
-import { Archive, CircleAlert, ScanSearch, Send } from 'lucide-react';
-import { Alert, AlertDescription, AlertTitle, Button } from '@devops-platform/ui';
 import { t } from '@devops-platform/copy';
 import type { ContentKind } from '@devops-platform/shared-types/authoring';
-import { Split } from '../kit';
-import { ConfirmDialog } from '../kit/confirm-dialog';
+import { FormBlock } from './studio';
 import type { PreviewPayload } from './draft-from-preview';
 import type { ScriptWarningView } from './script-warning';
 import type { PublishPhase } from './publish-machine';
 import { trialPlanFor } from './trial-plan';
 import { CheckReport, PhaseReport } from './publish-reports';
 import { TrialReport } from './publish-trial';
+import { Button, ConfirmDialog, Icon, Notice } from '@devops-platform/ds';
 
 export interface PublishCheckResult {
   readonly issues: readonly { path: string; message: string }[];
@@ -24,7 +22,7 @@ export interface PublishCheckResult {
 /**
  * Chế độ Xuất bản của trình soạn bài học/lab/sân chơi.
  *
- * Bốn khối đánh số: kiểm tra trước, chạy thử rồi xuất bản, kết quả chạy thử, lưu
+ * Bốn khối: kiểm tra trước, chạy thử rồi xuất bản, kết quả chạy thử, lưu
  * trữ. Lỗi của từng nút hiện NGAY CẠNH nút đó: bản cũ đẩy lỗi xuất bản và lỗi lưu
  * trữ vào khối của tab Soạn, nên người bấm ở tab này không thấy gì xảy ra.
  *
@@ -61,26 +59,23 @@ export function PublishPanel(props: {
   return (
     <div className="flex flex-col gap-12">
       {props.saveFirst && (
-        <Alert variant="warning">
-          <AlertTitle>{t('author.studio.publish.save-first.title')}</AlertTitle>
-          <AlertDescription>{t('author.studio.publish.save-first.body')}</AlertDescription>
-        </Alert>
+        <Notice tone="warn" title={t('author.studio.publish.save-first.title')}>{t('author.studio.publish.save-first.body')}</Notice>
       )}
 
-      <Split index="01" title={t('author.publish.section.check')}>
+      <FormBlock title={t('author.publish.section.check')}>
         <div className="flex flex-col gap-4">
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-ink-2">
             {t(
               'author.publish-panel-kiem-tra-khong-doi-trang-thai-bai-va-khong-ton-sandbox-nao-no-chay-dung-sch',
             )}
           </p>
           <div>
             <Button
-              variant="outline"
+              variant="secondary"
               onClick={props.onCheck}
               loading={props.checking}
               disabled={props.saveFirst}
-              iconLeft={<ScanSearch aria-hidden className="size-4" />}
+              icon="search"
             >
               {t('author.publish-panel-kiem-tra')}
             </Button>
@@ -89,35 +84,36 @@ export function PublishPanel(props: {
             <CheckReport kind={props.kind} result={props.checkResult} onJump={props.onJump} />
           )}
         </div>
-      </Split>
+      </FormBlock>
 
-      <Split index="02" title={t('author.publish.section.run')}>
+      <FormBlock title={t('author.publish.section.run')}>
         <div className="flex flex-col gap-4">
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-ink-2">
             {t(
               'author.publish-panel-xuat-ban-dung-mot-sandbox-that-va-chay-lan-luot-moi-script-cua-bai-viec-nay',
             )}
           </p>
           <div>
             <Button
+              variant="primary"
               onClick={props.onPublish}
               loading={props.phase.kind === 'submitting'}
               disabled={props.saveFirst || blocked || running}
-              iconRight={<Send aria-hidden className="size-4" />}
+              iconRight="send"
             >
               {t('author.studio.action.publish')}
             </Button>
           </div>
           {blocked && (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-ink-2">
               {t(
                 'author.publish-panel-nut-xuat-ban-dang-tat-vi-luot-kiem-tra-con-loi-dinh-dang-o-tren-sua-roi-kie',
               )}
             </p>
           )}
           {props.actionError !== null && (
-            <p role="alert" className="flex animate-rise items-start gap-2 text-sm font-medium text-destructive">
-              <CircleAlert aria-hidden className="mt-0.5 size-4 shrink-0" />
+            <p role="alert" className="flex animate-enter items-start gap-2 text-sm font-medium text-bad-ink">
+              <Icon name="warning" size={16} className="mt-0.5 shrink-0" />
               <span>
                 {t('author.studio.action-error.publish')}: {props.actionError}
               </span>
@@ -125,34 +121,34 @@ export function PublishPanel(props: {
           )}
           <PhaseReport phase={props.phase} />
         </div>
-      </Split>
+      </FormBlock>
 
-      <Split index="03" title={t('author.publish.section.trial')}>
+      <FormBlock title={t('author.publish.section.trial')}>
         <TrialReport phase={props.phase} plan={plan} publishError={props.publishError} />
-      </Split>
+      </FormBlock>
 
       {props.canArchive && (
-        <Split index="04" title={t('author.publish.section.archive')}>
+        <FormBlock title={t('author.publish.section.archive')}>
           <div className="flex flex-col gap-4">
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-ink-2">
               {t(
                 'author.publish-panel-bai-se-bien-khoi-danh-muc-nguoi-hoc-tien-do-va-diem-da-co-khong-bi-xoa-nen',
               )}
             </p>
             <div>
               <Button
-                variant="destructive"
+                variant="danger"
                 onClick={() => {
                   props.onArchiveOpenChange(true);
                 }}
                 disabled={props.archiving}
-                iconLeft={<Archive aria-hidden className="size-4" />}
+                icon="archive"
               >
                 {t('author.studio.action.archive')}
               </Button>
             </div>
           </div>
-        </Split>
+        </FormBlock>
       )}
 
       <ConfirmDialog
@@ -163,9 +159,9 @@ export function PublishPanel(props: {
           'author.publish-panel-bai-se-bien-khoi-danh-muc-nguoi-hoc-tien-do-va-diem-da-co-khong-bi-xoa-nen',
         )}
         loss={t('author.publish.archive-loss')}
-        blockedReason={null}
         error={props.archiveError}
         confirmLabel={t('author.studio.action.archive')}
+        cancelLabel={t('common.action.cancel')}
         confirming={props.archiving}
         onConfirm={props.onArchive}
       />

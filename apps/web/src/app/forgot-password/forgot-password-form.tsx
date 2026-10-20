@@ -2,8 +2,7 @@
 
 import { useEffect, useId, useState, type FormEvent } from 'react';
 import Link from 'next/link';
-import { ArrowRight, MailCheck } from 'lucide-react';
-import { Button } from '@devops-platform/ui';
+import { Button, Icon } from '@devops-platform/ds';
 import { err, t } from '@devops-platform/copy';
 import type { ErrorEntry } from '@devops-platform/copy/types';
 import { authClient } from '../../lib/auth-client';
@@ -63,22 +62,21 @@ export function ForgotPasswordForm() {
           disabled={pending}
           failure={failure}
         />
-        <Button type="submit" size="lg" className="h-12 w-full" disabled={!hydrated || pending}>
+        <Button type="submit" variant="primary" size="lg" className="w-full" loading={pending} disabled={!hydrated || pending}>
           {t(pending ? 'auth.forgot.pending' : 'auth.forgot.submit')}
         </Button>
       </form>
 
       {submitted === null ? null : (
-        <div role="status" className="flex animate-rise gap-4 border-t-4 border-success bg-card p-5">
-          <MailCheck aria-hidden="true" className="size-6 shrink-0 text-success" />
-          <div className="flex flex-col gap-3">
-            <p className="type-title">{t('auth.forgot.success-title')}</p>
-            <p className="text-sm text-muted-foreground">{t('auth.forgot.success-body', { email: submitted })}</p>
-            <Button asChild variant="ink" className="h-12 self-start">
-              <Link href="/reset-password">
-                {t('auth.forgot.next')}
-                <ArrowRight aria-hidden="true" />
-              </Link>
+        <div role="status" className="flex animate-enter gap-4 rounded-lg bg-ok-wash px-5 py-4">
+          <span className="grid size-10 shrink-0 place-items-center rounded-full bg-ok-tint text-ok-ink">
+            <Icon name="mail" size={20} />
+          </span>
+          <div className="flex flex-col gap-2">
+            <p className="font-display text-lg font-semibold text-ink">{t('auth.forgot.success-title')}</p>
+            <p className="text-sm text-ink-2">{t('auth.forgot.success-body', { email: submitted })}</p>
+            <Button asChild variant="primary" size="lg" iconRight="arrow-right" className="mt-1 self-start">
+              <Link href="/reset-password">{t('auth.forgot.next')}</Link>
             </Button>
           </div>
         </div>

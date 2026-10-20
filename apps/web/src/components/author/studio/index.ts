@@ -17,4 +17,5 @@ export { StateChip } from './state-chip';
 export type { StudioContentState } from './state-chip';
 export { FIELD_PATH_ATTRIBUTE, fieldPathProps, focusFieldByPath } from './field-anchor';
 export { StudioListBody } from './list-body';
+export { FormBlock } from './form-block';
 export type { StudioFilter } from './list-body';

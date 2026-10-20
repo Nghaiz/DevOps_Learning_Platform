@@ -1,8 +1,6 @@
 'use client';
 
 import type { ReactElement } from 'react';
-import { Check, CircleDashed, X } from 'lucide-react';
-import { Button, cn } from '@devops-platform/ui';
 import { t, type StaticTextKey } from '@devops-platform/copy';
 import {
   IssueList,
@@ -13,15 +11,16 @@ import {
   type StudioIssue,
 } from '../../../components/author/studio';
 import type { PublishPhase } from '../../../components/author/publish-machine';
+import { Button, Icon, cn, type IconName } from '@devops-platform/ds';
 
 type Mark = 'ok' | 'todo' | 'bad';
 
 const MARK_TONE: Readonly<Record<Mark, string>> = {
-  ok: 'bg-success text-success-foreground',
-  todo: 'border border-border text-muted-foreground',
-  bad: 'bg-destructive text-destructive-foreground',
+  ok: 'bg-ok-solid text-on-solid',
+  todo: 'border border-rule-2 text-ink-3',
+  bad: 'bg-bad-solid text-on-solid',
 };
-const MARK_ICON = { ok: Check, todo: CircleDashed, bad: X } as const satisfies Record<Mark, unknown>;
+const MARK_ICON: Readonly<Record<Mark, IconName>> = { ok: 'check', todo: 'circle', bad: 'close' };
 
 const PHASE_KEY: Readonly<Record<PublishPhase['kind'], StaticTextKey>> = {
   idle: 'author.rail.trial.idle',
@@ -59,13 +58,13 @@ export function LessonRail(props: {
         {props.issues.length > 0 ? (
           <IssueList issues={props.issues} onJump={props.onJump} />
         ) : (
-          <p className="text-muted-foreground">{t('author.studio.rail.issues-clean')}</p>
+          <p className="text-ink-2">{t('author.studio.rail.issues-clean')}</p>
         )}
       </RailSection>
 
       <RailSection title={t('author.studio.rail.readiness')} tone={trialMark === 'ok' ? 'ok' : 'plain'}>
         <StateChip state={props.state} label={props.stateLabel} className="self-start" />
-        <ol className="flex flex-col border-t border-border">
+        <ol className="flex flex-col border-t border-rule">
           <ReadinessRow mark={savedMark} label={t(props.saveStatus === 'saved' ? 'author.rail.saved.ok' : 'author.rail.saved.todo')} />
           <ReadinessRow
             mark={checkMark}
@@ -79,7 +78,7 @@ export function LessonRail(props: {
           />
           <ReadinessRow mark={trialMark} label={t(PHASE_KEY[props.phase.kind])} />
         </ol>
-        <Button variant="outline" size="sm" className="self-start" onClick={props.onOpenPublish}>
+        <Button variant="secondary" size="sm" className="self-start" onClick={props.onOpenPublish}>
           {t('author.rail.open-publish')}
         </Button>
       </RailSection>
@@ -88,13 +87,12 @@ export function LessonRail(props: {
 }
 
 function ReadinessRow(props: { readonly mark: Mark; readonly label: string }): ReactElement {
-  const Icon = MARK_ICON[props.mark];
   return (
-    <li className="flex items-center gap-2 border-b border-border py-2">
-      <span className={cn('inline-flex size-5 shrink-0 items-center justify-center', MARK_TONE[props.mark])}>
-        <Icon aria-hidden className="size-3.5" />
+    <li className="flex items-center gap-2.5 border-b border-rule py-2">
+      <span className={cn('inline-flex size-5 shrink-0 items-center justify-center rounded-full', MARK_TONE[props.mark])}>
+        <Icon name={MARK_ICON[props.mark]} size={12} strokeWidth={2.5} />
       </span>
-      <span className="text-sm">{props.label}</span>
+      <span className="text-sm text-ink">{props.label}</span>
     </li>
   );
 }

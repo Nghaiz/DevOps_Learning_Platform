@@ -32,6 +32,7 @@ export const admin = {
   'admin.crumb.root': 'Quản trị',
   // Một động từ cho việc "lấy lại dữ liệu" ở mọi màn quản trị.
   'admin.reload': 'Tải lại',
+  'admin.loading': 'Đang tải',
   'admin.pager.first': 'Về đầu',
 
   // ── /admin, tổng quan ────────────────────────────────────────────────────

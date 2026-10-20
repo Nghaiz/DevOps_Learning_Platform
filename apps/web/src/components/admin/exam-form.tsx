@@ -12,19 +12,7 @@ import {
   type ReactElement,
   type ReactNode,
 } from 'react';
-import { Check } from 'lucide-react';
 import { t } from '@devops-platform/copy';
-import {
-  Alert,
-  AlertDescription,
-  Button,
-  Input,
-  Label,
-  RadioGroup,
-  RadioGroupItem,
-  Textarea,
-  cn,
-} from '@devops-platform/ui';
 import type { ExamSeedStrategy } from '../../server/db/schema';
 import { ClassPicker } from './class-picker';
 import {
@@ -44,6 +32,7 @@ import {
   type ExamFormStep,
   type ExamFormValues,
 } from './exam-form-model';
+import { Button, cn, Icon, Input, Label, Notice, Radio, RadioGroup, Textarea } from '@devops-platform/ds';
 
 const STRATEGIES: readonly ExamSeedStrategy[] = ['fixed', 'per-student'];
 
@@ -367,7 +356,7 @@ export function ExamForm(props: {
           </Field>
 
           <fieldset className="flex flex-col gap-2">
-            <legend className="text-sm font-semibold text-foreground">
+            <legend className="text-sm font-medium text-ink">
               {t('admin.exams.form.strategy-label')}
             </legend>
             <RadioGroup
@@ -377,17 +366,15 @@ export function ExamForm(props: {
               className="flex flex-col gap-2"
             >
               {STRATEGIES.map((value) => (
-                <div key={value} className="flex items-center gap-2">
-                  <RadioGroupItem id={`${baseId}-strategy-${value}`} value={value} />
-                  <Label htmlFor={`${baseId}-strategy-${value}`} className="font-normal">
-                    {value === 'fixed'
-                      ? t('admin.exams.strategy-fixed')
-                      : t('admin.exams.strategy-per-student')}
-                  </Label>
-                </div>
+                <Radio
+                  key={value}
+                  id={`${baseId}-strategy-${value}`}
+                  value={value}
+                  label={value === 'fixed' ? t('admin.exams.strategy-fixed') : t('admin.exams.strategy-per-student')}
+                />
               ))}
             </RadioGroup>
-            <p className="max-w-prose text-xs text-muted-foreground">
+            <p className="max-w-prose text-xs text-ink-2">
               {strategyLocked
                 ? t('admin.exams.form.strategy-locked', { count: props.attemptCount })
                 : t('admin.exams.strategy-note')}
@@ -399,23 +386,21 @@ export function ExamForm(props: {
       {props.serverError === null ? null : (
         // Lỗi không gắn với ô nào (cổng soạn đề của máy chủ gộp mọi vấn đề vào
         // một câu): một dòng banner, đúng một ca mà banner được dùng.
-        <Alert variant="destructive">
-          <AlertDescription>{props.serverError}</AlertDescription>
-        </Alert>
+        <Notice tone="bad">{props.serverError}</Notice>
       )}
 
-      <div className="mt-2 flex items-center justify-between gap-3 border-t border-border pt-5">
+      <div className="mt-2 flex items-center justify-between gap-3 border-t border-rule pt-5">
         {current === 0 ? (
           <Button type="button" variant="ghost" onClick={props.onCancel} disabled={props.pending}>
             {t('admin.exams.form.cancel')}
           </Button>
         ) : (
-          <Button type="button" variant="outline" onClick={() => goTo(current - 1)} disabled={props.pending}>
+          <Button type="button" variant="secondary" onClick={() => goTo(current - 1)} disabled={props.pending}>
             {t('admin.exams.form.back')}
           </Button>
         )}
         {isLast ? (
-          <Button
+          <Button variant="primary"
             key="submit"
             type="submit"
             loading={props.pending}
@@ -433,7 +418,8 @@ export function ExamForm(props: {
           <Button
             key="next"
             type="button"
-            variant="ink"
+            variant="primary"
+            iconRight="arrow-right"
             onClick={(event) => {
               event.preventDefault();
               next();
@@ -452,9 +438,9 @@ function stepLabel(step: ExamFormStep): string {
 }
 
 /**
- * Thanh bước. Bước đang làm = khối mực đặc (luật "active = filled block"),
- * bước đã xong có dấu tích và bấm được để quay lại, bước có lỗi viền đỏ và chữ
- * "!". Màn hẹp chỉ còn "Bước 2/3" + thước mảnh chia đoạn.
+ * Thanh bước: mỗi bước một nút tròn đầu. Bước đang làm tô màu nhấn, bước đã xong có
+ * dấu tích và bấm được để quay lại, bước có lỗi viền đỏ và chữ "!". Màn hẹp chỉ còn
+ * "Bước 2/3" + thước mảnh chia đoạn.
  */
 function StepBar(props: {
   readonly current: number;
@@ -471,22 +457,22 @@ function StepBar(props: {
     <div>
       {/* Màn hẹp */}
       <div className="flex flex-col gap-2 sm:hidden">
-        <p className="font-mono text-sm tabular-nums">
+        <p className="text-sm tabular-nums text-ink-2">
           {t('admin.exams.form.progress', { current: props.current + 1, total })}
         </p>
-        <div aria-hidden="true" className="flex h-1 gap-0.5">
+        <div aria-hidden="true" className="flex h-1.5 gap-1">
           {EXAM_FORM_STEPS.map((step, index) => (
             <span
               key={step}
               className={cn(
-                'flex-1',
+                'flex-1 rounded-full',
                 props.attempted.has(step) && props.hasErrors(step)
-                  ? 'bg-destructive'
+                  ? 'bg-bad-solid'
                   : index < props.current
-                    ? 'bg-ink'
+                    ? 'bg-ok-solid'
                     : index === props.current
-                      ? 'bg-ink/40'
-                      : 'bg-muted',
+                      ? 'bg-acc-solid'
+                      : 'bg-well-2',
               )}
             />
           ))}
@@ -496,7 +482,7 @@ function StepBar(props: {
             key={step}
             type="button"
             onClick={() => props.onPick(EXAM_FORM_STEPS.indexOf(step))}
-            className="w-fit text-left text-xs text-destructive underline-offset-4 hover:underline"
+            className="w-fit text-left text-xs text-bad-ink underline-offset-4 hover:underline"
           >
             {t('admin.exams.form.step-error', { step: stepLabel(step) })}
           </button>
@@ -504,7 +490,7 @@ function StepBar(props: {
       </div>
 
       {/* Màn rộng */}
-      <ol aria-label={t('admin.exams.form.steps-label')} className="hidden sm:flex">
+      <ol aria-label={t('admin.exams.form.steps-label')} className="hidden flex-wrap items-center gap-2 sm:flex">
         {EXAM_FORM_STEPS.map((step, index) => {
           const isCurrent = index === props.current;
           const isBad = props.attempted.has(step) && props.hasErrors(step);
@@ -514,33 +500,31 @@ function StepBar(props: {
             <li
               key={step}
               aria-current={isCurrent ? 'step' : undefined}
-              className={cn('flex items-center', index === total - 1 ? 'flex-none' : 'flex-1')}
+              className="flex items-center gap-2"
             >
               <button
                 type="button"
                 disabled={!canPick}
                 onClick={() => props.onPick(index)}
                 className={cn(
-                  'flex h-10 items-center gap-2 px-3 text-sm font-semibold transition-colors duration-(--motion-fast)',
-                  'focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+                  'inline-flex h-9 items-center gap-2 rounded-full border px-3.5 text-sm font-medium outline-none transition-colors duration-150',
+                  'focus-visible:outline-2 focus-visible:outline-focus',
                   isCurrent
-                    ? 'bg-ink text-ink-foreground'
+                    ? 'border-acc-solid bg-acc-solid text-on-solid'
                     : isBad
-                      ? 'border border-destructive text-destructive'
+                      ? 'border-bad-mid bg-bad-wash text-bad-ink'
                       : isDone
-                        ? 'text-foreground hover:bg-muted'
-                        : 'text-muted-foreground',
+                        ? 'border-ok-mid bg-ok-wash text-ok-ink hover:bg-ok-tint'
+                        : 'border-rule-2 bg-paper text-ink-2',
                   canPick ? 'cursor-pointer' : 'cursor-default',
                 )}
               >
-                <span aria-hidden="true" className="font-mono text-xs tabular-nums">
-                  {isBad ? '!' : isDone ? <Check className="size-3.5" /> : String(index + 1).padStart(2, '0')}
+                <span aria-hidden="true" className="text-xs tabular-nums">
+                  {isBad ? '!' : isDone ? <Icon name="check" size={14} strokeWidth={2.5} /> : index + 1}
                 </span>
                 {stepLabel(step)}
               </button>
-              {index === total - 1 ? null : (
-                <span aria-hidden="true" className={cn('mx-2 h-0.5 flex-1', isDone ? 'bg-ink' : 'bg-border')} />
-              )}
+              {index === total - 1 ? null : <Icon name="chevron-right" size={16} className="text-ink-3" />}
             </li>
           );
         })}
@@ -560,10 +544,10 @@ function StepFrame(props: {
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-1">
         {/* `h3`: tiêu đề của Sheet bao ngoài (`SheetTitle`) đã là `h2`. */}
-        <h3 ref={props.headingRef} tabIndex={-1} className="type-title outline-hidden">
+        <h3 ref={props.headingRef} tabIndex={-1} className="font-display text-lg font-semibold text-ink outline-hidden">
           {stepLabel(step)}
         </h3>
-        <p className="max-w-prose text-sm text-muted-foreground">{props.lead}</p>
+        <p className="max-w-prose text-sm text-ink-2">{props.lead}</p>
       </div>
       {props.children}
     </div>
@@ -583,12 +567,12 @@ function Field(props: {
       {props.children}
       {props.error === undefined ? (
         props.hint === undefined ? null : (
-          <p id={`${props.id}-note`} className="text-xs text-muted-foreground">
+          <p id={`${props.id}-note`} className="text-xs text-ink-2">
             {props.hint}
           </p>
         )
       ) : (
-        <p id={`${props.id}-note`} className="text-sm text-destructive">
+        <p id={`${props.id}-note`} className="text-sm text-bad-ink">
           {props.error}
         </p>
       )}

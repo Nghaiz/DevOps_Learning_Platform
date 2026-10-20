@@ -3,31 +3,19 @@
 import { useCallback, useRef, useState, type ReactElement } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import {
-  Alert,
-  AlertDescription,
-  AlertTitle,
-  Button,
-  Label,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-  useToast,
-} from '@devops-platform/ui';
+import { Button, Label, Notice, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, toast } from '@devops-platform/ds';
 import { CONTENT_KINDS, type ContentKind } from '@devops-platform/shared-types/authoring';
 import { scenarioIdSchema } from '@devops-platform/shared-types/scenario';
 import { t } from '@devops-platform/copy';
 import { api } from '../../../lib/trpc-react';
 import { describeTrpcError } from '../../../lib/trpc';
-import { Split } from '../../../components/kit';
 import { DraftFormView } from '../../../components/author/draft-form-view';
 import { emptyDraft, toDraftInput, type DraftFormState, type FieldIssue } from '../../../components/author/draft-form';
 import { KIND_KEYS } from '../../../components/author/content-state';
 import { TextField } from '../../../components/author/field';
 import { toLessonIssues } from '../../../components/author/lesson-issues';
 import {
+  FormBlock,
   IssueList,
   RailSection,
   SaveState,
@@ -42,20 +30,19 @@ import {
  *
  * Hai field chỉ có ở đây và không bao giờ sửa được nữa:
  *
- * - **`id`** đi thẳng vào `progress.lesson_id` / `lab_attempts.lab_id` (cột text
- *   KHÔNG có khoá ngoại). Đổi nó sau khi có người học nghĩa là mọi dòng tiến độ
- *   cũ thành mồ côi trong im lặng, nên router không có đường đổi id.
- * - **`kind`** quyết định schema xuất bản. `authoring.update` không nhận field
- *   này, nên loại nội dung là vĩnh viễn.
+ * - **`id`** đi thẳng vào `progress.lesson_id` / `lab_attempts.lab_id` (cột text KHÔNG có
+ *   khoá ngoại). Đổi nó sau khi có người học nghĩa là mọi dòng tiến độ cũ thành mồ côi
+ *   trong im lặng, nên router không có đường đổi id.
+ * - **`kind`** quyết định schema xuất bản. `authoring.update` không nhận field này, nên
+ *   loại nội dung là vĩnh viễn.
  *
- * Không có hàng tab chế độ: Xem trước, Tệp và Xuất bản cần một bài đã có trên
- * máy chủ, nên trang này chỉ có một việc.
+ * Không có hàng tab chế độ: Xem trước, Tệp và Xuất bản cần một bài đã có trên máy chủ,
+ * nên trang này chỉ có một việc.
  *
  * ⛔ Không dựng `<main>`: vỏ ứng dụng sở hữu landmark đó.
  */
 export function AuthorNewClient(): ReactElement {
   const router = useRouter();
-  const { toast } = useToast();
   const utils = api.useUtils();
 
   const [kind, setKind] = useState<ContentKind>('lesson');
@@ -73,7 +60,7 @@ export function AuthorNewClient(): ReactElement {
   const create = api.authoring.create.useMutation({
     onSuccess: (result) => {
       void utils.authoring.list.invalidate();
-      toast({ title: t('author.new.created.title'), description: t('author.new.created.body') });
+      toast.success(t('author.new.created.title'), { description: t('author.new.created.body') });
       router.push(`/author/${encodeURIComponent(result.id)}`);
     },
     onError: (error) => {
@@ -86,10 +73,7 @@ export function AuthorNewClient(): ReactElement {
     const collected: FieldIssue[] = [];
     const parsedId = scenarioIdSchema.safeParse(id.trim());
     if (!parsedId.success) {
-      collected.push({
-        path: 'id',
-        message: parsedId.error.issues[0]?.message ?? t('author.new.id.invalid'),
-      });
+      collected.push({ path: 'id', message: parsedId.error.issues[0]?.message ?? t('author.new.id.invalid') });
     }
     const payload = toDraftInput(kind, form);
     if (!payload.ok) {
@@ -105,20 +89,11 @@ export function AuthorNewClient(): ReactElement {
 
   const idIssue = issues.find((issue) => issue.path === 'id')?.message ?? null;
   const railIssues = toLessonIssues(kind, issues);
-  const status = saveStatusOf({
-    persisted: false,
-    dirty: true,
-    saving: create.isPending,
-    failed: serverError !== null,
-  });
+  const status = saveStatusOf({ persisted: false, dirty: true, saving: create.isPending, failed: serverError !== null });
 
   return (
     <StudioEditorFrame
-      crumbs={[
-        { label: t('shell.section.studio') },
-        { href: '/author', label: t('shell.nav.author') },
-        { label: t('author.new.title') },
-      ]}
+      crumbs={[{ href: '/author', label: t('shell.nav.author') }, { label: t('author.new.title') }]}
       title={t('author.new.title')}
       actions={
         <Button variant="ghost" asChild>
@@ -128,54 +103,46 @@ export function AuthorNewClient(): ReactElement {
       toolbar={
         <>
           <SaveState status={status} />
-          <Button onClick={onSubmit} loading={create.isPending}>
+          <Button variant="primary" icon="plus" onClick={onSubmit} loading={create.isPending}>
             {t('author.new.submit')}
           </Button>
         </>
       }
       notice={
         serverError === null ? undefined : (
-          <Alert variant="destructive">
-            <AlertTitle>{t('author.new.error.title')}</AlertTitle>
-            <AlertDescription>
-              {serverError}
-              <p className="mt-2">{t('author.new.error.next')}</p>
-            </AlertDescription>
-          </Alert>
+          <Notice tone="bad" title={t('author.new.error.title')}>
+            {serverError}
+            <p className="mt-2">{t('author.new.error.next')}</p>
+          </Notice>
         )
       }
       rail={
         <>
-          <RailSection
-            title={t('author.studio.rail.issues')}
-            tone={railIssues.length > 0 ? 'bad' : 'accent'}
-          >
+          <RailSection title={t('author.studio.rail.issues')} tone={railIssues.length > 0 ? 'bad' : 'accent'}>
             {railIssues.length > 0 ? (
               <IssueList issues={railIssues} onJump={(path) => focusFieldByPath(path)} />
             ) : (
-              <p className="text-muted-foreground">{t('author.studio.rail.issues-clean')}</p>
+              <p>{t('author.studio.rail.issues-clean')}</p>
             )}
           </RailSection>
           <RailSection title={t('author.new.after-title')}>
-            <p className="text-muted-foreground">{t('author.new.after-body')}</p>
+            <p>{t('author.new.after-body')}</p>
           </RailSection>
         </>
       }
     >
       <div className="flex flex-col gap-12">
-        <Split index="00" title={t('author.new.identity-heading')}>
+        <FormBlock title={t('author.new.identity-heading')}>
           <div className="flex flex-col gap-5">
             <div className="flex flex-col gap-1.5" {...fieldPathProps('kind')}>
-              <Label htmlFor="content-kind" className="text-[13px] font-semibold">
-                {t('author.new.kind.label')}
-              </Label>
+              <Label htmlFor="content-kind">{t('author.new.kind.label')}</Label>
               <Select
                 value={kind}
                 onValueChange={(next) => {
                   if ((CONTENT_KINDS as readonly string[]).includes(next)) setKind(next as ContentKind);
                 }}
               >
-                <SelectTrigger id="content-kind" aria-describedby="content-kind-hint">
+                <SelectTrigger id="content-kind" aria-describedby="content-kind-hint" className="max-w-xs">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -186,7 +153,7 @@ export function AuthorNewClient(): ReactElement {
                   ))}
                 </SelectContent>
               </Select>
-              <p id="content-kind-hint" className="text-xs leading-relaxed text-muted-foreground">
+              <p id="content-kind-hint" className="text-xs leading-relaxed text-ink-3">
                 {t('author.new.kind.hint')}
               </p>
             </div>
@@ -201,16 +168,9 @@ export function AuthorNewClient(): ReactElement {
               hint={t('author.new.id.hint')}
             />
           </div>
-        </Split>
+        </FormBlock>
 
-        <DraftFormView
-          kind={kind}
-          value={form}
-          onChange={setForm}
-          issues={issues}
-          disabled={create.isPending}
-          nextKey={nextKey}
-        />
+        <DraftFormView kind={kind} value={form} onChange={setForm} issues={issues} disabled={create.isPending} nextKey={nextKey} />
       </div>
     </StudioEditorFrame>
   );

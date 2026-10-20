@@ -3,8 +3,7 @@
 import { useEffect, useId, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowRight } from 'lucide-react';
-import { Button } from '@devops-platform/ui';
+import { Button } from '@devops-platform/ds';
 import { err, t } from '@devops-platform/copy';
 import type { ErrorEntry } from '@devops-platform/copy/types';
 import { authClient } from '../../lib/auth-client';
@@ -107,11 +106,12 @@ export function RegisterForm({ returnTo }: { readonly returnTo: string | null })
         />
         <Button
           type="submit"
+          variant="primary"
           size="lg"
-          className="h-12 w-full"
+          className="w-full"
           loading={pending}
           disabled={!hydrated}
-          iconRight={<ArrowRight aria-hidden="true" />}
+          iconRight="arrow-right"
         >
           {t('auth.register.submit')}
         </Button>
@@ -119,7 +119,7 @@ export function RegisterForm({ returnTo }: { readonly returnTo: string | null })
 
       <AuthOAuth hydrated={hydrated} callbackURL={destination} />
 
-      <p className="text-sm text-muted-foreground">
+      <p className="text-sm text-ink-2">
         {t('auth.register.has-account')}{' '}
         <Link href={withReturnPath('/login', returnTo)} className={AUTH_LINK}>
           {t('auth.register.to-login')}

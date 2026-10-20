@@ -2,11 +2,11 @@
 
 import { errText, t } from '@devops-platform/copy';
 import { useState, type ReactElement } from 'react';
-import { Alert, AlertDescription, AlertTitle, Button, Textarea } from '@devops-platform/ui';
 import { Field } from '../../../components/author/field';
 import type { ClusterSpec } from '@devops-platform/games';
 import { clusterFromSpec, type ClusterFormState } from './cluster-form';
 import { clusterToSpec } from './cluster-to-spec';
+import { Button, Notice, Textarea } from '@devops-platform/ds';
 
 /**
  * Đường dán JSON thô cho người dùng thạo — nhanh hơn điền hai chục ô khi đã có
@@ -83,10 +83,7 @@ export function ClusterJsonFields(props: {
       </Field>
 
       {error !== null && (
-        <Alert variant="destructive" className="animate-rise">
-          <AlertTitle>{t('problem.cluster-json-fields-khong-ap-dung-duoc')}</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
+        <Notice tone="bad" title={t('problem.cluster-json-fields-khong-ap-dung-duoc')} className="animate-enter">{error}</Notice>
       )}
 
       <div className="flex flex-wrap gap-2">
@@ -96,7 +93,7 @@ export function ClusterJsonFields(props: {
         {draft !== null && (
           <Button
             type="button"
-            variant="outline"
+            variant="secondary"
             onClick={() => {
               setDraft(null);
               setError(null);

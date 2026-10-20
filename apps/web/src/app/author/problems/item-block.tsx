@@ -1,58 +1,42 @@
 'use client';
 
-import { useId, type CSSProperties, type ReactElement, type ReactNode } from 'react';
-import { cn, LINE_CLASSES } from '@devops-platform/ui';
-import { lineFillClass, type TopicLine } from '../../../components/kit';
+import { useId, type ReactElement, type ReactNode } from 'react';
 import { fieldPathProps } from '../../../components/author/studio';
 
 /**
  * Một mục lặp của trình soạn đề: node, tài nguyên, mục tiêu, gợi ý.
  *
- * Hình dạng mượn bảng ga: số thứ tự in trong ô vuông màu tuyến của game đang
- * soạn, tên mục, nút thao tác ở phải, rồi các ô nhập. Không hộp nổi, không bóng:
- * vạch màu trên đầu và một đường kẻ mảnh dưới đáy là đủ tách hai mục.
+ * Số thứ tự trong ô tròn mang màu của game đang soạn (`data-topic` đặt ở gốc trình
+ * soạn), tên mục, nút thao tác ở phải, rồi các ô nhập. Không hộp nổi, không bóng: một
+ * vạch màu mảnh trên đầu và đường kẻ dưới đáy là đủ tách hai mục.
  *
- * `path` rải `data-field-path` lên cả khối, để một lỗi cấp mục (`objectives.2`)
- * nhảy được về đúng mục đó dù không trỏ vào ô nào bên trong.
+ * `path` rải `data-field-path` lên cả khối, để một lỗi cấp mục (`objectives.2`) nhảy
+ * được về đúng mục đó dù không trỏ vào ô nào bên trong.
  */
 export function ItemBlock(props: {
   readonly index: number;
   readonly title: string;
-  readonly line: TopicLine;
   readonly actions?: ReactNode;
   readonly path?: string;
   readonly children: ReactNode;
 }): ReactElement {
   const headingId = useId();
   return (
-    <section
-      aria-labelledby={headingId}
-      {...fieldPathProps(props.path)}
-      className="stagger animate-rise border-b border-border"
-      style={{ '--i': props.index } as CSSProperties}
-    >
-      <div aria-hidden="true" className={cn('h-0.5', lineBarClass(props.line))} />
+    <section aria-labelledby={headingId} {...fieldPathProps(props.path)} className="group/item animate-enter border-b border-rule">
+      <div aria-hidden="true" className="h-0.5 origin-left scale-x-50 bg-tp-mid transition-transform duration-200 group-focus-within/item:scale-x-100" />
       <header className="flex flex-wrap items-center gap-3 py-3">
         <span
           aria-hidden="true"
-          className={cn(
-            'inline-flex h-7 min-w-7 items-center justify-center px-1.5 font-mono text-xs font-medium tabular-nums',
-            lineFillClass(props.line),
-          )}
+          className="inline-flex size-7 items-center justify-center rounded-full bg-tp-tint text-xs font-semibold tabular-nums text-tp-ink"
         >
-          {String(props.index + 1).padStart(2, '0')}
+          {props.index + 1}
         </span>
-        <h3 id={headingId} className="min-w-0 flex-1 truncate type-title">
+        <h3 id={headingId} className="min-w-0 flex-1 truncate font-display text-lg font-semibold text-ink">
           {props.title}
         </h3>
-        {props.actions !== undefined && <div className="flex flex-wrap items-center gap-1">{props.actions}</div>}
+        {props.actions === undefined ? null : <div className="flex flex-wrap items-center gap-1">{props.actions}</div>}
       </header>
       <div className="flex flex-col gap-5 pb-6">{props.children}</div>
     </section>
   );
-}
-
-/** Vạch màu tuyến. Tuyến `ink` (game chưa có màu) rơi về vạch mực, không đoán màu. */
-export function lineBarClass(line: TopicLine): string {
-  return line === 'ink' ? 'bg-foreground' : LINE_CLASSES[line].bg;
 }

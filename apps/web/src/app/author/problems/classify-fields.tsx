@@ -3,17 +3,6 @@
 import type { ReactElement } from 'react';
 import { t } from '@devops-platform/copy';
 import {
-  Badge,
-  Difficulty,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-  Switch,
-  type DifficultyLevel,
-} from '@devops-platform/ui';
-import {
   PROBLEM_DIFFICULTIES,
   PROBLEM_DIFFICULTY_LABELS,
   type ProblemDifficulty,
@@ -25,19 +14,8 @@ import { CheckTile, CheckTileGroup } from './check-tile';
 import type { FieldIssue } from './cluster-form';
 import type { ProblemFormState } from './problem-form';
 import { parseTags } from './text-tools';
-
-/**
- * Thang bốn bậc của bài OJ ánh sang glyph bốn vạch của `Difficulty`.
- *
- * Ánh xạ tường minh chứ không ghép chuỗi: `easy` không phải một `DifficultyLevel`,
- * và một tên ghép sai thì glyph vẫn render, chỉ sai số vạch.
- */
-const DIFFICULTY_LEVEL = {
-  easy: 'basic',
-  medium: 'intermediate',
-  hard: 'advanced',
-  expert: 'expert',
-} as const satisfies Record<ProblemDifficulty, DifficultyLevel>;
+import { ProblemDifficultyMark } from '../../(session)/problems/problem-badges';
+import { Pill, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Switch } from '@devops-platform/ds';
 
 /** Trần số chủ đề của một bài; cổng xuất bản kiểm cùng con số. */
 const MAX_TOPICS = 3;
@@ -84,7 +62,7 @@ export function ClassifyFields(props: {
                 ))}
               </SelectContent>
             </Select>
-            <Difficulty level={DIFFICULTY_LEVEL[form.difficulty]} className="text-foreground" />
+            <ProblemDifficultyMark value={form.difficulty} className="text-ink" />
           </div>
         )}
       </Field>
@@ -128,10 +106,10 @@ export function ClassifyFields(props: {
         {tags.length > 0 && (
           <ul className="flex flex-wrap gap-1.5">
             {tags.map((tag) => (
-              <li key={tag} className="animate-rise">
-                <Badge variant="secondary" className="font-mono">
+              <li key={tag} className="animate-enter">
+                <Pill tone="neutral" className="font-mono">
                   {tag}
-                </Badge>
+                </Pill>
               </li>
             ))}
           </ul>
@@ -163,7 +141,7 @@ export function ClassifyFields(props: {
               error={issueFor(props.issues, 'timeLimitSec')}
             />
           ) : (
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-ink-2">
               {t('problem.classify-fields-khong-gioi-han-gio-khong-phai-bai-nao-cung-nen-chay-dua-bai-chan-doan-can-t')}
             </p>
           )}

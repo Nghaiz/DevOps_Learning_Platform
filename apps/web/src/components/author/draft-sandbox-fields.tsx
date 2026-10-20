@@ -2,12 +2,12 @@
 
 import { t } from '@devops-platform/copy';
 import type { ReactElement } from 'react';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@devops-platform/ui';
 import { SANDBOX_TIER_NAMES } from '@devops-platform/shared-types/scenario';
 import type { DraftFormState } from './draft-form';
 import { RADIX_UNSET, type DraftFieldGroupProps } from './draft-meta-fields';
 import { CapabilityGroup, ToolsetGroup } from './draft-toolset-fields';
 import { Field, TextField, issueFor } from './field';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@devops-platform/ds';
 
 /**
  * Mục "Sandbox": người học nhận môi trường nào khi mở bài.

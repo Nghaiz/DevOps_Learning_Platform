@@ -1,15 +1,13 @@
 'use client';
 
 import type { ReactElement } from 'react';
-import { Trash2 } from 'lucide-react';
 import { t } from '@devops-platform/copy';
-import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@devops-platform/ui';
 import type { IncidentKind, ResourceKind } from '@devops-platform/games';
 import { Field, TextAreaField, TextField, issueFor } from '../../../components/author/field';
-import type { TopicLine } from '../../../components/kit';
 import type { FieldIssue, ResourceFormState } from './cluster-form';
 import { ItemBlock } from './item-block';
 import { INCIDENT_KINDS, INCIDENT_LABELS, RESOURCE_KINDS, isClusterScoped } from './vocabulary';
+import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@devops-platform/ds';
 
 /** Radix Select không nhận `value=""` cho một mục, nên "không gieo" mang một token riêng. */
 const NO_INCIDENT = 'khong';
@@ -25,7 +23,6 @@ const NO_INCIDENT = 'khong';
 export function ResourceFields(props: {
   readonly resource: ResourceFormState;
   readonly index: number;
-  readonly line: TopicLine;
   readonly issues: readonly FieldIssue[];
   readonly onChange: (patch: Partial<ResourceFormState>) => void;
   readonly onRemove: () => void;
@@ -37,7 +34,6 @@ export function ResourceFields(props: {
   return (
     <ItemBlock
       index={props.index}
-      line={props.line}
       path={base}
       title={resource.name === '' ? resource.kind : `${resource.kind} / ${resource.name}`}
       actions={
@@ -45,7 +41,7 @@ export function ResourceFields(props: {
           type="button"
           variant="ghost"
           size="sm"
-          iconLeft={<Trash2 aria-hidden className="size-4" />}
+          icon="trash"
           onClick={props.onRemove}
         >
           {t('common.action.delete')}
@@ -86,8 +82,8 @@ export function ResourceFields(props: {
       </div>
 
       {clusterScoped ? (
-        <p className="text-sm text-muted-foreground">
-          <code className="font-mono text-foreground">{resource.kind}</code>{' '}
+        <p className="text-sm text-ink-2">
+          <code className="font-mono text-ink">{resource.kind}</code>{' '}
           {t('problem.resource-fields-co-pham-vi-cluster-nen-khong-thuoc-namespace-nao-o-namespace-bi-bo-qua')}
         </p>
       ) : (

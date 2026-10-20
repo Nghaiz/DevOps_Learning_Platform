@@ -1,44 +1,36 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useState, type FormEvent, type ReactElement } from 'react';
-import { ArrowRight, Plus } from 'lucide-react';
-import type { inferRouterOutputs } from '@trpc/server';
-import { err, t } from '@devops-platform/copy';
 import {
-  Button,
-  CursorPager,
-  EmptyState,
-  Input,
-  Label,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-  Textarea,
-  useToast,
-} from '@devops-platform/ui';
+  useCallback,
+  useState,
+  type FormEvent,
+  type ReactElement } from 'react';
+import type { inferRouterOutputs } from '@trpc/server';
+import { err,
+  t } from '@devops-platform/copy';
 import type { AppRouter } from '../../../server/trpc/routers/app-router';
-import { Split } from '../../../components/kit';
 import { api } from '../../../lib/trpc-react';
-import { describeTrpcError, trpcErrorCode } from '../../../lib/trpc';
+import { describeTrpcError,
+  trpcErrorCode } from '../../../lib/trpc';
 import {
   AdminNote,
   AdminPage,
   FirstPageButton,
   LedgerError,
   LedgerSkeleton,
+  AdminPager,
 } from '../../../components/admin/admin-page';
 import {
   FIRST_PAGE,
   currentCursor,
   pageNumber,
+  popCursor,
   pushCursor,
   type CursorStack,
 } from '../../../lib/cursor-stack';
 import { formatDay } from '../../../lib/format-moment';
+import { Button, Empty, Input, Label, Section, Table, TBody, TD, Textarea, TH, THead, TR, toast } from '@devops-platform/ds';
 
 type ClassSummary = inferRouterOutputs<AppRouter>['classes']['list']['items'][number];
 
@@ -66,15 +58,12 @@ export function AdminClassesClient(): ReactElement {
   const query = api.classes.list.useQuery(cursor === undefined ? {} : { cursor });
 
   return (
-    <AdminPage
-      kicker={t('admin.classes.kicker')}
-      title={t('admin.classes.title')}
-      lead={t('admin.classes.lead')}
-    >
-      <Split index="01" title={t('admin.classes.create-title')}>
+    <AdminPage title={t('admin.classes.title')} lead={t('admin.classes.lead')}>
+      <div className="flex flex-col gap-14">
+      <Section title={t('admin.classes.create-title')} icon="plus">
         <CreateClassForm onCreated={() => setStack(FIRST_PAGE)} />
-      </Split>
-      <Split index="02" title={t('admin.classes.list-title')}>
+      </Section>
+      <Section title={t('admin.classes.list-title')} icon="classroom">
         <ClassesBody
           page={pageNumber(stack)}
           items={query.data?.items ?? null}
@@ -85,8 +74,10 @@ export function AdminClassesClient(): ReactElement {
           onRetry={() => void query.refetch()}
           onNext={() => setStack((prev) => pushCursor(prev, query.data?.nextCursor ?? null))}
           onFirst={() => setStack(FIRST_PAGE)}
+          onPrevious={() => setStack(popCursor)}
         />
-      </Split>
+      </Section>
+      </div>
     </AdminPage>
   );
 }
@@ -95,7 +86,6 @@ function CreateClassForm({ onCreated }: { readonly onCreated: () => void }): Rea
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [serverError, setServerError] = useState<string | null>(null);
-  const { toast } = useToast();
   const utils = api.useUtils();
 
   const create = api.classes.create.useMutation({
@@ -103,11 +93,7 @@ function CreateClassForm({ onCreated }: { readonly onCreated: () => void }): Rea
       setName('');
       setDescription('');
       setServerError(null);
-      toast({
-        variant: 'success',
-        title: t('admin.classes.created-toast-title', { name: created.name }),
-        description: t('admin.classes.created-toast-body'),
-      });
+      toast.success(t('admin.classes.created-toast-title', { name: created.name }), { description: t('admin.classes.created-toast-body') });
       // Đọc lại từ máy chủ thay vì chèn vào cache: danh sách sắp theo thời gian
       // tạo giảm dần, và vị trí đó chỉ máy chủ biết chắc.
       void utils.classes.list.invalidate();
@@ -167,16 +153,16 @@ function CreateClassForm({ onCreated }: { readonly onCreated: () => void }): Rea
       </div>
       {serverError === null ? null : (
         // `role="alert"`: thao tác vừa THẤT BẠI, người dùng cần biết ngay.
-        <p role="alert" className="text-sm text-destructive">
+        <p role="alert" className="text-sm text-bad-ink">
           {serverError}
         </p>
       )}
       <div>
-        <Button
+        <Button variant="primary"
           type="submit"
           loading={create.isPending}
           disabled={name.trim() === ''}
-          iconLeft={<Plus aria-hidden="true" />}
+          icon="plus"
         >
           {t('admin.classes.create-submit')}
         </Button>
@@ -195,6 +181,7 @@ function ClassesBody(props: {
   readonly onRetry: () => void;
   readonly onNext: () => void;
   readonly onFirst: () => void;
+  readonly onPrevious: () => void;
 }): ReactElement {
   if (props.pending) {
     return <LedgerSkeleton />;
@@ -215,58 +202,51 @@ function ClassesBody(props: {
   const items = props.items ?? [];
   if (items.length === 0) {
     return (
-      <EmptyState
-        title={t('admin.classes.empty-title')}
-        description={t('admin.classes.empty-body')}
-        {...(props.page > 1 ? { action: <FirstPageButton page={props.page} onFirst={props.onFirst} /> } : {})}
-      />
+      <Empty title={t('admin.classes.empty-title')} {...(props.page > 1 ? { action: <FirstPageButton page={props.page} onFirst={props.onFirst} /> } : {})}>{t('admin.classes.empty-body')}</Empty>
     );
   }
 
   return (
     <div className="flex flex-col gap-4">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>{t('admin.classes.col-name')}</TableHead>
-            <TableHead>{t('admin.classes.col-owner')}</TableHead>
-            <TableHead className="text-right">{t('admin.classes.col-members')}</TableHead>
-            <TableHead>{t('admin.classes.col-created')}</TableHead>
-            <TableHead className="text-right">{t('admin.classes.col-actions')}</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
+      <Table label={t('admin.classes.list-title')}>
+        <THead>
+          <tr>
+            <TH>{t('admin.classes.col-name')}</TH>
+            <TH>{t('admin.classes.col-owner')}</TH>
+            <TH numeric>{t('admin.classes.col-members')}</TH>
+            <TH>{t('admin.classes.col-created')}</TH>
+            <TH numeric>{t('admin.classes.col-actions')}</TH>
+          </tr>
+        </THead>
+        <TBody>
           {items.map((row) => (
-            <TableRow key={row.id}>
-              <TableCell>
+            <TR key={row.id}>
+              <TD>
                 <div className="flex flex-col gap-0.5">
-                  <span className="font-semibold text-foreground">{row.name}</span>
-                  <span className="text-xs text-muted-foreground">
+                  <span className="font-medium text-ink">{row.name}</span>
+                  <span className="text-xs text-ink-2">
                     {row.description ?? t('admin.classes.no-description')}
                   </span>
                 </div>
-              </TableCell>
-              <TableCell>
+              </TD>
+              <TD>
                 <div className="flex flex-col gap-0.5">
                   <span className="text-sm">{row.ownerName}</span>
-                  <span className="font-mono text-xs text-muted-foreground">{row.ownerEmail}</span>
+                  <span className="font-mono text-xs text-ink-2">{row.ownerEmail}</span>
                 </div>
-              </TableCell>
-              <TableCell className="text-right font-mono tabular-nums">{row.memberCount}</TableCell>
-              <TableCell className="font-mono text-xs text-muted-foreground">
-                {formatDay(row.createdAt)}
-              </TableCell>
-              <TableCell className="text-right">
-                <Button asChild variant="outline" size="sm">
-                  <Link href={`/admin/classes/${row.id}`}>
-                    {t('admin.classes.open')}
-                    <ArrowRight aria-hidden="true" className="size-4" />
-                  </Link>
+              </TD>
+              <TD numeric className="font-medium">
+                {row.memberCount}
+              </TD>
+              <TD className="whitespace-nowrap text-xs tabular-nums text-ink-2">{formatDay(row.createdAt)}</TD>
+              <TD numeric>
+                <Button asChild variant="secondary" size="sm" iconRight="arrow-right">
+                  <Link href={`/admin/classes/${row.id}`}>{t('admin.classes.open')}</Link>
                 </Button>
-              </TableCell>
-            </TableRow>
+              </TD>
+            </TR>
           ))}
-        </TableBody>
+        </TBody>
       </Table>
 
       {/* Câu tự đính chính phạm vi: chỉ nói về TRANG đang xem. */}
@@ -275,13 +255,7 @@ function ClassesBody(props: {
           {t('admin.classes.note', { count: items.length, page: props.page })}
           {props.hasNext ? t('admin.classes.note-more') : '.'}
         </AdminNote>
-        <CursorPager
-          hasNext={props.hasNext}
-          onNext={props.onNext}
-          onReset={props.onFirst}
-          page={props.page}
-          loading={props.fetching}
-        />
+        <AdminPager page={props.page} hasNext={props.hasNext} loading={props.fetching} onNext={props.onNext} onFirst={props.onFirst} onPrevious={props.onPrevious} />
       </div>
     </div>
   );

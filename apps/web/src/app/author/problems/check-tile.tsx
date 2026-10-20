@@ -1,8 +1,8 @@
 'use client';
 
 import { useId, type ReactElement, type ReactNode } from 'react';
-import { Checkbox, cn } from '@devops-platform/ui';
 import { fieldPathProps } from '../../../components/author/studio';
+import { Checkbox, cn } from '@devops-platform/ds';
 
 /**
  * Nhóm ô đánh dấu có tên: `fieldset` + `legend`, câu lỗi nối vào nhóm qua
@@ -28,16 +28,16 @@ export function CheckTileGroup(props: {
       aria-describedby={props.error === null ? undefined : errorId}
       {...fieldPathProps(props.path)}
     >
-      <legend className="mb-1.5 text-[13px] font-semibold text-foreground">{props.legend}</legend>
+      <legend className="mb-1.5 text-[13px] font-semibold text-ink">{props.legend}</legend>
       {props.empty !== undefined ? (
-        <p className="text-sm text-muted-foreground">{props.empty}</p>
+        <p className="text-sm text-ink-2">{props.empty}</p>
       ) : (
         <div className={cn('grid gap-2', props.dense === true ? 'grid-cols-2 sm:grid-cols-3' : 'sm:grid-cols-2 xl:grid-cols-3')}>
           {props.children}
         </div>
       )}
       {props.error !== null && (
-        <p id={errorId} className="animate-rise text-xs font-medium text-destructive">
+        <p id={errorId} className="animate-enter text-xs font-medium text-bad-ink">
           {props.error}
         </p>
       )}
@@ -63,8 +63,8 @@ export function CheckTile(props: {
     <div
       className={cn(
         'flex min-h-10 items-center gap-2.5 border px-3 py-2 transition-colors duration-150',
-        props.checked ? 'border-foreground bg-muted' : 'border-border',
-        disabled ? 'opacity-60' : 'hover:border-foreground',
+        props.checked ? 'border-rule-2 bg-well' : 'border-rule',
+        disabled ? 'opacity-60' : 'hover:border-rule-2',
       )}
     >
       <Checkbox
@@ -80,7 +80,7 @@ export function CheckTile(props: {
         className={cn(
           'min-w-0 flex-1 text-sm',
           props.mono === true && 'font-mono text-xs',
-          disabled ? 'cursor-not-allowed text-muted-foreground' : 'cursor-pointer',
+          disabled ? 'cursor-not-allowed text-ink-2' : 'cursor-pointer',
         )}
       >
         {props.label}

@@ -135,27 +135,36 @@ export interface ErrorBlockProps {
   readonly onRetry?: () => void;
   readonly retryLabel?: string;
   readonly retrying?: boolean;
+  /** Lối thoát khác ngoài "Thử lại" (về danh sách, về trang đầu), đứng cạnh nút đó. */
+  readonly actions?: ReactNode;
   readonly className?: string;
 }
 
-export function ErrorBlock({ title, children, onRetry, retryLabel, retrying = false, className }: ErrorBlockProps) {
+export function ErrorBlock({ title, children, onRetry, retryLabel, retrying = false, actions, className }: ErrorBlockProps) {
+  const retry =
+    onRetry === undefined || retryLabel === undefined ? null : (
+      <button
+        type="button"
+        onClick={onRetry}
+        disabled={retrying}
+        className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-sm border border-rule-2 bg-paper px-3 text-sm font-medium text-ink transition-colors hover:bg-well disabled:opacity-60"
+      >
+        <Icon name="refresh" size={16} className={cn(retrying && 'animate-breathe')} />
+        {retryLabel}
+      </button>
+    );
   return (
-    <div role="alert" className={cn('flex items-start gap-3 rounded-lg bg-bad-wash px-5 py-4', className)}>
+    <div role="alert" className={cn('flex flex-wrap items-start gap-3 rounded-lg bg-bad-wash px-5 py-4', className)}>
       <Icon name="unplug" size={20} className="mt-0.5 text-bad-ink" />
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
+      <div className="flex min-w-0 flex-1 basis-60 flex-col gap-1">
         <p className="font-medium text-bad-ink">{title}</p>
         {children === undefined ? null : <div className="text-sm text-ink-2">{children}</div>}
       </div>
-      {onRetry === undefined || retryLabel === undefined ? null : (
-        <button
-          type="button"
-          onClick={onRetry}
-          disabled={retrying}
-          className="inline-flex h-8 shrink-0 items-center gap-1.5 self-center rounded-sm border border-rule-2 bg-paper px-3 text-sm font-medium text-ink transition-colors hover:bg-well disabled:opacity-60"
-        >
-          <Icon name="refresh" size={16} className={cn(retrying && 'animate-breathe')} />
-          {retryLabel}
-        </button>
+      {retry === null && actions === undefined ? null : (
+        <div className="flex shrink-0 flex-wrap items-center gap-2 self-center">
+          {retry}
+          {actions}
+        </div>
       )}
     </div>
   );

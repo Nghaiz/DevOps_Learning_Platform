@@ -16,7 +16,7 @@ export function AuditActor({ actor }: { readonly actor: ActorView }): ReactEleme
   return (
     <span className="flex flex-col gap-0.5">
       <span>{actor.text}</span>
-      <span className="font-sans text-xs text-muted-foreground">{actor.note}</span>
+      <span className="font-sans text-xs text-ink-2">{actor.note}</span>
     </span>
   );
 }

@@ -1,14 +1,12 @@
 'use client';
 
 import { useState, type ReactElement } from 'react';
-import { Archive, Rocket, Trash2 } from 'lucide-react';
 import { count, t } from '@devops-platform/copy';
 import type { ProblemState } from '@devops-platform/games';
-import { Alert, AlertDescription, AlertTitle, Button } from '@devops-platform/ui';
-import { ConfirmDialog } from '../../../components/kit/confirm-dialog';
 import { IssueList, mustSaveBeforePublish, type SaveStatus, type StudioIssue } from '../../../components/author/studio';
-import { Split } from '../../../components/kit';
+import { FormBlock } from '../../../components/author/studio';
 import type { ProblemAction } from './[code]/use-problem-mutations';
+import { Button, Notice, ConfirmDialog } from '@devops-platform/ds';
 
 /**
  * Chế độ Xuất bản của trang sửa: cổng kiểm, lưu trữ, xoá.
@@ -57,39 +55,30 @@ export function ProblemPublishPanel(props: {
 
   return (
     <>
-      <Split index="01" title={t('author.problem.publish.heading')}>
+      <FormBlock title={t('author.problem.publish.heading')}>
         <div className="flex flex-col gap-4">
           {live ? (
-            <Alert variant="success" className="animate-rise">
-              <AlertTitle>{t('author.problem.publish.live-title')}</AlertTitle>
-              <AlertDescription>{t('author.problem.publish.live-body')}</AlertDescription>
-            </Alert>
+            <Notice tone="ok" title={t('author.problem.publish.live-title')} className="animate-enter">{t('author.problem.publish.live-body')}</Notice>
           ) : saveFirst ? (
-            <Alert variant="warning" className="animate-rise">
-              <AlertTitle>{t('author.studio.publish.save-first.title')}</AlertTitle>
-              <AlertDescription>{t('author.studio.publish.save-first.body')}</AlertDescription>
-            </Alert>
+            <Notice tone="warn" title={t('author.studio.publish.save-first.title')} className="animate-enter">{t('author.studio.publish.save-first.body')}</Notice>
           ) : blocked ? (
-            <div className="flex flex-col gap-2 animate-rise">
-              <p className="type-title text-destructive">
+            <div className="flex flex-col gap-2 animate-enter">
+              <p className="font-display text-lg font-semibold text-ink text-bad-ink">
                 {count('author.problem.publish.blocked-title', props.gateIssues.length)}
               </p>
               <IssueList issues={props.gateIssues} onJump={props.onJump} />
             </div>
           ) : (
-            <Alert variant="success" className="animate-rise">
-              <AlertTitle>{t('author.problem.publish.ok-title')}</AlertTitle>
-              <AlertDescription>{t('author.problem.publish.ok-body')}</AlertDescription>
-            </Alert>
+            <Notice tone="ok" title={t('author.problem.publish.ok-title')} className="animate-enter">{t('author.problem.publish.ok-body')}</Notice>
           )}
 
           {!live && (
             <div>
-              <Button
+              <Button variant="primary"
                 type="button"
                 disabled={saveFirst || blocked || props.busy}
                 loading={props.publish.pending}
-                iconLeft={<Rocket aria-hidden className="size-4" />}
+                icon="publish"
                 onClick={() => {
                   props.publish.run();
                 }}
@@ -99,21 +88,18 @@ export function ProblemPublishPanel(props: {
             </div>
           )}
           {props.publish.error !== null && (
-            <Alert variant="destructive" className="animate-rise">
-              <AlertTitle>{t('author.studio.action-error.publish')}</AlertTitle>
-              <AlertDescription>{props.publish.error}</AlertDescription>
-            </Alert>
+            <Notice tone="bad" title={t('author.studio.action-error.publish')} className="animate-enter">{props.publish.error}</Notice>
           )}
         </div>
-      </Split>
+      </FormBlock>
 
-      <Split index="02" title={t('author.studio.action.archive')} aside={t('author.problem.archive.lead')}>
+      <FormBlock title={t('author.studio.action.archive')} note={t('author.problem.archive.lead')}>
         <div>
           <Button
             type="button"
-            variant="outline"
+            variant="secondary"
             disabled={props.busy || props.state === 'archived'}
-            iconLeft={<Archive aria-hidden className="size-4" />}
+            icon="archive"
             onClick={() => {
               openConfirm('archive');
             }}
@@ -121,15 +107,15 @@ export function ProblemPublishPanel(props: {
             {t('author.studio.action.archive')}
           </Button>
         </div>
-      </Split>
+      </FormBlock>
 
-      <Split index="03" title={t('author.problem.publish.danger-heading')} aside={t('author.problem.publish.danger-body')}>
+      <FormBlock title={t('author.problem.publish.danger-heading')} note={t('author.problem.publish.danger-body')}>
         <div>
           <Button
             type="button"
-            variant="destructive"
+            variant="danger"
             disabled={props.busy}
-            iconLeft={<Trash2 aria-hidden className="size-4" />}
+            icon="trash"
             onClick={() => {
               openConfirm('delete');
             }}
@@ -137,44 +123,22 @@ export function ProblemPublishPanel(props: {
             {t('author.studio.action.delete')}
           </Button>
         </div>
-      </Split>
+      </FormBlock>
 
-      <ConfirmDialog
-        open={confirm === 'archive'}
-        onOpenChange={(open) => {
+      <ConfirmDialog open={confirm === 'archive'} onOpenChange={(open) => {
           if (!open) setConfirm(null);
-        }}
-        title={t('author.problem.archive.confirm-title', { code: props.code })}
-        body={t('author.problem.archive.confirm-body')}
-        loss={t('author.problem.archive.loss')}
-        blockedReason={null}
-        error={withTitle(t('author.studio.action-error.archive'), props.archive.error)}
-        confirmLabel={t('author.studio.action.archive')}
-        confirming={props.archive.pending}
-        onConfirm={() => {
+        }} title={t('author.problem.archive.confirm-title', { code: props.code })} body={t('author.problem.archive.confirm-body')} loss={t('author.problem.archive.loss')} blockedReason={null} error={withTitle(t('author.studio.action-error.archive'), props.archive.error)} confirmLabel={t('author.studio.action.archive')} cancelLabel={t('common.action.cancel')} confirming={props.archive.pending} onConfirm={() => {
           props.archive.run({
             onSuccess: () => {
               setConfirm(null);
             },
           });
-        }}
-      />
-      <ConfirmDialog
-        open={confirm === 'delete'}
-        onOpenChange={(open) => {
+        }} />
+      <ConfirmDialog open={confirm === 'delete'} onOpenChange={(open) => {
           if (!open) setConfirm(null);
-        }}
-        title={t('author.problem.delete.confirm-title', { code: props.code })}
-        body={t('author.problem.publish.danger-body')}
-        loss={t('author.problem.delete.loss')}
-        blockedReason={null}
-        error={withTitle(t('author.studio.action-error.delete'), props.remove.error)}
-        confirmLabel={t('author.studio.action.delete')}
-        confirming={props.remove.pending}
-        onConfirm={() => {
+        }} title={t('author.problem.delete.confirm-title', { code: props.code })} body={t('author.problem.publish.danger-body')} loss={t('author.problem.delete.loss')} blockedReason={null} error={withTitle(t('author.studio.action-error.delete'), props.remove.error)} confirmLabel={t('author.studio.action.delete')} cancelLabel={t('common.action.cancel')} confirming={props.remove.pending} onConfirm={() => {
           props.remove.run();
-        }}
-      />
+        }} />
     </>
   );
 }

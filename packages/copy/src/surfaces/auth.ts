@@ -47,7 +47,7 @@ export const auth = {
   'auth.oauth.microsoft': 'Tiếp tục với Microsoft',
 
   // ── /login ──────────────────────────────────────────────────────────────
-  'auth.login.meta-title': 'Đăng nhập · PTIT DevOps Lab',
+  'auth.login.meta-title': 'Đăng nhập',
   'auth.login.title': 'Đăng nhập',
   'auth.login.description': 'Dùng email và mật khẩu, hoặc tài khoản Google, Microsoft.',
   'auth.login.returning': 'Đăng nhập xong, bạn quay lại đúng trang vừa mở.',
@@ -57,7 +57,7 @@ export const auth = {
   'auth.login.to-register': 'Tạo tài khoản',
 
   // ── /register ───────────────────────────────────────────────────────────
-  'auth.register.meta-title': 'Tạo tài khoản · PTIT DevOps Lab',
+  'auth.register.meta-title': 'Tạo tài khoản',
   'auth.register.title': 'Tạo tài khoản',
   'auth.register.description': 'Cần một email và một mật khẩu. Bài đầu tiên mở được ngay sau đó.',
   'auth.register.submit': 'Tạo tài khoản',
@@ -65,7 +65,7 @@ export const auth = {
   'auth.register.to-login': 'Đăng nhập',
 
   // ── /forgot-password ────────────────────────────────────────────────────
-  'auth.forgot.meta-title': 'Quên mật khẩu · PTIT DevOps Lab',
+  'auth.forgot.meta-title': 'Quên mật khẩu',
   'auth.forgot.title': 'Quên mật khẩu',
   'auth.forgot.description': 'Nhập email của tài khoản. Hệ thống gửi vào hộp thư đó một mã để đặt mật khẩu mới.',
   'auth.forgot.submit': 'Gửi mã đặt lại mật khẩu',
@@ -77,7 +77,7 @@ export const auth = {
   'auth.forgot.back': 'Quay lại đăng nhập',
 
   // ── /reset-password ─────────────────────────────────────────────────────
-  'auth.reset.meta-title': 'Đặt lại mật khẩu · PTIT DevOps Lab',
+  'auth.reset.meta-title': 'Đặt lại mật khẩu',
   'auth.reset.title': 'Đặt lại mật khẩu',
   'auth.reset.description': 'Dán mã trong thư rồi chọn mật khẩu mới.',
   'auth.reset.code': 'Mã đặt lại mật khẩu',

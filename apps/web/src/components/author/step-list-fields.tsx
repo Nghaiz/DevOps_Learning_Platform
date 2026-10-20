@@ -2,14 +2,13 @@
 
 import { t } from '@devops-platform/copy';
 import type { ReactElement } from 'react';
-import { Plus } from 'lucide-react';
-import { Alert, AlertDescription, Button } from '@devops-platform/ui';
 import type { ContentKind } from '@devops-platform/shared-types/authoring';
 import type { FieldIssue, StepFormState } from './draft-form';
 import { StepStation } from './step-station';
+import { Button, Notice } from '@devops-platform/ds';
 
 /**
- * Bước của bài học / task của lab, xếp như các trạm trên một tuyến.
+ * Bước của bài học / task của lab, xếp thành một danh sách có thứ tự.
  *
  * Hai thứ khác nhau ở một điểm quyết định và giao diện phải nói ra:
  *
@@ -54,13 +53,9 @@ export function StepListFields(props: {
   return (
     <div className="flex flex-col gap-8">
       {steps.length === 0 && (
-        <Alert variant="warning" className="animate-rise">
-          <AlertDescription>
-            {kind === 'lab'
-              ? t('author.step-list-fields-chua-co-task-nao')
-              : t('author.step-list-fields-chua-co-buoc-nao')}
-          </AlertDescription>
-        </Alert>
+        <Notice tone="warn" className="animate-enter">
+          {kind === 'lab' ? t('author.step-list-fields-chua-co-task-nao') : t('author.step-list-fields-chua-co-buoc-nao')}
+        </Notice>
       )}
 
       {steps.length > 0 && (
@@ -90,7 +85,7 @@ export function StepListFields(props: {
       )}
 
       <div>
-        <Button variant="outline" iconLeft={<Plus aria-hidden />} onClick={props.onAdd} disabled={disabled}>
+        <Button variant="secondary" icon="plus" onClick={props.onAdd} disabled={disabled}>
           {kind === 'lab' ? t('author.step-list-fields-them-task') : t('author.step-list-fields-them-buoc')}
         </Button>
       </div>

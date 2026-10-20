@@ -1,25 +1,21 @@
 'use client';
 
-import { useId, type CSSProperties, type ReactElement, type ReactNode } from 'react';
-import { ArrowUpRight } from 'lucide-react';
-import { cn } from '@devops-platform/ui';
+import { useId, type ReactElement, type ReactNode } from 'react';
+import { Icon, cn, type IconName } from '@devops-platform/ds';
 import { count } from '@devops-platform/copy';
 
 /**
  * Cột kiểm tra bên PHẢI của trình soạn: lỗi, độ sẵn sàng xuất bản, ghi chú.
  *
- * Bên phải chứ không bên trái: luật của chủ dự án cấm cột trái ĐIỀU HƯỚNG, và
- * cột này không điều hướng trang, nó soi biểu mẫu. Trên màn hẹp nó xếp xuống
- * dưới nội dung, vì người soạn trên điện thoại đọc biểu mẫu trước, bảng kiểm sau.
+ * Bên phải chứ không bên trái: luật của chủ dự án cấm cột trái ĐIỀU HƯỚNG, và cột này
+ * không điều hướng trang, nó soi biểu mẫu. Trên màn hẹp nó xếp xuống dưới nội dung, vì
+ * người soạn trên điện thoại đọc biểu mẫu trước, bảng kiểm sau.
  */
-export function InspectorRail(props: {
-  readonly label: string;
-  readonly children: ReactNode;
-}): ReactElement {
+export function InspectorRail(props: { readonly label: string; readonly children: ReactNode }): ReactElement {
   return (
     <aside
       aria-label={props.label}
-      className="flex min-w-0 flex-col gap-8 lg:sticky lg:top-36 lg:max-h-[calc(100dvh-10rem)] lg:self-start lg:overflow-y-auto lg:pb-6"
+      className="flex min-w-0 flex-col gap-6 lg:sticky lg:top-32 lg:max-h-[calc(100dvh-9rem)] lg:self-start lg:overflow-y-auto lg:pb-6"
     >
       {props.children}
     </aside>
@@ -28,30 +24,38 @@ export function InspectorRail(props: {
 
 export type RailTone = 'plain' | 'accent' | 'ok' | 'warn' | 'bad';
 
-const RAIL_TONE: Readonly<Record<RailTone, string>> = {
-  plain: 'border-t border-foreground',
-  accent: 'border-t-4 border-line-cicd',
-  ok: 'border-t-4 border-success',
-  warn: 'border-t-4 border-warning',
-  bad: 'border-t-4 border-destructive',
+const RAIL_BOX: Readonly<Record<RailTone, string>> = {
+  plain: 'border-t border-rule pt-4',
+  accent: 'rounded-lg bg-acc-wash px-4 py-4',
+  ok: 'rounded-lg bg-ok-wash px-4 py-4',
+  warn: 'rounded-lg bg-warn-wash px-4 py-4',
+  bad: 'rounded-lg bg-bad-wash px-4 py-4',
 };
 
-/** Một khối trong cột kiểm: vạch màu trên đầu (như biển ga), nhãn mono, nội dung. */
+const RAIL_ICON: Readonly<Record<RailTone, { readonly name: IconName; readonly tone: string }>> = {
+  plain: { name: 'info', tone: 'text-ink-3' },
+  accent: { name: 'lightbulb', tone: 'text-acc-ink' },
+  ok: { name: 'success', tone: 'text-ok-ink' },
+  warn: { name: 'warning', tone: 'text-warn-ink' },
+  bad: { name: 'danger', tone: 'text-bad-ink' },
+};
+
+/** Một khối trong cột kiểm: biểu tượng theo sắc, tiêu đề, nội dung. */
 export function RailSection(props: {
   readonly title: string;
   readonly tone?: RailTone;
   readonly children: ReactNode;
 }): ReactElement {
   const id = useId();
+  const tone = props.tone ?? 'plain';
+  const icon = RAIL_ICON[tone];
   return (
-    <section
-      aria-labelledby={id}
-      className={cn('flex flex-col gap-3 pt-3 transition-colors duration-200', RAIL_TONE[props.tone ?? 'plain'])}
-    >
-      <h2 id={id} className="type-label text-muted-foreground">
+    <section aria-labelledby={id} className={cn('flex flex-col gap-3 transition-colors duration-200', RAIL_BOX[tone])}>
+      <h2 id={id} className="flex items-center gap-2 text-sm font-medium text-ink">
+        <Icon name={icon.name} size={16} className={icon.tone} />
         {props.title}
       </h2>
-      <div className="flex flex-col gap-3 text-sm text-foreground">{props.children}</div>
+      <div className="flex flex-col gap-3 text-sm text-ink-2">{props.children}</div>
     </section>
   );
 }
@@ -59,9 +63,9 @@ export function RailSection(props: {
 /**
  * Một lỗi đã đổi sang ngôn ngữ người soạn.
  *
- * `field` là TÊN Ô người đọc được ("Bước 2 · Script chấm"), không phải đường dữ
- * liệu (`steps[1].verifyScript`). Bản cũ in thẳng đường dữ liệu trong khối mã,
- * và người soạn phải tự dịch nó ngược về một ô trên màn hình.
+ * `field` là TÊN Ô người đọc được ("Bước 2, Script chấm"), không phải đường dữ liệu
+ * (`steps[1].verifyScript`). Bản cũ in thẳng đường dữ liệu trong khối mã, và người
+ * soạn phải tự dịch nó ngược về một ô trên màn hình.
  */
 export interface StudioIssue {
   readonly path: string;
@@ -78,26 +82,23 @@ export function IssueList(props: {
 }): ReactElement {
   return (
     <div className="flex flex-col gap-2">
-      <p className="font-medium text-destructive">{count('author.issues.title', props.issues.length)}</p>
-      <ol className="flex flex-col border-t border-border">
+      <p className="font-medium text-bad-ink">{count('author.issues.title', props.issues.length)}</p>
+      <ol className="flex flex-col border-t border-rule">
         {props.issues.map((issue, index) => (
-          <li
-            key={`${issue.path}#${String(index)}`}
-            className="stagger animate-rise border-b border-border"
-            style={{ '--i': index } as CSSProperties}
-          >
+          <li key={`${issue.path}#${String(index)}`} className="border-b border-rule">
             {issue.jumpable ? (
               <button
                 type="button"
                 onClick={() => {
                   props.onJump(issue.path);
                 }}
-                className="group flex w-full items-start gap-2 py-2.5 text-left transition-colors duration-150 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                className="group flex w-full items-start gap-2 rounded-sm py-2.5 text-left outline-none transition-colors duration-150 hover:bg-well focus-visible:outline-2 focus-visible:outline-focus"
               >
                 <IssueText issue={issue} />
-                <ArrowUpRight
-                  aria-hidden
-                  className="mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform duration-150 group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
+                <Icon
+                  name="arrow-up-right"
+                  size={16}
+                  className="mt-0.5 shrink-0 text-ink-3 transition-transform duration-150 group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
                 />
               </button>
             ) : (
@@ -115,8 +116,8 @@ export function IssueList(props: {
 function IssueText({ issue }: { readonly issue: StudioIssue }): ReactElement {
   return (
     <span className="flex min-w-0 flex-1 flex-col gap-0.5 px-1">
-      <span className="font-medium text-foreground">{issue.field}</span>
-      <span className="text-destructive">{issue.message}</span>
+      <span className="font-medium text-ink">{issue.field}</span>
+      <span className="text-bad-ink">{issue.message}</span>
     </span>
   );
 }

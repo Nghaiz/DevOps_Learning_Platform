@@ -17,20 +17,20 @@
  */
 
 import { useState, type CSSProperties, type ReactElement } from 'react';
-import { CircleCheck, CircleX, Play } from 'lucide-react';
 
 import { t } from '@devops-platform/copy';
 import type { DraftIssue, SolvabilityReport } from '@devops-platform/games';
-import { Button, StatusDot } from '@devops-platform/ui';
+import { StatusDot } from '@devops-platform/ui';
 
 import { ISSUE_TEXT } from './builder-copy';
 import { BuilderStep } from './builder-step';
+import { Button, Icon } from '@devops-platform/ds';
 
 function DraftIssueList({ issues }: { readonly issues: readonly DraftIssue[] }): ReactElement {
   if (issues.length === 0) {
     return (
       <p
-        className="flex animate-rise items-center gap-2 text-sm text-success"
+        className="flex animate-enter items-center gap-2 text-sm text-ok-ink"
         data-testid="git-builder-issues"
       >
         <StatusDot tone="ok" />
@@ -40,15 +40,15 @@ function DraftIssueList({ issues }: { readonly issues: readonly DraftIssue[] }):
   }
   return (
     <div data-testid="git-builder-issues" className="flex flex-col gap-2">
-      <h3 className="type-label text-destructive">{t('author.builder.issues.title')}</h3>
-      <ul className="flex flex-col divide-y divide-border border-y border-border">
+      <h3 className="text-xs font-medium text-ink-3 text-bad-ink">{t('author.builder.issues.title')}</h3>
+      <ul className="flex flex-col divide-y divide-rule border-y border-rule">
         {issues.map((issue, index) => (
           <li
             key={`${issue.field}:${issue.code}:${issue.detail ?? ''}:${String(index)}`}
-            className="stagger flex animate-rise gap-2.5 py-2 text-sm leading-relaxed text-foreground"
+            className="flex animate-enter gap-2.5 py-2 text-sm leading-relaxed text-ink"
             style={{ '--i': index } as CSSProperties}
           >
-            <span aria-hidden className="mt-2 size-2 shrink-0 bg-destructive" />
+            <span aria-hidden className="mt-2 size-2 shrink-0 bg-bad-solid" />
             <span>
               {t(ISSUE_TEXT[issue.code])}
               {/*
@@ -58,7 +58,7 @@ function DraftIssueList({ issues }: { readonly issues: readonly DraftIssue[] }):
               {issue.detail !== undefined && (
                 <>
                   {' '}
-                  <code className="bg-muted px-1 font-mono text-xs">{issue.detail}</code>
+                  <code className="bg-well px-1 font-mono text-xs">{issue.detail}</code>
                 </>
               )}
             </span>
@@ -72,19 +72,19 @@ function DraftIssueList({ issues }: { readonly issues: readonly DraftIssue[] }):
 function SolvabilityReportView({ report }: { readonly report: SolvabilityReport }): ReactElement {
   const counts = { passed: report.passedCount, total: report.totalCount };
   return (
-    <div className="flex animate-reveal-down flex-col gap-3" data-testid="git-builder-check-report">
+    <div className="flex animate-enter flex-col gap-3" data-testid="git-builder-check-report">
       <p
         role="status"
         className={
           report.accepted
-            ? 'flex items-center gap-2 text-sm font-semibold text-success'
-            : 'flex items-center gap-2 text-sm font-semibold text-destructive'
+            ? 'flex items-center gap-2 text-sm font-semibold text-ok-ink'
+            : 'flex items-center gap-2 text-sm font-semibold text-bad-ink'
         }
       >
         {report.accepted ? (
-          <CircleCheck aria-hidden className="size-4 shrink-0" />
+          <Icon name="success" size={16} className="shrink-0" />
         ) : (
-          <CircleX aria-hidden className="size-4 shrink-0" />
+          <Icon name="close" size={16} className="shrink-0" />
         )}
         {report.accepted
           ? t('author.builder.check.pass', counts)
@@ -92,11 +92,11 @@ function SolvabilityReportView({ report }: { readonly report: SolvabilityReport 
       </p>
       {report.unmet.length > 0 && (
         <div className="flex flex-col gap-1.5">
-          <p className="text-sm text-foreground">{t('author.builder.check.unmet')}</p>
+          <p className="text-sm text-ink">{t('author.builder.check.unmet')}</p>
           <ul className="flex flex-col gap-1">
             {report.unmet.map((objective) => (
-              <li key={objective.id} className="text-sm text-destructive">
-                <code className="bg-muted px-1 font-mono text-xs">{objective.id}</code>{' '}
+              <li key={objective.id} className="text-sm text-bad-ink">
+                <code className="bg-well px-1 font-mono text-xs">{objective.id}</code>{' '}
                 {objective.label}
               </li>
             ))}
@@ -105,14 +105,14 @@ function SolvabilityReportView({ report }: { readonly report: SolvabilityReport 
       )}
       {report.rejected.length > 0 && (
         <div className="flex flex-col gap-1.5">
-          <p className="text-xs leading-relaxed text-muted-foreground">
+          <p className="text-xs leading-relaxed text-ink-2">
             {t('author.builder.check.rejected')}
           </p>
-          <ul className="flex flex-col gap-1 bg-muted p-2">
+          <ul className="flex flex-col gap-1 bg-well p-2">
             {report.rejected.map((rejected, index) => (
               <li
                 key={`${rejected.command}:${String(index)}`}
-                className="font-mono text-xs break-words text-warning"
+                className="font-mono text-xs break-words text-warn-ink"
               >
                 {rejected.command} → [{rejected.code}] {rejected.message}
               </li>
@@ -140,13 +140,13 @@ export function CheckStep({ index, issues, report, blocked, onRun }: CheckStepPr
   return (
     <BuilderStep index={index} id="builder-kiem" title={t('author.builder.step.check')}>
       <DraftIssueList issues={issues} />
-      <div data-testid="git-builder-check" className="flex flex-col gap-3 bg-muted p-4">
-        <p className="text-sm leading-relaxed text-foreground">{t('author.builder.check.scope')}</p>
+      <div data-testid="git-builder-check" className="flex flex-col gap-3 bg-well p-4">
+        <p className="text-sm leading-relaxed text-ink">{t('author.builder.check.scope')}</p>
         <div>
           <Button
             size="sm"
             variant="ink"
-            iconLeft={<Play aria-hidden />}
+            icon="play"
             disabled={blocked}
             onClick={() => {
               onRun();
@@ -158,7 +158,7 @@ export function CheckStep({ index, issues, report, blocked, onRun }: CheckStepPr
           </Button>
         </div>
         {blocked && (
-          <p className="text-xs leading-relaxed text-muted-foreground">
+          <p className="text-xs leading-relaxed text-ink-2">
             {t('author.builder.check.blocked')}
           </p>
         )}

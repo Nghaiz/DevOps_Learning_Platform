@@ -2,11 +2,11 @@
 
 import { t } from '@devops-platform/copy';
 import type { ReactElement } from 'react';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Switch } from '@devops-platform/ui';
 import type { ContentKind } from '@devops-platform/shared-types/authoring';
 import { SCENARIO_DIFFICULTIES } from '@devops-platform/shared-types/scenario';
 import type { DraftFormState, FieldIssue } from './draft-form';
 import { Field, TextAreaField, TextField, issueFor } from './field';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Switch } from '@devops-platform/ds';
 
 /**
  * Mục "Thông tin chung" của form soạn bài: tên, mô tả, độ khó, thời lượng, và
@@ -152,8 +152,8 @@ export function DraftMetaFields(props: DraftFieldGroupProps): ReactElement {
                 <span
                   className={
                     value.leaderboard
-                      ? 'text-sm font-medium text-line-cicd-ink transition-colors'
-                      : 'text-sm text-muted-foreground transition-colors'
+                      ? 'text-sm font-medium text-acc-ink transition-colors'
+                      : 'text-sm text-ink-2 transition-colors'
                   }
                 >
                   {value.leaderboard

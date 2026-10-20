@@ -3,8 +3,7 @@
 import { useEffect, useId, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowRight } from 'lucide-react';
-import { Button } from '@devops-platform/ui';
+import { Button, Notice } from '@devops-platform/ds';
 import { err, t } from '@devops-platform/copy';
 import type { ErrorEntry } from '@devops-platform/copy/types';
 import { authClient } from '../../lib/auth-client';
@@ -76,7 +75,7 @@ export function LoginForm({ returnTo }: { readonly returnTo: string | null }) {
   return (
     <div className="flex flex-col gap-8">
       {returnTo !== null && (
-        <p className="bg-muted px-4 py-3 text-sm text-muted-foreground">{t('auth.login.returning')}</p>
+        <Notice tone="info">{t('auth.login.returning')}</Notice>
       )}
       <form onSubmit={onSubmit} className="flex flex-col gap-5">
         <AuthField
@@ -114,11 +113,12 @@ export function LoginForm({ returnTo }: { readonly returnTo: string | null }) {
             mở đọc ra là "đang gửi", trong khi sự thật là "chưa sẵn sàng nhận". */}
         <Button
           type="submit"
+          variant="primary"
           size="lg"
-          className="h-12 w-full"
+          className="w-full"
           loading={pending}
           disabled={!hydrated}
-          iconRight={<ArrowRight aria-hidden="true" />}
+          iconRight="arrow-right"
         >
           {t('auth.login.submit')}
         </Button>
@@ -126,7 +126,7 @@ export function LoginForm({ returnTo }: { readonly returnTo: string | null }) {
 
       <AuthOAuth hydrated={hydrated} callbackURL={destination} />
 
-      <p className="text-sm text-muted-foreground">
+      <p className="text-sm text-ink-2">
         {t('auth.login.no-account')}{' '}
         <Link href={withReturnPath('/register', returnTo)} className={AUTH_LINK}>
           {t('auth.login.to-register')}

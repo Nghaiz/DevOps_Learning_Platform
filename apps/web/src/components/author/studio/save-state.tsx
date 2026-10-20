@@ -1,8 +1,7 @@
 'use client';
 
 import type { ReactElement } from 'react';
-import { Check, CircleDashed, LoaderCircle, PencilLine, TriangleAlert } from 'lucide-react';
-import { cn } from '@devops-platform/ui';
+import { Pill, type IconName, type Tone } from '@devops-platform/ds';
 import { t, type StaticTextKey } from '@devops-platform/copy';
 import type { SaveStatus } from './save-status';
 
@@ -14,48 +13,38 @@ const SAVE_KEYS: Readonly<Record<SaveStatus, StaticTextKey>> = {
   error: 'author.studio.save.error',
 };
 
-/*
- * Chuỗi class viết THẲNG từng cái: Tailwind chỉ sinh luật cho class nó đọc thấy
- * nguyên văn, nên ghép `bg-${tone}` cho ra một ô không màu mà không ai báo.
- */
-const TONE: Readonly<Record<SaveStatus, string>> = {
-  new: 'border border-border text-muted-foreground',
-  saved: 'bg-success/10 text-success',
-  unsaved: 'bg-signal text-signal-foreground',
-  saving: 'bg-muted text-foreground',
-  error: 'bg-destructive/10 text-destructive',
+const TONE: Readonly<Record<SaveStatus, Tone>> = {
+  new: 'neutral',
+  saved: 'ok',
+  unsaved: 'warn',
+  saving: 'info',
+  error: 'bad',
 };
 
-const ICON = {
-  new: CircleDashed,
-  saved: Check,
-  unsaved: PencilLine,
-  saving: LoaderCircle,
-  error: TriangleAlert,
-} as const satisfies Record<SaveStatus, unknown>;
+const ICON: Readonly<Record<SaveStatus, IconName>> = {
+  new: 'circle',
+  saved: 'check',
+  unsaved: 'edit',
+  saving: 'save',
+  error: 'warning',
+};
 
 /**
  * Ô "Đã lưu / Chưa lưu / Đang lưu" ở đầu trình soạn.
  *
- * `role="status"` để trình đọc màn hình đọc lại khi nó đổi, không cần ai chuyển
- * focus. Chữ luôn đi kèm biểu tượng, nên màu không phải kênh duy nhất mang nghĩa.
+ * `role="status"` để trình đọc màn hình đọc lại khi nó đổi, không cần ai chuyển focus.
+ * Chữ luôn đi kèm biểu tượng, nên màu không phải kênh duy nhất mang nghĩa.
  */
 export function SaveState({ status }: { readonly status: SaveStatus }): ReactElement {
-  const Icon = ICON[status];
   return (
-    <span
+    <Pill
       role="status"
       data-save-status={status}
-      className={cn(
-        'inline-flex h-8 items-center gap-1.5 px-2.5 font-mono text-xs font-medium transition-colors duration-200',
-        TONE[status],
-      )}
+      tone={TONE[status]}
+      icon={ICON[status]}
+      className={status === 'saving' ? 'animate-breathe' : undefined}
     >
-      <Icon
-        aria-hidden
-        className={cn('size-3.5 shrink-0', status === 'saving' && 'motion-safe:animate-spin')}
-      />
       {t(SAVE_KEYS[status])}
-    </span>
+    </Pill>
   );
 }

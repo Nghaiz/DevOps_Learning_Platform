@@ -4,7 +4,7 @@ import {
   describeRole,
   describeRoleChangeError,
   planRoleChange,
-  roleBadgeVariant,
+  roleTone,
   type RoleChangeInput,
 } from './role-change';
 
@@ -106,8 +106,8 @@ describe('nhãn vai trò', () => {
   });
 
   it('admin nổi bật khác hai vai trò còn lại', () => {
-    expect(roleBadgeVariant('admin')).not.toBe(roleBadgeVariant('user'));
-    expect(roleBadgeVariant('admin')).not.toBe(roleBadgeVariant('author'));
+    expect(roleTone('admin')).not.toBe(roleTone('user'));
+    expect(roleTone('admin')).not.toBe(roleTone('author'));
   });
 });
 

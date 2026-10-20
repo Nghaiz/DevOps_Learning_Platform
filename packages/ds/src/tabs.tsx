@@ -127,10 +127,12 @@ export interface ChipProps extends Omit<ComponentPropsWithoutRef<'button'>, 'onC
   readonly icon?: IconName;
   /** Chip theo chủ đề: đặt `data-topic` ở chip để lấy màu chủ đề khi bật. */
   readonly topic?: string;
+  /** Số mục khớp, khi trang biết số THẬT (danh sách nạp trọn). Trang phân trang thì bỏ trống. */
+  readonly count?: number;
 }
 
 export const Chip = forwardRef<HTMLButtonElement, ChipProps>(function Chip(
-  { pressed, onPressedChange, icon, topic, className, children, ...rest },
+  { pressed, onPressedChange, icon, topic, count, className, children, ...rest },
   ref,
 ) {
   return (
@@ -153,6 +155,7 @@ export const Chip = forwardRef<HTMLButtonElement, ChipProps>(function Chip(
         <Icon name={icon} size={16} tint={topic === undefined ? 'neutral' : 'topic'} className={topic === undefined ? undefined : 'text-tp-ink'} />
       )}
       {children}
+      {count === undefined ? null : <span className="text-xs tabular-nums opacity-70">{count}</span>}
     </button>
   );
 });

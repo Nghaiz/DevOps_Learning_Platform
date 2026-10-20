@@ -10,15 +10,15 @@ import type { ReactElement } from 'react';
 
 import { t } from '@devops-platform/copy';
 import type { GitObjective } from '@devops-platform/games';
-import { Chip, Input, Label } from '@devops-platform/ui';
 
 import { CheckField, TextField } from './builder-fields';
+import { Chip, Input, Label } from '@devops-platform/ds';
 
 /** Trần của `problemBodyShape.topics`. Chip thứ tư khoá luôn, không đợi Zod nói. */
 export const MAX_TOPICS = 3;
 
-const GROUP = 'flex min-w-0 flex-col gap-3 border-t border-border pt-4';
-const LEGEND = 'float-left mb-1 w-full text-sm leading-snug font-semibold text-foreground';
+const GROUP = 'flex min-w-0 flex-col gap-3 border-t border-rule pt-4';
+const LEGEND = 'float-left mb-1 w-full text-sm leading-snug font-semibold text-ink';
 
 export function TopicPicker({
   options,
@@ -36,14 +36,9 @@ export function TopicPicker({
         {options.map(([id, label]) => {
           const isSelected = selected.includes(id);
           return (
-            <Chip
-              key={id}
-              selected={isSelected}
-              disabled={!isSelected && selected.length >= MAX_TOPICS}
-              onClick={() => {
+            <Chip key={id} pressed={isSelected} disabled={!isSelected && selected.length >= MAX_TOPICS} onPressedChange={() => {
                 onToggle(id);
-              }}
-            >
+              }}>
               {label}
             </Chip>
           );
@@ -91,15 +86,15 @@ export function PenaltyLedger({
   return (
     <fieldset className={GROUP}>
       <legend className={LEGEND}>{t('author.builder.save.penalties')}</legend>
-      <p className="clear-left text-xs leading-relaxed text-muted-foreground">
+      <p className="clear-left text-xs leading-relaxed text-ink-2">
         {t('author.builder.save.penalties-hint')}
       </p>
-      <ol className="flex flex-col divide-y divide-border border-y border-border">
+      <ol className="flex flex-col divide-y divide-rule border-y border-rule">
         {hints.map((hint, index) => (
           <li key={`penalty-${String(index)}`} className="flex items-center gap-3 py-2">
             <span
               aria-hidden
-              className="w-6 shrink-0 font-mono text-xs text-muted-foreground tabular-nums"
+              className="w-6 shrink-0 font-mono text-xs text-ink-2 tabular-nums"
             >
               {String(index + 1).padStart(2, '0')}
             </span>
@@ -140,11 +135,11 @@ export function VisibilityList({
   return (
     <fieldset className={GROUP}>
       <legend className={LEGEND}>{t('author.builder.save.visible')}</legend>
-      <p className="clear-left text-xs leading-relaxed text-muted-foreground">
+      <p className="clear-left text-xs leading-relaxed text-ink-2">
         {t('author.builder.save.visible-hint')}
       </p>
       {objectives.length === 0 ? (
-        <p className="text-sm text-muted-foreground">{t('author.builder.save.visible-empty')}</p>
+        <p className="text-sm text-ink-2">{t('author.builder.save.visible-empty')}</p>
       ) : (
         <div className="flex flex-col gap-2.5">
           {objectives.map((objective) => (

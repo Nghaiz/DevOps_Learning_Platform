@@ -41,11 +41,10 @@ import type { IntentionalThree, Surface } from '../types.ts';
 export const author = {
   // ── Tiêu đề tab trình duyệt ───────────────────────────────────────────────
   //
-  // Dấu phân cách là U+00B7 chứ không phải một gạch ngang dài, theo tiền lệ
-  // `catalog.problem.meta-title` của lane 16.C.
-  'author.meta.list': 'Soạn bài · DevOps Learning Platform',
-  'author.meta.new': 'Tạo bài mới · DevOps Learning Platform',
-  'author.meta.edit': 'Sửa bài · DevOps Learning Platform',
+  // Chỉ tên trang: khuôn `%s | DevOps Lab` ở `app/layout.tsx` tự gắn tên site.
+  'author.meta.list': 'Soạn bài',
+  'author.meta.new': 'Tạo bài mới',
+  'author.meta.edit': 'Sửa bài',
 
   // ── Điều hướng chung ──────────────────────────────────────────────────────
   'author.nav.back-to-list': 'Về danh sách bài',
@@ -75,9 +74,9 @@ export const author = {
    * "0 bước" cho một playground là đúng số học và sai nghĩa, nên nhánh
    * playground cố ý không nhắc tới con số nào.
    */
-  'author.item.desc.lesson': (p: { kind: string; n: number }) => `${p.kind} · ${String(p.n)} bước`,
-  'author.item.desc.lab': (p: { kind: string; n: number }) => `${p.kind} · ${String(p.n)} task`,
-  'author.item.desc.playground': (p: { kind: string }) => `${p.kind} · không có bước`,
+  'author.item.desc.lesson': (p: { kind: string; n: number }) => `${p.kind}, ${String(p.n)} bước`,
+  'author.item.desc.lab': (p: { kind: string; n: number }) => `${p.kind}, ${String(p.n)} task`,
+  'author.item.desc.playground': (p: { kind: string }) => `${p.kind}, không có bước`,
 
   /*
    * ── Mốc sửa gần nhất ─────────────────────────────────────────────────────
@@ -111,8 +110,8 @@ export const author = {
   'author.list.title': 'Soạn bài',
   'author.list.lead':
     'Bài học, lab và sân chơi bạn đang viết. Lưu nháp bao nhiêu lần cũng được; người học chỉ thấy bài sau khi bạn xuất bản.',
-  'author.list.kicker': (p: { total: number; drafts: number }) =>
-    `Xưởng soạn · ${String(p.total)} bài · ${String(p.drafts)} nháp`,
+  'author.list.summary': (p: { total: number; drafts: number }) =>
+    `${String(p.total)} bài, trong đó ${String(p.drafts)} bản nháp`,
   'author.list.board-label': 'Bài của bạn, bài sửa gần nhất ở trên',
   'author.list.new-cta': 'Tạo bài mới',
   'author.list.error-title': 'Không tải được danh sách bài',
@@ -135,7 +134,7 @@ export const author = {
   'author.new.identity-heading': 'Định danh, không sửa lại được',
   'author.new.kind.label': 'Loại nội dung',
   'author.new.kind.hint':
-    'Bài học dẫn từng bước · Lab giao việc rồi chấm · Sân chơi là sandbox trống. Không đổi được sau khi tạo.',
+    'Bài học dẫn từng bước. Lab giao việc rồi chấm. Sân chơi là sandbox trống. Không đổi được sau khi tạo.',
   'author.new.id.label': 'Id',
   'author.new.id.placeholder': 'dlp-chan-doan-cpu',
   'author.new.id.hint':
@@ -239,7 +238,7 @@ export const author = {
   'author.studio.field.step': (p: { n: number }) => `Bước ${String(p.n)}`,
   'author.studio.field.task': (p: { n: number }) => `Task ${String(p.n)}`,
   'author.studio.field.asset': (p: { n: number }) => `Tệp ${String(p.n)}`,
-  'author.studio.field.joined': (p: { group: string; field: string }) => `${p.group} · ${p.field}`,
+  'author.studio.field.joined': (p: { group: string; field: string }) => `${p.group}, ${p.field}`,
 
   /*
    * ── Bài tập Kubernetes (OJ), lane 16.G2 ───────────────────────────────────
@@ -255,9 +254,9 @@ export const author = {
    * chặn bởi số màn hình.
    */
 
-  'author.problem.meta.list': 'Đề bài · DevOps Learning Platform',
-  'author.problem.meta.new': 'Tạo đề mới · DevOps Learning Platform',
-  'author.problem.meta.edit': 'Sửa đề · DevOps Learning Platform',
+  'author.problem.meta.list': 'Đề bài',
+  'author.problem.meta.new': 'Tạo đề mới',
+  'author.problem.meta.edit': 'Sửa đề',
 
   'author.problem.state.draft': 'Nháp',
   'author.problem.state.published': 'Đã xuất bản',
@@ -271,7 +270,6 @@ export const author = {
   'author.problem.list.title': 'Đề bài',
   'author.problem.list.lead':
     'Đề cho bộ chấm của các game: dựng sẵn một trạng thái hỏng, nêu mục tiêu, chấm bằng vị từ. Nháp không hiện với người học, kể cả khi họ có đường dẫn.',
-  'author.problem.list.kicker': 'Xưởng soạn · đề bài',
   'author.problem.list.board-label': 'Đề của bạn',
   'author.problem.list.new-cta': 'Tạo đề mới',
   'author.problem.list.error-title': 'Không tải được danh sách đề',
@@ -281,7 +279,6 @@ export const author = {
   'author.problem.list.empty-body':
     'Một đề không dạy lý thuyết. Nó dựng sẵn một trạng thái hỏng và chấm bằng vị từ có sẵn trong bảng, nên bạn không phải viết dòng logic engine nào.',
   'author.problem.list.empty-cta': 'Tạo đề đầu tiên',
-  'author.problem.list.row-topics': (p: { topics: string }) => ` · ${p.topics}`,
   'author.problem.list.row-untried': 'Chưa ai thử.',
   'author.problem.list.row-solved': (p: { solvers: number; attempts: number }) =>
     `${String(p.solvers)}/${String(p.attempts)} người thử đã giải được.`,
@@ -936,9 +933,9 @@ export const author = {
   'author.builder.hint.primer': 'Markdown, tối đa 250 từ. Không phải lời giải.',
   'author.builder.hint.takeaways': 'Mỗi dòng một ý, mỗi ý một câu.',
 
-  'author.builder.option.chapter-1': '1 · Nắn lịch sử',
-  'author.builder.option.chapter-2': '2 · Làm việc nhóm',
-  'author.builder.option.chapter-3': '3 · Cứu hộ',
+  'author.builder.option.chapter-1': 'Chương 1: Nắn lịch sử',
+  'author.builder.option.chapter-2': 'Chương 2: Làm việc nhóm',
+  'author.builder.option.chapter-3': 'Chương 3: Cứu hộ',
   'author.builder.option.no-theory': 'Không kèm bài đọc',
 
   'author.builder.objective.legend': (p: { n: number }) => `Mục tiêu ${String(p.n)}`,
