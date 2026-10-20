@@ -1,20 +1,20 @@
 'use client';
 
 /**
- * Ô nhập của Builder, dựng trên primitive `packages/ui` (`Label`, `Input`,
- * `Textarea`, `Checkbox`).
+ * Ô nhập của Builder, dựng trên primitive `packages/ds` (`Label`, `Input`,
+ * `Textarea`, `NativeSelect`, `Checkbox`).
  *
  * Mỗi ô nhận `id` từ nơi gọi chứ không tự sinh: id là thứ nối `<label>` với ô
  * nhập, và e2e `games-builder-network.spec.ts` tìm ô bằng đúng nhãn đó
  * (`getByLabel('Tiêu đề')`). Câu gợi ý nối vào ô bằng `aria-describedby` nên
  * trình đọc màn hình đọc nó ngay sau nhãn.
  *
- * Ô chọn là `<select>` gốc chứ không phải `Select` của Radix: Radix không nhận
- * giá trị rỗng cho một mục, mà "không kèm bài đọc" chính là giá trị rỗng.
+ * Ô chọn là `NativeSelect` (`<select>` gốc) chứ không phải `Select` của Radix: Radix
+ * không nhận giá trị rỗng cho một mục, mà "không kèm bài đọc" chính là giá trị rỗng.
  */
 
 import { useState, type ReactElement } from 'react';
-import { Checkbox, cn, Icon, Input, Label, Textarea } from '@devops-platform/ds';
+import { Checkbox, cn, Input, Label, NativeSelect, Textarea } from '@devops-platform/ds';
 
 
 interface FieldBase {
@@ -196,29 +196,21 @@ export function SelectField({
   return (
     <div className="flex flex-col gap-1.5">
       <FieldLabel id={id} label={label} />
-      <div className="relative">
-        <select
-          id={id}
-          value={value}
-          aria-describedby={hintId}
-          onChange={(e) => {
-            onChange(e.target.value);
-          }}
-          className={cn(
-            'h-10 w-full appearance-none rounded-none border border-rule-2 bg-paper pr-9 pl-3 text-base text-ink sm:text-sm',
-            'outline-none transition-colors duration-[var(--motion-fast)] ease-out hover:border-rule-2',
-            'focus-visible:border-rule-2 focus-visible:outline-2 focus-visible:outline-focus',
-            mono === true && 'font-mono',
-          )}
-        >
-          {options.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-        <Icon name="chevron-down" size={16} className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-ink-2" />
-      </div>
+      <NativeSelect
+        id={id}
+        value={value}
+        aria-describedby={hintId}
+        onChange={(e) => {
+          onChange(e.target.value);
+        }}
+        className={cn(mono === true && 'font-mono')}
+      >
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </NativeSelect>
       <FieldHint id={hintId} text={hint} />
     </div>
   );

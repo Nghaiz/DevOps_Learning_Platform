@@ -199,7 +199,16 @@ export function css() {
     }
     return out.join('\n');
   };
-  return `:root {\n${block('light')}\n}\n.dark {\n${block('dark')}\n}\n`;
+  // `.ds-island` đứng chung bộ chọn: một khối giao diện ds nằm trong màn chơi cũ lấy lại bảng màu
+  // này, vì `.legacy-skin` của legacy.css khai đè `--ink`. Xem khối `.ds-island` trong theme.css.
+  return `:root,\n.ds-island {\n${block('light')}\n}\n.dark,\n.dark .ds-island {\n${block('dark')}\n}\n`;
+}
+
+/** Các cặp màu trượt ngưỡng hoặc màu ngoài gam (rỗng là đạt). `report()` in bảng đầy đủ. */
+export function audit() {
+  failures.length = 0;
+  report();
+  return [...failures];
 }
 
 const THEME_FILE = new URL('../src/styles/theme.css', import.meta.url);

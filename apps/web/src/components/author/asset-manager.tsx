@@ -82,9 +82,8 @@ export function AssetManager({ contentId }: { readonly contentId: string }): Rea
     <div className="flex flex-col gap-8">
       <section
         aria-labelledby={titleId}
-        className="relative isolate grid animate-enter gap-5 overflow-hidden border border-rule-2 bg-paper p-5 md:grid-cols-[auto_minmax(0,1fr)_auto] md:items-center md:p-6"
+        className="relative grid animate-enter gap-5 border border-rule-2 bg-paper p-5 md:grid-cols-[auto_minmax(0,1fr)_auto] md:items-center md:p-6"
       >
-        <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 bg-dots text-acc-ink opacity-20" />
         <span aria-hidden className="grid size-12 place-items-center bg-acc-solid text-on-solid">
           <Icon name="upload" size={24} />
         </span>

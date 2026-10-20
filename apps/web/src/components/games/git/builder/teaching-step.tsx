@@ -91,7 +91,7 @@ export function TeachingStep({ index, teaching, onChange }: TeachingStepProps): 
               return (
                 <li key={rowKey} className="animate-enter">
                   <fieldset className="min-w-0 border border-rule bg-paper p-4">
-                    <legend className="text-xs font-medium text-ink-3 float-left mb-3 w-full text-tp-ink">
+                    <legend className="float-left mb-3 w-full text-xs font-medium text-tp-ink">
                       {t('author.builder.cheat.legend', { n })}
                     </legend>
                     <div className="clear-left flex flex-col gap-4">

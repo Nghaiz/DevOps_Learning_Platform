@@ -71,7 +71,7 @@ export function ObjectiveEditor({
             return (
               <li key={rowKey} className="animate-enter">
                 <fieldset className="min-w-0 border border-rule bg-paper p-4">
-                  <legend className="text-xs font-medium text-ink-3 float-left mb-3 flex w-full items-center gap-2 text-tp-ink">
+                  <legend className="float-left mb-3 flex w-full items-center gap-2 text-xs font-medium text-tp-ink">
                     <span aria-hidden className="size-2 shrink-0 bg-tp-solid" />
                     {t('author.builder.objective.legend', { n })}
                   </legend>

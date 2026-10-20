@@ -13,6 +13,7 @@ export { Button, IconButton, buttonVariants, type ButtonProps, type IconButtonPr
 export {
   Input,
   Textarea,
+  NativeSelect,
   Label,
   Field,
   Checkbox,
@@ -22,6 +23,7 @@ export {
   RadioItem,
   type InputProps,
   type TextareaProps,
+  type NativeSelectProps,
   type FieldProps,
   type CheckboxProps,
   type SwitchProps,

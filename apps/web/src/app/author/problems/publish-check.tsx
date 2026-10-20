@@ -63,7 +63,7 @@ export function ProblemPublishPanel(props: {
             <Notice tone="warn" title={t('author.studio.publish.save-first.title')} className="animate-enter">{t('author.studio.publish.save-first.body')}</Notice>
           ) : blocked ? (
             <div className="flex flex-col gap-2 animate-enter">
-              <p className="font-display text-lg font-semibold text-ink text-bad-ink">
+              <p className="font-display text-lg font-semibold text-bad-ink">
                 {count('author.problem.publish.blocked-title', props.gateIssues.length)}
               </p>
               <IssueList issues={props.gateIssues} onJump={props.onJump} />

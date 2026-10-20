@@ -43,9 +43,8 @@ export default async function K8sArenaPage({
   const problemCode = typeof raw === 'string' && raw.length > 0 ? raw : null;
 
   if (problemCode !== null) {
-    // z-[45]: trên thanh đầu trang, dưới portal Radix. Xem `k8s-campaign.tsx`.
     return (
-      <LegacySkin dark className="fixed inset-0 z-[45] bg-background">
+      <LegacySkin dark overlay>
         <ArenaEntry problemCode={problemCode} />
       </LegacySkin>
     );

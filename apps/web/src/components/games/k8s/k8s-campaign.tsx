@@ -17,8 +17,8 @@
  *
  * ## Khi đang chơi, game che kín vỏ trang
  *
- * Lúc chơi, `ArenaRoot` nằm trong một lớp `fixed inset-0 z-[45]` phủ lên thanh đầu
- * trang, và cuộn của trang bị khoá để con lăn chuột chỉ điều khiển camera.
+ * Lúc chơi, `ArenaRoot` nằm trong một lớp `fixed inset-0 z-[45]` (`<LegacySkin overlay>`)
+ * phủ lên thanh đầu trang, và cuộn của trang bị khoá để con lăn chuột chỉ điều khiển camera.
  *
  * ⛔ `z-[45]`, không cao hơn: trên thanh đầu trang (`z-40`) nhưng DƯỚI các portal
  * Radix (Dialog, Tooltip, Popover, Select đều `z-50`, gắn vào `body`). Bản đầu dùng
@@ -42,7 +42,7 @@ import { LegacySkin } from '../legacy-skin';
 const ArenaRoot = dynamic(() => import('../../k8s-arena/arena-root').then((module) => module.ArenaRoot), {
   ssr: false,
   loading: () => (
-    <div role="status" className="grid h-full place-items-center bg-background font-mono text-sm text-foreground">
+    <div role="status" className="grid h-full place-items-center font-mono text-sm">
       {t('games.k8s.campaign.loading')}
     </div>
   ),
@@ -138,7 +138,7 @@ function PlayingLayer({ level, onExit }: { readonly level: Level; readonly onExi
     };
   }, []);
   return (
-    <LegacySkin dark className="fixed inset-0 z-[45] bg-background">
+    <LegacySkin dark overlay>
       <div className="h-full" data-testid="k8s-playing-layer">
         <ArenaRoot key={level.id} level={level} mode={LEVEL_MODE} onExit={onExit} />
       </div>

@@ -10,7 +10,6 @@ import { useState, type ReactElement } from 'react';
 
 import { t } from '@devops-platform/copy';
 import type { WorldSpec } from '@devops-platform/games';
-import { Num } from '@devops-platform/ui';
 
 import { BuilderStep, GIT_FILL } from './builder-step';
 import type { DraftPatch } from './draft-state';
@@ -100,7 +99,8 @@ export function CaptureStep({
         <div className="flex items-baseline justify-between gap-3 py-2.5">
           <dt className="text-xs font-medium text-ink-3">{t('author.builder.capture.setup')}</dt>
           <dd key={`setup-${String(shots.setup)}`} className="animate-enter text-sm">
-            <Num>{countCommits(setup)}</Num> {t('author.builder.capture.unit')}
+            <span className="font-display font-semibold tabular-nums text-ink">{countCommits(setup)}</span>{' '}
+            {t('author.builder.capture.unit')}
           </dd>
         </div>
         <div className="flex items-baseline justify-between gap-3 py-2.5">
@@ -110,7 +110,10 @@ export function CaptureStep({
               <span className="text-ink-2">{t('author.builder.capture.unset')}</span>
             ) : (
               <>
-                <Num tone="git">{countCommits(target)}</Num> {t('author.builder.capture.unit')}
+                <span className="font-display font-semibold tabular-nums text-tp-ink">
+                  {countCommits(target)}
+                </span>{' '}
+                {t('author.builder.capture.unit')}
               </>
             )}
           </dd>

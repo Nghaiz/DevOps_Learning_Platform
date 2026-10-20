@@ -1,10 +1,8 @@
 'use client';
 
-import { useCallback, useMemo, useRef, useState, type ReactElement } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 
 import {
-  SANDBOX_SCENARIOS,
-  SANDBOX_SCENARIO_LABEL,
   createGitSession,
   emptyDraft,
   exportSandboxJson,
@@ -23,10 +21,10 @@ import {
 } from '@devops-platform/games';
 
 import { t } from '@devops-platform/copy';
-import { GitLevelBuilder } from './builder/git-builder';
 import { CommandBar, OutputLog } from './git-console';
-import { ArrowLeft, FlaskConical, Hammer, Terminal } from 'lucide-react';
+import { ArrowLeft, FlaskConical, Terminal } from 'lucide-react';
 import { GitMapStage } from './git-map-stage';
+import { SandboxPanel } from './sandbox-panel';
 import './git-odyssey.css';
 import { buildSceneLayouts, type SceneView } from '../shared/scene-props';
 
@@ -175,6 +173,15 @@ export function GitSandbox({
     onBuilderOpenChange(!builderOpen);
   }, [draft, onDraftChange, builderOpen, onBuilderOpenChange, session]);
 
+  /*
+   * `?mode=builder` (mục "Level Builder" trên thanh điều hướng, và lối vào ở trang Trò chơi) mở
+   * sẵn bảng mà chưa có bản nháp: bản nháp chỉ được tạo ở nút đóng/mở phía trên. Không có
+   * effect này thì bảng mở ra không có bước soạn nào, cho tới khi người dùng đóng rồi mở lại.
+   */
+  useEffect(() => {
+    if (builderOpen && draft === null) onDraftChange(emptyDraft(worldToSpec(session.getWorld())));
+  }, [builderOpen, draft, onDraftChange, session]);
+
   return (
     <div className="git-odyssey git-play-screen git-sandbox" data-chapter="2">
       <header className="git-play-header">
@@ -221,151 +228,30 @@ export function GitSandbox({
           />
         </div>
 
-        <aside
-          className={
-            builderOpen
-              ? 'git-side-panel git-builder-panel git-sandbox-tools git-builder-open'
-              : 'git-side-panel git-builder-panel git-sandbox-tools'
-          }
-          /*
-           * Tên của landmark `complementary`. Vỏ ứng dụng cũng dựng một
-           * `<aside>` (`app-shell.tsx`), nên hai cái cùng vô danh là vi phạm
-           * `landmark-unique` của axe. `shell.sidebar.aria` đã đặt tên cho cái
-           * kia và một mình nó đủ để cổng xanh; cái tên ở đây là để người dùng
-           * trình đọc màn hình nghe được panel này LÀ gì, chứ không phải nghe
-           * "complementary" trống không.
-           *
-           * Chuỗi viết thẳng, không qua `t()`: cây `components/games/git` chưa
-           * có surface copy nào và nằm ngoài vùng quét của
-           * `ui-source-coverage.test.ts`; cả file này đang viết thẳng mọi nhãn
-           * (`aria-label="Đồ thị commit của sandbox"` ngay phía trên). Nhét nó
-           * vào surface `shell.` sẽ là copy của trò chơi nằm trong bản đồ của
-           * vỏ ứng dụng — chính thứ đầu file `surfaces/shell.ts` cấm.
-           */
-          aria-label={t('games.git.sandbox.panel-aria')}
-          data-testid="git-sandbox-panel"
-        >
-          <div className="git-builder-heading">
-            <Hammer size={23} />
-            <span>
-              <strong>{builderOpen ? t('games.git.sandbox.panel-builder') : t('games.git.sandbox.panel-lab')}</strong>
-              <small>
-                {builderOpen
-                  ? t('games.git.sandbox.panel-builder-sub')
-                  : t('games.git.sandbox.panel-lab-sub')}
-              </small>
-            </span>
-          </div>
-          {builderOpen && draft !== null && (
-            <GitLevelBuilder
-              captureSpec={captureSpec}
-              draft={draft}
-              onDraftChange={onDraftChange}
-              onPlayTest={onPlayTest}
-            />
-          )}
-
-          <section aria-labelledby="sandbox-kich-ban">
-            <h2 id="sandbox-kich-ban" className="mb-2 text-sm font-semibold text-foreground">
-              {t('games.git.sandbox.scenario')}
-            </h2>
-            <label htmlFor="sandbox-scenario" className="sr-only">
-              {t('games.git.sandbox.scenario-select')}
-            </label>
-            <select
-              id="sandbox-scenario"
-              value={scenario}
-              onChange={(e) => {
-                const next = e.target.value as SandboxScenario;
-                setScenario(next);
-                rebuild(sandboxSpec(next));
-              }}
-              className="w-full border border-input bg-card px-3 py-2 text-xs text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-            >
-              {SANDBOX_SCENARIOS.map((s) => (
-                <option key={s} value={s}>
-                  {SANDBOX_SCENARIO_LABEL[s]}
-                </option>
-              ))}
-            </select>
-            <p className="mt-2 text-xs text-muted-foreground">
-              {t('games.git.sandbox.rebuild-note')}
-            </p>
-          </section>
-
-          <section aria-labelledby="sandbox-thao-tac" className="flex flex-col gap-2">
-            <h2 id="sandbox-thao-tac" className="text-sm font-semibold text-foreground">
-              {t('games.git.sandbox.actions')}
-            </h2>
-            <div className="flex flex-wrap gap-2">
-              <SandboxButton
-                onClick={() => {
-                  rebuild(spec);
-                }}
-              >
-                {t('games.git.sandbox.reset')}
-              </SandboxButton>
-              <SandboxButton onClick={undo}>{t('games.git.sandbox.undo')}</SandboxButton>
-              <SandboxButton onClick={toggleOrigin} disabled={!hasOrigin && !canEnableOrigin}>
-                {hasOrigin ? t('games.git.sandbox.origin-off') : t('games.git.sandbox.origin-on')}
-              </SandboxButton>
-            </div>
-            <p className="text-xs text-muted-foreground" data-testid="git-sandbox-origin-state">
-              {hasOrigin ? t('games.git.sandbox.origin-state-on') : t('games.git.sandbox.origin-state-off')}
-            </p>
-          </section>
-
-          <section aria-labelledby="sandbox-xuat">
-            <h2 id="sandbox-xuat" className="mb-2 text-sm font-semibold text-foreground">
-              {t('games.git.sandbox.export')}
-            </h2>
-            <label htmlFor="sandbox-export" className="sr-only">
-              {t('games.git.sandbox.export-aria')}
-            </label>
-            <textarea
-              id="sandbox-export"
-              data-testid="git-sandbox-export"
-              readOnly
-              rows={6}
-              value={exported}
-              className="w-full border border-input bg-muted p-2 font-mono text-[10px] text-muted-foreground"
-            />
-          </section>
-
-          <section aria-labelledby="sandbox-nhap">
-            <h2 id="sandbox-nhap" className="mb-2 text-sm font-semibold text-foreground">
-              {t('games.git.sandbox.import')}
-            </h2>
-            <label htmlFor="sandbox-import" className="sr-only">
-              {t('games.git.sandbox.import-aria')}
-            </label>
-            <textarea
-              id="sandbox-import"
-              data-testid="git-sandbox-import"
-              rows={4}
-              value={importText}
-              onChange={(e) => {
-                setImportText(e.target.value);
-              }}
-              placeholder={t('games.git.sandbox.import-placeholder')}
-              className="w-full border border-input bg-card p-2 font-mono text-[10px] text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-            />
-            <div className="mt-2">
-              <SandboxButton onClick={doImport} disabled={importText.trim().length === 0}>
-                {t('games.git.sandbox.import-run')}
-              </SandboxButton>
-            </div>
-            {problem !== null && (
-              <p
-                role="alert"
-                data-testid="git-sandbox-problem"
-                className="mt-2 text-xs text-destructive"
-              >
-                {problem}
-              </p>
-            )}
-          </section>
-        </aside>
+        <SandboxPanel
+          builderOpen={builderOpen}
+          draft={draft}
+          onDraftChange={onDraftChange}
+          onPlayTest={onPlayTest}
+          captureSpec={captureSpec}
+          scenario={scenario}
+          onScenarioChange={(next) => {
+            setScenario(next);
+            rebuild(sandboxSpec(next));
+          }}
+          onReset={() => {
+            rebuild(spec);
+          }}
+          onUndo={undo}
+          hasOrigin={hasOrigin}
+          canEnableOrigin={canEnableOrigin}
+          onToggleOrigin={toggleOrigin}
+          exported={exported}
+          importText={importText}
+          onImportTextChange={setImportText}
+          onImport={doImport}
+          problem={problem}
+        />
       </div>
 
       <div className="git-terminal">

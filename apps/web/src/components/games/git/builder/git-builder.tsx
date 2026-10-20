@@ -122,7 +122,7 @@ export function GitLevelBuilder({
   );
 
   return (
-    <div className="@container flex flex-col gap-8" data-testid="git-builder">
+    <div className="@container flex flex-col gap-8" data-topic="git" data-testid="git-builder">
       <BuilderLimits />
 
       <CaptureStep

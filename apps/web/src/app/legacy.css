@@ -613,7 +613,7 @@
    * Color 4 §12 — composite chạy SAU khi màu đã chuyển sang không gian đích).
    * Công thức sai báo 16% đạt 4.01:1, tức nó ĐÃ CHỨNG NHẬN cho đúng thứ nó sinh
    * ra để chặn, và hai con số sai đó được chép sang ba nơi trước khi ai đó phát
-   * hiện. Đầy đủ ở `docs/design-system.md` §1a.
+   * hiện. Đầy đủ ở `docs/design-system-legacy.md` §1a.
    *
    * 38% cho 3.49:1 trên `--background`, 3.56:1 trên `--card`, 3.42:1 trên
    * `--muted`. GIỮ dạng trong suốt thay vì đổi sang oklch đục: chính alpha là
@@ -849,11 +849,12 @@
   font-family: var(--font-sans);
   font-feature-settings: 'ss01', 'cv11';
 }
-:where(.legacy-skin, .arena-root) ::selection {
+/* Dừng ở biên `.ds-island`: khối giao diện mới nằm trong màn chơi cũ giữ vòng focus và màu chọn chữ của ds. */
+:where(.legacy-skin, .arena-root) :not(.ds-island, .ds-island *)::selection {
   background: var(--signal);
   color: var(--signal-foreground);
 }
-:where(.legacy-skin, .arena-root) :focus-visible {
+:where(.legacy-skin, .arena-root) :focus-visible:not(.ds-island *) {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
 }

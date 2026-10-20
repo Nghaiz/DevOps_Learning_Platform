@@ -22,8 +22,8 @@ export function BuilderLimits(): ReactElement {
       className="flex animate-enter flex-col gap-3 border-t-4 border-tp-mid bg-well p-4"
     >
       <div className="flex flex-col gap-1">
-        <p className="text-xs font-medium text-ink-3 text-tp-ink">{t('author.builder.intro.kicker')}</p>
-        <h2 id="builder-gioi-han" className="font-display text-lg font-semibold text-ink text-ink">
+        <p className="text-xs font-medium text-tp-ink">{t('author.builder.intro.kicker')}</p>
+        <h2 id="builder-gioi-han" className="font-display text-lg font-semibold text-ink">
           {t('author.builder.intro.title')}
         </h2>
       </div>

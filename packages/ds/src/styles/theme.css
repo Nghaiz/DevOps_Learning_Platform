@@ -12,7 +12,8 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /* @palette:begin */
-:root {
+:root,
+.ds-island {
   --canvas: oklch(0.987 0.004 247);
   --paper: oklch(1 0 0);
   --well: oklch(0.966 0.006 247);
@@ -152,7 +153,8 @@
   --st-info-solid: oklch(0.53 0.15 254);
   --st-info-ink: oklch(0.455 0.13 254);
 }
-.dark {
+.dark,
+.dark .ds-island {
   --canvas: oklch(0.185 0.006 255);
   --paper: oklch(0.228 0.007 255);
   --well: oklch(0.214 0.007 255);
@@ -750,6 +752,65 @@
   * {
     scrollbar-width: thin;
     scrollbar-color: color-mix(in oklch, var(--ink) 26%, transparent) transparent;
+  }
+
+  /*
+   * ── Đảo ds bên trong vùng giữ nguyên ──────────────────────────────────────
+   * `.legacy-skin` (apps/web/src/app/legacy.css) khai đè những tên theme mà cả hai hệ cùng đọc:
+   * font, thang chữ, giãn dòng, bo góc, `--spacing`, `--ease-out`. Một khối giao diện mới nằm BÊN
+   * TRONG màn chơi cũ (bảng bên của sandbox Git, có Level Builder) đặt `.ds-island` để lấy lại
+   * giá trị của hệ này. Giá trị đọc bằng `--theme(… inline)` nên không có bản sao; bảng màu thì
+   * `.ds-island` đứng chung bộ chọn với `:root` và `.dark` trong khối @palette ở đầu file.
+   *
+   * `scripts/check-design-bans.mjs` tính tập tên bị đè từ chính legacy.css, file này và theme mặc
+   * định của Tailwind, rồi đỏ khi khối dưới thiếu một tên.
+   *
+   * Nằm trong `@layer base` để tiện ích đặt trên chính phần tử đảo (`bg-paper`, `text-sm`) vẫn
+   * thắng `color` và `font-family` ở đây.
+   */
+  .ds-island {
+    --font-sans: --theme(--font-sans inline);
+    --font-display: --theme(--font-display inline);
+    --font-mono: --theme(--font-mono inline);
+    --text-2xs: --theme(--text-2xs inline);
+    --text-2xs--line-height: --theme(--text-2xs--line-height inline);
+    --text-xs: --theme(--text-xs inline);
+    --text-xs--line-height: --theme(--text-xs--line-height inline);
+    --text-sm: --theme(--text-sm inline);
+    --text-sm--line-height: --theme(--text-sm--line-height inline);
+    --text-base: --theme(--text-base inline);
+    --text-base--line-height: --theme(--text-base--line-height inline);
+    --text-lg: --theme(--text-lg inline);
+    --text-lg--line-height: --theme(--text-lg--line-height inline);
+    --text-xl: --theme(--text-xl inline);
+    --text-xl--line-height: --theme(--text-xl--line-height inline);
+    --text-2xl: --theme(--text-2xl inline);
+    --text-2xl--line-height: --theme(--text-2xl--line-height inline);
+    --text-3xl: --theme(--text-3xl inline);
+    --text-3xl--line-height: --theme(--text-3xl--line-height inline);
+    --text-4xl: --theme(--text-4xl inline);
+    --text-4xl--line-height: --theme(--text-4xl--line-height inline);
+    --text-5xl: --theme(--text-5xl inline);
+    --text-5xl--line-height: --theme(--text-5xl--line-height inline);
+    --leading-tight: --theme(--leading-tight inline);
+    --leading-snug: --theme(--leading-snug inline);
+    --leading-normal: --theme(--leading-normal inline);
+    --leading-loose: --theme(--leading-loose inline);
+    --radius: --theme(--radius inline);
+    --radius-sm: --theme(--radius-sm inline);
+    --radius-md: --theme(--radius-md inline);
+    --radius-lg: --theme(--radius-lg inline);
+    --radius-xl: --theme(--radius-xl inline);
+    --spacing: --theme(--spacing inline);
+    --ease-out: --theme(--ease-out inline);
+    color-scheme: light;
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: var(--text-base);
+    line-height: var(--text-base--line-height);
+  }
+  .dark .ds-island {
+    color-scheme: dark;
   }
 }
 

@@ -20,7 +20,6 @@ import { useState, type CSSProperties, type ReactElement } from 'react';
 
 import { t } from '@devops-platform/copy';
 import type { DraftIssue, SolvabilityReport } from '@devops-platform/games';
-import { StatusDot } from '@devops-platform/ui';
 
 import { ISSUE_TEXT } from './builder-copy';
 import { BuilderStep } from './builder-step';
@@ -33,14 +32,14 @@ function DraftIssueList({ issues }: { readonly issues: readonly DraftIssue[] }):
         className="flex animate-enter items-center gap-2 text-sm text-ok-ink"
         data-testid="git-builder-issues"
       >
-        <StatusDot tone="ok" />
+        <Icon name="success" size={16} className="shrink-0" />
         {t('author.builder.issues.ready')}
       </p>
     );
   }
   return (
     <div data-testid="git-builder-issues" className="flex flex-col gap-2">
-      <h3 className="text-xs font-medium text-ink-3 text-bad-ink">{t('author.builder.issues.title')}</h3>
+      <h3 className="text-xs font-medium text-bad-ink">{t('author.builder.issues.title')}</h3>
       <ul className="flex flex-col divide-y divide-rule border-y border-rule">
         {issues.map((issue, index) => (
           <li

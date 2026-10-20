@@ -8,6 +8,7 @@ import {
   type InputHTMLAttributes,
   type LabelHTMLAttributes,
   type ReactNode,
+  type SelectHTMLAttributes,
   type TextareaHTMLAttributes,
 } from 'react';
 import { Checkbox as RadixCheckbox, Label as RadixLabel, RadioGroup as RadixRadio, Switch as RadixSwitch } from 'radix-ui';
@@ -89,6 +90,32 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function 
       {...fieldProps}
       {...rest}
     />
+  );
+});
+
+export interface NativeSelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
+  readonly invalid?: boolean;
+  readonly selectSize?: 'sm' | 'md' | 'lg';
+}
+
+/**
+ * `<select>` gốc mang vẻ ô nhập của hệ. Dùng thay `Select` (Radix) khi một lựa chọn là giá trị
+ * RỖNG ("không kèm bài đọc"), thứ Radix không nhận, hoặc khi danh sách ngắn và bàn phím, trình đọc
+ * màn hình nên được đối xử như ô chọn của trình duyệt.
+ */
+export const NativeSelect = forwardRef<HTMLSelectElement, NativeSelectProps>(function NativeSelect(
+  { className, invalid, selectSize = 'md', id, 'aria-describedby': describedBy, children, ...rest },
+  ref,
+) {
+  const fieldProps = useFieldProps(id, describedBy, invalid);
+  const height = selectSize === 'sm' ? 'h-8 text-sm' : selectSize === 'lg' ? 'h-11 text-base' : 'h-9 text-sm';
+  return (
+    <span className="relative block">
+      <select ref={ref} className={cn(CONTROL, height, 'appearance-none pl-3 pr-9', className)} {...fieldProps} {...rest}>
+        {children}
+      </select>
+      <Icon name="chevron-down" size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-ink-2" />
+    </span>
   );
 });
 
