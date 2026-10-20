@@ -25,11 +25,10 @@ import type { IntentionalThree } from '../types.ts';
  * nào. Một nhãn chung cho hai trục là nói sai ít nhất một nửa số ca.
  */
 export const exam = {
-  'exam.meta-title': 'Kỳ thi · PTIT DevOps Lab',
+  'exam.meta-title': 'Kỳ thi',
   'exam.meta-description':
     'Kỳ thi của các lớp bạn đang học: giờ mở, giờ đóng và thời gian còn lại của lượt làm.',
 
-  'exam.kicker': 'Luyện đề · Kỳ thi',
   'exam.title': 'Kỳ thi',
   'exam.lead':
     'Giảng viên mở kỳ thi cho lớp. Đồng hồ do máy chủ giữ, nên đổi giờ trên máy bạn không thêm được phút nào.',
@@ -53,7 +52,7 @@ export const exam = {
   'exam.filter-empty-body': 'Chọn Tất cả để xem lại mọi kỳ thi của bạn.',
 
   'exam.summary': (p: { name: string; count: number; minutes: number }): string =>
-    `Lớp ${p.name} · ${String(p.count)} bài · ${String(p.minutes)} phút`,
+    `Lớp ${p.name}, ${String(p.count)} bài, ${String(p.minutes)} phút`,
 
   'exam.window.upcoming': 'Chưa mở',
   'exam.window.open': 'Đang mở',
@@ -82,6 +81,7 @@ export const exam = {
 
   'exam.countdown-label': 'Còn lại',
   'exam.countdown-warn': 'Còn dưới 5 phút',
+  'exam.countdown-meter': (p: { percent: number }): string => `Còn ${String(p.percent)}% thời gian làm bài`,
   'exam.deadline-note': (p: { at: string }): string => `Hết giờ lúc ${p.at}`,
 
   'exam.closed-title': 'Lượt thi đã kết thúc',
@@ -102,6 +102,7 @@ export const exam = {
   'exam.problem-play': 'Làm bài',
   'exam.problem-closed': 'Đã khoá',
   'exam.problem-solved': 'Đã giải',
+  'exam.problem-statement': 'Đọc đề',
   'exam.solved-count': (p: { solved: number; total: number }): string =>
     `Đã giải ${String(p.solved)}/${String(p.total)} bài`,
 } as const;

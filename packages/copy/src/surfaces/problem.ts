@@ -482,10 +482,9 @@ export const problem = {
    * và cụm `submit-*`. Đấu trường K8s (đóng băng) gọi đúng các khoá đó, và ô test
    * logic của `submission-verdict.ts` ghim chúng.
    */
-  'problem.oj.meta-title': 'Bài tập · PTIT DevOps Lab',
+  'problem.oj.meta-title': 'Bài tập',
   'problem.oj.meta-description':
     'Bài tập chấm tự động trên game Kubernetes, Git và CI/CD. Lọc theo độ khó, chủ đề, tag và kết quả của bạn.',
-  'problem.oj.kicker': 'Luyện đề · Bài tập',
   'problem.oj.title': 'Bài tập',
   'problem.oj.lead':
     'Mỗi đề là một tình huống dựng sẵn trong game. Bạn gõ lệnh để sửa, máy chủ chấm theo testcase.',
@@ -496,21 +495,19 @@ export const problem = {
     `Trang ${p.page} có ${p.shown} bài. Bộ lọc chạy trên cả kho, còn trang sau.`,
   'problem.oj.scope-last': (p: { shown: number; page: number }) =>
     `Trang ${p.page} có ${p.shown} bài. Đã hết danh sách.`,
-  'problem.oj.tags-more': (p: { n: number }) => `+${p.n} tag`,
   'problem.oj.solvers': (p: { n: number }) => `${p.n} người giải`,
   'problem.oj.acceptance-none': 'Chưa ai thử',
   'problem.oj.acceptance-percent': (p: { percent: number }) => `${p.percent}%`,
   'problem.oj.acceptance-meter': (p: { percent: number }) => `Tỉ lệ giải ${p.percent}%`,
   'problem.oj.time-unlimited': 'Không giới hạn giờ',
 
+  'problem.oj.game.all': 'Tất cả game',
   'problem.oj.game.k8s': 'Kubernetes',
   'problem.oj.game.git': 'Git',
   'problem.oj.game.cicd': 'CI/CD',
 
   'problem.oj.filter.region': 'Lọc bài tập',
-  'problem.oj.filter.game': 'Chủ đề theo game',
-  'problem.oj.filter.game-hint':
-    'Đổi game để thấy chủ đề của game đó. Bài của mọi game vẫn nằm chung một danh sách.',
+  'problem.oj.filter.game': 'Chọn game',
   'problem.oj.filter.search': 'Tìm theo mã hoặc tên bài',
   'problem.oj.filter.search-placeholder': 'K8S-0042 hoặc pod treo',
   'problem.oj.filter.search-submit': 'Tìm',
@@ -527,6 +524,15 @@ export const problem = {
   'problem.oj.filter.tag-remove': (p: { tag: string }) => `Bỏ tag ${p.tag}`,
   'problem.oj.filter.clear': 'Xoá bộ lọc',
   'problem.oj.filter.active': (p: { n: number }) => `Đang bật ${p.n} điều kiện`,
+
+  'problem.oj.col.status': 'Kết quả của bạn',
+  'problem.oj.col.problem': 'Bài',
+  'problem.oj.col.game': 'Game',
+  'problem.oj.col.topics': 'Chủ đề',
+  'problem.oj.col.difficulty': 'Độ khó',
+  'problem.oj.col.acceptance': 'Tỉ lệ giải',
+  'problem.oj.col.solvers': 'Người giải',
+  'problem.oj.col.time': 'Hạn giờ',
 
   'problem.oj.order.code': 'Mã bài',
   'problem.oj.order.difficulty': 'Độ khó',
@@ -549,10 +555,10 @@ export const problem = {
     'Tag phải khớp đủ, còn chủ đề chỉ cần khớp một. Bỏ bớt tag trước khi bỏ chủ đề.',
   'problem.oj.empty.blank-title': 'Chưa có bài tập nào được đăng',
   'problem.oj.empty.blank-body':
-    'Trong lúc chờ, các màn của Kubernetes Game luyện đúng những thao tác mà bài tập sẽ hỏi.',
-  'problem.oj.empty.blank-action': 'Mở Kubernetes Game',
+    'Trong lúc chờ, các màn chơi luyện đúng những thao tác mà bài tập sẽ hỏi.',
+  'problem.oj.empty.blank-action': 'Chọn một game',
 
-  'problem.oj.detail.meta-title': (p: { code: string }) => `${p.code} · Bài tập · PTIT DevOps Lab`,
+  'problem.oj.detail.meta-title': (p: { code: string }) => `Bài ${p.code}`,
   'problem.oj.detail.loading': 'Đang tải đề bài',
   'problem.oj.detail.error-title': 'Không tải được đề bài',
   'problem.oj.detail.not-found-title': (p: { code: string }) => `Không có bài ${p.code}`,

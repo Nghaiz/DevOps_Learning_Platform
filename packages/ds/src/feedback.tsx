@@ -319,21 +319,30 @@ export function Avatar({ name, seed, size = 32, className }: { name: string; see
 }
 
 /**
- * Độ khó: ba vạch cao dần, vạch đã tới tô màu mục, rồi chữ. Chữ luôn đi kèm vì ba
- * vạch một mình không đọc được bằng trình đọc màn hình.
+ * Độ khó: các vạch cao dần (ba, hoặc bốn cho kho đề có mức "chuyên sâu"), vạch đã tới
+ * tô màu mục, rồi chữ. Chữ luôn đi kèm vì vạch một mình không đọc được bằng trình đọc
+ * màn hình.
  */
-export function LevelBars({ level, label, className }: { level: 1 | 2 | 3; label: string; className?: string }) {
+export function LevelBars({
+  level,
+  label,
+  max = 3,
+  className,
+}: {
+  level: number;
+  label: string;
+  max?: 3 | 4;
+  className?: string | undefined;
+}) {
+  const steps = max === 4 ? ([1, 2, 3, 4] as const) : ([1, 2, 3] as const);
+  const height = max === 4 ? ['h-1.5', 'h-2', 'h-2.5', 'h-3.5'] : ['h-1.5', 'h-2.5', 'h-3.5'];
   return (
     <span className={cn('inline-flex items-center gap-1.5 whitespace-nowrap', className)}>
       <span aria-hidden="true" className="flex items-end gap-[2px]">
-        {([1, 2, 3] as const).map((step) => (
+        {steps.map((step, index) => (
           <span
             key={step}
-            className={cn(
-              'w-[3px] rounded-[1px]',
-              step === 1 ? 'h-1.5' : step === 2 ? 'h-2.5' : 'h-3.5',
-              step <= level ? 'bg-acc-solid' : 'bg-rule-2',
-            )}
+            className={cn('w-[3px] rounded-[1px]', height[index], step <= level ? 'bg-acc-solid' : 'bg-rule-2')}
           />
         ))}
       </span>
@@ -341,4 +350,3 @@ export function LevelBars({ level, label, className }: { level: 1 | 2 | 3; label
     </span>
   );
 }
-

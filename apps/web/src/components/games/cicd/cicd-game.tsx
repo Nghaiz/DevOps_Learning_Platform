@@ -5,6 +5,7 @@ import { useState, type ReactElement } from 'react';
 
 import { CicdCampaign } from './cicd-campaign';
 import { CicdSandbox } from './cicd-sandbox';
+import { LegacySkin } from '../legacy-skin';
 
 /**
  * Màn làm bài OJ, nạp ĐỘNG (19.J.3.1).
@@ -52,15 +53,21 @@ export function CicdGame({ initialProblemCode }: CicdGameProps): ReactElement {
   const [sandbox, setSandbox] = useState(false);
 
   if (initialProblemCode !== null) {
-    return <CicdProblemScreen code={initialProblemCode} />;
+    return (
+      <LegacySkin>
+        <CicdProblemScreen code={initialProblemCode} />
+      </LegacySkin>
+    );
   }
   if (sandbox) {
     return (
-      <CicdSandbox
-        onExit={() => {
-          setSandbox(false);
-        }}
-      />
+      <LegacySkin>
+        <CicdSandbox
+          onExit={() => {
+            setSandbox(false);
+          }}
+        />
+      </LegacySkin>
     );
   }
   return (

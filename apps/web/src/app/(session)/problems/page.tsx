@@ -1,6 +1,7 @@
 import { Suspense } from 'react';
 import type { Metadata } from 'next';
 import { t } from '@devops-platform/copy';
+import { Page } from '@devops-platform/ds';
 import { redirect } from 'next/navigation';
 import { withReturnPath } from '../../login/return-path';
 import { readViewerSession } from '../../../components/catalog/viewer-role.server';
@@ -19,7 +20,7 @@ export const metadata: Metadata = {
  *
  * `<Suspense>` là bắt buộc: `ProblemsClient` đọc `useSearchParams`, và Next từ
  * chối dựng một cây có hook đó mà không có ranh giới suspense bao ngoài. Ranh
- * giới bọc ĐÚNG phần client; biển ga ở ngoài nên không chờ gì cả.
+ * giới bọc ĐÚNG phần client; đầu trang ở ngoài nên không chờ gì cả.
  */
 export default async function ProblemsPage() {
   if ((await readViewerSession()) === null) {
@@ -28,11 +29,11 @@ export default async function ProblemsPage() {
   }
 
   return (
-    <>
+    <Page>
       <ProblemsPoster />
       <Suspense fallback={<ProblemsSkeleton />}>
         <ProblemsClient />
       </Suspense>
-    </>
+    </Page>
   );
 }

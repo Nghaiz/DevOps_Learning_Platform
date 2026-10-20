@@ -12,6 +12,7 @@ import { GitCampaign } from './git-campaign';
 import './git-odyssey.css';
 import { GitLevelScreen } from './git-level-screen';
 import { GitSandbox } from './git-sandbox';
+import { LegacySkin } from '../legacy-skin';
 
 /**
  * Chế độ làm bài OJ, nạp ĐỘNG và `ssr: false`.
@@ -116,10 +117,15 @@ export function GitGame({
    * người dùng tới từ trang bài hoặc trang soạn.
    */
   if (initialProblemCode !== null) {
-    return <GitProblemScreen code={initialProblemCode} />;
+    return (
+      <LegacySkin>
+        <GitProblemScreen code={initialProblemCode} />
+      </LegacySkin>
+    );
   }
   if (trial !== null) {
     return (
+      <LegacySkin>
       <GitLevelScreen
         key={trial.id}
         level={trial}
@@ -130,10 +136,12 @@ export function GitGame({
           setTrial(null);
         }}
       />
+      </LegacySkin>
     );
   }
   if (sandbox) {
     return (
+      <LegacySkin>
       <GitSandbox
         draft={draft}
         onDraftChange={setDraft}
@@ -144,6 +152,7 @@ export function GitGame({
           setSandbox(false);
         }}
       />
+      </LegacySkin>
     );
   }
   if (level === null) {
@@ -158,6 +167,7 @@ export function GitGame({
   }
   const next = GIT_LEVELS[GIT_LEVELS.indexOf(level) + 1];
   return (
+    <LegacySkin>
     <GitLevelScreen
       key={level.id}
       level={level}
@@ -171,5 +181,6 @@ export function GitGame({
       }
       onExit={leave}
     />
+    </LegacySkin>
   );
 }

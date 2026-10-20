@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { GAME_IDS, PROBLEM_TOPICS, type ProblemFilter } from '@devops-platform/games';
 
 import {
-  DEFAULT_PROBLEM_GAME,
+  ALL_GAMES,
+  LEGACY_TOPIC_GAME,
   PROBLEM_FILTER_GAMES,
   gameName,
   parseGame,
@@ -71,9 +72,12 @@ describe('bộ chọn game của khối lọc chủ đề', () => {
     expect(gameName('cicd')).not.toBe('cicd');
   });
 
-  it('mặc định là k8s — mọi link ?topic=… đã gửi đi vẫn đọc lại được', () => {
-    expect(DEFAULT_PROBLEM_GAME).toBe('k8s');
-    expect(topicIdsFor(DEFAULT_PROBLEM_GAME).length).toBeGreaterThan(0);
+  it('mặc định là "Tất cả game"; link cũ chỉ mang ?topic=… vẫn đọc lại bằng k8s', () => {
+    expect(parseGame(null)).toBe(ALL_GAMES);
+    // Link đã gửi đi trước khi có "Tất cả" không mang `game`, và chủ đề của nó là của K8s.
+    expect(LEGACY_TOPIC_GAME).toBe('k8s');
+    expect(parseGame(null, true)).toBe('k8s');
+    expect(topicIdsFor(LEGACY_TOPIC_GAME).length).toBeGreaterThan(0);
   });
 
   /*
@@ -93,9 +97,10 @@ describe('bộ chọn game của khối lọc chủ đề', () => {
   */
   it('giá trị game lạ trong URL rơi về mặc định, không ném', () => {
     expect(parseGame('git')).toBe('git');
-    expect(parseGame('pipeline')).toBe(DEFAULT_PROBLEM_GAME);
-    expect(parseGame(null)).toBe(DEFAULT_PROBLEM_GAME);
-    expect(parseGame('<script>')).toBe(DEFAULT_PROBLEM_GAME);
+    expect(parseGame('pipeline')).toBe(ALL_GAMES);
+    expect(parseGame('<script>')).toBe(ALL_GAMES);
+    // Có chủ đề mà game lạ: chủ đề đó chỉ có thể là của link cũ, đọc bằng k8s.
+    expect(parseGame('pipeline', true)).toBe('k8s');
   });
 });
 

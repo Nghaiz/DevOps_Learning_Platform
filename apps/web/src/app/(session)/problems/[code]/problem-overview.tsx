@@ -1,9 +1,8 @@
 import type { ReactElement, ReactNode } from 'react';
 import Link from 'next/link';
-import { ArrowRight } from 'lucide-react';
 import type { inferRouterOutputs } from '@trpc/server';
 import { renderCopy, t } from '@devops-platform/copy';
-import { Button, LINE_CODE, Meter, Num } from '@devops-platform/ui';
+import { Button, ProgressLine, TopicGlyph } from '@devops-platform/ds';
 import {
   problemTopicLabels,
   type ProblemStats,
@@ -11,7 +10,7 @@ import {
   type ProblemViewerStatus,
 } from '@devops-platform/games';
 import type { AppRouter } from '../../../../server/trpc/routers/app-router';
-import { lineFillClass, lineForTopic } from '../../../../components/kit';
+import { topicLook } from '../../../../lib/topic-look';
 import { ProblemDifficultyMark, ViewerStatusMark } from '../problem-badges';
 import { acceptancePercent, formatAcceptance, formatTimeLimit, topicLabel } from '../problem-labels';
 import { gameName } from '../problem-game';
@@ -31,8 +30,11 @@ import { problemPreviewHref } from '../../../../lib/problem-preview-href';
 type ProblemDetail = inferRouterOutputs<AppRouter>['problems']['byCode'];
 
 /**
- * Bảng thông tin bên phải trang đề: game, độ khó, chủ đề, hạn giờ, tỉ lệ giải,
- * kết quả của bạn, và nút chính "Mở trong game". Không state, mọi thứ từ props.
+ * Cột phải của trang đề: nút chính "Mở trong game" đứng đầu, rồi các thông tin
+ * của bài. Không state, mọi thứ từ props.
+ *
+ * Không đóng khung: một vạch màu của game ở mép trên tách cột này khỏi đề bài, còn
+ * các dòng thông tin ngăn nhau bằng đường kẻ mảnh.
  */
 export function ProblemOverview(props: {
   /**
@@ -46,36 +48,50 @@ export function ProblemOverview(props: {
   readonly latest: ProblemSubmission | null;
 }): ReactElement {
   const { problem, stats, viewerStatus, latest } = props;
-  const line = lineForTopic({ gameId: problem.gameId });
+  const look = topicLook({ gameId: problem.gameId });
   const percent = acceptancePercent(stats);
   /*
     `?problem=<mã>` là đường vào chế độ bài tập của game. Đường dẫn tra theo
-    `problem.gameId`, KHÔNG chốt cứng `/games/k8s`: từ migration 0015 kho chở bài
-    của game khác, và một bài Git mở sang đấu trường K8s chỉ ra một ván K8s mặc
+    `problem.gameId`, KHÔNG chốt cứng route của một game: từ migration 0015 kho chở
+    bài của game khác, và một bài Git mở sang đấu trường K8s chỉ ra một ván K8s mặc
     định, không lỗi nào báo.
   */
   const playHref = problemPreviewHref(problem.gameId, problem.code);
   const topicLabels = problemTopicLabels(problem.gameId);
 
   return (
-    <section aria-labelledby="problem-facts" className="border-2 border-ink bg-card">
-      <div className={`flex items-center gap-4 px-5 py-4 ${lineFillClass(line)}`}>
-        <span className="font-mono text-2xl font-bold tracking-wider">
-          {line === 'ink' ? problem.gameId.toUpperCase() : LINE_CODE[line]}
-        </span>
-        <span className="min-w-0">
-          <span className="block type-label">{t('problem.oj.detail.fact-game')}</span>
-          <span className="block type-title">{gameName(problem.gameId)}</span>
-        </span>
-      </div>
-
+    <section aria-labelledby="problem-facts" data-topic={look.topic} className="flex flex-col gap-6 border-t-2 border-tp-solid pt-5">
       <h2 id="problem-facts" className="sr-only">
         {t('problem.oj.detail.facts')}
       </h2>
 
-      <dl className="divide-y divide-border px-5">
+      <div className="flex flex-col gap-2.5">
+        {/*
+          `null` ⇒ game chưa có đường vào nào, và nút KHÔNG hiện. Một nút dẫn tới
+          404 tệ hơn một nút vắng mặt, vì nó hứa một thứ không có. Thay nút bằng
+          một câu nói ra lý do, để người học không nghĩ trang bị hỏng.
+        */}
+        {playHref !== null ? (
+          <>
+            <Button asChild size="lg" variant="primary" icon="play" iconRight="arrow-right" className="w-full">
+              <Link href={playHref}>{t('problem.oj.detail.play')}</Link>
+            </Button>
+            <p className="text-xs leading-relaxed text-ink-3">{t('problem.oj.detail.play-note')}</p>
+          </>
+        ) : (
+          <p className="text-sm text-ink-2">{t('problem.oj.detail.play-missing')}</p>
+        )}
+      </div>
+
+      <dl className="flex flex-col">
+        <Fact label={t('problem.oj.detail.fact-game')}>
+          <span className="inline-flex items-center gap-2 text-sm text-ink">
+            <TopicGlyph topic={look.topic} icon={look.icon} size={18} />
+            {gameName(problem.gameId)}
+          </span>
+        </Fact>
         <Fact label={t('problem.oj.detail.fact-difficulty')}>
-          <ProblemDifficultyMark value={problem.difficulty} className="text-sm" />
+          <ProblemDifficultyMark value={problem.difficulty} className="text-sm text-ink" />
         </Fact>
         <Fact label={t('problem.oj.detail.fact-topics')}>
           <span className="flex flex-wrap gap-1.5">
@@ -84,7 +100,7 @@ export function ProblemOverview(props: {
               lá, không kéo engine vào route này.
             */}
             {problem.topics.map((topic) => (
-              <span key={topic} className="inline-flex h-6 items-center bg-muted px-2 text-xs">
+              <span key={topic} className="inline-flex h-6 items-center rounded-full bg-tp-wash px-2.5 text-xs text-tp-ink">
                 {topicLabel(topic, topicLabels)}
               </span>
             ))}
@@ -92,9 +108,9 @@ export function ProblemOverview(props: {
         </Fact>
         <Fact label={t('problem.oj.detail.fact-tags')}>
           {problem.tags.length === 0 ? (
-            <span className="text-sm text-muted-foreground">{t('problem.oj.detail.no-tags')}</span>
+            <span className="text-sm text-ink-3">{t('problem.oj.detail.no-tags')}</span>
           ) : (
-            <span className="flex flex-wrap gap-x-2 gap-y-1 font-mono text-xs">
+            <span className="flex flex-wrap gap-x-2.5 gap-y-1 font-mono text-xs text-ink-2">
               {problem.tags.map((tag) => (
                 <span key={tag}>#{tag}</span>
               ))}
@@ -102,90 +118,55 @@ export function ProblemOverview(props: {
           )}
         </Fact>
         <Fact label={t('problem.oj.detail.fact-time')}>
-          <span className="font-mono text-sm tabular-nums">
-            {renderCopy(formatTimeLimit(problem.timeLimitSec))}
-          </span>
+          <span className="text-sm tabular-nums text-ink">{renderCopy(formatTimeLimit(problem.timeLimitSec))}</span>
         </Fact>
-        {problem.parMoves !== null && (
+        {problem.parMoves === null ? null : (
           <Fact label={t('problem.oj.detail.fact-par')}>
-            <span className="font-mono text-sm tabular-nums">
-              {t('problem.oj.detail.par-value', { n: problem.parMoves })}
-            </span>
+            <span className="text-sm tabular-nums text-ink">{t('problem.oj.detail.par-value', { n: problem.parMoves })}</span>
           </Fact>
         )}
         <Fact label={t('problem.oj.detail.fact-acceptance')}>
           <span className="flex flex-col gap-2">
-            <span className="flex items-center gap-3">
-              <Num className="text-2xl">{renderCopy(formatAcceptance(stats))}</Num>
-              {percent !== null && (
-                <Meter
-                  value={percent}
-                  max={100}
-                  segments={10}
-                  tone="iac"
-                  label={t('problem.oj.acceptance-meter', { percent })}
-                  className="flex-1"
-                />
-              )}
+            <span className="font-display text-2xl font-semibold tabular-nums text-ink">
+              {renderCopy(formatAcceptance(stats))}
             </span>
+            {/* Thước chỉ hiện khi đã có người thử: "chưa ai thử" mà kèm thước rỗng đọc ra "0%". */}
+            {percent === null ? null : (
+              <ProgressLine
+                value={percent / 100}
+                role="meter"
+                tone="ok"
+                label={t('problem.oj.acceptance-meter', { percent })}
+              />
+            )}
             {/*
               Cả câu là MỘT khoá: mẫu số nói cho người đọc biết tỉ lệ kia đáng tin
               tới đâu, nên nó không được rơi khỏi câu khi ai đó sửa layout.
             */}
-            <span className="text-xs text-muted-foreground">
-              {t('problem.oj.detail.stats', {
-                solvers: stats.solverCount,
-                attempts: stats.attemptCount,
-              })}
+            <span className="text-xs text-ink-3">
+              {t('problem.oj.detail.stats', { solvers: stats.solverCount, attempts: stats.attemptCount })}
             </span>
           </span>
         </Fact>
-        {viewerStatus !== null && (
+        {viewerStatus === null ? null : (
           <Fact label={t('problem.oj.detail.fact-result')}>
-            <ViewerStatusMark value={viewerStatus} className="text-sm" />
+            <ViewerStatusMark value={viewerStatus} />
           </Fact>
         )}
-        {latest !== null && (
+        {latest === null ? null : (
           <Fact label={t('problem.oj.detail.fact-last')}>
             <VerdictChip submission={latest} />
           </Fact>
         )}
       </dl>
-
-      <div className="flex flex-col gap-3 border-t-2 border-ink p-5">
-        {/*
-          `null` ⇒ game chưa có đường vào nào, và nút KHÔNG hiện. Một nút dẫn tới
-          404 tệ hơn một nút vắng mặt, vì nó hứa một thứ không có. Thay nút bằng
-          một câu nói ra lý do, để người học không nghĩ trang bị hỏng.
-
-          `asChild` nên icon phải nằm TRONG `<Link>`: Radix Slot đòi đúng một phần
-          tử con.
-        */}
-        {playHref !== null ? (
-          <>
-            <Button asChild size="lg" variant="primary" className="group w-full justify-between">
-              <Link href={playHref}>
-                {t('problem.oj.detail.play')}
-                <ArrowRight
-                  aria-hidden
-                  className="size-5 transition-transform duration-[var(--motion-base)] group-hover:translate-x-1"
-                />
-              </Link>
-            </Button>
-            <p className="text-xs text-muted-foreground">{t('problem.oj.detail.play-note')}</p>
-          </>
-        ) : (
-          <p className="text-sm text-muted-foreground">{t('problem.oj.detail.play-missing')}</p>
-        )}
-      </div>
     </section>
   );
 }
 
 function Fact({ label, children }: { readonly label: string; readonly children: ReactNode }): ReactElement {
   return (
-    <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] items-start gap-3 py-3">
-      <dt className="pt-0.5 type-label text-muted-foreground">{label}</dt>
+    <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] items-start gap-3 border-b border-rule py-3 last:border-b-0">
+      <dt className="pt-0.5 text-sm text-ink-3">{label}</dt>
       <dd className="min-w-0">{children}</dd>
     </div>
   );

@@ -1,7 +1,6 @@
 import {
   PROBLEM_DIFFICULTIES,
   PROBLEM_ORDER_KEYS,
-  type GameId,
   type ProblemDifficulty,
   type ProblemFilter,
   type ProblemListOptions,
@@ -9,7 +8,7 @@ import {
   type ProblemViewerStatus,
 } from '@devops-platform/games';
 import { PROBLEM_VIEWER_STATUSES } from './problem-labels';
-import { DEFAULT_PROBLEM_GAME, parseGame, topicIdsFor } from './problem-game';
+import { ALL_GAMES, parseGame, topicIdsFor, type ProblemGameChoice } from './problem-game';
 
 /**
  * Bộ mã hoá HAI CHIỀU giữa thanh địa chỉ và bộ lọc danh sách bài.
@@ -44,7 +43,7 @@ export interface ProblemQuery {
    * lọc" để gỡ một bộ lọc không tồn tại. Cùng lý do `orderBy` cũng không ở
    * trong `filter`.
    */
-  readonly game: GameId;
+  readonly game: ProblemGameChoice;
 }
 
 /** `code` tăng dần — khoá duy nhất theo từng dòng, xem `PROBLEM_ORDER_KEYS`. */
@@ -52,7 +51,7 @@ export const DEFAULT_PROBLEM_QUERY: ProblemQuery = {
   filter: {},
   orderBy: 'code',
   direction: 'asc',
-  game: DEFAULT_PROBLEM_GAME,
+  game: ALL_GAMES,
 };
 
 /** Số bài mỗi trang. Bảng nhiều cột nên trang dài hơn là cuộn nhiều hơn chứ không đọc thêm được gì. */
@@ -132,8 +131,9 @@ export function parseProblemQuery(params: URLSearchParams): ProblemQuery {
     trả RỖNG cho mọi game trừ `k8s`, nên khối lọc phải tự khoá; nay mọi game đi
     qua được hợp đồng nên từ vựng đầy đủ là thứ đúng để so.
   */
-  const game = parseGame(params.get(PARAM.game));
-  const topics = keepKnown<string>(splitList(params, PARAM.topic), topicIdsFor(game));
+  const rawTopics = splitList(params, PARAM.topic);
+  const game = parseGame(params.get(PARAM.game), rawTopics.length > 0);
+  const topics = game === ALL_GAMES ? [] : keepKnown<string>(rawTopics, topicIdsFor(game));
   const viewerStatus = keepKnown<ProblemViewerStatus>(splitList(params, PARAM.status), PROBLEM_VIEWER_STATUSES);
   const tags = [...new Set(splitList(params, PARAM.tag).map(normalizeTag).filter((tag) => tag !== ''))];
   const query = (params.get(PARAM.query) ?? '').trim();
@@ -192,7 +192,7 @@ export function toSearchParams(query: ProblemQuery): URLSearchParams {
     `k8s` chở được chủ đề nên hai vế trùng nhau và dòng này chưa đổi một URL nào;
     nay một link `?game=git&topic=branching` giữ được cả hai nửa.
   */
-  if (query.game !== DEFAULT_PROBLEM_QUERY.game || (filter.topics?.length ?? 0) > 0) {
+  if (query.game !== ALL_GAMES) {
     params.set(PARAM.game, query.game);
   }
   return params;
@@ -237,8 +237,14 @@ export function hasActiveFilter(filter: ProblemFilter): boolean {
 export type ProblemListInput = Omit<ProblemListOptions, 'cursor'> & { readonly cursor?: string };
 
 export function buildProblemListInput(query: ProblemQuery, cursor: string | undefined): ProblemListInput {
+  const { topics: _topics, ...rest } = query.filter;
+  // "Tất cả game": không gửi `gameId`, và không gửi chủ đề (chủ đề là của từng game).
+  const filter = query.game === ALL_GAMES ? rest : query.filter;
   return {
-    filter: { ...(hasActiveFilter(query.filter) ? query.filter : {}), gameId: query.game },
+    filter: {
+      ...(hasActiveFilter(filter) ? filter : {}),
+      ...(query.game === ALL_GAMES ? {} : { gameId: query.game }),
+    },
     orderBy: query.orderBy,
     direction: query.direction,
     limit: PROBLEM_PAGE_SIZE,
