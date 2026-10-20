@@ -1,9 +1,11 @@
 /**
- * C5 — khung phiên dùng chung (`phase-13-exec.md` §2).
+ * Khung phiên dùng chung của ba trình học (lesson, lab, playground).
  *
- * ⛔ HỢP ĐỒNG ĐÔNG CỨNG kể từ commit này: bốn lane đợt 2b (D2 · E · F · G) viết
- * theo đúng các tên và prop dưới đây. Thấy hợp đồng sai thì BÁO LEAD, không tự
- * đổi — một chữ ký đổi âm thầm ở đây là bốn lane biên dịch được nhưng chạy sai.
+ * ⛔ Bất biến của khoang làm việc: terminal KHÔNG đổi node cha và KHÔNG unmount
+ * trong suốt một phiên, dù đổi tab, đổi bố cục hay đổi bề rộng cửa sổ. `hidden`
+ * để nguyên node tại chỗ (chỉ thôi được vẽ); đổi cha hay bỏ khỏi cây là đóng
+ * WebSocket của người học mà không lỗi nào bắn. Đọc chú thích đầu
+ * `workspace-panel.tsx` trước khi sửa.
  */
 export { SessionControls } from './session-controls.tsx';
 export type { SessionActions, SessionControlsProps } from './session-controls.tsx';
@@ -13,25 +15,9 @@ export type { TerminalPaneProps } from './terminal-pane.tsx';
 
 export { useResolvedTerminalTheme } from './use-resolved-terminal-theme';
 
-// Bố cục "nội dung cạnh terminal" + cách nó gập lại dưới `TERMINAL_MIN_WIDTH_PX`
-// (13.B mục 8). Thêm 2026-09-07: hai trang có split (lesson, lab) cần đúng một
-// quyết định gập, và bản chép thứ hai là bản sẽ trôi.
-export { WorkspaceSplit } from './workspace-split.tsx';
+export { WorkspaceSplit, nextWideEnough, STACK_BELOW_PX, UNSTACK_FROM_PX } from './workspace-split.tsx';
 export type { WorkspaceSplitProps } from './workspace-split.tsx';
 
-// §Y1/§Y4 — khoang phải: HAI tab loại trừ nhau, dùng chung MỘT terminal. Tab
-// nào tới lượt thì chiếm trọn khoang, hàng kia mang `hidden` (SỬA ĐỔI 3, chỉ
-// đạo 2026-09-13; bản trước dựng theo KillerCoda với một dải terminal neo đáy
-// ~40% ở tab Editor, dải đó đã bị gỡ cùng thanh kéo sinh ra nó).
-//
-// ⛔ Bất biến của nó là: terminal KHÔNG đổi node cha và KHÔNG unmount. Nó KHÔNG
-// phải "terminal không bao giờ bị ẩn", như bản trước của chính dòng này viết.
-// `hidden` để nguyên node tại chỗ trong cây React, nó chỉ thôi được vẽ; đổi cha
-// hay bỏ khỏi cây mới là unmount, tức đóng WebSocket và mất phiên của người học
-// mà không lỗi nào bắn. Câu "không bao giờ ẩn" là hệ quả của LỰA CHỌN THIẾT KẾ
-// KillerCoda (terminal có mặt ở cả hai tab), chưa bao giờ là ràng buộc kỹ
-// thuật, nên nó đi theo khi lựa chọn đó bị thay. Đọc chú thích đầu
-// `workspace-panel.tsx` trước khi sửa.
 export { WorkspacePanel } from './workspace-panel.tsx';
 export type { WorkspacePanelProps } from './workspace-panel.tsx';
 export {
@@ -43,26 +29,31 @@ export {
 } from './workspace-tabs';
 export type { WorkspaceTabId } from './workspace-tabs';
 
-// Kênh "hình học khoang terminal vừa đổi" + hệ quả `fit()` của nó (§C3/§Y1).
-// `TerminalPane` đã tự dùng — trang tiêu thụ KHÔNG cần gọi gì thêm.
+// Kênh "hình học khoang terminal vừa đổi" + hệ quả `fit()` của nó.
 export {
   WorkspaceLayoutProvider,
   useFitOnLayoutChange,
   useWorkspaceLayout,
 } from './workspace-layout.tsx';
 
-// Khung khoang + trạng thái phiên dùng chung cho màn hình học. Bốn trình học
-// vẽ cùng một thanh nhãn và cùng một viên trạng thái, nên chúng sống ở đây
-// chứ không ở từng route — ba bản chép tay của khối C5 cũ đã lệch nhau một
-// lần rồi (playground thiếu nhãn TTL, lab thiếu tooltip hardCap).
-export { PaneHeader } from './pane-header.tsx';
-export type { PaneHeaderProps } from './pane-header.tsx';
+// Thanh 48px + dải thông báo của màn thực hành.
+export { WorkspaceBar } from './workspace-bar.tsx';
+export type { WorkspaceBarProps } from './workspace-bar.tsx';
+export { NoticeStrip } from './notice-strip.tsx';
+export type { PracticeNotice } from './notice-strip.tsx';
+
 export { PhaseIcon, SessionStatusPill, phaseToneClass } from './session-status.tsx';
 export type { PhaseIconProps, SessionStatusPillProps } from './session-status.tsx';
 
-// Phần phụ trợ — không nằm trong C5 nhưng bốn lane tiêu thụ đều cần, và chép
-// tay chúng ở mỗi trang là cách bốn trang bắt đầu nói bốn thứ khác nhau về
-// cùng một pha phiên.
+// Cổng nút Kiểm tra / nút chạy lệnh, lớp phủ theo pha, bàn giao cửa sổ riêng.
+export { checkBlockedReason, execBlockedReason } from './practice-gates';
+export type { CheckGateInput, ExecGateInput } from './practice-gates';
+export { resolveTerminalOverlay, overlayActionLabel } from './terminal-overlay';
+export type { OverlayAction, OverlayInput, TerminalOverlay } from './terminal-overlay';
+export { useTerminalHandoff, useWindowHandoff, terminalWindowUrl } from './terminal-handoff';
+export type { HandoffState, TerminalHandoff, WindowHandoff } from './terminal-handoff';
+export { contentViewLabels, stepNavLabels } from './practice-labels';
+
 export { SESSION_PHASE_LABEL, phaseBadgeVariant, TTL_URGENT_MS, TTL_VISIBLE_MS } from './session-phase';
 export { describeCapacity, DEFAULT_PROFILE } from './capacity';
 export type {
@@ -75,23 +66,14 @@ export type {
   UnknownCapacityHint,
 } from './capacity';
 export { IDE_BOOT_TIMEOUT_MS, IDE_LAYOUT, ideSessionUrl, shouldShowIdePane } from './ide-layout';
-// P16 / 16.D.3 — chuyển từ `app/lessons/[id]/ide-pane.tsx` sang đây. Bài nào
-// bật IDE là quyết định NỘI DUNG, không phải quyết định kiến trúc, nên lab
-// phải với tới được nó. `WorkspacePanel` không đổi một dòng: nó vốn chỉ nhận
-// `editor?: ReactNode`.
 export { IdePane } from './ide-pane.tsx';
 export type { IdePaneProps } from './ide-pane.tsx';
 
-// P16 / 16.D.4 — danh sách kiểm nhiệm vụ, NĂM trạng thái nhìn được. `infra`
-// (lượt chấm không chạy được) tách khỏi `failed` (bài làm chưa đạt): trước đó
-// hai thứ vẽ ra cùng một viên badge, và một ô "chưa đạt" bảo người học đi sửa
-// bài làm trong khi thứ hỏng là cụm.
+// Danh sách nhiệm vụ, NĂM trạng thái nhìn được (`infra` tách khỏi `failed`).
 export { TaskChecklist } from './task-checklist.tsx';
 export type { TaskChecklistItem, TaskChecklistProps } from './task-checklist.tsx';
 export { countByVisualState, outcomeKind, resolveTaskVisualState } from './task-state';
 export type { StoredTaskState, TaskOutcomeKind, TaskVisualState } from './task-state';
 export { resolveTerminalTheme } from './terminal-theme';
-export { ShellFallbackNotice } from './shell-fallback-notice.tsx';
-export type { ShellFallbackNoticeProps } from './shell-fallback-notice.tsx';
 export { resolveShellFallbackNotice } from './shell-fallback';
 export type { ShellFallbackInput } from './shell-fallback';

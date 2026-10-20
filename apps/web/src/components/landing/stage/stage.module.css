@@ -1,0 +1,36 @@
+.stage {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.host {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 1200ms var(--l-ease);
+}
+
+.host[data-ready='true'] {
+  opacity: 1;
+}
+
+.art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0.5;
+  transition: opacity 900ms var(--l-ease);
+}
+
+.art[data-visible='false'] {
+  opacity: 0;
+}
+
+@media (max-width: 760px) {
+  .art {
+    opacity: 0.28;
+  }
+}

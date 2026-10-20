@@ -1,0 +1,170 @@
+.bar {
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 60;
+  transition:
+    transform 520ms var(--l-ease),
+    background-color 360ms var(--l-ease),
+    border-color 360ms var(--l-ease);
+  border-bottom: 1px solid transparent;
+}
+
+.bar[data-scrolled='true'] {
+  background: rgb(10 13 20 / 0.72);
+  border-bottom-color: var(--l-rule);
+  backdrop-filter: blur(14px) saturate(1.4);
+}
+
+.bar[data-hidden='true'] {
+  transform: translateY(-100%);
+}
+
+.bar:focus-within {
+  transform: none;
+}
+
+.inner {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  max-width: var(--l-max);
+  height: 68px;
+  margin-inline: auto;
+  padding-inline: var(--l-pad);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--l-ink);
+  text-decoration: none;
+}
+
+.mark {
+  width: 26px;
+  height: 32px;
+}
+
+.brandText {
+  white-space: nowrap;
+  font-family: var(--l-display);
+  font-size: 1.05rem;
+  font-weight: 900;
+  font-stretch: 118%;
+  font-variation-settings: 'wdth' 118;
+  letter-spacing: -0.01em;
+}
+
+.nav {
+  margin-inline: auto;
+}
+
+.nav ul {
+  display: flex;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.nav a {
+  position: relative;
+  display: inline-block;
+  padding: 10px 12px;
+  font-family: var(--l-mono);
+  font-size: 0.74rem;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--l-muted);
+  text-decoration: none;
+  transition: color 220ms var(--l-ease);
+}
+
+.nav a::after {
+  content: '';
+  position: absolute;
+  inset: auto 12px 6px;
+  height: 1px;
+  background: var(--l-red);
+  transform: scaleX(0);
+  transform-origin: 100% 50%;
+  transition: transform 380ms var(--l-ease);
+}
+
+.nav a:hover {
+  color: var(--l-ink);
+}
+
+.nav a:hover::after {
+  transform: scaleX(1);
+  transform-origin: 0 50%;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.actions [data-size='sm'] {
+  min-height: 42px;
+  padding-inline: 16px;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+/* Giảm chuyển động thì không có ScrollTrigger cập nhật trạng thái cuộn: thanh trên luôn đặc,
+   nếu không nó trong suốt đè lên chữ của khu bên dưới. (Không áp cho `pending`: ở đầu trang
+   thanh trên vốn trong suốt, đổi nền ngay sau hydrate là một cú nháy thấy được.) */
+:global([data-motion='reduced']) .bar {
+  background: rgb(10 13 20 / 0.92);
+  border-bottom-color: var(--l-rule);
+}
+
+.signIn {
+  padding: 10px 12px;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--l-ink);
+  text-decoration: none;
+}
+
+.signIn:hover {
+  color: var(--l-star);
+}
+
+.progress {
+  position: absolute;
+  inset: auto 0 -1px;
+  height: 2px;
+  background: linear-gradient(90deg, var(--l-red), var(--l-git), var(--l-linux));
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+}
+
+@media (max-width: 960px) {
+  .nav {
+    display: none;
+  }
+
+  .actions {
+    margin-left: auto;
+  }
+}
+
+@media (max-width: 420px) {
+  .signIn {
+    display: none;
+  }
+
+  .inner {
+    gap: 12px;
+  }
+
+  .actions [data-size='sm'] {
+    padding-inline: 12px;
+    font-size: 0.84rem;
+  }
+}

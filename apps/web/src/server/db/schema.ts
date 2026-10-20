@@ -161,10 +161,48 @@ export const progress = pgTable(
   (table) => [uniqueIndex('progress_user_lesson_key').on(table.userId, table.lessonId)],
 );
 
+/**
+ * Phiên sandbox (orchestrator) nào được mở TỪ bài học / sân chơi nào.
+ *
+ * ## Vì sao bảng này tồn tại
+ *
+ * `me.activeSessions` muốn dẫn "Làm tiếp" về đúng trang, nhưng phiên của
+ * orchestrator KHÔNG mang thông tin nội dung nào (`Session` proto chỉ có id,
+ * user, tier, pod, mốc thời gian), và trước bảng này chỉ LAB ghi lại quan hệ đó
+ * (`lab_attempts.session_id`). Bài học và sân chơi mở phiên rồi quên mất — không
+ * có cột nào để suy ngược.
+ *
+ * ⛔ CHỈ `lesson` và `playground`. Lab KHÔNG ghi ở đây: `lab_attempts.session_id`
+ * đã là sự thật của nó, và một dòng thứ hai là hai nguồn cho cùng một câu hỏi.
+ *
+ * Khoá chính `session_id`: một phiên mở từ đúng một nội dung. Mở lại với cùng
+ * `idempotencyKey` trả về CÙNG phiên, nên lượt ghi là `onConflictDoNothing`.
+ *
+ * Cascade theo `users`: xoá tài khoản thì quan hệ này vô nghĩa. Không có FK tới
+ * nội dung — bài học/sân chơi nằm trên đĩa hoặc trong `content_items`, cùng lý
+ * do `progress.lesson_id` và `lab_attempts.lab_id` không có FK.
+ *
+ * Phiên mở TRƯỚC khi bảng này có (migration 0018) không có dòng ⇒ `content: null`.
+ */
+export const sessionOrigins = pgTable(
+  'session_origins',
+  {
+    sessionId: text('session_id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    kind: text('kind', { enum: ['lesson', 'playground'] }).notNull(),
+    contentId: text('content_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index('session_origins_user_idx').on(table.userId)],
+);
+
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 export type SessionAuditEvent = typeof sessionsAudit.$inferSelect;
 export type Progress = typeof progress.$inferSelect;
+export type SessionOriginRow = typeof sessionOrigins.$inferSelect;
 
 /**
  * === Better Auth (0.D) ===

@@ -5,13 +5,27 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from './cn.ts';
 import { Spinner } from './spinner.tsx';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'destructive' | 'link';
+export type ButtonVariant = 'primary' | 'ink' | 'secondary' | 'outline' | 'ghost' | 'destructive' | 'link';
 export type ButtonSize = 'sm' | 'md' | 'lg' | 'icon';
 
 const buttonVariants = cva(
   [
-    'inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap',
-    'transition-colors duration-[var(--motion-fast)] ease-out outline-none',
+    /*
+     * `group/button` đặt tên cho nhóm để icon phải nhích theo hover CỦA NÚT, không
+     * theo một `group` nào đó của nơi gọi bọc bên ngoài (thẻ dòng, hàng bảng…).
+     *
+     * `rounded-control`, không phải `rounded-md`: bo góc đọc từ biến
+     * `--radius-control` — 0 trong app, giá trị cũ trong `.arena-root` của game
+     * K8s (hợp đồng ui-kit §B, "arena freeze rule").
+     */
+    'group/button inline-flex shrink-0 items-center justify-center gap-2 rounded-control text-sm font-medium whitespace-nowrap',
+    'transition-[color,background-color,border-color,filter,transform] duration-[var(--motion-fast)] ease-out outline-none',
+    /*
+     * Nhấn: nút lún 1px (design-brief §5). Sau `motion-safe:` để người yêu cầu
+     * giảm chuyển động không thấy nút giật. Nút disabled có
+     * `pointer-events-none` nên không bao giờ nhận `:active`.
+     */
+    'motion-safe:active:translate-y-px',
     /*
      * `ring-offset-2` và `ring-offset-background` đi CÙNG NHAU, không tách được.
      *
@@ -66,46 +80,51 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        primary: 'bg-primary text-primary-foreground hover:bg-primary/90',
-        secondary: 'bg-secondary text-secondary-foreground hover:bg-secondary/80',
-        outline: 'border border-input bg-background hover:bg-accent hover:text-accent-foreground',
-        ghost: 'bg-transparent hover:bg-accent hover:text-accent-foreground',
+        /*
+         * Hover làm TỐI mặt nút (`brightness-90`), không làm nhạt như `/90`: trên
+         * nền giấy, alpha 90% đọc ra một nút bạc màu hơn chứ không phải một nút
+         * đang được trỏ vào.
+         */
+        primary: 'bg-primary text-primary-foreground hover:brightness-90',
+        ink: 'bg-ink text-ink-foreground hover:brightness-110',
+        // `secondary` = nền muted (hợp đồng ui-kit §B). `--secondary` cũ chỉ còn cho game.
+        secondary: 'bg-muted text-foreground hover:bg-border',
+        outline: 'border border-ink bg-transparent text-foreground hover:bg-muted',
+        ghost: 'bg-transparent text-foreground hover:bg-muted',
         /*
          * TÁCH KHỎI `primary` BẰNG HÌNH DẠNG, không bằng màu (quyết định #1 của
-         * 14.A). Từ 2026-09-08 thương hiệu là ĐỎ, nên `--primary` và
-         * `--destructive` chỉ còn lệch 2.3° hue — đo được 1.01:1 giữa hai mặt
-         * nút, tức mắt KHÔNG phân biệt nổi. Nếu cả hai cùng là nền đặc thì "Lưu"
-         * và "Xoá vĩnh viễn" trông y hệt nhau.
+         * 14.A). `--primary` (đỏ PTIT) và `--destructive` đều là đỏ, nên nếu cả
+         * hai cùng là nền đặc thì "Lưu" và "Xoá vĩnh viễn" trông y hệt nhau.
          *
-         * Nên: primary = nền ĐẶC, destructive = VIỀN + nền trong suốt + chữ đỏ
-         * + icon bắt buộc. Khác biệt nằm ở CẤU TRÚC (có viền / không viền, nền
-         * sáng / nền tối, có icon / không icon), nên nó sống sót khi in đen
-         * trắng và với người mù màu đỏ-lục — xem `button.test.tsx` §"khử màu".
+         * Nên: primary = nền ĐẶC không viền, destructive = nền PHA NHẠT
+         * (`/10`, design-brief §2.2) + viền + chữ đỏ + icon bắt buộc. Khác biệt
+         * nằm ở CẤU TRÚC (có viền / không viền, khối đặc / khối nhạt, có icon /
+         * không icon), nên nó sống sót khi in đen trắng và với người mù màu
+         * đỏ-lục — xem `button.test.tsx` §"khử màu".
          *
-         * Vì sao nghỉ = TRONG SUỐT chứ không phải `bg-destructive/10`: chữ đỏ
-         * trên nền hồng nhạt KHÔNG đạt SC 1.4.3 ở nhánh sáng. Đo được 3.99:1
-         * (cần 4.5), và alpha không cứu nổi — `--destructive` sáng chỉ đạt
-         * 4.7647:1 trên nền trắng tinh, nên mọi lớp phủ đều ăn vào đúng phần dư
-         * mỏng đó; muốn đạt 4.5 thì tint phải hạ xuống /03, lúc ấy không còn là
-         * tint nữa. Bỏ hẳn tint ở trạng thái nghỉ giữ nguyên 4.7647:1 (sáng) và
-         * 6.8443:1 (tối) trên `--background`, 4.7647 / 6.1943 trên `--card`.
-         *
-         * ⚠ Giới hạn ĐÃ ĐO: trên `bg-muted` nhánh SÁNG chỉ được 4.3686:1 —
-         * DƯỚI 4.5. Ba nơi gọi thật (confirm-dialog, publish-panel,
-         * active-sessions) đều nằm trên mặt dialog/card nên không chạm giới hạn
-         * này, nhưng ĐỪNG đặt nút destructive vào khối `bg-muted` ở nhánh sáng.
-         * Gác bằng test khoảng-trống ở `theme/tokens.contract.test.ts`.
+         * Lớp pha `/10` ăn vào tương phản của chữ đỏ. Với token của bản dựng lại
+         * (`--destructive` sáng #B4231A) chữ trên nền giấy pha 10% còn ~5.1:1;
+         * cặp này thuộc bảng đo của `theme/tokens.contract.test.ts`, không đo
+         * lại ở đây.
          *
          * Hover ĐẢO sang nền đặc: cặp `--destructive-foreground` trên
-         * `--destructive` đã được `TEXT_PAIRS` gác sẵn (4.5636 sáng / 6.8436
-         * tối). Đảo lúc hover không đụng `primary`, vì `primary` đặc từ lúc
-         * NGHỈ — và trạng thái nghỉ mới là thứ người dùng quét mắt qua.
+         * `--destructive` đã được `TEXT_PAIRS` gác sẵn.
          */
         destructive: [
-          'border border-destructive bg-transparent text-destructive',
-          'hover:bg-destructive hover:text-destructive-foreground',
+          'border border-destructive/50 bg-destructive/10 text-destructive',
+          'hover:border-destructive hover:bg-destructive hover:text-destructive-foreground',
         ].join(' '),
-        link: 'bg-transparent text-primary underline-offset-4 hover:underline',
+        /*
+         * `text-brand`, không phải `text-primary`: `--primary` là màu TÔ NỀN,
+         * `--brand` là đỏ đã chỉnh để làm CHỮ trên nền trang (design-brief §2.2).
+         * Gạch chân luôn có mặt nhưng trong suốt, hover thì hiện màu: vẽ bằng
+         * một nền 1px sẽ chạy cả vào phần padding của nút và nằm ở MÉP nút cao
+         * 40px chứ không nằm dưới chữ.
+         */
+        link: [
+          'bg-transparent text-brand underline decoration-transparent underline-offset-4',
+          'transition-[text-decoration-color,color] hover:decoration-current',
+        ].join(' '),
       } satisfies Record<ButtonVariant, string>,
       size: {
         sm: 'h-8 px-3 text-xs',
@@ -141,21 +160,20 @@ const buttonVariants = cva(
  */
 const SPINNER_TONE = {
   primary: 'text-primary-foreground',
-  secondary: 'text-secondary-foreground',
+  ink: 'text-ink-foreground',
+  secondary: 'text-foreground',
   outline: 'text-foreground',
   ghost: 'text-foreground',
   /*
-   * `text-destructive`, KHÔNG phải `text-destructive-foreground` — đổi cùng lúc
-   * với biến thể viền ở trên. `loading` kéo theo `disabled`, nên nút không bao
-   * giờ ở trạng thái hover khi Spinner chạy: màu nền dưới Spinner là màu NGHỈ
-   * (trong suốt), và chữ nghỉ là `text-destructive`. Để nguyên
-   * `-foreground` ở đây là vẽ Spinner gần-trắng lên nền gần-trắng — vô hình,
-   * đúng cùng một hỏng câm mà cả khối chú thích này sinh ra để chặn.
-   * `--destructive` trên `--background` đo được 4.7647:1 (sáng) / 6.8443:1
-   * (tối), dư so với mức 3:1 mà một thành phần đồ hoạ cần.
+   * `text-destructive`, KHÔNG phải `text-destructive-foreground`. `loading` kéo
+   * theo `disabled`, nên nút không bao giờ ở trạng thái hover khi Spinner chạy:
+   * màu nền dưới Spinner là màu NGHỈ (pha nhạt `/10`), và chữ nghỉ là
+   * `text-destructive`. Để `-foreground` ở đây là vẽ Spinner gần-trắng lên nền
+   * gần-trắng — vô hình, đúng cùng một hỏng câm mà cả khối chú thích này sinh
+   * ra để chặn.
    */
   destructive: 'text-destructive',
-  link: 'text-primary',
+  link: 'text-brand',
 } as const satisfies Record<ButtonVariant, string>;
 
 /**
@@ -199,7 +217,10 @@ export interface ButtonProps
    * bỏ qua tình cờ.
    */
   readonly iconLeft?: ReactNode;
-  /** Icon sau nhãn. Cùng ràng buộc `aria-hidden` + `asChild` như `iconLeft`. */
+  /**
+   * Icon sau nhãn. Cùng ràng buộc `aria-hidden` + `asChild` như `iconLeft`.
+   * Rê chuột vào nút thì icon này nhích 2px theo hướng đọc (design-brief §5).
+   */
   readonly iconRight?: ReactNode;
 }
 
@@ -310,7 +331,22 @@ export function Button(props: ButtonProps) {
               cạnh một cái nhãn đã tàng hình. */}
           {resolvedIconLeft}
           {children}
-          {iconRight}
+          {/*
+            Bọc `iconRight` trong một span để nhích được nó mà không đụng vào
+            node của nơi gọi (component không `cloneElement`). Không có icon
+            thì không có span: nút chữ-trơn giữ đúng cây DOM như trước.
+          */}
+          {iconRight !== undefined && iconRight !== null && (
+            <span
+              data-slot="button-icon-right"
+              className={cn(
+                'inline-flex shrink-0 transition-transform duration-[var(--motion-fast)] ease-out',
+                'motion-safe:group-hover/button:translate-x-0.5',
+              )}
+            >
+              {iconRight}
+            </span>
+          )}
         </Fragment>
       )}
     </Comp>

@@ -19,6 +19,22 @@ import type { IntentionalThree, Surface } from '../types.ts';
  * liệu để làm.
  */
 export const common = {
+  // Hộp xác nhận dùng chung (components/kit/confirm-dialog.tsx).
+  'common.confirm.cancel': 'Huỷ',
+  'common.confirm.loss-label': 'Sẽ mất',
+  // ── Trang lỗi chung (bản dựng lại PTIT, 2026-10-03) ──────────────────────
+  'common.not-found.code': '404',
+  'common.not-found.kicker': 'Không có trên bản đồ',
+  'common.not-found.title': 'Ga này không tồn tại',
+  'common.not-found.body':
+    'Đường dẫn sai, hoặc bài đã bị gỡ. Quay về một trong các tuyến chính bên dưới.',
+  'common.not-found.home': 'Về trang chủ',
+  'common.crash.kicker': 'Có lỗi khi dựng trang',
+  'common.crash.title': 'Trang này vừa gặp sự cố',
+  'common.crash.body':
+    'Lỗi nằm ở phía chúng tôi, không phải do bạn bấm sai. Thử tải lại; vẫn lỗi thì gửi mã bên dưới cho giảng viên.',
+  'common.crash.retry': 'Thử lại',
+  'common.crash.digest': (p: { digest: string }) => `Mã lỗi: ${p.digest}`,
   // ── Thao tác ────────────────────────────────────────────────────────────
   /**
    * Mô tả tài liệu mặc định của toàn ứng dụng, đọc bởi `app/layout.tsx`.
@@ -38,7 +54,6 @@ export const common = {
   'common.action.edit': 'Sửa',
   'common.action.retry': 'Thử lại',
   'common.action.back': 'Quay lại',
-  'common.action.next': 'Tiếp',
   'common.action.prev': 'Trước',
   'common.action.copy': 'Sao chép',
   'common.action.copied': 'Đã sao chép',
@@ -46,7 +61,6 @@ export const common = {
   'common.action.search': 'Tìm',
   'common.action.clear-filter': 'Bỏ lọc',
   'common.action.reload': 'Tải lại trang',
-  'common.action.open': 'Mở',
   'common.action.more': 'Xem thêm',
   'common.action.dismiss': 'Bỏ qua',
 

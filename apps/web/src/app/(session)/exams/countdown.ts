@@ -76,3 +76,17 @@ export const COUNTDOWN_TICK_MS = 250;
  * một phòng thi bốn mươi người không thành bốn mươi request mỗi giây.
  */
 export const COUNTDOWN_RESYNC_MS = 30_000;
+
+/**
+ * Ngưỡng "gấp", mili-giây: dưới mốc này bảng giờ chuyển sang đỏ PTIT.
+ *
+ * Năm phút là đủ để làm xong một thao tác cuối và bấm nộp, không đủ để bắt đầu
+ * một bài mới. Đổi màu muộn hơn thì người làm chỉ kịp thấy đỏ khi đã hết đường
+ * xoay xở; sớm hơn thì đỏ thành màu nền và hết tác dụng báo động.
+ */
+export const COUNTDOWN_URGENT_MS = 5 * 60_000;
+
+/** Còn dưới ngưỡng gấp nhưng chưa hết giờ. Đúng 0 là "đã hết", không phải "gấp". */
+export function isCountdownUrgent(ms: number): boolean {
+  return ms > 0 && ms < COUNTDOWN_URGENT_MS;
+}

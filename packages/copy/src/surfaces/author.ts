@@ -59,7 +59,7 @@ export const author = {
    */
   'author.kind.lesson': 'Bài học',
   'author.kind.lab': 'Lab',
-  'author.kind.playground': 'Playground',
+  'author.kind.playground': 'Sân chơi',
 
   // ── Trạng thái của một bài ────────────────────────────────────────────────
   'author.state.draft': 'Nháp',
@@ -110,7 +110,10 @@ export const author = {
   // ── Trang danh sách ───────────────────────────────────────────────────────
   'author.list.title': 'Soạn bài',
   'author.list.lead':
-    'Quản lý bài học, lab và playground của bạn.',
+    'Bài học, lab và sân chơi bạn đang viết. Lưu nháp bao nhiêu lần cũng được; người học chỉ thấy bài sau khi bạn xuất bản.',
+  'author.list.kicker': (p: { total: number; drafts: number }) =>
+    `Xưởng soạn · ${String(p.total)} bài · ${String(p.drafts)} nháp`,
+  'author.list.board-label': 'Bài của bạn, bài sửa gần nhất ở trên',
   'author.list.new-cta': 'Tạo bài mới',
   'author.list.error-title': 'Không tải được danh sách bài',
   'author.list.empty-title': 'Bạn chưa có bài nào',
@@ -118,21 +121,21 @@ export const author = {
     'Tạo bài học có từng bước, lab giao việc rồi chấm, hoặc playground là một sandbox trống. Bài mới luôn ở trạng thái Nháp, người học không thấy cho tới khi bạn xuất bản.',
   'author.list.empty-cta': 'Tạo bài đầu tiên',
   'author.list.filter.all': 'Tất cả',
-  'author.list.filter.tab': (p: { label: string; n: number }) => `${p.label} (${String(p.n)})`,
   'author.list.filter.empty.title': (p: { filter: string }) =>
     `Không có bài nào ở trạng thái "${p.filter}"`,
-  'author.list.filter.empty.body': 'Đổi bộ lọc phía trên để xem các bài khác.',
-  'author.list.publish-failed.title': 'Lượt xuất bản gần nhất trượt',
-  'author.list.publish-failed.next': 'Mở bài, sửa chỗ được nêu, rồi xuất bản lại.',
+  'author.list.filter.empty.body': 'Chọn bộ lọc khác ở trên để xem các bài còn lại.',
+  'author.list.publish-failed': (p: { reason: string }) =>
+    `Lần xuất bản gần nhất trượt: ${p.reason}`,
 
   // ── Trang tạo bài mới ─────────────────────────────────────────────────────
   'author.new.title': 'Tạo bài mới',
-  'author.new.lead':
-    'Lưu bản nháp trước. Xuất bản khi nội dung đã sẵn sàng.',
+  'author.new.after-title': 'Sau khi tạo',
+  'author.new.after-body':
+    'Bài ra đời ở trạng thái Nháp và chỉ bạn thấy. Xem trước, tệp đính kèm và xuất bản nằm ở trang sửa, mở ngay sau lượt tạo.',
   'author.new.identity-heading': 'Định danh, không sửa lại được',
   'author.new.kind.label': 'Loại nội dung',
   'author.new.kind.hint':
-    'Bài học dẫn từng bước · Lab giao việc rồi chấm · Playground là sandbox trống. Không đổi được sau khi tạo.',
+    'Bài học dẫn từng bước · Lab giao việc rồi chấm · Sân chơi là sandbox trống. Không đổi được sau khi tạo.',
   'author.new.id.label': 'Id',
   'author.new.id.placeholder': 'dlp-chan-doan-cpu',
   'author.new.id.hint':
@@ -157,7 +160,6 @@ export const author = {
     one: 'Còn 1 ô cần sửa',
     many: (n: number) => `Còn ${String(n)} ô cần sửa`,
   },
-  'author.issues.row': (p: { message: string }) => `: ${p.message}`,
 
   // ── Trang sửa bài ─────────────────────────────────────────────────────────
   'author.edit.load-error.title': 'Không tải được bài',
@@ -170,11 +172,10 @@ export const author = {
 
   'author.edit.tab.compose': 'Soạn',
   'author.edit.tab.preview': 'Xem trước',
-  'author.edit.tab.assets': 'Tệp đính kèm',
+  'author.edit.tab.assets': 'Tệp',
   'author.edit.tab.publish': 'Xuất bản',
 
   'author.edit.body-error.title': 'Không nạp được nội dung bài',
-  'author.edit.save-error.title': 'Không lưu được',
 
   'author.edit.preview.error.title': 'Không xem trước được',
   'author.edit.preview.rejected.title': 'Bản nháp chưa qua schema xuất bản',
@@ -200,6 +201,47 @@ export const author = {
     `Bài "${p.liveId}" mà người học đang học giữ nguyên. Thay đổi của bạn nằm ở bản nháp "${p.draftId}" và chỉ thay thế bản đang chạy khi bạn bấm Xuất bản.`,
 
   /*
+   * ── Khung chung của Xưởng soạn (2026-10-03, bản dựng lại PTIT) ────────────
+   *
+   * `components/author/studio/**`: ô trạng thái lưu, hàng tab chế độ, cột kiểm
+   * bên phải, nút hành động dùng chung cho trình soạn bài học VÀ trình soạn đề.
+   * Một nguồn cho cả hai, để "Lưu trữ" ở trang này và "Lưu trữ" ở trang kia là
+   * cùng một chữ, không phải hai chữ tình cờ giống nhau.
+   */
+  'author.studio.modes.label': 'Chế độ soạn',
+  'author.studio.rail.label': 'Bảng kiểm',
+  'author.studio.save.new': 'Chưa lưu lần nào',
+  'author.studio.save.saved': 'Đã lưu',
+  'author.studio.save.unsaved': 'Chưa lưu',
+  'author.studio.save.saving': 'Đang lưu',
+  'author.studio.save.error': 'Không lưu được',
+  'author.studio.rail.issues': 'Ô cần sửa',
+  'author.studio.rail.issues-clean': 'Chưa thấy ô nào sai. Máy chủ vẫn kiểm lại lúc lưu và lúc xuất bản.',
+  'author.studio.rail.readiness': 'Xuất bản',
+  'author.studio.publish.save-first.title': 'Lưu trước khi xuất bản',
+  'author.studio.publish.save-first.body':
+    'Xuất bản dùng bản đã lưu trên máy chủ, không dùng thứ đang có trên màn hình. Bấm Lưu rồi quay lại đây.',
+  'author.studio.action.publish': 'Xuất bản',
+  'author.studio.action.archive': 'Lưu trữ',
+  'author.studio.action.delete': 'Xoá bài',
+  'author.studio.action.save-draft': 'Lưu bản nháp',
+  'author.studio.action-error.save': 'Máy chủ từ chối lượt lưu',
+  'author.studio.action-error.publish': 'Không xuất bản được',
+  'author.studio.action-error.archive': 'Không lưu trữ được',
+  'author.studio.action-error.delete': 'Không xoá được',
+  'author.studio.list.filter-label': 'Lọc theo trạng thái',
+  'author.studio.list.search-label': 'Tìm theo tên hoặc mã',
+  'author.studio.list.search-placeholder': 'Tên bài hoặc mã',
+  'author.studio.list.loading': 'Đang tải danh sách',
+  'author.studio.list.no-match': (p: { query: string }) =>
+    `Không có bài nào khớp "${p.query}". Thử từ khác, hoặc xoá ô tìm.`,
+  'author.studio.field.unknown': (p: { path: string }) => `Ô ${p.path}`,
+  'author.studio.field.step': (p: { n: number }) => `Bước ${String(p.n)}`,
+  'author.studio.field.task': (p: { n: number }) => `Task ${String(p.n)}`,
+  'author.studio.field.asset': (p: { n: number }) => `Tệp ${String(p.n)}`,
+  'author.studio.field.joined': (p: { group: string; field: string }) => `${p.group} · ${p.field}`,
+
+  /*
    * ── Bài tập Kubernetes (OJ), lane 16.G2 ───────────────────────────────────
    *
    * Tiền tố riêng `author.problem.` chứ không dùng chung với `author.state.` /
@@ -213,39 +255,40 @@ export const author = {
    * chặn bởi số màn hình.
    */
 
-  'author.problem.meta.list': 'Bài tập Kubernetes · DevOps Learning Platform',
-  'author.problem.meta.new': 'Soạn bài tập mới · DevOps Learning Platform',
-  'author.problem.meta.edit': 'Sửa bài tập · DevOps Learning Platform',
+  'author.problem.meta.list': 'Đề bài · DevOps Learning Platform',
+  'author.problem.meta.new': 'Tạo đề mới · DevOps Learning Platform',
+  'author.problem.meta.edit': 'Sửa đề · DevOps Learning Platform',
 
   'author.problem.state.draft': 'Nháp',
   'author.problem.state.published': 'Đã xuất bản',
   'author.problem.state.archived': 'Lưu trữ',
   'author.problem.filter-all': 'Tất cả',
 
-  'author.problem.nav.back': 'Về danh sách bài tập',
-  'author.problem.server-error-title': 'Máy chủ từ chối',
+  'author.problem.code-note': 'Mã không đổi kể cả khi bạn sửa đề hay đổi slug.',
+  'author.problem.jump-missing': 'Không tìm thấy ô này trên biểu mẫu. Mở chế độ chứa nó rồi tìm theo tên ô.',
 
   // ── Danh sách bài tập ──────────────────────────────────────────────────────
-  'author.problem.list.title': 'Bài tập Kubernetes',
+  'author.problem.list.title': 'Đề bài',
   'author.problem.list.lead':
-    'Bài do bạn soạn. Bản nháp không hiện với người học, kể cả khi họ biết URL.',
-  'author.problem.list.new-cta': 'Soạn bài mới',
-  'author.problem.list.error-title': 'Không tải được danh sách bài',
-  'author.problem.list.empty-title': 'Bạn chưa soạn bài nào',
+    'Đề cho bộ chấm của các game: dựng sẵn một trạng thái hỏng, nêu mục tiêu, chấm bằng vị từ. Nháp không hiện với người học, kể cả khi họ có đường dẫn.',
+  'author.problem.list.kicker': 'Xưởng soạn · đề bài',
+  'author.problem.list.board-label': 'Đề của bạn',
+  'author.problem.list.new-cta': 'Tạo đề mới',
+  'author.problem.list.error-title': 'Không tải được danh sách đề',
+  'author.problem.list.empty-title': 'Bạn chưa soạn đề nào',
   'author.problem.list.empty-filtered': (p: { state: string }) =>
-    `Không có bài nào ở trạng thái "${p.state}"`,
+    `Không có đề nào ở trạng thái "${p.state}"`,
   'author.problem.list.empty-body':
-    'Một bài OJ không dạy lý thuyết. Nó ra đề, dựng sẵn một cụm hỏng, và chấm bằng vị từ tra trong bảng. Không cần viết một dòng logic engine nào.',
-  'author.problem.list.empty-cta': 'Soạn bài đầu tiên',
+    'Một đề không dạy lý thuyết. Nó dựng sẵn một trạng thái hỏng và chấm bằng vị từ có sẵn trong bảng, nên bạn không phải viết dòng logic engine nào.',
+  'author.problem.list.empty-cta': 'Tạo đề đầu tiên',
   'author.problem.list.row-topics': (p: { topics: string }) => ` · ${p.topics}`,
   'author.problem.list.row-untried': 'Chưa ai thử.',
   'author.problem.list.row-solved': (p: { solvers: number; attempts: number }) =>
     `${String(p.solvers)}/${String(p.attempts)} người thử đã giải được.`,
 
   // ── Soạn bài tập mới ───────────────────────────────────────────────────────
-  'author.problem.new.title': 'Soạn bài tập mới',
-  'author.problem.new.lead':
-    'Bài OJ không dạy lý thuyết. Nó ra đề, dựng sẵn một cụm, và chấm bằng vị từ chọn từ bảng tra. Không cần viết một dòng logic engine nào.',
+  'author.problem.new.title': 'Soạn đề mới',
+  'author.problem.new.crumb': 'Đề mới',
   /*
    * `Counted` chứ không phải một câu ghép số: nhánh `zero` bắt buộc ở tầng kiểu,
    * và nó không phải chỗ điền cho đủ. Hộp này chỉ hiện khi `issues.length > 0`,
@@ -257,28 +300,16 @@ export const author = {
     one: 'Còn 1 ô chưa lưu được',
     many: (n: number) => `Còn ${String(n)} ô chưa lưu được`,
   },
-  'author.problem.new.submit': 'Lưu bản nháp',
   'author.problem.new.submit-hint':
-    'Máy chủ cấp mã bài khi lưu. Xuất bản được làm ở trang sửa, sau khi có mã.',
+    'Máy chủ cấp mã đề lúc bạn lưu lần đầu. Có mã rồi mới xuất bản được, ở trang sửa.',
   'author.problem.new.created-title': (p: { code: string }) => `Đã tạo bản nháp ${p.code}`,
-  'author.problem.new.created-body': 'Người học chưa thấy bài này cho tới khi bạn xuất bản.',
+  'author.problem.new.created-body': 'Người học chưa thấy đề này cho tới khi bạn xuất bản.',
 
   // ── Sửa bài tập ────────────────────────────────────────────────────────────
-  'author.problem.edit.error-title': 'Không mở được bài này',
-  'author.problem.edit.error-fallback': 'Không đọc được nội dung bài.',
-  'author.problem.edit.code-note': 'mã không đổi kể cả khi bạn sửa đề hay đổi slug.',
-  'author.problem.edit.unsaved': 'Có thay đổi chưa lưu.',
-  'author.problem.edit.saved': 'Đã lưu mọi thay đổi.',
-  /*
-   * Trạng thái THỨ BA của cùng ô báo đó, thêm 2026-09-16 cùng lượt nối dây ô
-   * `practice-save-state` của `problem-editor.tsx`.
-   *
-   * Hai khoá ngay trên nói về CHÊNH LỆCH so với bản đã lưu, nên không cái nào
-   * đúng cho một bản nháp chưa lần nào gửi đi: `unsaved` doạ mất thứ chưa từng
-   * tồn tại, `saved` khẳng định một lượt lưu chưa xảy ra. Ô đó đọc `code === null`
-   * để tách ca này ra, nên nó cần chữ riêng.
-   */
-  'author.problem.edit.new-draft': 'Bản nháp mới',
+  // Ô "đã lưu / chưa lưu" nay là `SaveState` dùng chung của Xưởng soạn
+  // (`author.studio.save.*`), nên ba khoá trạng thái lưu riêng của đề đã xoá.
+  'author.problem.edit.error-title': 'Không mở được đề này',
+  'author.problem.edit.error-fallback': 'Không đọc được nội dung đề.',
 
   // ── Thông báo nổi sau mỗi lượt gọi máy chủ ─────────────────────────────────
   'author.problem.toast.saved': 'Đã lưu',
@@ -381,6 +412,7 @@ export const author = {
     'Hiện: người làm đọc được nhãn này trước khi nộp.',
   'author.problem.objectives.visible-off':
     'Ẩn: người làm biết có testcase này (nó nằm trong mẫu số n/m) nhưng chỉ đọc được nhãn sau khi nộp.',
+  'author.problem.objectives.visible-label': 'Cho xem nhãn trước khi nộp',
 
   // §18.D.6: co seedable. Cau "unavailable" mo ta TINH TRANG THAT: khong plugin
   // nao khai seedSpec, nen hom nay khong game nao sinh de theo seed duoc.
@@ -406,7 +438,6 @@ export const author = {
     `Đấu trường nhận bài qua tham số truy vấn, và hôm nay chỉ route của Kubernetes đọc tham số đó. Bài ${p.game} vẫn lưu và vẫn xuất bản được; chỉ nút thử tại chỗ là chưa có. Nối được nó đòi một chế độ chơi mới trong game đó, không phải một nút bấm.`,
 
   // ── Tab JSON, chuyển bài giữa các môi trường ───────────────────────────────
-  'author.problem.json.heading': 'Xuất và nhập JSON',
   'author.problem.json.export-heading': 'Xuất',
   'author.problem.json.export-lead':
     'Tải về đúng thứ đang hiện trên màn hình, kể cả phần chưa lưu. Mang sang môi trường khác rồi nhập lại ở ô bên dưới.',
@@ -433,13 +464,27 @@ export const author = {
   'author.problem.publish.ok-title': 'Bài đã đủ điều kiện xuất bản',
   'author.problem.publish.ok-body':
     'Máy chủ kiểm lại một lượt nữa khi bạn bấm. Đó là lớp cuối, và nó gác cùng bộ điều kiện.',
-  'author.problem.publish.submit': 'Xuất bản',
-  'author.problem.publish.already': 'Đã xuất bản',
-  'author.problem.publish.archive': 'Đưa vào lưu trữ',
+  // e2e luồng CI/CD (`flows/cicd-problem.flow.spec.ts`) tìm ĐÚNG câu này sau khi
+  // xuất bản. Cột kiểm nói cùng ý bằng câu khác (`author.problem.rail.live`).
+  'author.problem.publish.live-title': 'Bài đang mở cho người học',
+  'author.problem.publish.live-body':
+    'Người học thấy đề trong danh mục và làm được ngay. Muốn rút đề về thì lưu trữ, lượt nộp cũ vẫn giữ.',
+  'author.problem.publish.open': 'Mở chế độ xuất bản',
   'author.problem.publish.danger-heading': 'Xoá hẳn bài',
   'author.problem.publish.danger-body':
     'Chỉ xoá được bài CHƯA có ai nộp. Đã có lượt nộp thì máy chủ từ chối và bảo dùng lưu trữ. Xoá một bài đã có người làm là xoá lịch sử của họ.',
-  'author.problem.publish.delete': 'Xoá bài',
+
+  'author.problem.rail.ready': 'Đủ điều kiện, chờ bạn bấm xuất bản.',
+  'author.problem.rail.live': 'Đang mở cho người học.',
+
+  'author.problem.archive.lead':
+    'Rút đề khỏi danh mục của người học. Lượt nộp và điểm đã có vẫn giữ, và bạn xuất bản lại được.',
+  'author.problem.archive.confirm-title': (p: { code: string }) => `Lưu trữ đề ${p.code}?`,
+  'author.problem.archive.confirm-body': 'Đề chuyển sang trạng thái lưu trữ. Bạn vẫn sửa và xuất bản lại được.',
+  'author.problem.archive.loss': 'Người học không còn thấy đề trong danh mục. Lượt nộp và điểm đã có không mất.',
+  'author.problem.delete.confirm-title': (p: { code: string }) => `Xoá hẳn đề ${p.code}?`,
+  'author.problem.delete.loss':
+    'Đề bài, trạng thái ban đầu, mục tiêu và gợi ý mất hẳn. Không khôi phục được.',
 
   /*
    * ── Dịch đường dẫn máy đọc sang câu người soạn đọc ─────────────────────────
@@ -485,10 +530,9 @@ export const author = {
   'author.problem.field.text': 'nội dung',
   'author.problem.field.penalty-points': 'điểm bị trừ',
   'author.asset-directive-fields-khoi-nay-khong-tai-tep-len-no-khai-mot-file':
-    'Khối này KHÔNG tải tệp lên. Nó khai một file',
-  'author.asset-directive-fields-da-co-trong-image-sandbox': 'đã có trong image sandbox',
-  'author.asset-directive-fields-va-cho-can-chep-toi-trong-pod-muon-nhung-anh-vao-bai-thi-dung-tab':
-    'và chỗ cần chép tới trong pod. Muốn nhúng ảnh vào bài thì dùng tab',
+    'Khối này không tải tệp lên. Mỗi chỉ thị khai một file đã có trong image sandbox và chỗ chép nó tới trong pod. Ảnh để nhúng vào bài thì tải ở tab Tệp.',
+  'author.asset-directive-fields-chua-co-chi-thi':
+    'Chưa chép file nào vào pod. Bài không cần file riêng thì để trống mục này.',
   'author.asset-directive-fields-chi-thi': 'Chỉ thị',
   'author.asset-directive-fields-host': 'Host',
   'author.asset-directive-fields-host01': 'host01',
@@ -506,9 +550,11 @@ export const author = {
     `Dán đoạn markdown ở bảng dưới để nhúng ${p.assetFilename}.`,
   'author.asset-manager-da-xoa-tep': 'Đã xoá tệp',
   'author.asset-manager-anh-nhung-trong-noi-dung-bai': 'Ảnh nhúng trong nội dung bài',
-  'author.asset-manager-nhan': 'Nhận',
-  'author.asset-manager-toi-da-2-mb-moi-tep-day-khong-phai-khoi-chep-file-vao-pod-o-tab-soan-khoi-d':
-    ', tối đa 2 MB mỗi tệp. Đây KHÔNG phải khối "Chép file vào pod" ở tab Soạn: khối đó khai file có sẵn trong image sandbox, còn ở đây là ảnh hiện trong bài.',
+  'author.asset-manager-dinh-dang-va-tran': (p: { types: string; max: string }) =>
+    `Nhận ${p.types}, tối đa ${p.max} mỗi tệp.`,
+  'author.asset-manager-khong-phai-khoi-chep-file-vao-pod':
+    'Khác khối "Chép file vào pod" ở tab Soạn: khối đó khai file có sẵn trong image sandbox, còn ở đây là ảnh hiện trong bài.',
+  'author.asset-manager-tep-da-tai-len': 'Tệp đã tải lên',
   'author.asset-manager-chon-tep-de-tai-len': 'Chọn tệp để tải lên',
   'author.asset-manager-khong-tai-len-duoc': 'Không tải lên được',
   'author.asset-manager-khong-tai-duoc-danh-sach-tep': 'Không tải được danh sách tệp',
@@ -543,21 +589,34 @@ export const author = {
     next: 'Chọn tệp đúng định dạng và kích thước rồi tải lại.',
   }),
   'author.draft-form-view-thong-tin-chung': 'Thông tin chung',
+  'author.draft-form-view-thong-tin-chung-ghi-chu':
+    'Phần người học đọc ở trang danh mục trước khi mở bài.',
+  'author.draft-form-view-sandbox': 'Sandbox',
+  'author.draft-form-view-sandbox-ghi-chu':
+    'Môi trường mỗi người học nhận khi mở bài. Chọn thừa thì ai mở bài cũng phải chờ dựng phần thừa đó.',
   'author.draft-form-view-noi-dung': 'Nội dung',
   'author.draft-form-view-playground-la-mot-sandbox-trong-khong-co-buoc-khong-co-script-cham-nguoi-ho':
-    'Playground là một sandbox trống: không có bước, không có script chấm. Người học nhận đúng một môi trường và thời hạn đã khai ở trên.',
+    'Sân chơi là một sandbox trống: không có bước, không có script chấm. Người học nhận đúng môi trường và thời hạn khai ở mục Sandbox.',
   'author.draft-form-view-mo-dau': 'Mở đầu',
+  'author.draft-form-view-mo-dau-ghi-chu': 'Phần đọc trước bước đầu tiên. Không bắt buộc.',
   'author.draft-form-view-bai-co-phan-mo-dau': 'Bài có phần mở đầu',
   'author.draft-form-view-cac-buoc': 'Các bước',
+  'author.draft-form-view-cac-buoc-ghi-chu':
+    'Người học đi theo đúng thứ tự ở đây. Bấm Lên hoặc Xuống để đổi chỗ một bước.',
   'author.draft-form-view-ket-thuc': 'Kết thúc',
+  'author.draft-form-view-ket-thuc-ghi-chu': 'Phần hiện sau bước cuối cùng. Không bắt buộc.',
   'author.draft-form-view-bai-co-phan-ket-thuc': 'Bài có phần kết thúc',
   'author.draft-form-view-chuan-bi-moi-truong': 'Chuẩn bị môi trường',
   'author.draft-form-view-chay-mot-lan-khi-dung-lab-lab-co-y-khong-co-setup-theo-tung-task-thu-tu-lam':
-    'Chạy MỘT lần khi dựng lab. Lab cố ý không có setup theo từng task: thứ tự làm task là tuỳ người học, nên một setup gắn với task thứ n sẽ chạy hoặc không tuỳ đường đi.',
+    'Chạy một lần khi dựng lab. Lab không có setup theo từng task, vì người học làm task theo thứ tự nào cũng được.',
   'author.draft-form-view-setup-foreground': 'Setup foreground',
   'author.draft-form-view-setup-background': 'Setup background',
   'author.draft-form-view-cac-task': 'Các task',
+  'author.draft-form-view-cac-task-ghi-chu':
+    'Người học làm task theo thứ tự nào cũng được. Điểm lab tính theo tổng trọng số các task đạt.',
   'author.draft-form-view-chep-file-vao-pod': 'Chép file vào pod',
+  'author.draft-form-view-chep-file-vao-pod-ghi-chu':
+    'Chép lúc dựng sandbox, cho mọi người học bài này.',
   'author.draft-form-chi-nhan-so-nguyen-duong': {
     what: 'Chỉ nhận số nguyên dương',
     next: 'Sửa ô được đánh dấu rồi thử lại.',
@@ -579,6 +638,7 @@ export const author = {
     next: 'Sửa ô được đánh dấu rồi thử lại.',
   },
   'author.draft-meta-fields-tieu-de': 'Tiêu đề',
+  'author.draft-meta-fields-mo-ta': 'Mô tả',
   'author.draft-meta-fields-vi-du-chan-doan-tien-trinh-ngon-cpu':
     'Ví dụ: Chẩn đoán tiến trình ngốn CPU',
   'author.draft-meta-fields-mot-cau-hien-tren-the-o-trang-danh-muc-bo-trong-cung-duoc':
@@ -641,8 +701,8 @@ export const author = {
   'author.phase-fields-noi-dung-markdown': 'Nội dung (Markdown)',
   'author.phase-fields-khoi-code-co-the-mang-nut-chay-dung-cu-phap-khoi-code-cua-noi-dung-nen-tang':
     'Khối code có thể mang nút chạy: dùng cú pháp khối code của nội dung nền tảng. Ảnh trỏ tới',
-  'author.phase-fields-assets-lt-khoa-gt': './assets/&lt;khoá&gt;',
-  'author.phase-fields-lay-khoa-o-tab-tep-dinh-kem': ', lấy khoá ở tab Tệp đính kèm.',
+  'author.phase-fields-assets-lt-khoa-gt': './assets/<khoá>',
+  'author.phase-fields-lay-khoa-o-tab-tep-dinh-kem': ', khoá lấy ở tab Tệp.',
   'author.phase-fields-chay-bang-bash-hien-trong-terminal-nguoi-hoc':
     'Chạy bằng bash, hiện trong terminal người học.',
   'author.phase-fields-chay-bang-bash-an': 'Chạy bằng bash, ẩn.',
@@ -650,34 +710,50 @@ export const author = {
   'author.phase-fields-dat-khi-exit-code-0-bo-trong-nghia-la-phan-nay-khong-cham':
     'Đạt khi exit code = 0. Bỏ trống nghĩa là phần này không chấm.',
   'author.preview-panel-playground-khong-co-noi-dung-de-xem-truoc':
-    'Playground không có nội dung để xem trước',
+    'Sân chơi không có nội dung để xem trước',
   'author.preview-panel-nguoi-hoc-nhan-dung-mot-sandbox-trong-voi-tier-capability-va-thoi-han-da-kh':
     'Người học nhận đúng một sandbox trống với tier, capability và thời hạn đã khai ở tab Soạn. Không có bước nào, không có script chấm nào.',
   'author.preview-panel-chua-co-gi-de-xem-truoc': 'Chưa có gì để xem trước',
-  'author.preview-panel-bai-nay-chua-co': 'Bài này chưa có',
-  'author.preview-panel-buoc': 'bước',
-  'author.preview-panel-nao-hoac-nguon-noi-dung-chua-nhan-ban-nhap-them-noi-dung-o-tab-soan-roi-qua':
-    'nào, hoặc nguồn nội dung chưa nhận bản nháp. Thêm nội dung ở tab Soạn, rồi quay lại đây.',
+  'author.preview-panel-bai-hoc-chua-co-buoc-nao':
+    'Bài học chưa có bước nào, hoặc nguồn nội dung chưa nhận bản nháp. Thêm nội dung ở tab Soạn rồi quay lại đây.',
+  'author.preview-panel-lab-chua-co-task-nao':
+    'Lab chưa có task nào, hoặc nguồn nội dung chưa nhận bản nháp. Thêm nội dung ở tab Soạn rồi quay lại đây.',
+  'author.preview-panel-chon-phan': 'Phần đang xem',
   'author.preview-panel-day-la-chinh-khung-noi-dung-cua-trinh-hoc-nut-chay-tren-khoi-code-bi-vo-hie':
-    'Đây là chính khung nội dung của trình học. Nút chạy trên khối code bị vô hiệu hoá vì xem trước không dựng sandbox, đúng như trình học khi người dùng chưa bắt đầu phiên.',
+    'Đây là chính khung nội dung người học thấy. Nút chạy trên khối code bị tắt vì xem trước không dựng sandbox, giống trình học lúc người dùng chưa bắt đầu phiên.',
   'author.preview-phases-buoc': (p: { stepIndex1: string }) => `Bước ${p.stepIndex1}`,
-  'author.publish-panel-1-kiem-tra-truoc': '1. Kiểm tra trước',
+  // Cột kiểm của `/author/[id]`: ba điều kiện trước khi người học thấy bài.
+  'author.rail.saved.ok': 'Màn hình khớp bản đã lưu',
+  'author.rail.saved.todo': 'Còn thay đổi chưa lưu',
+  'author.rail.check-clean': 'Kiểm tra định dạng: sạch',
+  'author.rail.check-blocked': 'Kiểm tra định dạng: còn lỗi chặn',
+  'author.rail.check-never': 'Chưa chạy Kiểm tra trên bản đã lưu',
+  'author.rail.open-publish': 'Mở chế độ Xuất bản',
+  'author.rail.trial.idle': 'Chưa chạy thử lần nào',
+  'author.rail.trial.running': 'Đang chạy thử trong sandbox',
+  'author.rail.trial.passed': 'Lượt chạy thử gần nhất đạt',
+  'author.rail.trial.failed': 'Lượt chạy thử gần nhất trượt',
+  'author.publish.section.check': 'Kiểm tra trước',
+  'author.publish.section.run': 'Chạy thử rồi xuất bản',
+  'author.publish.section.trial': 'Kết quả chạy thử',
+  'author.publish.section.archive': 'Lưu trữ',
+  'author.publish.passed': 'Đã xuất bản',
+  'author.publish.check.blocked': 'Lỗi định dạng dưới đây chặn xuất bản. Bấm vào một dòng để tới ô cần sửa.',
+  'author.publish.archive-loss':
+    'Người học không mở được bài này nữa và bài biến khỏi danh mục. Tiến độ và điểm đã có vẫn giữ nguyên.',
   'author.publish-panel-kiem-tra-khong-doi-trang-thai-bai-va-khong-ton-sandbox-nao-no-chay-dung-sch':
     'Kiểm tra các trường của bài và cảnh báo shellcheck cho từng script. Bài vẫn ở trạng thái hiện tại và chưa tạo sandbox.',
   'author.publish-panel-kiem-tra': 'Kiểm tra',
-  'author.publish-panel-2-xuat-ban': '2. Xuất bản',
   'author.publish-panel-xuat-ban-dung-mot-sandbox-that-va-chay-lan-luot-moi-script-cua-bai-viec-nay':
     'Xuất bản dựng sandbox và chạy lần lượt các script của bài. Việc này có thể mất vài phút. Bạn có thể đóng tab rồi quay lại xem kết quả.',
   'author.publish-panel-nut-xuat-ban-dang-tat-vi-luot-kiem-tra-con-loi-dinh-dang-o-tren-sua-roi-kie':
     'Nút Xuất bản đang tắt vì lượt kiểm tra còn lỗi định dạng ở trên. Sửa rồi kiểm tra lại.',
-  'author.publish-panel-3-ket-qua-chay-thu': '3. Kết quả chạy thử',
   'author.publish-panel-luu-tru-bai-nay': 'Lưu trữ bài này?',
   'author.publish-panel-bai-se-bien-khoi-danh-muc-nguoi-hoc-tien-do-va-diem-da-co-khong-bi-xoa-nen':
     'Bài sẽ được ẩn khỏi danh mục người học. Tiến độ và điểm đã có được giữ lại.',
   'author.publish-panel-dinh-dang-hop-le': 'Định dạng hợp lệ',
   'author.publish-panel-bai-qua-dung-schema-ma-luot-xuat-ban-se-dung':
     'Các trường của bài đã đủ điều kiện để chạy thử khi xuất bản.',
-  'author.publish-panel-loi-dinh-dang-chan-xuat-ban': 'lỗi định dạng, chặn xuất bản',
   'author.publish-panel-shellcheck': 'Shellcheck:',
   'author.publish-panel-canh-bao-shellcheck-khong-bao-gio-chan-xuat-ban':
     'Cảnh báo shellcheck không bao giờ chặn xuất bản.',
@@ -734,9 +810,11 @@ export const author = {
   }) => `${p.findings} cảnh báo trên ${p.warningsLength}/${p.scriptcount} script`,
   'author.script-warning-script-khong-co-canh-bao-nao': (p: { scriptcount: string }) =>
     `${p.scriptcount} script, không có cảnh báo nào`,
-  'author.step-list-fields-chua-co': 'Chưa có',
-  'author.step-list-fields-nao-xuat-ban-se-bi-tu-choi-schema-doi-it-nhat-mot':
-    'nào. Thêm ít nhất một',
+  'author.step-list-fields-chua-co-buoc-nao':
+    'Bài chưa có bước nào. Cần ít nhất một bước thì mới xuất bản được.',
+  'author.step-list-fields-chua-co-task-nao':
+    'Lab chưa có task nào. Cần ít nhất một task thì mới xuất bản được.',
+  'author.step-list-fields-chua-dat-ten': 'Chưa đặt tên',
   'author.step-list-fields-buoc': 'Bước',
   'author.step-list-fields-len': 'Lên',
   'author.step-list-fields-xuong': 'Xuống',
@@ -752,8 +830,10 @@ export const author = {
     'Bỏ trống nghĩa là bước này chỉ dẫn giải, không chấm. Đạt khi exit code = 0.',
   'author.step-list-fields-trong-so': 'Trọng số',
   'author.step-list-fields-bo-trong-thi-loader-ap-1-moi-task-nang-nhu-nhau':
-    'Bỏ trống thì loader áp 1, mọi task nặng như nhau.',
-  'author.step-list-fields-them': 'Thêm',
+    'Bỏ trống thì tính là 1, mọi task nặng như nhau.',
+  'author.step-list-fields-goi-y': 'Gợi ý',
+  'author.step-list-fields-them-buoc': 'Thêm bước',
+  'author.step-list-fields-them-task': 'Thêm task',
   'author.trial-plan-setup-chay-an': (p: { human: string }) => `${p.human}, setup chạy ẩn`,
   'author.trial-plan-setup-hien-trong-terminal': (p: { human: string }) =>
     `${p.human}, setup hiện trong terminal`,
@@ -768,35 +848,135 @@ export const author = {
   'author.trial-plan-chua-chay': 'Chưa chạy',
   'author.trial-plan-dang-cho': 'Đang chờ',
   'author.step-task': 'Task',
-  'author.step-task-noun': 'task',
 
   /*
    * ── Level Builder của game Git, §18.E ────────────────────────────────────
    *
-   * Khối này chỉ chở phần chữ là BẢN DỊCH CỦA MỘT UNION ĐÓNG bên
-   * `packages/games`: 16 mã `DraftIssueCode` và 2 phần tử
-   * `BUILDER_CANNOT_EXPRESS`. Vỏ còn lại của màn Builder (tiêu đề khối, nhãn
-   * nút, câu chỉ dẫn) nằm thẳng trong `components/games/git/**`, y như
-   * `git-sandbox.tsx` và `git-game.tsx` ngay cạnh nó.
+   * Từ đợt dựng lại giao diện PTIT (2026-10-03), MỌI chữ của màn Builder đi
+   * qua khối này: vỏ màn (tên bước, nhãn ô, nút, câu chỉ dẫn) lẫn bản dịch của
+   * hai union đóng bên `packages/games` (16 mã `DraftIssueCode`, 2 phần tử
+   * `BUILDER_CANNOT_EXPRESS`). Trước đó vỏ màn viết thẳng trong
+   * `components/games/git/builder/**`, nên một màn hình đọc chữ từ hai nguồn
+   * và người sửa chữ phải đoán mình đang sửa loại nào.
    *
-   * Ranh giới đó không tuỳ tiện, và nó có cái giá phải nói ra: MỘT màn hình đọc
-   * chữ từ HAI nguồn, nên người sửa chữ phải biết mình đang sửa loại nào. Đổi
-   * lại, hai vế đều có lý do riêng:
-   *
-   * · `level-draft.ts` khai MÃ LỖI chứ không khai câu tiếng Việt, và tự ghi
-   *   "giao diện dựng câu qua packages/copy". Đưa 16 mã vào bản đồ mua được một
-   *   phép vét cạn ở tầng KIỂU: nơi gọi khai `Record<DraftIssueCode, TextKey>`,
-   *   nên thêm mã thứ 17 mà quên câu cho nó là lỗi biên dịch, không phải một
-   *   dòng trống trên màn.
-   * · `ui-source-coverage.test.ts` CỐ Ý không quét cây `components/games`. Kéo
-   *   toàn bộ vỏ của hai màn game vào đây là một lượt viết lại lớn mà không cổng
-   *   nào đòi, và nó sẽ làm ba file cạnh nhau đọc chữ theo hai lối khác nhau.
+   * Hai union đóng vẫn đi qua các bảng `satisfies Record<..., TextKey>` ở
+   * `builder-copy.ts`: thêm mã thứ 17 mà quên câu cho nó là lỗi biên dịch,
+   * không phải một dòng trống trên màn. Độ khó của level đọc
+   * `common.difficulty.*` qua cùng kiểu bảng đó, không khai lại ở đây.
    *
    * `detail` của một issue (mã mục tiêu, tên vị từ, tên lệnh) KHÔNG đi qua đây.
    * Nó là thứ người soạn tự gõ, và §"Ranh giới VỎ so với RUỘT" ở đầu file đã
    * chốt phép thử: chặn bởi số MÀN HÌNH thì vào bản đồ, chặn bởi số MỤC NỘI
    * DUNG thì không. Giao diện in nó trong một thẻ `code` cạnh câu.
    */
+  'author.builder.intro.kicker': 'Trước khi soạn',
+  'author.builder.intro.title': 'Hai loại level Builder chưa dựng được',
+
+  'author.builder.step.capture': 'Chụp trạng thái',
+  'author.builder.step.brief': 'Đề bài',
+  'author.builder.step.rules': 'Luật chơi và chấm điểm',
+  'author.builder.step.objectives': 'Mục tiêu',
+  'author.builder.step.solution': 'Lời giải mẫu',
+  'author.builder.step.hints': 'Gợi ý',
+  'author.builder.step.teaching': 'Tầng dạy học',
+  'author.builder.step.check': 'Kiểm bản nháp',
+  'author.builder.step.play': 'Chơi thử',
+  'author.builder.step.transfer': 'Xuất và nhập',
+  'author.builder.step.save': 'Lưu vào kho bài tập',
+
+  'author.builder.lead.capture':
+    'Dựng cây bằng lệnh git ở ô lệnh của sandbox, rồi chụp nó làm trạng thái đầu hoặc làm cây đích.',
+  'author.builder.lead.objectives':
+    'Mỗi mục tiêu là một testcase. Level cần ít nhất một mục bắt buộc, không thì verdict đạt không bao giờ tới.',
+  'author.builder.lead.teaching':
+    'Màn chơi Git hiện chưa hiển thị phần này. Nó đi theo tệp level bạn xuất ra, để dùng được ngay khi màn chơi có chỗ hiện nó. Bài lý thuyết chọn ở phần đề bài thì hiện được ngay.',
+  'author.builder.lead.play':
+    'Mở level này bằng đúng màn chơi người chơi sẽ thấy. Trong đó có thêm nút chạy lời giải mẫu để xem từng lệnh đi qua.',
+  'author.builder.lead.transfer':
+    'Phần này chạy hẳn trong trình duyệt: xuất bản nháp ra một chuỗi JSON, hoặc dán một chuỗi đã xuất để soạn tiếp.',
+
+  'author.builder.capture.set-setup': 'Đặt làm trạng thái đầu',
+  'author.builder.capture.set-target': 'Đặt làm đích',
+  'author.builder.capture.clear-target': 'Xoá đích',
+  'author.builder.capture.setup': 'Trạng thái đầu',
+  'author.builder.capture.target': 'Cây đích',
+  'author.builder.capture.unit': 'commit',
+  'author.builder.capture.unset': 'Chưa đặt',
+
+  'author.builder.label.id': 'Mã level',
+  'author.builder.label.title': 'Tiêu đề',
+  'author.builder.label.mission': 'Nhiệm vụ',
+  'author.builder.label.brief': 'Đề bài đầy đủ',
+  'author.builder.label.chapter': 'Chương',
+  'author.builder.label.difficulty': 'Độ khó',
+  'author.builder.label.theory': 'Bài lý thuyết đi kèm',
+  'author.builder.label.allowed': 'Tập lệnh cho phép',
+  'author.builder.label.par': 'Số lệnh chuẩn',
+  'author.builder.label.solution': 'Chuỗi lệnh lời giải',
+  'author.builder.label.alt-solution': 'Lời giải thứ hai',
+  'author.builder.label.hints': 'Danh sách gợi ý',
+  'author.builder.label.primer': 'Bài dẫn trước khi chơi',
+  'author.builder.label.takeaways': 'Đúc kết sau khi thắng',
+
+  'author.builder.hint.id': (p: { prefix: string }) =>
+    `Mở đầu bằng ${p.prefix}, rồi tới slug thường không dấu ngăn bằng gạch nối.`,
+  'author.builder.hint.mission': 'Một câu. Đây là dòng chữ duy nhất luôn hiện trên màn chơi.',
+  'author.builder.hint.brief': 'Bối cảnh và việc cần làm. Không nói cách làm.',
+  'author.builder.hint.theory': (p: { n: number }) =>
+    `Chọn một trong ${String(p.n)} bài đã có, hoặc để trống. Builder không tạo bài lý thuyết mới, vì chúng là tệp markdown trong kho chứ không phải dữ liệu của level.`,
+  'author.builder.hint.allowed':
+    'Mỗi dòng một động từ git, ví dụ status hoặc log. Để trắng nghĩa là cho dùng mọi lệnh.',
+  'author.builder.hint.par':
+    'Dùng để chấm điểm, không dùng để chặn. Người chơi gõ nhiều lệnh hơn vẫn qua bài.',
+  'author.builder.hint.solution': 'Mỗi dòng một lệnh. Nút kiểm ở bước sau chạy đúng chuỗi này.',
+  'author.builder.hint.alt-solution':
+    'Khác đường đi, không chỉ đảo thứ tự hai lệnh độc lập. Đây là bằng chứng level chấm theo trạng thái chứ không theo lệnh đã gõ.',
+  'author.builder.hint.hints':
+    'Mỗi dòng một gợi ý, mở theo thứ tự từ trên xuống. Gợi ý sau phải cụ thể hơn gợi ý trước.',
+  'author.builder.hint.primer': 'Markdown, tối đa 250 từ. Không phải lời giải.',
+  'author.builder.hint.takeaways': 'Mỗi dòng một ý, mỗi ý một câu.',
+
+  'author.builder.option.chapter-1': '1 · Nắn lịch sử',
+  'author.builder.option.chapter-2': '2 · Làm việc nhóm',
+  'author.builder.option.chapter-3': '3 · Cứu hộ',
+  'author.builder.option.no-theory': 'Không kèm bài đọc',
+
+  'author.builder.objective.legend': (p: { n: number }) => `Mục tiêu ${String(p.n)}`,
+  'author.builder.objective.id': 'Mã mục tiêu',
+  'author.builder.objective.label': 'Câu mô tả',
+  'author.builder.objective.check': 'Vị từ chấm',
+  'author.builder.objective.required': 'Bắt buộc. Bỏ chọn thì đây là mục thưởng.',
+  'author.builder.objective.remove': (p: { n: number }) => `Xoá mục tiêu ${String(p.n)}`,
+  'author.builder.objective.add': 'Thêm mục tiêu',
+  'author.builder.objective.no-args': 'Vị từ này không nhận tham số.',
+  'author.builder.objective.no-args-graph':
+    'Vị từ này không nhận tham số. Nó so hình dạng DAG với cây đích ở bước chụp trạng thái, nên cần đặt đích trước.',
+  'author.builder.objective.lines': 'Mỗi dòng là một dòng nội dung của file.',
+  'author.builder.objective.missing': (p: { names: string }) =>
+    `Còn trống tham số bắt buộc: ${p.names}. Thiếu chúng thì vị từ trả "chưa đạt" ở mọi trạng thái, và engine không nói lý do.`,
+
+  'author.builder.cheat.title': 'Mục tra nhanh',
+  'author.builder.cheat.legend': (p: { n: number }) => `Mục ${String(p.n)}`,
+  'author.builder.cheat.command': 'Lệnh',
+  'author.builder.cheat.explain': 'Giải thích',
+  'author.builder.cheat.remove': (p: { n: number }) => `Xoá mục ${String(p.n)}`,
+  'author.builder.cheat.add': 'Thêm mục tra nhanh',
+  'author.builder.cheat.empty': 'Chưa có mục nào. Mỗi mục là một lệnh kèm một câu giải thích.',
+
+  'author.builder.issues.ready': 'Bản nháp đã đủ để xuất thành level.',
+  'author.builder.issues.title': 'Bản nháp còn thiếu',
+
+  'author.builder.play.run': 'Chơi thử level này',
+
+  'author.builder.transfer.export': 'Chuỗi JSON của level',
+  'author.builder.transfer.export-empty':
+    'Bản nháp còn lỗi nên chưa xuất được. Xem danh sách ở bước kiểm bản nháp.',
+  'author.builder.transfer.download': 'Tải tệp JSON',
+  'author.builder.transfer.import': 'Dán chuỗi JSON đã xuất',
+  'author.builder.transfer.import-run': 'Nhập level',
+  'author.builder.transfer.import-error':
+    'Không đọc được chuỗi này. Nó phải là bản xuất level của chính Builder, và nội dung phải qua hết các phép kiểm ở bước kiểm bản nháp.',
+
   'author.builder.issue.id-trong': 'Chưa đặt mã level.',
   'author.builder.issue.id-sai-dinh-dang':
     'Mã level sai định dạng. Nó phải mở đầu bằng tiền tố dành riêng cho level tự dựng, rồi tới slug thường không dấu ngăn bằng gạch nối. Tiền tố đó là thứ giữ cho tiến độ đã lưu của 32 level phát hành không bị ghi đè.',
@@ -859,7 +1039,21 @@ export const author = {
    */
   'author.builder.save.run': 'Lưu thành bài tập',
   'author.builder.save.scope':
-    'Lưu bản nháp này thành một bài tập trong kho, ở trạng thái nháp. Đây là lời gọi máy chủ duy nhất trong cả màn game, nên nó đòi bạn đang đăng nhập bằng tài khoản soạn bài. Ba ô dưới đây chỉ có nghĩa với bài tập, nên tệp level bạn xuất ra không chở chúng.',
+    'Lưu bản nháp này thành một bài tập trong kho, ở trạng thái nháp. Đây là lời gọi máy chủ duy nhất trong cả màn game, nên nó đòi bạn đang đăng nhập bằng tài khoản soạn bài. Các ô dưới đây chỉ có nghĩa với bài tập, nên tệp level bạn xuất ra không chở chúng.',
+  'author.builder.save.saving': 'Đang lưu bài tập',
+  'author.builder.save.topics': 'Chủ đề, chọn từ một tới ba',
+  'author.builder.save.tags': 'Tag',
+  'author.builder.save.tags-hint':
+    'Phân loại tự do, ngăn bằng dấu phẩy. Dấu tiếng Việt được bỏ và khoảng trắng thành gạch nối.',
+  'author.builder.save.penalties': 'Điểm trừ mỗi gợi ý',
+  'author.builder.save.penalties-hint':
+    'Gợi ý của level miễn phí vì level để dạy. Gợi ý của bài tập có giá vì bài tập để thử. Để 0 nếu muốn miễn phí.',
+  'author.builder.save.visible': 'Mục tiêu hiện trước khi nộp',
+  'author.builder.save.visible-hint':
+    'Bỏ chọn để giấu một mục tiêu cho tới lúc người làm nộp bài. Đây không phải cờ "bắt buộc" của level: mọi testcase đều chặn, ẩn hay hiện cũng vậy.',
+  'author.builder.save.visible-empty': 'Bản nháp chưa có mục tiêu nào.',
+  'author.builder.save.slug': 'Đường dẫn sinh từ tiêu đề',
+  'author.builder.save.slug-empty': 'Chưa có. Đặt tiêu đề trước.',
   'author.builder.save.unauthorized':
     'Chưa lưu được: lưu bài tập đòi tài khoản soạn bài. Màn game không bắt đăng nhập, nên hãy đăng nhập ở một tab khác rồi bấm lại. Bản nháp của bạn vẫn nằm nguyên ở đây.',
   'author.builder.save.done': (p: { code: string }) =>
@@ -877,8 +1071,7 @@ export const author = {
     'Chưa chọn chủ đề nào. Chủ đề là thứ người học dùng để lọc kho bài, nên một bài không chủ đề là một bài không ai tìm thấy.',
   'author.builder.save.issue.qua-nhieu-chu-de':
     'Chọn quá ba chủ đề. Nhiều hơn ba nghĩa là bài đang làm quá nhiều việc cùng lúc.',
-  'author.builder.save.issue.chu-de-la':
-    'Chủ đề này không thuộc tập chủ đề của game Git.',
+  'author.builder.save.issue.chu-de-la': 'Chủ đề này không thuộc tập chủ đề của game Git.',
   'author.builder.save.issue.gia-goi-y-lech-so-luong':
     'Số ô điểm trừ không khớp số gợi ý. Điền bù một số 0 cho ô thiếu sẽ lặng lẽ biến một gợi ý có giá thành gợi ý miễn phí, nên chỗ này chặn thay vì đoán.',
   'author.builder.save.issue.gia-goi-y-ngoai-khoang':

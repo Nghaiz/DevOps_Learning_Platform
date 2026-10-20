@@ -1,14 +1,15 @@
 'use client';
 
 import { useCallback, useState, type FormEvent, type ReactElement } from 'react';
+import { Search, X } from 'lucide-react';
 import type { inferRouterOutputs } from '@trpc/server';
 import { err, t } from '@devops-platform/copy';
 import {
   Badge,
   Button,
+  Chip,
   CursorPager,
   EmptyState,
-  ErrorState,
   Input,
   Label,
   Select,
@@ -16,7 +17,6 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-  Skeleton,
   Table,
   TableBody,
   TableCell,
@@ -29,8 +29,14 @@ import type { AppRouter } from '../../../server/trpc/routers/app-router';
 import type { ViewerRole } from '../../../components/shell/nav';
 import { api } from '../../../lib/trpc-react';
 import { describeTrpcError, trpcErrorCode } from '../../../lib/trpc';
-import { AdminNote, AdminSection } from '../../../components/admin/admin-section';
-import { ConfirmDialog } from '../../../components/admin/confirm-dialog';
+import {
+  AdminNote,
+  AdminPage,
+  FirstPageButton,
+  LedgerError,
+  LedgerSkeleton,
+} from '../../../components/admin/admin-page';
+import { ConfirmDialog } from '../../../components/kit/confirm-dialog';
 import {
   ASSIGNABLE_ROLES,
   describeRole,
@@ -49,24 +55,24 @@ import { formatDay } from '../../../lib/format-moment';
 
 type AdminUser = inferRouterOutputs<AppRouter>['admin']['users']['list']['items'][number];
 
+/** Trần độ dài ô tìm: khớp `q: z.string().max(80)` của `listUsersInput`. */
+const SEARCH_MAX_LENGTH = 80;
+
 /**
- * `/admin/users` (13.G) — bảng người dùng, tìm kiếm, đổi vai trò có xác nhận.
+ * `/admin/users`: ledger người dùng, tìm kiếm, đổi vai trò có xác nhận.
  *
  * ## ⛔ `useQuery` + cursor thủ công, KHÔNG `useInfiniteQuery`
  *
  * `useInfiniteQuery` của `@trpc/react-query` nhét `direction` vào INPUT gửi
- * lên, và `listUsersInput` là `.strict()`, nên request thật của trình duyệt trả
- * 400 `unrecognized_keys` trong khi mọi test mức API vẫn xanh (đã xảy ra ở
- * 13.C, xem chú thích dài trong `app/lessons/lessons-client.tsx`). Ngăn xếp
- * cursor dùng lại `lib/cursor-stack.ts`, hàm thuần đã có test, không viết bản
- * thứ hai.
+ * lên, và `listUsersInput` là `.strict()`, nên request thật trả 400
+ * `unrecognized_keys` trong khi mọi test mức API vẫn xanh (xem chú thích dài ở
+ * `lib/trpc-react.tsx`). Ngăn xếp cursor dùng lại `lib/cursor-stack.ts`.
  *
- * ## Tìm kiếm bằng SUBMIT, không phải theo từng phím
+ * ## Tìm kiếm bằng SUBMIT, không theo từng phím
  *
- * `q` là `ILIKE` trên email/name ở tầng DB. Gửi mỗi lần gõ một phím là mỗi phím
- * một lượt quét bảng `users`, và `protectedProcedure` có trần 120 query/phút
- * mỗi user, tức gõ một địa chỉ email là đủ chạm trần. Submit cũng làm hành vi
- * rõ ràng hơn với bàn phím (Enter = tìm), thứ AC 13.H mục 25 đòi.
+ * `q` là `ILIKE` trên email/name ở tầng DB. Mỗi phím một lượt quét bảng
+ * `users`, và `protectedProcedure` có trần 120 query/phút mỗi user: gõ một địa
+ * chỉ email là đủ chạm trần. Enter = tìm cũng rõ ràng hơn với bàn phím.
  */
 export function AdminUsersClient({ actorId }: { readonly actorId: string }): ReactElement {
   const [stack, setStack] = useState<CursorStack>(FIRST_PAGE);
@@ -75,9 +81,8 @@ export function AdminUsersClient({ actorId }: { readonly actorId: string }): Rea
 
   const cursor = currentCursor(stack);
   const query = api.admin.users.list.useQuery({
-    // `exactOptionalPropertyTypes: true` + Zod `.strict()`: "không lọc" phải là
-    // VẮNG MẶT key, không phải `undefined` (cùng bẫy `buildCatalogListInput` đã
-    // ghi lại ở 13.C).
+    // `exactOptionalPropertyTypes` + Zod `.strict()`: "không lọc" là VẮNG MẶT
+    // key, không phải `undefined`.
     ...(cursor === undefined ? {} : { cursor }),
     ...(appliedQuery === '' ? {} : { q: appliedQuery }),
   });
@@ -85,60 +90,76 @@ export function AdminUsersClient({ actorId }: { readonly actorId: string }): Rea
   const onSearch = useCallback(
     (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
-      // Đổi điều kiện lọc PHẢI đưa cursor về đầu: cursor là `id` của dòng cuối
-      // trang trước, và giữ nó qua một lần đổi `q` vẫn cho một trang HỢP LỆ,
-      // nhưng là trang giữa của tập mới, dưới nhãn "Trang 1".
+      // Đổi điều kiện lọc PHẢI đưa cursor về đầu: giữ cursor cũ qua một lần đổi
+      // `q` cho một trang hợp lệ, nhưng là trang giữa của tập mới, dưới nhãn
+      // "trang 1".
       setAppliedQuery(draftQuery.trim());
       setStack(FIRST_PAGE);
     },
     [draftQuery],
   );
 
-  return (
-    <AdminSection title={t('admin.users.title')} description={t('admin.users.description')}>
-      <form onSubmit={onSearch} className="flex flex-wrap items-end gap-2">
-        <div className="flex min-w-60 flex-1 flex-col gap-1.5">
-          <Label htmlFor="admin-users-q">{t('admin.users.search-label')}</Label>
-          <Input
-            id="admin-users-q"
-            value={draftQuery}
-            onChange={(event) => setDraftQuery(event.target.value)}
-            placeholder={t('admin.users.search-placeholder')}
-            maxLength={80}
-          />
-        </div>
-        <Button type="submit" variant="secondary" loading={query.isFetching}>
-          {t('admin.users.search-submit')}
-        </Button>
-        {appliedQuery === '' ? null : (
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => {
-              setDraftQuery('');
-              setAppliedQuery('');
-              setStack(FIRST_PAGE);
-            }}
-          >
-            {t('admin.users.clear-filter')}
-          </Button>
-        )}
-      </form>
+  const clearFilter = useCallback(() => {
+    setDraftQuery('');
+    setAppliedQuery('');
+    setStack(FIRST_PAGE);
+  }, []);
 
-      <UsersBody
-        actorId={actorId}
-        appliedQuery={appliedQuery}
-        page={pageNumber(stack)}
-        items={query.data?.items ?? null}
-        pending={query.isPending}
-        error={query.isError ? describeTrpcError(query.error) : null}
-        fetching={query.isFetching}
-        hasNext={query.data?.nextCursor != null}
-        onRetry={() => void query.refetch()}
-        onNext={() => setStack((prev) => pushCursor(prev, query.data?.nextCursor ?? null))}
-        onFirst={() => setStack(FIRST_PAGE)}
-      />
-    </AdminSection>
+  return (
+    <AdminPage
+      kicker={t('admin.users.kicker')}
+      title={t('admin.users.title')}
+      lead={t('admin.users.lead')}
+    >
+      <div className="flex flex-col gap-6 pt-10">
+        <form onSubmit={onSearch} className="flex flex-wrap items-end gap-2" role="search">
+          <div className="flex min-w-64 flex-1 flex-col gap-1.5 md:max-w-xl">
+            <Label htmlFor="admin-users-q">{t('admin.users.search-label')}</Label>
+            <Input
+              id="admin-users-q"
+              type="search"
+              value={draftQuery}
+              onChange={(event) => setDraftQuery(event.target.value)}
+              placeholder={t('admin.users.search-placeholder')}
+              maxLength={SEARCH_MAX_LENGTH}
+            />
+          </div>
+          <Button
+            type="submit"
+            variant="ink"
+            loading={query.isFetching && appliedQuery !== ''}
+            iconLeft={<Search aria-hidden="true" />}
+          >
+            {t('admin.users.search-submit')}
+          </Button>
+          {/*
+            Bộ lọc đang áp là một chip ĐANG BẬT; bấm để tắt. Đúng ngữ nghĩa nút
+            bật tắt (`aria-pressed`) của `Chip`: tắt chip là bỏ lọc.
+          */}
+          {appliedQuery === '' ? null : (
+            <Chip selected onClick={clearFilter} title={t('admin.users.clear-filter')}>
+              {t('admin.users.filter-chip', { query: appliedQuery })}
+              <X aria-hidden="true" className="size-3.5" />
+            </Chip>
+          )}
+        </form>
+
+        <UsersBody
+          actorId={actorId}
+          appliedQuery={appliedQuery}
+          page={pageNumber(stack)}
+          items={query.data?.items ?? null}
+          pending={query.isPending}
+          error={query.isError ? describeTrpcError(query.error) : null}
+          fetching={query.isFetching}
+          hasNext={query.data?.nextCursor != null}
+          onRetry={() => void query.refetch()}
+          onNext={() => setStack((prev) => pushCursor(prev, query.data?.nextCursor ?? null))}
+          onFirst={() => setStack(FIRST_PAGE)}
+          onClearFilter={clearFilter}
+        />
+      </div>
+    </AdminPage>
   );
 }
 
@@ -154,21 +175,20 @@ function UsersBody(props: {
   readonly onRetry: () => void;
   readonly onNext: () => void;
   readonly onFirst: () => void;
+  readonly onClearFilter: () => void;
 }): ReactElement {
   if (props.pending) {
-    return <Skeleton className="h-64 w-full" />;
+    return <LedgerSkeleton />;
   }
 
   if (props.error !== null) {
-    // Hai nửa của `ErrorEntry` vào hai khe của `ErrorState`: hỏng cái gì thành
-    // tiêu đề, giờ làm gì thành phần thân.
-    const failure = err('admin.error.users-list', { reason: props.error });
     return (
-      <ErrorState
-        title={failure.what}
-        message={failure.next}
+      <LedgerError
+        failure={err('admin.error.users-list', { reason: props.error })}
         onRetry={props.onRetry}
         retrying={props.fetching}
+        page={props.page}
+        onFirst={props.onFirst}
       />
     );
   }
@@ -184,59 +204,57 @@ function UsersBody(props: {
             ? t('admin.users.empty-title-query', { query: props.appliedQuery })
             : t('admin.users.empty-title')
         }
-        description={
-          filtering ? t('admin.users.empty-body-query') : t('admin.users.empty-body')
-        }
+        description={filtering ? t('admin.users.empty-body-query') : t('admin.users.empty-body')}
         {...(filtering
           ? {
               action: (
-                <Button variant="outline" onClick={props.onFirst}>
+                <Button variant="outline" onClick={props.onClearFilter}>
                   {t('admin.users.back-first')}
                 </Button>
               ),
             }
-          : {})}
+          : props.page > 1
+            ? { action: <FirstPageButton page={props.page} onFirst={props.onFirst} /> }
+            : {})}
       />
     );
   }
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="w-full overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>{t('admin.users.col-user')}</TableHead>
-              <TableHead>{t('admin.users.col-role')}</TableHead>
-              <TableHead>{t('admin.users.col-created')}</TableHead>
-              <TableHead className="text-right">{t('admin.users.col-actions')}</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {items.map((user) => (
-              <UserRow key={user.id} user={user} actorId={props.actorId} />
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+    <div className="flex flex-col gap-4">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>{t('admin.users.col-user')}</TableHead>
+            <TableHead>{t('admin.users.col-role')}</TableHead>
+            <TableHead>{t('admin.users.col-created')}</TableHead>
+            <TableHead className="text-right">{t('admin.users.col-actions')}</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {items.map((user) => (
+            <UserRow key={user.id} user={user} actorId={props.actorId} />
+          ))}
+        </TableBody>
+      </Table>
 
       {/*
-        Câu tự đính chính phạm vi: bảng này chỉ nói về TRANG đang xem. Một dòng
-        "3 quản trị viên" đếm trên một trang đã cắt sẽ là một khẳng định sai về
-        cả hệ thống, đúng bẫy nhãn-nói-quá-dữ-liệu mà 13.D mục 13 gọi tên.
+        Câu tự đính chính phạm vi: bảng này chỉ nói về TRANG đang xem. "3 quản
+        trị viên" đếm trên một trang đã cắt là một khẳng định sai về cả hệ.
       */}
-      <AdminNote>
-        {t('admin.users.note', { count: items.length, page: props.page })}
-        {props.hasNext ? t('admin.users.note-more') : '.'}
-      </AdminNote>
-
-      <CursorPager
-        hasNext={props.hasNext}
-        onNext={props.onNext}
-        onReset={props.onFirst}
-        page={props.page}
-        loading={props.fetching}
-      />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <AdminNote>
+          {t('admin.users.note', { count: items.length, page: props.page })}
+          {props.hasNext ? t('admin.users.note-more') : '.'}
+        </AdminNote>
+        <CursorPager
+          hasNext={props.hasNext}
+          onNext={props.onNext}
+          onReset={props.onFirst}
+          page={props.page}
+          loading={props.fetching}
+        />
+      </div>
     </div>
   );
 }
@@ -253,6 +271,7 @@ function UserRow({
   const [serverError, setServerError] = useState<string | null>(null);
   const { toast } = useToast();
   const utils = api.useUtils();
+  const isSelf = user.id === actorId;
 
   const setRole = api.admin.users.setRole.useMutation({
     onSuccess: (result) => {
@@ -263,8 +282,8 @@ function UserRow({
         title: t('admin.users.toast-title', { email: user.email }),
         description: t('admin.users.toast-body', { role: describeRole(result.role) }),
       });
-      // Danh sách phải đọc lại từ máy chủ: sửa tại chỗ trong cache là tự khẳng
-      // định một trạng thái ta chỉ suy ra, trong khi máy chủ vừa trả sự thật.
+      // Đọc lại từ máy chủ: sửa tại chỗ trong cache là tự khẳng định một trạng
+      // thái ta chỉ suy ra, trong khi máy chủ vừa trả sự thật.
       void utils.admin.users.list.invalidate();
       void utils.admin.audit.list.invalidate();
     },
@@ -284,18 +303,18 @@ function UserRow({
   return (
     <TableRow>
       <TableCell>
-        <div className="flex flex-col">
-          <span className="font-medium">{user.name}</span>
-          <span className="text-xs text-muted-foreground">{user.email}</span>
-          {user.id === actorId ? (
-            <span className="text-xs text-muted-foreground">{t('admin.users.self-note')}</span>
+        <div className="flex flex-col gap-0.5">
+          <span className="font-semibold text-foreground">{user.name}</span>
+          <span className="font-mono text-xs text-muted-foreground">{user.email}</span>
+          {isSelf ? (
+            <span className="type-label text-brand">{t('admin.users.self-note')}</span>
           ) : null}
         </div>
       </TableCell>
       <TableCell>
         <Badge variant={roleBadgeVariant(user.role)}>{describeRole(user.role)}</Badge>
       </TableCell>
-      <TableCell className="text-sm text-muted-foreground">{formatDay(user.createdAt)}</TableCell>
+      <TableCell className="font-mono text-xs text-muted-foreground">{formatDay(user.createdAt)}</TableCell>
       <TableCell className="text-right">
         <Button
           variant="outline"
@@ -319,6 +338,9 @@ function UserRow({
           }}
           title={plan.title}
           body={plan.body}
+          // Đổi vai trò không làm mất dữ liệu nào; hậu quả (mất quyền vào một
+          // nhánh) đã nằm trong `body`, và trường hợp tự khoá mình là `blockedReason`.
+          loss={null}
           blockedReason={plan.blockedReason}
           error={serverError}
           confirmLabel={plan.confirmLabel}
@@ -352,7 +374,7 @@ function UserRow({
   );
 }
 
-/** Gợi ý mặc định trong ô chọn: một vai trò KHÁC vai trò hiện tại, để hộp thoại không mở ra ở trạng thái vô nghĩa. */
+/** Gợi ý mặc định: một vai trò KHÁC vai trò hiện tại, để hộp thoại không mở ra ở trạng thái vô nghĩa. */
 function firstOtherRole(current: string): ViewerRole {
   return ASSIGNABLE_ROLES.find((role) => role !== current) ?? 'user';
 }

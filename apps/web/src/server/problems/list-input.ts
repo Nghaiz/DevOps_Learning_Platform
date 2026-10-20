@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import {
+  GAME_IDS,
   PROBLEM_DIFFICULTIES,
   PROBLEM_ORDER_KEYS,
   PROBLEM_STATES,
@@ -46,6 +47,13 @@ export const problemFilterSchema = z
     state: z.array(z.enum(PROBLEM_STATES)).readonly().optional(),
     query: z.string().max(200).optional(),
     viewerStatus: z.array(z.enum(['solved', 'attempted', 'untouched'])).readonly().optional(),
+    /*
+     * Tập ĐÓNG `GAME_IDS`, khác `topics` ở trên: id game là từ vựng của nền tảng
+     * chứ không phải của từng plugin, nên một giá trị gõ sai là lỗi của client —
+     * 400 nói ra điều đó, còn nhận rồi lọc ra trang rỗng thì nói dối rằng game đó
+     * chưa có bài nào.
+     */
+    gameId: z.enum(GAME_IDS).optional(),
   })
   .strict();
 

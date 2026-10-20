@@ -1,3 +1,4 @@
+import { t } from '@devops-platform/copy';
 /**
  * Tám góc camera CỐ ĐỊNH — toán thuần, không `three` (19.D.3.2).
  *
@@ -85,10 +86,10 @@ export function stepAngle(index: number, delta: number): number {
  * là gì, còn "phương vị 45 độ" thì không.
  */
 export const CAMERA_ANGLE_LABELS: readonly string[] = [
-  'Góc nhìn 1 trên 4, từ hướng đông bắc',
-  'Góc nhìn 2 trên 4, từ hướng đông nam',
-  'Góc nhìn 3 trên 4, từ hướng tây nam',
-  'Góc nhìn 4 trên 4, từ hướng tây bắc',
+  t('games.cicd.scene.angle.ne'),
+  t('games.cicd.scene.angle.se'),
+  t('games.cicd.scene.angle.sw'),
+  t('games.cicd.scene.angle.nw'),
 ];
 
 /** Nhãn của một góc. Luôn trả một chuỗi — chỉ số nào cũng quấn về đúng khoảng. */

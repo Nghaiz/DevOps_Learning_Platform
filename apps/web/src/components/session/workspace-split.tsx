@@ -1,98 +1,97 @@
 'use client';
 
-import type { ReactElement, ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
+import { t } from '@devops-platform/copy';
 import { SplitPane } from '@devops-platform/ui';
-// Import thẳng từng file — xem chú thích cùng vấn đề ở 'terminal-pane.tsx'.
-import { TERMINAL_MIN_WIDTH_PX } from '../shell/breakpoints';
-import { useMinWidth } from '../shell/use-min-width';
-import { resolveSplitShape, resolveStackedBottom } from './split-shape';
+import { resolveSplitShape } from './split-shape';
 
 /**
- * Bố cục "nội dung cạnh terminal" của trang bài học và trang lab — và cách nó
- * **hạ cấp** dưới `TERMINAL_MIN_WIDTH_PX` (13.B mục 8: "≤768px hạ cấp có chủ ý
- * — đọc nội dung được, terminal hiện cảnh báo thay vì vỡ").
+ * Dưới mức này (bề rộng KHUNG CHỨA, không phải cửa sổ) thì xếp chồng.
  *
- * ## Vì sao đây là một component, không phải hai nhánh `?:` chép ở hai trang
- *
- * `lesson-client` và `lab-client` cùng cần đúng quyết định này, và bản chép thứ
- * hai là bản sẽ trôi. Hai trang chỉ khai *cái gì* nằm ở mỗi khoang; *khi nào*
- * gập lại là việc của file này.
- *
- * ## Vì sao gập chứ không chỉ đổi khoang phải thành cảnh báo
- *
- * `TerminalPane` đã tự đổi thành `NarrowScreenNotice` khi hẹp. Nếu chỉ có thế
- * thì ở 768px `SplitPane` vẫn chia đôi: nội dung bài học còn ~384px, tức phần
- * mà câu cảnh báo hứa là "vẫn đọc và học được bình thường" lại là phần bị bóp.
- * Nên khoang nội dung phải chiếm trọn bề rộng, và cảnh báo xuống dưới nó —
- * đúng như chính câu chữ của `NarrowScreenNotice` nói ("nội dung phía trên").
- *
- * ## `null` (chưa đo được bề rộng) đi theo nhánh RỘNG
- *
- * Mục tiêu chính là ≥1280px, nên nhánh rộng khớp phần lớn lượt mở: máy hẹp chịu
- * đúng một lần đổi bố cục sau frame đầu, máy rộng thì không bao giờ. Chọn ngược
- * lại là bắt mọi máy desktop nhìn bố cục nhảy một cái ở mỗi lần tải trang.
+ * 1024 chứ không còn 900: trang bài học và lab giờ là trang toàn màn (không
+ * sidebar), nên khung chứa rộng gần bằng cửa sổ. Ở 900, một cửa sổ 1023px vẫn
+ * chia đôi và mỗi khoang chỉ còn ~510px (e2e responsive "1023px — xếp chồng").
  */
+export const STACK_BELOW_PX = 1024;
+/** Đã xếp chồng thì phải rộng tới mức này mới chia đôi lại (trễ 80px). */
+export const UNSTACK_FROM_PX = 1104;
+
+/**
+ * Bước quyết định có trễ (hysteresis). Không có khoảng trễ, một cửa sổ đứng
+ * đúng ngưỡng (kéo mép, thanh cuộn hiện/ẩn) sẽ lật bố cục qua lại liên tục.
+ *
+ * `prev === null` (chưa đo) đi theo ngưỡng dưới.
+ */
+export function nextWideEnough(prev: boolean | null, widthPx: number): boolean {
+  if (prev === false) {
+    return widthPx >= UNSTACK_FROM_PX;
+  }
+  return widthPx >= STACK_BELOW_PX;
+}
+
 export interface WorkspaceSplitProps {
-  /** Khoang trái khi rộng; chiếm trọn bề rộng khi hẹp. */
+  /** Khoang đọc: bên trái khi rộng, bên trên khi hẹp. */
   readonly content: ReactNode;
-  /** Khoang phải khi rộng. Có thể là một `SplitPane` lồng (bố cục `ide`). */
+  /** Khoang làm việc: bên phải khi rộng, bên dưới khi hẹp. */
   readonly side: ReactNode;
-  /**
-   * Thứ xếp DƯỚI nội dung khi hẹp. Bỏ trống ⇒ dùng `side`.
-   *
-   * Bố cục `ide` truyền riêng terminal vào đây: khoang editor (Theia trong
-   * iframe) không có dạng hẹp nào dùng được, và nạp nguội nó ~20s trên một
-   * khung 768px là bắt người dùng chờ một thứ họ không thao tác nổi.
-   */
-  readonly narrowSide?: ReactNode;
   readonly storageKey?: string;
+  /** Tỉ lệ khoang đọc khi chia đôi. */
   readonly defaultRatio?: number;
 }
 
-export function WorkspaceSplit({
-  content,
-  side,
-  narrowSide,
-  storageKey,
-  defaultRatio,
-}: WorkspaceSplitProps): ReactElement {
-  /*
-    16.D.2 — quyết định hình học ra hàm THUẦN (`workspace-split.ts`), giữ đúng
-    ranh giới §4 của hợp đồng: file này chỉ VẼ kết quả.
+/**
+ * Bố cục "nội dung cạnh khoang làm việc" của bài học và lab.
+ *
+ * ## H4: hai khoang KHÔNG BAO GIỜ bị gỡ khi đổi bề rộng
+ *
+ * Bản trước rẽ hai nhánh JSX theo `matchMedia(min-width: 1024px)`: qua ngưỡng
+ * là React gỡ cả terminal lẫn IDE rồi dựng lại, tức đóng WebSocket và nạp nguội
+ * Theia lần nữa. Nay chỉ có MỘT cây (`SplitPane`), và hẹp hay rộng chỉ đổi
+ * hướng chia của nó: rộng thì trái/phải, hẹp thì trên/dưới.
+ *
+ * Quyết định theo bề rộng KHUNG CHỨA (ResizeObserver) chứ không theo cửa sổ:
+ * thứ cần đủ chỗ là hai khoang, không phải viewport.
+ */
+export function WorkspaceSplit({ content, side, storageKey, defaultRatio }: WorkspaceSplitProps): ReactElement {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [wideEnough, setWideEnough] = useState<boolean | null>(null);
 
-    Đáng kể nhất là `resolveStackedBottom` chứ không phải `resolveSplitShape`:
-    bản trước viết `narrowSide ?? side`, mà `??` nuốt mất một lựa chọn hợp lệ —
-    `narrowSide={null}` nghĩa là "khi hẹp thì không hiện gì ở dưới", còn
-    `undefined` mới là "chưa khai". `null` là một `ReactNode` hợp lệ nên
-    TypeScript không kêu, và cái khác biệt ấy im lặng biến mất.
-  */
-  const wideEnough = useMinWidth(TERMINAL_MIN_WIDTH_PX);
+  useEffect(() => {
+    const node = containerRef.current;
+    if (node === null) {
+      return;
+    }
+    const measure = (width: number): void => {
+      if (width > 0) setWideEnough((prev) => nextWideEnough(prev, width));
+    };
+    measure(node.getBoundingClientRect().width);
+    if (typeof ResizeObserver === 'undefined') {
+      return;
+    }
+    const observer = new ResizeObserver((entries) => {
+      const width = entries[0]?.contentRect.width;
+      if (width !== undefined) measure(width);
+    });
+    observer.observe(node);
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
 
-  if (resolveSplitShape(wideEnough) === 'stacked') {
-    return (
-      <div className="flex h-full min-h-0 w-full flex-col">
-        <div className="min-h-0 flex-1 overflow-y-auto">{content}</div>
-        {/* `shrink-0`: cảnh báo cao cố định, không bị nội dung dài đẩy khỏi
-            khung — nó là thứ giải thích vì sao terminal không có mặt, nên nó
-            phải nhìn thấy được mà không cần cuộn tới đáy bài. */}
-        <div className="shrink-0 border-t border-border">
-          {resolveStackedBottom(side, narrowSide)}
-        </div>
-      </div>
-    );
-  }
+  const stacked = resolveSplitShape(wideEnough) === 'stacked';
 
-  // ⚠ Spread có điều kiện, không phải `storageKey={storageKey}`. `apps/web` bật
-  // `exactOptionalPropertyTypes`, nên với `storageKey?: string` thì truyền
-  // tường minh một `undefined` là LỖI KIỂU — "vắng mặt" và "có mặt với giá trị
-  // undefined" là hai thứ khác nhau ở cờ đó. Đây là chỗ duy nhất trong bản vá
-  // này mà `pnpm --filter web typecheck` bắt được còn `vitest` thì không.
   return (
-    <SplitPane
-      {...(storageKey === undefined ? {} : { storageKey })}
-      {...(defaultRatio === undefined ? {} : { defaultRatio })}
-      left={content}
-      right={side}
-    />
+    <div ref={containerRef} data-split-shape={stacked ? 'stacked' : 'side-by-side'} className="h-full min-h-0 w-full">
+      <SplitPane
+        orientation={stacked ? 'vertical' : 'horizontal'}
+        {...(storageKey === undefined ? {} : { storageKey })}
+        defaultRatio={stacked ? 0.45 : (defaultRatio ?? 0.42)}
+        minRatio={stacked ? 0.15 : 0.25}
+        maxRatio={stacked ? 0.85 : 0.7}
+        separatorLabel={t('session.workspace.resize')}
+        left={content}
+        right={side}
+      />
+    </div>
   );
 }

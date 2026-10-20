@@ -54,16 +54,24 @@ export interface ToastOptions {
 /** Ngắn hơn mặc định 4s của sonner: 5s là con số bản Radix đang dùng, giữ nguyên. */
 const TOAST_DURATION_MS = 5000;
 
-const VARIANT_CLASSES: Record<ToastVariant, string> = {
-  default: 'border-border bg-card text-card-foreground',
-  success: 'border-transparent bg-success text-success-foreground',
-  destructive: 'border-transparent bg-destructive text-destructive-foreground',
+/**
+ * Mặt toast LUÔN là khối mực (design-brief §5: "square, ink background, left
+ * icon, no colored side stripe"). Biến thể không đổi nền nữa mà đổi Ô ICON bên
+ * trái: một ô vuông tô màu trạng thái, chứa icon theo `-foreground` của chính
+ * màu đó — cặp chữ/nền đã được `TEXT_PAIRS` của cổng token gác ≥4.5:1, nên
+ * icon luôn đọc được trên ô của nó bất kể ô đó tương phản thế nào với mực.
+ */
+const SURFACE = 'border-ink bg-ink text-ink-foreground';
+
+const VARIANT_TILE: Partial<Record<ToastVariant, string>> = {
+  success: 'bg-success text-success-foreground',
+  destructive: 'bg-destructive text-destructive-foreground',
 };
 
 /**
  * Icon theo biến thể — WCAG 1.4.1 (Use of Color): "đã lưu" và "lỗi" không được
- * phân biệt CHỈ bằng màu nền. `default` cố ý không có icon: nó không mang một
- * kết quả nào để mà vẽ.
+ * phân biệt CHỈ bằng màu. `default` cố ý không có icon: nó không mang một kết
+ * quả nào để mà vẽ.
  *
  * `aria-hidden` vì tiêu đề toast đã nói đủ; để icon lộ ra là thêm một node vô
  * nghĩa vào vùng `aria-live`, thứ trình đọc màn hình sẽ đọc thành tiếng.
@@ -83,35 +91,46 @@ function ToastCard({ title, description, variant = 'default', onDismiss }: Toast
       data-slot="toast"
       data-variant={variant}
       className={cn(
-        // §5: toast là một mặt nổi cỡ card ⇒ bậc `lg`. §6: chồng lên nội dung
-        // trang như popover/dialog ⇒ bậc nâng nền 3, và `border` là lớp bảo
-        // hiểm cho Windows High Contrast (nơi `box-shadow` bị bỏ hẳn).
-        'grid w-full grid-cols-[auto_1fr_auto] items-start gap-x-3 rounded-lg border p-4 shadow-elevation-3',
-        VARIANT_CLASSES[variant],
+        // Lớp nổi ⇒ `shadow-float` + `rounded-surface` (vuông trong app). `border`
+        // là lớp bảo hiểm cho Windows High Contrast, nơi `box-shadow` bị bỏ hẳn.
+        // KHÔNG `animate-rise`: sonner tự trượt phần tử `<li>` bọc ngoài vào chỗ,
+        // thêm một chuyển động `transform` thứ hai ở đây là hai cú trượt chồng nhau.
+        'grid w-full grid-cols-[auto_1fr_auto] items-start gap-x-3 rounded-surface border p-4 shadow-float',
+        SURFACE,
       )}
     >
-      {VARIANT_ICON[variant] ?? <span aria-hidden="true" />}
+      {VARIANT_ICON[variant] === undefined ? (
+        <span aria-hidden="true" />
+      ) : (
+        <span
+          aria-hidden="true"
+          data-slot="toast-icon"
+          className={cn('flex size-6 items-center justify-center', VARIANT_TILE[variant])}
+        >
+          {VARIANT_ICON[variant]}
+        </span>
+      )}
       <div className="grid gap-1">
         <p className="text-sm font-medium">{title}</p>
-        {description !== undefined && <p className="text-sm opacity-90">{description}</p>}
+        {description !== undefined && <p className="text-sm opacity-80">{description}</p>}
       </div>
       {/*
-        `ring-current` chứ không `ring-ring`: nút đóng nằm TRÊN mặt toast đã tô
-        đặc, và `--ring` (= `--primary`, đỏ) cạnh `bg-destructive` chỉ được
-        1.06:1 sáng / 1.50:1 tối — vòng focus vô hình đúng trên cái toast báo
-        lỗi. `ring-offset` cũng SAI ở đây chứ không phải thiếu: khe offset sẽ
-        mang màu NỀN TRANG, thứ không hề kề nút này.
+        `ring-current` chứ không `ring-ring`: nút đóng nằm TRÊN mặt toast tô đặc
+        bằng mực, và `--ring` không được đo trên `--ink` — một vòng focus không ai
+        đo là một vòng có thể vô hình. `ring-offset` cũng SAI ở đây chứ không phải
+        thiếu: khe offset sẽ mang màu NỀN TRANG, thứ không hề kề nút này.
 
-        `currentColor` là `text-{variant}-foreground` do `VARIANT_CLASSES` đặt ở
-        thẻ cha, và cả ba cặp đó đã được `TEXT_PAIRS` gác ở ≥4.5:1. Đây là cơ
-        chế thứ hai của bảng miễn trừ §1.7 trong `p16-tokens.md`.
+        `currentColor` là `text-ink-foreground` do `SURFACE` đặt ở thẻ cha, cặp
+        đã được `TEXT_PAIRS` gác ở ≥4.5:1. Đây là cơ chế thứ hai của bảng miễn
+        trừ §1.7 trong `p16-tokens.md`.
       */}
       <button
         type="button"
         aria-label="Đóng thông báo"
         onClick={onDismiss}
         className={cn(
-          'rounded-sm opacity-70 outline-none hover:opacity-100',
+          // `size-8` (32px): sàn vùng bấm của design-brief §9. `size-6` cũ chỉ 24px.
+          'inline-flex size-8 items-center justify-center rounded-control opacity-70 outline-none hover:opacity-100',
           'transition-opacity duration-[var(--motion-fast)] ease-out',
           'focus-visible:ring-2 focus-visible:ring-current',
         )}

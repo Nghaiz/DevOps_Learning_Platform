@@ -6,7 +6,7 @@
 
 <!-- updated 260913 -->
 
-Cập nhật 2026-09-13: landing dùng hành trình 3D nhiều màu xuyên suốt luồng DOM tự nhiên: bốn chương và năm điểm neo ở nội dung phía dưới, với mô hình lớn luân phiên vị trí. Một canvas trong suốt theo viewport dùng camera `viewOffset` để bám điểm neo; không ghim nội dung, dùng vòng trắng trang trí hoặc lưới thẻ. Bảng màu RGB `--journey-*` trong `globals.css` dành riêng cho cảnh và vùng kể chuyện; token giao diện chung không đổi. Xem [quy tắc giao diện hiện hành](design-guidelines.md#landing) cho cuộn xuôi/ngược, terminal minh hoạ và chế độ giảm chuyển động dùng hình tĩnh không GPU. Kết quả nghiệm thu nằm trong báo cáo runtime; primitive tiến độ dùng chung và K8s Arena vẫn có phạm vi riêng.
+Cập nhật 2026-10-03: landing là một tuyến metro 3D cuộn-điều-khiển (GSAP + ScrollTrigger + Lenis + React Three Fiber, chung một vòng `gsap.ticker`), có ghim cảnh, terminal tua theo cuộn và motion graphics 2D. Màu tuyến khớp token `--line-*` của app; chữ dùng bản pha sáng trên nền tối. Xem [quy tắc giao diện hiện hành](design-guidelines.md#landing) và [kế hoạch landing 3D](../plans/devops-learning-platform/landing-3d/plan.md); chế độ giảm chuyển động không chạy vòng lặp nào và dùng bản đồ tuyến SVG tĩnh.
 
 ## 0. Nguyên tắc
 
@@ -78,76 +78,39 @@ Các tỷ lệ dưới đây lấy từ số đo token P16, không lấy từ b�
 
 Primary tối là `oklch(0.68 0.19 26.7)`, dùng được làm chữ trên background/card/muted. Trắng tinh trên primary tối chỉ đạt 3.1397:1, nên chữ nút dùng `--primary-foreground` tối, không dùng trắng. Focus giữ `--ring === --primary`; phải có offset để vòng focus không nằm sát nền primary. Hai màu đỏ không đủ tách nghĩa: primary nền đặc; destructive nền rỗng, viền và TriangleAlert.
 
-### Token ngoài bảng C1 — lớp workspace và ba bảng màu bề mặt
+### Token ngoài bảng C1 — palette Git Odyssey
 
-<!-- updated 260916 -->
+<!-- updated 261003 -->
 
-Bảng trên là hệ token **vai trò**. `globals.css` còn khai 75 token nữa, chia làm
-bốn nhóm, và chúng cố ý **không** nằm trong `C1_COLOR_TOKENS`. Mỗi nhóm có một
-hằng số riêng ở `packages/ui/src/theme/tokens.contract.test.ts` — thêm hay bớt
-một token là phải sửa cả hằng số đó lẫn mục này.
+Bảng trên là hệ token **vai trò**. `globals.css` còn khai 43 token `--odyssey-*`
+và chúng cố ý **không** nằm trong `C1_COLOR_TOKENS`. Chúng có hằng số riêng
+`C1_ODYSSEY_TOKENS` ở `packages/ui/src/theme/tokens.contract.test.ts` — thêm hay
+bớt một token là phải sửa cả hằng số đó lẫn mục này.
 
 | Nhóm | Số | Dùng ở đâu | Theme | Dạng |
 |---|---|---|---|---|
-| `--workspace-*` | 12 | `practice.css` gán vào token shadcn (`--background: var(--workspace-background)`, …) | **Cả hai** — có ô gác riêng | `rgb()` |
-| `--workspace-shadow-ink`, `--workspace-lift-ink` | 2 | `practice.css`, qua `color-mix()` ở 3–9% alpha | Chỉ `:root` | `rgb()` |
-| `--art-*` | 7 | Tấm nền + mực artwork thẻ game (`practice.css`, `games-hub.tsx`) | Chỉ `:root`, cố định | `rgb()` |
-| `--challenge-*` | 7 | Panel xanh rêu cột phải practice | Chỉ `:root`, cố định | `rgb()` |
-| `--odyssey-*` | 47 | Palette trò Git Odyssey (`git-odyssey.css`) | Chỉ `:root`, cố định | `rgb()` |
+| `--odyssey-*` | 43 | Palette trò Git Odyssey (`git-odyssey.css`) | Chỉ `:root`, cố định | `rgb()` |
 
-#### ⚠ Hai hệ token song song — `practice.css` đang THẮNG
+Ba nhóm `--workspace-*`, `--art-*` và `--challenge-*` của thiết kế cũ đã bị xoá
+ngày 2026-10-03, cùng các luật `practice.css` từng đọc chúng. `practice.css` nay
+chỉ còn vài class của game K8s đóng băng và không khai lại `:root`/`.dark`.
 
-`practice.css` nạp **sau** `globals.css` trong `app/layout.tsx` và khai lại
-`:root`/`.dark` với cùng bộ tên shadcn. Cùng độ đặc hiệu, nạp sau ⇒ nó thắng.
-Nên **bảng C1 phía trên chỉ còn hiệu lực ở những token mà lớp workspace không
-nhắc tới**: `--primary` đang vẽ ra là `rgb(169 67 38)` cam-nâu, không phải
-`oklch(0.519 0.186 26.7)` đỏ PTIT trong bảng.
+Vì sao là `rgb()` chứ không `oklch()`: giá trị được chuyển từ hex, và `rgb()` là
+dạng duy nhất quy đổi mà không mất một bit nào. Cùng tiền lệ với `--journey-*`
+(bảng màu cảnh 3D landing).
 
-Đó là một khoản **nợ kiến trúc** đã ghi nhận, không phải một quyết định thiết
-kế. Lượt dọn màu cứng 2026-09-16 chỉ **di chuyển giá trị** về `globals.css` làm
-SSOT, giữ nguyên từng bit; hợp nhất hai hệ là một thay đổi diện mạo toàn site và
-cần người quyết. Khi đọc bảng C1 để tra màu thật của một trang practice, tra
-`--workspace-*` trước.
+#### Vì sao palette cố định ở cả hai theme
 
-Vì sao là `rgb()` chứ không `oklch()` như phần trên: đây là phép di chuyển giá
-trị từ hex, và `rgb()` là dạng duy nhất quy đổi mà không mất một bit nào. Quy
-sang `oklch()` sẽ làm tròn ở chữ số cuối — đúng thứ ràng buộc "diện mạo không
-đổi" cấm. Cùng tiền lệ với `--journey-*` (bảng màu cảnh 3D landing).
-
-#### Vì sao ba nhóm bề mặt cố định ở cả hai theme
-
-`.dark` không đè lên `.practice-game-art`; panel challenge là một mảng đặc; và
 `.git-odyssey` tự đặt `color-scheme: dark` rồi vẽ toàn bộ mặt nền của mình. Nhân
-đôi 61 dòng xuống `.dark` chỉ là bịa ra một biến thể theme mà thiết kế không
-đòi, và thêm 61 chỗ để quên đồng bộ. Hợp đồng vì thế khẳng định chúng **vắng
+đôi 43 dòng xuống `.dark` chỉ là bịa ra một biến thể theme mà thiết kế không
+đòi, và thêm 43 chỗ để quên đồng bộ. Hợp đồng vì thế khẳng định chúng **vắng
 mặt** ở `.dark`, cùng luật đang áp cho `--brand-*` và `--journey-*`.
-
-Nhóm `--workspace-*` thì ngược lại và đó là điểm phân biệt: nó là nguồn của
-`--background`/`--foreground`/`--card` cho toàn vùng practice, nên thiếu nhánh
-tối là cả vùng đó hiện màu sáng ở chế độ tối — im lặng, không lỗi CSS, không lỗi
-build. Hai ô gác nó: có mặt ở cả hai theme, **và** hai nhánh phải khác giá trị.
 
 #### Không map sang `@theme inline` — có ô gác
 
-Không nhóm nào trong bốn nhóm này có dòng `--color-*`, nên Tailwind không sinh
-`bg-workspace-card` hay `text-odyssey-muted-ink`. Đó là chủ ý, cùng lý lẽ với
-`--brand-*`: một class tồn tại là một class sẽ có người dùng. Với workspace nó
-còn nặng hơn — dùng `bg-workspace-card` là đi thẳng xuống tầng nguồn, bỏ qua lớp
-vai trò, và trang sẽ tách khỏi phần còn lại của giao diện đúng vào ngày ai đó
-sửa phép gán ở `practice.css`.
-
-#### Khoảng trống CÓ TÊN — contrast của `--art-*` không được cổng nào đo
-
-`globals.css` ghi ba số đo thật: `--art-ink-k8s` trên `--art-surface-k8s` =
-5.567:1 ✓ AA, `--art-label-git` trên `--art-surface-git` = 5.445:1 ✓ AA,
-`--art-ink-git` trên `--art-surface-git` = 3.985:1 — **cố ý** dưới ngưỡng, vì đó
-là mực nét vẽ SVG (`aria-hidden`), không phải mực chữ. Đừng dùng
-`--art-ink-git` cho chữ: 3.985:1 là đúng vi phạm `[serious] color-contrast` mà
-axe từng báo ở `.practice-game-label`.
-
-Ba con số đó **không** được `tokens.contract.test.ts` khẳng định lại: toàn bộ
-máy đo của file dựng trên `parseOklch()`, nên đo một cặp `rgb()` đòi một bộ phân
-tích thứ hai. Ai đổi `--art-surface-git` phải tự đo lại — sẽ không có ô nào đỏ.
+Palette này không có dòng `--color-*`, nên Tailwind không sinh
+`text-odyssey-muted-ink`. Đó là chủ ý, cùng lý lẽ với `--brand-*`: một class tồn
+tại là một class sẽ có người dùng.
 
 ### Bản ghi P13 đã thay thế
 
@@ -552,11 +515,20 @@ phải "bỏ quên".
 | `ContentView`/`SplitPane`/`StepNav`/`ProgressBar` | giữ API cũ (P2/2.D) — nơi gọi (trang bài học) bọc `Skeleton` NGOÀI cụm | n/a (bài học luôn có ít nhất một bước; danh sách rỗng là lỗi dữ liệu, chặn từ trước khi render) | nơi gọi bọc `ErrorState` NGOÀI cụm — tầng primitive không có trạng thái lỗi riêng | `StepNav` tự tính disable nút Trước/Tiếp theo vị trí `activeKey` |
 | `SearchTabs` | n/a (lọc chạy ở nơi gọi; khung chờ thuộc về danh sách BÊN DƯỚI, không thuộc thanh tìm) | n/a (thanh tìm luôn có ít nhất một tab; "không có kết quả" hiện bằng `EmptyState` của danh sách) | n/a (không I/O — nó chỉ phát `onSearch`/`onTabChange`) | n/a (gói ngoài `gooey-search-tabs@0.2.0` không có prop `disabled`; nơi gọi cần khoá thì không render nó — xem §4f) |
 | `ResourceIcon` | n/a (glyph tĩnh, không có pha tải) | n/a | n/a (`kind` là union đóng 26 giá trị nên không có nhánh "không biết loại") | n/a (không tương tác — không nhận focus, không có handler) |
+| `Chip` | n/a (bật/tắt tức thời; danh sách bên dưới tự hiện khung chờ) | n/a (nhãn bắt buộc; `count={0}` vẫn hiện số 0 — "lọc này không có gì" là thông tin) | n/a (không I/O) | `disabled` (native) |
+| `TopicBadge` | n/a (glyph tĩnh) | n/a (`line` là union đóng chín tuyến; chủ đề không rõ thì nơi gọi dùng `Badge variant="line"` không `line` ⇒ tuyến mực) | n/a | n/a (không tương tác) |
+| `LineMarker` | n/a (glyph tĩnh) | n/a | n/a | `state="locked"` (ô rỗng viền xám, mờ) — không phải control nên không có `disabled` |
+| `Difficulty` | n/a (glyph tĩnh) | n/a (`level` là union đóng bốn mức) | n/a | n/a (không tương tác) |
+| `StatusDot` | `tone="live"` nhấp nháy cho phiên đang chạy | `tone="idle"` | `tone="bad"` | n/a (không tương tác; luôn đứng cạnh chữ nói cùng trạng thái) |
+| `Meter` | n/a (vẽ từ `value`/`max` đã có; nơi gọi đặt `Skeleton` khi chưa có số) | `value=0` ⇒ thước rỗng; `max<=0` ⇒ thước rỗng, `aria-valuemax=0` | n/a (không I/O; giá trị ngoài [0, max] bị kẹp, không ném) | n/a (chỉ đọc) |
+| `Num` | n/a (số nằm trong câu; câu chờ tải thì nơi gọi thay cả câu bằng `Skeleton`) | n/a | n/a | n/a (không tương tác) |
+| `Sheet` (+Trigger/Content/Title/Description/Close) | nội dung bên trong tự quản (Skeleton nếu cần) | n/a | n/a | `SheetTrigger asChild` nhận `disabled` từ control con |
+| `Popover` (+Trigger/Content) | nội dung bên trong tự quản | n/a | n/a | `PopoverTrigger asChild` nhận `disabled` từ control con |
 
 ### 4b. `Button` — biến thể, `asChild`/`loading`, icon
 
 ```ts
-variant: 'primary' | 'secondary' | 'outline' | 'ghost' | 'destructive' | 'link'; // mặc định 'primary'
+variant: 'primary' | 'ink' | 'secondary' | 'outline' | 'ghost' | 'destructive' | 'link'; // mặc định 'primary'
 size: 'sm' | 'md' | 'lg' | 'icon'; // mặc định 'md'
 asChild?: boolean; // Radix Slot — render root là phần tử con (vd. <a>) thay vì <button>
 loading?: boolean; // disabled + Spinner đè giữa, giữ nguyên bề rộng nút
@@ -616,6 +588,25 @@ làm suite đỏ, chứ không trôi qua.
 Khi `loading`, icon nằm CÙNG nhánh với nhãn nên `text-transparent` của nút nuốt
 luôn màu nét của chúng. Đúng ý: cả cụm icon + nhãn mờ đi sau Spinner đè lên, thay
 vì icon còn nổi lên cạnh một cái nhãn đã tàng hình.
+
+#### Bản dựng lại PTIT (2026-10) — hình dạng và vi tương tác
+
+Nguồn: `plans/fe-ptit-rebuild/design-brief.md` + `contracts/ui-kit.md` §B.
+
+- **Vuông.** Bo góc đi qua `rounded-control` (nút, ô nhập, chip, badge, tab) và
+  `rounded-surface` (dialog, popover, menu, select, toast). Cả hai ra 0 trong app
+  và ra bậc bo cũ bên trong `.arena-root` của game K8s, nên game không đổi hình.
+- **Bóng chỉ ở lớp nổi.** `shadow-float` cho dialog, sheet, popover, dropdown,
+  select, tooltip, toast. Trong trang không còn `shadow-elevation-*` nào.
+- **`ink`** = khối mực đảo màu. `secondary` nay là nền `muted`; `outline` viền
+  mực, hover tô muted; `link` chữ `--brand` (đỏ an toàn cho chữ), gạch chân hiện
+  khi hover.
+- **`destructive`** = nền pha nhạt `bg-destructive/10` + viền `/50` + chữ đỏ +
+  icon `TriangleAlert`; hover đảo sang nền đặc. Vẫn khác `primary` bằng CẤU TRÚC
+  (khối đặc không viền / khối nhạt có viền + icon), xem §1c.
+- **Vi tương tác:** nhấn ⇒ lún 1px (`motion-safe:active:translate-y-px`); có
+  `iconRight` ⇒ icon nhích 2px khi hover (`group/button`). Cả hai sau
+  `motion-safe:`.
 
 ### 4c. `Badge` — bảy biến thể NGỮ NGHĨA, mỗi cái một hình riêng
 
@@ -835,7 +826,7 @@ lỗi của họ. Ba file dưới đây biến nó thành cổng:
 
 | File | Gác gì | Đỏ ở đâu |
 |---|---|---|
-| `src/theme/tokens.contract.test.ts` | Token C1 có ở **cả** `:root` lẫn `.dark`; mọi token có `--color-*` trong `@theme inline`; contrast WCAG của 12 cặp chữ + 6 cặp phi-chữ ở cả hai theme. Thêm: bốn nhóm ngoài C1 (§ "Token ngoài bảng C1") — không token nào THỪA ngoài hợp đồng, nhóm bề mặt vắng mặt ở `.dark`, `--workspace-*` có ở cả hai theme **và** khác giá trị, và không nhóm nào lọt vào `@theme inline` | `pnpm test` |
+| `src/theme/tokens.contract.test.ts` | Token C1 có ở **cả** `:root` lẫn `.dark`; mọi token có `--color-*` trong `@theme inline`; contrast WCAG của 12 cặp chữ + 6 cặp phi-chữ ở cả hai theme. Thêm: palette `--odyssey-*` ngoài C1 (§ "Token ngoài bảng C1") — không token nào THỪA ngoài hợp đồng, palette vắng mặt ở `.dark`, và không lọt vào `@theme inline` | `pnpm test` |
 | `src/exports.contract.test.ts` | 68 tên C1/C2 được export; prop bắt buộc vẫn bắt buộc; mọi giá trị union variant/size còn nguyên; không có export lạ ngoài hợp đồng | `pnpm typecheck` **và** `pnpm test` |
 | `src/design-system.contract.test.tsx` | **Chính tài liệu này**: mọi component export có dòng ở bảng §4a và khai đủ 4 trạng thái; không dòng nào trỏ tới component đã xoá; bảng icon §4c khớp DOM thật | `pnpm test` |
 

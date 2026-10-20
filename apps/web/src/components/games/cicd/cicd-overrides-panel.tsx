@@ -1,6 +1,7 @@
 'use client';
 
 import type { ReactElement } from 'react';
+import { t } from '@devops-platform/copy';
 import { cacheControls, ownValue, retryControls } from '@devops-platform/games';
 import type {
   CicdCacheChoice,
@@ -74,26 +75,20 @@ export function CicdOverridesPanel({
   };
 
   return (
-    <div className="flex flex-col gap-4 rounded-lg border border-border bg-muted px-4 py-3">
+    <div className="flex flex-col gap-4 border border-border bg-muted px-4 py-3">
       <div className="flex flex-col gap-1">
-        <h3 className="text-sm font-semibold text-foreground">Núm không nằm trong YAML</h3>
-        <p className="text-xs text-muted-foreground">
-          Hai thứ dưới đây không có khoá tương ứng trong workflow, nên chúng đặt ở đây và đi thẳng
-          vào engine cùng lượt chạy.
-        </p>
+        <h3 className="text-sm font-semibold text-foreground">{t('games.cicd.overrides.title')}</h3>
+        <p className="text-xs text-muted-foreground">{t('games.cicd.overrides.lead')}</p>
       </div>
 
       {choRetries ? (
-        <section className="flex flex-col gap-2" aria-label="Số lần chạy lại">
+        <section className="flex flex-col gap-2" aria-label={t('games.cicd.overrides.retries')}>
           <h4 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-            Chạy lại khi hỏng
+            {t('games.cicd.overrides.retries-title')}
           </h4>
-          <p className="text-xs text-muted-foreground">
-            Chạy lại cứu được lỗi chập chờn của hạ tầng. Nó KHÔNG cứu được một lỗi thật — chỉ làm
-            lượt chạy lâu hơn và tốn thêm runner-phút.
-          </p>
+          <p className="text-xs text-muted-foreground">{t('games.cicd.overrides.retries-note')}</p>
           {nutRetries.length === 0 ? (
-            <p className="text-xs text-muted-foreground">Workflow chưa có job nào.</p>
+            <p className="text-xs text-muted-foreground">{t('games.cicd.overrides.no-jobs')}</p>
           ) : (
             <ul className="flex flex-col gap-2">
               {nutRetries.map((nut) => (
@@ -118,7 +113,7 @@ export function CicdOverridesPanel({
                        */
                       datRetry(nut.stageId, Number.isFinite(parsed) ? Math.min(5, Math.max(0, parsed)) : 0);
                     }}
-                    className="w-16 rounded-md border border-border bg-background px-2 py-1 text-right text-sm text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                    className="w-16 border border-border bg-background px-2 py-1 text-right text-sm text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                   />
                 </li>
               ))}
@@ -128,15 +123,13 @@ export function CicdOverridesPanel({
       ) : null}
 
       {choCache ? (
-        <section className="flex flex-col gap-3" aria-label="Cache">
-          <h4 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Cache</h4>
-          <p className="text-xs text-muted-foreground">
-            Bạn chọn khoá cache băm vào những đầu vào nào. Thứ nội dung cache THẬT SỰ phụ thuộc là sự
-            thật của màn và không sửa được — khoá rộng hơn nó thì hiếm khi trúng, hẹp hơn nó thì có
-            ngày trúng phải một bản đã ôi.
-          </p>
+        <section className="flex flex-col gap-3" aria-label={t('games.cicd.overrides.cache')}>
+          <h4 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+            {t('games.cicd.overrides.cache')}
+          </h4>
+          <p className="text-xs text-muted-foreground">{t('games.cicd.overrides.cache-note')}</p>
           {nutCache.length === 0 ? (
-            <p className="text-xs text-muted-foreground">Không bước nào đang có mặt cache được.</p>
+            <p className="text-xs text-muted-foreground">{t('games.cicd.overrides.no-cache')}</p>
           ) : (
             <ul className="flex flex-col gap-3">
               {nutCache.map((nut) => {
@@ -144,7 +137,7 @@ export function CicdOverridesPanel({
                 const bat = chon === undefined ? nut.defaultOn : chon !== null;
                 const keyParts = chon == null ? nut.defaultKeyParts : chon.keyParts;
                 return (
-                  <li key={nut.key} className="flex flex-col gap-2 rounded-md border border-border px-3 py-2">
+                  <li key={nut.key} className="flex flex-col gap-2 border border-border px-3 py-2">
                     <div className="flex items-center gap-2">
                       <input
                         id={`cache-on-${nut.key}`}
@@ -160,12 +153,12 @@ export function CicdOverridesPanel({
                       </label>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      Trúng cache tiết kiệm tối đa {nut.template.savesTicks} tick.
+                      {t('games.cicd.overrides.cache-saves', { n: nut.template.savesTicks })}
                     </p>
                     {bat ? (
                       <fieldset className="flex flex-col gap-1">
                         <legend className="text-xs text-muted-foreground">
-                          Khoá cache gồm những đầu vào nào
+                          {t('games.cicd.overrides.key-parts')}
                         </legend>
                         {workload.inputs.map((input) => (
                           <label key={input.id} className="flex items-center gap-2 text-xs text-foreground">
@@ -182,7 +175,9 @@ export function CicdOverridesPanel({
                               className="size-3.5 accent-primary"
                             />
                             {input.label}{' '}
-                            <span className="text-muted-foreground">(đổi mỗi {input.changesEvery} commit)</span>
+                            <span className="text-muted-foreground">
+                              {t('games.cicd.overrides.changes-every', { n: input.changesEvery })}
+                            </span>
                           </label>
                         ))}
                       </fieldset>

@@ -41,6 +41,18 @@ import { expect, test } from './fixtures/api';
 import { openScreen, resolvePath } from './fixtures/nav';
 import { SCREENS, type Screen } from './routes';
 
+/*
+ * NGHỈ HƯU 2026-10-03 (lane L2, bản dựng lại PTIT): /lessons/:id không còn vẽ
+ * cung ProgressBar. Thanh trên 48px dùng thước phân đoạn `Meter` (design brief
+ * §4.7, "Gauge"), nên spec này không còn bề mặt nào để đo trên trang bài học.
+ *
+ * Kiểm lại 2026-10-20: KHÔNG file nào trong `apps/web/src` còn vẽ `ProgressBar`
+ * (câu cũ ở đây chỉ `components/me/learning-now.tsx` là sai). Spec vì thế đã rút
+ * khỏi `e2e:ci`, xem chú thích `//e2e:ci` trong `package.json`. Màn nào vẽ lại cung
+ * có `--p` thì trỏ `LESSON` sang màn đó, gỡ dòng skip, rồi mới đưa lại vào cổng.
+ */
+test.skip(true, 'Cung ProgressBar đã rời /lessons/:id; xem chú thích nghỉ hưu ở đầu file.');
+
 const LESSON: Screen = SCREENS.find((s) => s.path === '/lessons/:id') ?? {
   path: '/lessons/:id',
   auth: 'user',

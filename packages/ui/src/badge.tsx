@@ -12,6 +12,7 @@ import {
   TriangleAlert,
 } from 'lucide-react';
 import { cn } from './cn.ts';
+import { LINE_CLASSES, type LineId } from './lines.ts';
 
 export type BadgeVariant =
   | 'default'
@@ -20,6 +21,7 @@ export type BadgeVariant =
   | 'warning'
   | 'destructive'
   | 'outline'
+  | 'line'
   | 'difficulty-basic'
   | 'difficulty-intermediate'
   | 'difficulty-advanced'
@@ -59,10 +61,9 @@ export type BadgeVariant =
  * `theme/tokens.contract.test.ts` mô tả).
  */
 const badgeVariants = cva(
-  // §5 xếp badge/chip vào bậc `sm` (`calc(var(--radius) - 6px)` = 6px). Bậc `md`
-  // cũ là bậc của nút/ô nhập; một chip cao 20px đeo bo góc 9px đọc ra viên thuốc
-  // dở dang — không phải chip, cũng không phải pill.
-  'inline-flex w-fit shrink-0 items-center gap-1 rounded-sm border px-2 py-0.5 text-xs font-medium whitespace-nowrap',
+  // Vuông (design-brief §0.1). `rounded-control` đọc `--radius-control`: 0 trong
+  // app, bậc bo cũ bên trong `.arena-root` của game K8s (hợp đồng ui-kit §B).
+  'inline-flex w-fit shrink-0 items-center gap-1 rounded-control border px-2 py-0.5 text-xs font-medium whitespace-nowrap',
   {
     variants: {
       variant: {
@@ -84,6 +85,9 @@ const badgeVariants = cva(
          */
         destructive: 'border-destructive bg-transparent text-destructive',
         outline: 'border-border text-foreground',
+        // Màu do prop `line` quyết định (xem `lineClass` ở dưới) — cva không đọc
+        // được prop ngoài `variant`, nên nhánh này chỉ khai viền trong suốt.
+        line: 'border-transparent',
         'difficulty-basic': 'border-transparent bg-difficulty-basic text-difficulty-basic-foreground',
         'difficulty-intermediate':
           'border-transparent bg-difficulty-intermediate text-difficulty-intermediate-foreground',
@@ -143,6 +147,13 @@ const DEFAULT_ICON: Partial<Record<BadgeVariant, BadgeIcon>> = {
 
 export interface BadgeProps extends ComponentProps<'span'>, VariantProps<typeof badgeVariants> {
   /**
+   * Tuyến chủ đề cho `variant="line"` — nền màu tuyến + chữ đặt trên nền đó.
+   * Bỏ qua ở mọi biến thể khác. Thiếu `line` khi `variant="line"` ⇒ tuyến trung
+   * tính mực đảo màu, đúng quy ước "chủ đề không rõ ⇒ tuyến ink" của
+   * design-brief §2.3, thay vì một badge không màu.
+   */
+  readonly line?: LineId;
+  /**
    * Icon ở ĐẦU badge.
    *
    * - bỏ trống ⇒ dùng `DEFAULT_ICON` của biến thể (không có thì không vẽ gì);
@@ -154,7 +165,12 @@ export interface BadgeProps extends ComponentProps<'span'>, VariantProps<typeof 
   readonly icon?: ReactNode;
 }
 
-export function Badge({ variant, icon, className, children, ...props }: BadgeProps) {
+function lineClass(variant: BadgeVariant | null | undefined, line: LineId | undefined): string | undefined {
+  if (variant !== 'line') return undefined;
+  return line === undefined ? 'bg-ink text-ink-foreground' : LINE_CLASSES[line].fill;
+}
+
+export function Badge({ variant, line, icon, className, children, ...props }: BadgeProps) {
   const FallbackIcon = DEFAULT_ICON[variant ?? 'default'];
   const glyph =
     icon === undefined ? (
@@ -168,7 +184,12 @@ export function Badge({ variant, icon, className, children, ...props }: BadgePro
     );
 
   return (
-    <span data-slot="badge" className={cn(badgeVariants({ variant }), className)} {...props}>
+    <span
+      data-slot="badge"
+      data-line={variant === 'line' ? (line ?? 'ink') : undefined}
+      className={cn(badgeVariants({ variant }), lineClass(variant, line), className)}
+      {...props}
+    >
       {glyph}
       {children}
     </span>

@@ -32,6 +32,7 @@ import { isFirstPhase, phaseRefSchema, resolvePhase } from '../../lessons/phase'
 import { buildToolsEnableScript } from '../../lessons/tools-enable';
 import { setupScriptPlan } from '../../lessons/setup-plan';
 import { runScriptInSession } from '../../lessons/validate';
+import { recordSessionOriginOrReap } from '../../sessions/origins';
 import { applySessionPreferences } from '../../sessions/preferences';
 import { createTRPCRouter, listInputSchema, protectedProcedure } from '../init';
 
@@ -479,6 +480,16 @@ export const lessonsRouter = createTRPCRouter({
       ),
     );
     await attachSandboxCookie(ctx, ctx.user.id, response.session);
+    // `attachSandboxCookie` đã ném nếu orchestrator không trả phiên, nên tới đây
+    // `response.session` có mặt; kiểm lại chỉ để thu hẹp kiểu. Ghi để
+    // `me.activeSessions` dẫn "Làm tiếp" về đúng bài — xem `sessions/origins.ts`.
+    if (response.session !== undefined) {
+      await recordSessionOriginOrReap(ctx, {
+        sessionId: response.session.id,
+        kind: 'lesson',
+        contentId: scenario.id,
+      });
+    }
     const { preferencesApplied } = await applySessionPreferences(ctx, response.session);
 
     return {

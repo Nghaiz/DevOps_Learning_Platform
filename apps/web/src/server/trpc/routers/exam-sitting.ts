@@ -8,6 +8,7 @@ import {
   startAttempt,
   submitAttempt,
 } from '../../exams/crud';
+import { listExamProblems } from '../../exams/exam-problems';
 import { createTRPCRouter, protectedProcedure } from '../init';
 
 /**
@@ -58,11 +59,22 @@ export const examSittingRouter = createTRPCRouter({
    *
    * `attempt: null` = chưa bắt đầu. Đó không phải lỗi — màn làm bài dùng chính
    * nó để quyết định hiện nút "Bắt đầu" hay hiện đồng hồ.
+   *
+   * `problems` = bài của đề theo đúng thứ tự người ra đề xếp, kèm tên, `gameId`
+   * và `solved` TÍNH TRONG CỬA SỔ của chính lượt thi này (xem
+   * `exams/exam-problems.ts`). Trường cộng thêm; mọi trường cũ giữ nguyên.
+   * Chạy SAU `getExamForStudent`, nên người ngoài lớp vẫn nhận NOT_FOUND trước
+   * khi một dòng nào của bảng nộp bài bị đọc.
    */
   get: protectedProcedure.input(examIdInput).query(async ({ ctx, input }) => {
     const now = new Date();
     const exam = await getExamForStudent(ctx.db, input.examId, ctx.user.id);
     const attempt = await getAttemptFor(ctx.db, input.examId, ctx.user.id);
+    const problems = await listExamProblems(ctx.db, {
+      examId: exam.id,
+      problemCodes: exam.problemCodes,
+      userId: ctx.user.id,
+    });
     return {
       exam: {
         id: exam.id,
@@ -74,6 +86,7 @@ export const examSittingRouter = createTRPCRouter({
         closesAt: exam.closesAt?.toISOString() ?? null,
       },
       attempt: attempt === null ? null : viewOf(attempt, exam.closesAt, now),
+      problems,
       serverNow: now.toISOString(),
     };
   }),

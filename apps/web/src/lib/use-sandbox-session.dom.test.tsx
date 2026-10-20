@@ -2,7 +2,7 @@
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CreatedSession } from '@devops-platform/terminal';
-import { useSandboxSession, type SandboxSessionActions } from './use-sandbox-session';
+import { canReconnect, useSandboxSession, type SandboxSessionActions } from './use-sandbox-session';
 
 /**
  * C1 — `reconnect()` mở lại WebSocket vào ĐÚNG pod đang có, không tạo pod mới.
@@ -128,5 +128,51 @@ describe('useSandboxSession.reconnect — C1', () => {
     });
     expect(hook.result.current.state.phase).toBe('idle');
     expect(hook.result.current.connectionKey).toBeNull();
+  });
+});
+
+describe('canReconnect — nút "Nối lại" hỏi ĐÚNG điều kiện của reconnect()', () => {
+  /*
+    `applyCreated` dựng pha `error` có `sessionId` mà `podName` vẫn `null` khi
+    orchestrator trả pod rỗng. Lớp phủ terminal từng nhận `canReconnect: true`
+    cố định nên mời bấm "Nối lại", và `reconnect()` thoát sớm: nút chết.
+  */
+  it('lỗi tạo phiên không có pod ⇒ false, và reconnect() quả thật không làm gì', async () => {
+    const actions = makeActions();
+    actions.start.mockResolvedValueOnce({ ...PHIEN, podName: '' });
+    const hook = renderHook(() => useSandboxSession(actions));
+    await act(async () => {
+      hook.result.current.start();
+    });
+    expect(hook.result.current.state.phase).toBe('error');
+    expect(hook.result.current.state.sessionId).not.toBeNull();
+    expect(canReconnect(hook.result.current.state)).toBe(false);
+
+    act(() => {
+      hook.result.current.reconnect();
+    });
+    expect(hook.result.current.state.phase).toBe('error');
+    expect(hook.result.current.connectionKey).toBeNull();
+  });
+
+  it('ĐỐI CHỨNG DƯƠNG: `exited` có pod ⇒ true, và reconnect() mở lại kết nối', async () => {
+    const { hook } = await startedHook();
+    act(() => {
+      hook.result.current.onControl({ type: 'exit', exitCode: 0 });
+    });
+    expect(canReconnect(hook.result.current.state)).toBe(true);
+    act(() => {
+      hook.result.current.reconnect();
+    });
+    expect(hook.result.current.connectionKey).not.toBeNull();
+  });
+
+  it('`expired` (pod đã thu hồi) và chưa có phiên ⇒ false', async () => {
+    const { hook } = await startedHook();
+    act(() => {
+      hook.result.current.onClose(4404);
+    });
+    expect(canReconnect(hook.result.current.state)).toBe(false);
+    expect(canReconnect({ sessionId: null, podName: null, phase: 'idle' })).toBe(false);
   });
 });

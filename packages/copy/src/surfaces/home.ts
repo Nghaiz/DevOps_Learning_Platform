@@ -1,180 +1,223 @@
-import type { IntentionalThree, Surface } from '../types.ts';
+import type { Dynamic, IntentionalThree, List, Surface } from '../types.ts';
 
-/** Landing copy: a scroll-driven DevOps journey, workbench and published learning paths. */
+/**
+ * Landing 3D (2026-10-03): hành trình một commit qua sáu ga, terminal tua theo cuộn, bốn cửa
+ * vào học, lộ trình và trò chơi thật. Kế hoạch: plans/devops-learning-platform/landing-3d/plan.md.
+ *
+ * Ba khoá home.journey.heading, home.journey.accent, home.journey.stage2.command còn sống vì
+ * app/opengraph-image.tsx đọc chúng cho ảnh chia sẻ.
+ */
 export const home = {
-  'home.journey.label': 'Hành trình từ dòng lệnh đến hệ thống',
+  'home.meta.title': 'PTIT DevOps · Học DevOps trên máy thật',
+  'home.meta.description':
+    'Nền tảng thực hành DevOps của Học viện Công nghệ Bưu chính Viễn thông. Mỗi bài mở một máy Linux riêng trong trình duyệt, có Docker và Kubernetes khi bài cần.',
+
+  'home.brand.name': 'PTIT DevOps',
+  'home.brand.org': 'Học viện Công nghệ Bưu chính Viễn thông',
+
+  'home.nav.label': 'Các phần của trang',
+  'home.nav.home': 'PTIT DevOps, lên đầu trang',
+  'home.nav.journey': 'Hành trình',
+  'home.nav.terminal': 'Terminal',
+  'home.nav.modes': 'Cách học',
+  'home.nav.paths': 'Lộ trình',
+  'home.nav.games': 'Trò chơi',
+  'home.nav.sign-in': 'Đăng nhập',
+  'home.nav.register': 'Tạo tài khoản',
+  'home.nav.enter': 'Vào học',
+
+  'home.skip.label': 'Bỏ qua phần trình diễn, tới lộ trình',
+
+  'home.hero.eyebrow': 'Nền tảng thực hành DevOps · PTIT',
+  'home.hero.title-a': 'Gõ lệnh thật',
+  'home.hero.title-b': 'trên cụm thật.',
+  'home.hero.lede':
+    'Mỗi bài học mở cho bạn một máy Linux riêng ngay trong trình duyệt, có Docker, có cả cụm Kubernetes khi bài cần. Làm hỏng thì xoá đi dựng lại, chẳng ai mất gì.',
+  'home.hero.cta-guest': 'Mở máy đầu tiên',
+  'home.hero.cta-member': 'Học tiếp',
+  'home.hero.cta-tour': 'Đi một vòng sáu ga',
+  'home.hero.note': 'Chỉ cần email để tạo tài khoản. Chơi game thì khỏi cần cả email.',
+  'home.hero.scroll': 'Cuộn để đẩy commit đầu tiên',
+  'home.hero.stats': 'Nội dung đang mở',
+
+  'home.stat.lessons': 'bài học',
+  'home.stat.labs': 'phòng lab',
+  'home.stat.playgrounds': 'sân chơi',
+  'home.stat.quizzes': 'bộ quiz',
+  'home.stat.paths': 'lộ trình',
+  'home.stat.games': 'trò chơi',
+  'home.stat.unknown': '?',
+  'home.stat.unknown-sr': 'chưa đọc được số lượng',
+
   'home.journey.heading': 'Từ một dòng lệnh.',
   'home.journey.accent': 'Đến cả hệ thống.',
-  'home.journey.lede':
-    'Cuộn để theo chân ứng dụng qua từng bước. Sau đó, tự tay vận hành trong lab của bạn.',
-  'home.journey.scroll': 'Cuộn để khám phá',
-  'home.journey.skip': 'Đến lộ trình học',
-  'home.journey.fallback':
-    'Sơ đồ hành trình: viết lệnh, đóng gói, triển khai và quan sát hệ thống.',
-  'home.journey.reduced': 'Chế độ ít chuyển động. Chọn từng bước để khám phá.',
-  'home.journey.disclosure': 'Mô phỏng minh hoạ. Lab thật mở sau khi đăng nhập.',
-  'home.journey.fault': 'Thử dừng một node',
-  'home.journey.recover': 'Khôi phục node',
-  'home.journey.idle': 'Hệ thống sẵn sàng nhận yêu cầu.',
-  'home.journey.fault-status': 'Một node đã dừng. Yêu cầu được chuyển sang node còn lại.',
-  'home.journey.recovered-status': 'Node đã trở lại. Các bản sao tiếp tục phục vụ yêu cầu.',
-  'home.journey.stage0.kicker': '01 / LINUX',
-  'home.journey.stage0.title': 'Mọi thứ bắt đầu\ntừ một dòng lệnh.',
-  'home.journey.stage0.body':
-    'Một máy trạm. Một ý tưởng. Làm quen với hệ điều hành, kiểm tra tiến trình và đưa ứng dụng đầu tiên lên chạy.',
-  'home.journey.stage0.command': '$ ./start.sh',
-  'home.journey.stage0.status': 'Tiến trình ứng dụng đã khởi động',
-  'home.journey.stage1.kicker': '02 / DOCKER',
-  'home.journey.stage1.title': 'Đóng gói ý tưởng.\nChạy ở bất cứ đâu.',
-  'home.journey.stage1.body':
-    'Mã nguồn và môi trường được đóng vào image. Khởi chạy container để thấy ứng dụng hoạt động trong một không gian riêng.',
-  'home.journey.stage1.command': '$ docker build -t my-app .',
-  'home.journey.stage1.status': 'Image đã sẵn sàng để triển khai',
-  'home.journey.stage2.kicker': '03 / KUBERNETES',
-  'home.journey.stage2.title': 'Một ứng dụng.\nCả cụm cùng chạy.',
-  'home.journey.stage2.body':
-    'Khai báo trạng thái bạn muốn. Kubernetes phân phối các bản sao tới node, nối mạng và giữ ứng dụng luôn sẵn sàng.',
   'home.journey.stage2.command': '$ kubectl apply -f deployment.yaml',
-  'home.journey.stage2.status': 'Các bản sao đã được phân phối tới cụm',
-  'home.journey.stage3.kicker': '04 / VẬN HÀNH',
-  'home.journey.stage3.title': 'Nhìn thấy sự cố.\nHiểu cách phục hồi.',
-  'home.journey.stage3.body':
-    'Theo dõi đường đi của yêu cầu. Thử dừng một node, quan sát tuyến còn hoạt động rồi đưa hệ thống trở lại trạng thái ổn định.',
-  'home.journey.stage3.command': '$ kubectl get pods -o wide',
-  'home.journey.stage3.status': 'Các node đang phục vụ yêu cầu',
-  'home.identity.name': 'PTIT / DevOps Learning Platform',
-  'home.footer.note': 'Từ dòng lệnh đầu tiên đến hệ thống bạn tự vận hành.',
-  'home.hero.eyebrow': 'Không gian thực hành DevOps',
-  'home.hero.title': 'Học DevOps.',
-  'home.hero.title-accent': 'Tự tay vận hành.',
-  'home.hero.lede':
-    'Từ lệnh Linux đầu tiên đến triển khai Kubernetes. Học trong sandbox riêng, giải những bài lab thực tế và hiểu vì sao hệ thống chạy.',
-  'home.hero.footnote': 'Mở trình duyệt là sẵn sàng. Không cần cài môi trường.',
-  'home.hero.preview-note':
-    'Thử một ví dụ bên dưới. Khi vào bài học, bạn sẽ tự gõ lệnh trong sandbox của mình.',
-  'home.hero.scroll-hint': 'Khám phá lộ trình',
-  'home.cta.enter.guest': 'Tạo tài khoản để học',
-  'home.cta.enter.member': 'Vào học',
-  'home.cta.paths': 'Xem lộ trình',
+  'home.journey.kicker': 'Hành trình',
+  'home.journey.title': 'Sáu ga từ laptop tới production',
+  'home.journey.lede':
+    'Một commit phải đi qua chừng ấy chặng mới tới được người dùng. Cuộn xuống, bạn lái nó qua từng ga.',
+  'home.journey.note': 'Cảnh 3D là mô phỏng. Máy thật chỉ mở khi bạn vào bài.',
+  'home.journey.rail': 'Tiến độ qua sáu ga',
+  'home.journey.progress': (({ n, total }) => `Ga ${n} trên ${total}`) as Dynamic<{
+    n: number;
+    total: number;
+  }>,
 
-  'home.preview.name': 'Bàn thực hành',
-  'home.preview.flow-label': 'Tiến trình minh hoạ',
-  'home.preview.flow-read': 'Đọc nhiệm vụ',
-  'home.preview.flow-run': 'Chạy ví dụ',
-  'home.preview.flow-result': 'Xem kết quả',
-  'home.preview.scroll-note':
-    'Cuộn để theo dõi tiến trình minh hoạ. Lệnh chỉ chạy khi bạn chọn Chạy ví dụ.',
-  'home.preview.prompt': 'learner@devops',
-  'home.preview.directory': '~/playground',
-  'home.preview.output-label': 'Kết quả đầu ra',
-  'home.preview.disclosure': 'Bản minh hoạ tương tác',
-  'home.preview.topic-label': 'Chọn công nghệ để xem ví dụ',
-  'home.preview.task-label': 'Nhiệm vụ của bạn',
-  'home.preview.run': 'Chạy ví dụ',
-  'home.preview.ran': 'Đã chạy ví dụ',
-  'home.preview.reset': 'Đặt lại ví dụ',
-  'home.preview.console-label': 'Terminal minh hoạ',
-  'home.preview.terminal-title': 'terminal / preview',
-  'home.preview.waiting': 'Chọn “Chạy ví dụ” để xem kết quả và giải thích.',
-  'home.preview.sandbox-note':
-    'Kết quả mẫu, không kết nối sandbox. Bài học thật mở môi trường riêng sau khi đăng nhập.',
-  'home.topic.linux': 'Linux',
-  'home.topic.docker': 'Docker',
-  'home.topic.kubernetes': 'Kubernetes',
-  'home.demo.linux.title': 'Trao đúng quyền cho một file.',
-  'home.demo.linux.description':
-    'File deploy.sh đã có, nhưng chưa chạy được. Thêm quyền thực thi cho chủ sở hữu rồi kiểm tra lại.',
-  'home.demo.linux.comment': '# Cấp quyền thực thi cho chủ sở hữu',
-  'home.demo.linux.command': '$ chmod u+x deploy.sh\n$ ls -l deploy.sh',
-  'home.demo.linux.output': '-rwxr--r-- 1 learner learner 128 deploy.sh',
-  'home.demo.linux.result':
-    'Chữ x trong nhóm quyền đầu tiên cho biết chủ sở hữu đã có quyền chạy file.',
-  'home.demo.docker.title': 'Đưa một web server lên chạy.',
-  'home.demo.docker.description':
-    'Chạy Nginx trong container, mở cổng 8080 và kiểm tra trạng thái bằng một lệnh Docker.',
-  'home.demo.docker.comment': '# Khởi chạy web server từ image Nginx',
-  'home.demo.docker.command':
-    '$ docker run -d --name web -p 8080:80 nginx:alpine\n$ docker ps --format "{{.Names}}  {{.Status}}  {{.Ports}}"',
-  'home.demo.docker.output': 'web  Up 2 seconds  0.0.0.0:8080->80/tcp',
-  'home.demo.docker.result':
-    'Container web đang chạy. Cổng 8080 của môi trường đã nối đến cổng 80 trong container.',
-  'home.demo.kubernetes.title': 'Khai báo ứng dụng bạn muốn chạy.',
-  'home.demo.kubernetes.description':
-    'Tạo một Deployment chạy Nginx. Sau khi Pod sẵn sàng, kiểm tra trạng thái mà Kubernetes đã thực hiện.',
-  'home.demo.kubernetes.comment': '# Tạo Deployment và kiểm tra khi Pod đã sẵn sàng',
-  'home.demo.kubernetes.command':
-    '$ kubectl create deployment web --image=nginx:alpine\n$ kubectl rollout status deployment/web\n$ kubectl get deployment web',
-  'home.demo.kubernetes.output':
-    'deployment.apps/web created\ndeployment "web" successfully rolled out\nNAME  READY  UP-TO-DATE  AVAILABLE\nweb   1/1    1           1',
-  'home.demo.kubernetes.result':
-    'Deployment đã có đủ 1 Pod sẵn sàng, đúng với trạng thái bạn yêu cầu.',
+  'home.station.linux.line': 'Tuyến 01 · Linux',
+  'home.station.linux.name': 'Ga Linux',
+  'home.station.linux.body':
+    'Mọi thứ phía sau đều chạy trên Linux, nên ta bắt đầu từ shell. Tìm tiến trình đang ngốn RAM, đọc log, sửa quyền một file mà không cần ai cầm tay.',
+  'home.station.linux.cmd': 'ps aux --sort=-%mem | head -5',
+  'home.station.linux.event': 'kill 4012 xong, RAM trống lại 1,8 GB',
 
-  'home.curriculum.kicker': 'Lộ trình học',
-  'home.curriculum.title': 'Có điểm bắt đầu.\nCó hướng đi tiếp.',
-  'home.curriculum.description':
-    'Đi từ nền tảng đến vận hành cụm. Mỗi lộ trình nối bài học với thực hành và phần kiểm tra kiến thức.',
-  'home.curriculum.auth-note':
-    'Chọn lộ trình để xem nội dung. Bạn cần đăng nhập trước khi vào học.',
-  'home.path-level.linux': 'Bắt đầu với hệ điều hành',
-  'home.path-level.docker': 'Đóng gói và chạy ứng dụng',
-  'home.path-level.kubernetes': 'Vận hành trên cụm',
-  'home.path-level.delivery': 'Kết nối kiến thức',
-  'home.path-title.linux': 'Linux cho DevOps',
-  'home.path-title.docker': 'Docker từ số 0',
-  'home.path-title.kubernetes': 'Kubernetes căn bản',
-  'home.path-title.delivery': 'Từ container tới cụm',
-  'home.path-description.linux':
-    'Làm quen terminal, quản lý quyền truy cập và xử lý những sự cố thường gặp trên Linux.',
-  'home.path-description.docker':
-    'Kéo image, chạy container, công bố cổng và build image của riêng bạn.',
-  'home.path-description.kubernetes':
-    'Làm việc với Pod, Deployment, ConfigMap và Service trên cụm k3s trong sandbox.',
-  'home.path-description.delivery':
-    'Theo ứng dụng từ một container đến cụm nhiều node, rồi tự sửa một Deployment bị lỗi.',
+  'home.station.git.line': 'Tuyến 02 · Git',
+  'home.station.git.name': 'Ga Git',
+  'home.station.git.body':
+    'Nhánh, rebase, cherry-pick. Có hẳn một phòng thí nghiệm Git để bạn làm rối lịch sử commit rồi tự gỡ ra bằng reflog.',
+  'home.station.git.cmd': 'git rebase -i HEAD~3',
+  'home.station.git.event': 'Nhánh feature đã vào main, không xung đột',
 
-  'home.practice.kicker': 'Cách bạn sẽ học',
-  'home.practice.title': 'Hiểu bằng cách làm.\nNhớ bằng cách sửa.',
-  'home.practice.description':
-    'Đọc một yêu cầu, thử một lệnh, kiểm tra kết quả. Từng bước nhỏ giúp bạn hiểu điều gì đang diễn ra trong hệ thống.',
-  'home.practice.aside':
-    'Bạn được phép thử sai. Mỗi phiên thực hành là một môi trường riêng để bắt đầu lại.',
-  'home.value-title.sandbox': 'Một sandbox của riêng bạn',
-  'home.value-title.grading': 'Phản hồi từ chính hệ thống',
-  'home.value-title.progress': 'Tiến độ gắn với tài khoản',
-  'home.value-title.local': 'Tập trung vào bài học',
-  'home.value-body.sandbox':
-    'Mở terminal ngay trong trình duyệt. Lệnh chạy trong môi trường phía máy chủ, tách biệt với máy cá nhân của bạn.',
-  'home.value-body.grading':
-    'Các bước thực hành được kiểm tra bằng lệnh trong sandbox. Xem kết quả, sửa cấu hình và thử lại khi chưa đạt.',
-  'home.value-body.progress':
-    'Theo dõi bài đã học, tiếp tục lộ trình và dùng quiz để kiểm tra phần kiến thức vừa thực hành.',
-  'home.value-body.local':
-    'Không phải cài Docker Desktop hay tự dựng cụm để bắt đầu. Môi trường được chuẩn bị khi bạn mở phiên.',
+  'home.station.docker.line': 'Tuyến 03 · Docker',
+  'home.station.docker.name': 'Ga Docker',
+  'home.station.docker.body':
+    'Viết Dockerfile, build, rồi soi từng layer xem nặng bao nhiêu. Có khi bỏ một dòng COPY thừa là image nhẹ đi cả trăm MB.',
+  'home.station.docker.cmd': 'docker build -t web:1.0 .',
+  'home.station.docker.event': 'Đóng gói xong web:1.0, gồm 5 layer',
 
-  'home.catalog.heading': 'Nội dung đang có',
-  'home.catalog.lede': 'Từ danh mục đã xuất bản.',
-  'home.catalog.unknown-count': 'Chưa đọc được số lượng',
-  'home.catalog.partial':
-    'Một số lượng nội dung chưa tải được. Tải lại trang sau ít phút để cập nhật.',
-  'home.catalog.loading': 'Đang đọc số lượng nội dung.',
-  'home.catalog-label.lessons': 'Bài học',
-  'home.catalog-label.labs': 'Lab thực hành',
-  'home.catalog-label.playgrounds': 'Playground',
-  'home.catalog-label.quizzes': 'Quiz',
-  'home.catalog-note.lessons': 'Thực hành theo từng bước có hướng dẫn.',
-  'home.catalog-note.labs': 'Nhiệm vụ để tự giải và kiểm tra kết quả.',
-  'home.catalog-note.playgrounds': 'Môi trường trống để tự thử lệnh.',
-  'home.catalog-note.quizzes': 'Câu hỏi để ôn lại kiến thức.',
+  'home.station.k8s.line': 'Tuyến 04 · Kubernetes',
+  'home.station.k8s.name': 'Ga Kubernetes',
+  'home.station.k8s.body':
+    'Deploy ba replica, xoá tay một pod rồi đứng nhìn cụm tự dựng lại nó. Lần đầu thấy cảnh đó, ai cũng bật cười.',
+  'home.station.k8s.cmd': 'kubectl delete pod web-7d4f9-8mzrt',
+  'home.station.k8s.event': 'Pod mới đã lên thay, 3/3 sẵn sàng',
 
-  'home.start.kicker': 'Bắt đầu thực hành',
-  'home.start.title': 'Lệnh tiếp theo,\nbạn tự gõ.',
-  'home.start.description':
-    'Tạo tài khoản, chọn bài đầu tiên và mở terminal. Phần còn lại bắt đầu từ những gì bạn thử.',
+  'home.station.cicd.line': 'Tuyến 05 · CI/CD',
+  'home.station.cicd.name': 'Ga CI/CD',
+  'home.station.cicd.body':
+    'Ghép build, test, quét lỗ hổng và deploy thành một đường ống. Trong trò chơi CI/CD, bạn sửa từng stage đỏ cho tới khi cả tuyến xanh.',
+  'home.station.cicd.cmd': 'stages: [build, test, scan, deploy]',
+  'home.station.cicd.event': 'Test đỏ lần đầu, sửa xong chạy lại thì xanh',
+
+  'home.station.prod.line': 'Tuyến 06 · Production',
+  'home.station.prod.name': 'Ga cuối: production',
+  'home.station.prod.body':
+    'Hệ thống đã chạy. Việc còn lại là biết nó chạy ổn hay không: đọc metric, đọc log, bắt lỗi trước khi người dùng kịp thấy.',
+  'home.station.prod.cmd': 'kubectl logs -f deploy/web',
+  'home.station.prod.event': 'Độ trễ vọt lên, thêm hai node là êm',
+
+  'home.term.kicker': 'Terminal',
+  'home.term.title': 'Một terminal bạn muốn ngồi lâu',
+  'home.term.lede':
+    'Prompt kiểu oh-my-posh, font có icon, gợi ý lệnh theo lịch sử. Khung bên cạnh chạy theo nhịp cuộn; vào bài học thì mọi dòng chữ là đầu ra thật từ máy của bạn.',
+  'home.term.window': 'Terminal chạy thử theo nhịp cuộn',
+  'home.term.steps': 'Bốn bước trong khung terminal',
+  'home.term.user': 'sv',
+  'home.term.host': 'ptit-lab',
+  'home.term.dir': '~/web',
+  'home.term.branch': 'main',
+  'home.term.check': 'Kiểm tra',
+  'home.term.check-done': 'Đạt 4/4 yêu cầu',
+  'home.term.cmd.build': 'docker build -t web:1.0 .',
+  'home.term.cmd.apply': 'kubectl apply -f k8s/',
+  'home.term.cmd.watch': 'kubectl get pods -w',
+  'home.term.cmd.curl': 'curl -s http://web/healthz',
+  'home.term.out.build':
+    '[+] Building 41.2s (9/9) FINISHED\n => [1/4] FROM node:24-alpine\n => [2/4] COPY package.json pnpm-lock.yaml ./\n => [3/4] RUN pnpm install --frozen-lockfile\n => [4/4] COPY . .\n => naming to docker.io/library/web:1.0',
+  'home.term.out.apply': 'deployment.apps/web created\nservice/web created',
+  'home.term.out.watch-head': 'NAME READY STATUS RESTARTS AGE',
+  'home.term.out.curl': '{"status":"ok","pods":3}',
+  'home.term.pods': 'web-7d4f9-2xkqp\nweb-7d4f9-8mzrt\nweb-7d4f9-lq6vn',
+  'home.term.statuses': {
+    items: ['Pending', 'ContainerCreating', 'Running'],
+    intentionalThree:
+      '2026-10-03: ba trạng thái thật mà kubectl in ra theo đúng thứ tự một pod đi qua khi khởi động, không phải nhóm luận điểm.',
+  } satisfies List,
+  'home.term.step.build': 'Build image',
+  'home.term.step.apply': 'Đưa lên cụm',
+  'home.term.step.watch': 'Chờ pod chạy',
+  'home.term.step.check': 'Bấm Kiểm tra',
+
+  'home.modes.kicker': 'Cách học',
+  'home.modes.title': 'Bốn cửa vào, một cỗ máy phía sau',
+  'home.modes.lede':
+    'Bài học, lab, sân chơi hay trò chơi đều chạy trên cùng hệ thống sandbox. Hôm nay muốn được dắt tay hay muốn tự bơi, cứ chọn cửa tương ứng.',
+  'home.modes.engine': 'Mỗi phiên là một pod riêng trên Kubernetes, cách ly bằng Sysbox',
+  'home.mode.lesson.tag': 'Bài học',
+  'home.mode.lesson.title': 'Có người dẫn đường',
+  'home.mode.lesson.body':
+    'Đi theo từng bước, bước nào cũng có nút Kiểm tra. Giống Killercoda, khác ở chỗ viết bằng tiếng Việt.',
+  'home.mode.lesson.cta': 'Xem bài học',
+  'home.mode.lab.tag': 'Phòng lab',
+  'home.mode.lab.title': 'Chỉ có đề bài',
+  'home.mode.lab.body':
+    'Không gợi ý, không lệnh mẫu. Làm xong bấm chấm, máy tự kiểm từng yêu cầu. Bài nào cần sửa nhiều file thì có sẵn IDE Theia.',
+  'home.mode.lab.cta': 'Xem phòng lab',
+  'home.mode.playground.tag': 'Sân chơi',
+  'home.mode.playground.title': 'Một máy trống trơn',
+  'home.mode.playground.body':
+    'Linux hoặc Docker dựng sẵn, không đề, không đồng hồ. Gõ thử lệnh lạ mà không sợ làm hỏng máy ai.',
+  'home.mode.playground.cta': 'Mở sân chơi',
+  'home.mode.game.tag': 'Trò chơi',
+  'home.mode.game.title': 'Nghỉ tay thì chơi',
+  'home.mode.game.body':
+    'Kéo pod lên node, gỡ một lịch sử Git rối tung, nối đường ống CI/CD. Chơi được cả khi chưa đăng nhập.',
+  'home.mode.game.cta': 'Vào phòng game',
+
+  'home.marquee.label': 'Công cụ có mặt trong các bài',
+  'home.marquee.words':
+    'Linux · Bash · Git · Docker · Kubernetes · kubectl · YAML · CI/CD · Loki · Nginx · ConfigMap · Theia',
+
+  'home.paths.kicker': 'Lộ trình',
+  'home.paths.title': 'Chọn một tuyến mà đi',
+  'home.paths.lede':
+    'Mỗi lộ trình xâu bài học, lab và quiz thành một tuyến có thứ tự. Đi hết tuyến này rồi đổi sang tuyến khác cũng được.',
+  'home.paths.steps': (({ n }) => `${n} chặng`) as Dynamic<{ n: number }>,
+  'home.paths.open': 'Lên tàu',
+  'home.paths.gate': 'Cần đăng nhập để vào học.',
+  'home.paths.empty': 'Chưa có lộ trình nào được xuất bản.',
+  'home.paths.unknown': 'Chưa đọc được danh sách lộ trình. Tải lại trang sau ít phút.',
+
+  'home.games.kicker': 'Trò chơi',
+  'home.games.title': 'Phòng game không cần đăng nhập',
+  'home.games.lede':
+    'Mỗi màn là một sự cố DevOps có thật ngoài đời, chỉ khác là thua thì bấm chơi lại.',
+  'home.games.play': 'Chơi ngay',
+  'home.games.soon': 'Đang làm',
+  'home.game.k8s.title': 'Kubernetes Game',
+  'home.game.k8s.body':
+    'Dựng rồi cứu một cluster: tạo pod, phơi service, chịu sự cố ngẫu nhiên. Mỗi level hỏng theo một kiểu.',
+  'home.game.git.title': 'Phòng thí nghiệm Git',
+  'home.game.git.body':
+    'Gõ lệnh git thật trên một kho chạy ngay trong trình duyệt, rồi cứu lại những commit tưởng đã mất.',
+  'home.game.cicd.title': 'Đường ống CI/CD',
+  'home.game.cicd.body':
+    'Xếp job thành đồ thị phụ thuộc, bật cache, chia runner. 14 level, chấm theo đường găng và số lần chạy lại.',
+  'home.game.maze.title': 'Mê cung mạng',
+  'home.game.maze.body':
+    'Đưa gói tin qua một mê cung NetworkPolicy: mở đúng đường cần mở, đóng phần còn lại.',
+  'home.game.forge.title': 'Lò rèn Image',
+  'home.game.forge.body':
+    'Ghép một Dockerfile chạy được rồi rèn cho nhỏ lại. Mỗi layer thừa là một điểm trừ.',
+
+  'home.closing.title-a': 'Vòng lặp DevOps',
+  'home.closing.title-b': 'không có ga cuối.',
+  'home.closing.lede':
+    'Code, build, deploy, theo dõi, rồi quay lại code. Vòng đầu sẽ chậm. Tới vòng thứ mười, bạn quên mất mình từng ngại cái màn hình đen.',
+  'home.closing.cta-guest': 'Tạo tài khoản',
+  'home.closing.cta-member': 'Vào học tiếp',
+  'home.closing.cta-games': 'Chơi thử một game',
+  'home.closing.loop': 'PLAN · CODE · BUILD · TEST · RELEASE · DEPLOY · OPERATE · MONITOR',
+
+  'home.footer.note':
+    'Đề tài nghiên cứu khoa học sinh viên, Học viện Công nghệ Bưu chính Viễn thông.',
+  'home.footer.links': 'Liên kết nhanh',
+  'home.footer.top': 'Lên đầu trang',
+  'home.footer.stack': 'Next.js · Go · Kubernetes · Sysbox',
+
+  'home.scene.fallback':
+    'Bản đồ tuyến: sáu tuyến Linux, Git, Docker, Kubernetes, CI/CD và production cùng đổ về tuyến đỏ.',
+  'home.scene.reduced': 'Đang ở chế độ ít chuyển động, nên cảnh 3D được thay bằng hình tĩnh.',
 } as const satisfies Surface<'home'>;
 
-export const homeIntentionalThree = {
-  'home.topic':
-    '2026-09-12: ba ví dụ tương tác ứng với ba công nghệ Linux, Docker, Kubernetes đang có lộ trình thật trong content/paths. Đây là bộ chọn công nghệ, không phải nhóm luận điểm tiếp thị.',
-  'home.start':
-    '2026-09-12: phần kết có nhãn dẫn, tiêu đề và mô tả. Ba vai trò văn bản của một phần trang, không phải ba tính năng.',
-} as const satisfies IntentionalThree;
+/** Không còn nhóm ba khoá nào cần biện minh; nhóm ba trạng thái pod tự mang lý do trong List. */
+export const homeIntentionalThree = {} as const satisfies IntentionalThree;

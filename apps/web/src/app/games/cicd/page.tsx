@@ -9,8 +9,8 @@ import { CICD_LEVELS } from '@devops-platform/games';
 import { CicdGame } from '../../../components/games/cicd/cicd-game';
 
 export const metadata: Metadata = {
-  title: t('catalog.meta-title.games-cicd'),
-  description: t('catalog.games.cicd-meta-description'),
+  title: t('games.cicd.meta-title'),
+  description: t('games.cicd.meta-description'),
 };
 
 /**

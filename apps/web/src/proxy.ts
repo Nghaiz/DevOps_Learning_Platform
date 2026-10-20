@@ -180,7 +180,12 @@ export function proxy(request: NextRequest): NextResponse {
     return secured(NextResponse.redirect(new URL(SIGNED_IN_HOME, request.url)));
   }
   if (!hasSession && matchesProtected(pathname)) {
-    return secured(NextResponse.redirect(new URL('/login', request.url)));
+    // `next` = đường người dùng định mở, để đăng nhập xong quay lại đúng chỗ.
+    // Dựng TỪ CHÍNH request nên luôn là đường tương đối cùng origin; trang đăng
+    // nhập vẫn tự kiểm lại (`next` có thể bị người khác dán tay vào URL).
+    const login = new URL('/login', request.url);
+    login.searchParams.set('next', `${pathname}${request.nextUrl.search}`);
+    return secured(NextResponse.redirect(login));
   }
 
   // Luật 9: CSP nonce theo request, gắn vào cả header request (root layout đọc lại

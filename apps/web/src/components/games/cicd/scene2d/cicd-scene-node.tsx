@@ -36,6 +36,7 @@
  */
 
 import { useId, type KeyboardEvent, type ReactElement } from 'react';
+import { t } from '@devops-platform/copy';
 import { motion } from '@devops-platform/motion/react';
 import {
   CICD_NODE_ATTR,
@@ -362,7 +363,7 @@ export function CicdSceneNode(props: CicdSceneNodeProps): ReactElement {
             </text>
             <text x={14} y={69} fontSize={11.5} fontWeight={600} fill={bodyText}>
               {paint.icon} {paint.stateLabel}
-              {node.attempt > 0 ? ` ·  lần ${node.attempt + 1}` : ''}
+              {node.attempt > 0 ? ` · ${t('games.cicd.scene.attempt', { n: node.attempt + 1 })}` : ''}
             </text>
           </g>
         </motion.g>
@@ -381,7 +382,6 @@ export function CicdSceneNode(props: CicdSceneNodeProps): ReactElement {
               y={NODE_H + sink + DEPTH + 4}
               width={104}
               height={22}
-              rx={11}
               fill={cssVar('--warning')}
             />
             <text
@@ -391,7 +391,7 @@ export function CicdSceneNode(props: CicdSceneNodeProps): ReactElement {
               fontWeight={600}
               fill={cssVar('--warning-foreground')}
             >
-              chờ máy {wait} tick
+              {t('games.cicd.scene.wait', { n: wait })}
             </text>
           </g>
         )}

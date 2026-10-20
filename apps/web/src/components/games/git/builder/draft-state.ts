@@ -15,6 +15,14 @@
 
 import type { LevelDraft } from '@devops-platform/games';
 
+/**
+ * Cách duy nhất một bước của Builder sửa bản nháp: gửi lên các trường đổi.
+ *
+ * Bản nháp sống ở `GitGame`, không ở Builder (xem `builder-promises.test.ts`
+ * § E.6), nên bước nào cũng chỉ nhận hàm này chứ không giữ bản sao nào.
+ */
+export type DraftPatch = (fields: Partial<LevelDraft>) => void;
+
 /** Mỗi dòng khác rỗng là một phần tử. Khoảng trắng hai đầu bị cắt. */
 export function linesToList(text: string): readonly string[] {
   return text

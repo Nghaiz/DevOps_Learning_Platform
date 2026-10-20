@@ -1,6 +1,7 @@
 'use client';
 
 import type { ReactElement } from 'react';
+import { t } from '@devops-platform/copy';
 import { writeWorkflowYaml, type CicdCheatSheetEntry } from '@devops-platform/games';
 
 /**
@@ -21,18 +22,20 @@ export function CicdCheatsheet({ entries }: { readonly entries: readonly CicdChe
     return null;
   }
   return (
-    <section className="flex flex-col gap-2" aria-label="Tra nhanh">
-      <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Tra nhanh</h3>
+    <section className="flex flex-col gap-2" aria-label={t('games.cicd.cheatsheet.title')}>
+      <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+        {t('games.cicd.cheatsheet.title')}
+      </h3>
       <ul className="flex flex-col gap-3">
         {entries.map((entry, index) => (
           <li key={index} className="flex flex-col gap-1">
             {entry.where === 'yaml' ? (
-              <pre className="overflow-x-auto rounded-md border border-border bg-muted px-3 py-2 font-mono text-xs text-foreground">
+              <pre className="overflow-x-auto border border-border bg-muted px-3 py-2 font-mono text-xs text-foreground">
                 <code>{writeWorkflowYaml(entry.example).yaml}</code>
               </pre>
             ) : (
               <p className="text-sm text-foreground">
-                <span className="text-muted-foreground">Bảng điều khiển → </span>
+                <span className="text-muted-foreground">{`${t('games.cicd.cheatsheet.panel')} → `}</span>
                 <strong className="font-semibold">{entry.label}</strong>
               </p>
             )}

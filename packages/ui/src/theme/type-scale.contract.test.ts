@@ -325,8 +325,8 @@ describe('AC-6 §3.1 — stack font', () => {
     expect(sans.toLowerCase()).not.toContain('poppins');
   });
 
-  it('`--font-mono` mở đầu bằng `ui-monospace` — stack HỆ, không tải font nào', () => {
-    expect((themeInline['--font-mono'] as string).trim()).toMatch(/^ui-monospace/);
+  it('`--font-mono` là JetBrains Mono tự host, rơi về `ui-monospace` khi font chưa tải', () => {
+    expect((themeInline['--font-mono'] as string).trim()).toMatch(/^var\(--font-jetbrains-mono\), ui-monospace/);
   });
 
   /**

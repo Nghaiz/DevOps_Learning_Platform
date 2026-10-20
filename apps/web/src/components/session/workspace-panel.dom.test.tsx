@@ -81,7 +81,7 @@ function baseProps(overrides: Partial<WorkspacePanelProps> = {}): WorkspacePanel
     terminal: <span data-testid={TERMINAL_NODE}>TERMINAL</span>,
     activeTab: EDITOR_TAB,
     onActivate: () => undefined,
-    popOutUrl: null,
+    onPopOut: null,
     ...overrides,
   };
 }
@@ -121,7 +121,7 @@ function ControlledPanel({
       terminal={<span data-testid={TERMINAL_NODE}>TERMINAL</span>}
       activeTab={tab}
       onActivate={setTab}
-      popOutUrl={null}
+      onPopOut={null}
     />
   );
 }

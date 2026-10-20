@@ -468,6 +468,15 @@ export const problemsRouter = createTRPCRouter({
  * không đổi một dòng nào, và seed do người nộp mang lên vẫn là hành vi CỐ Ý của
  * hợp đồng (`core/problem.ts` § `Submission.seed`).
  *
+ * ## ⛔ Không có `examId` thì là LUYỆN TẬP, kể cả khi đang có lượt thi mở
+ *
+ * Máy chủ KHÔNG tự suy lượt nộp thuộc kỳ thi nào. Một bản từng làm thế (tra lượt
+ * thi mở chứa bài này rồi áp luật thi) và nó từ chối MỌI lượt nộp bài thi: luật
+ * thi đòi `seed === attempt.seed`, trong khi client không bao giờ nhận seed của
+ * lượt thi (`exam-sitting.ts` § `viewOf`) và arena K8s sinh seed ngẫu nhiên mỗi
+ * phiên. Lượt nộp luyện tập trong giờ thi vẫn vào bảng điểm theo CỬA SỔ thời
+ * gian (`exams/scoring-window.ts`) — đó là hành vi có chủ đích, `exam-format.md` §5.
+ *
  * ## Vì sao cổng nằm ở ĐÂY chứ không trong `submitProblem`
  *
  * `submitProblem` trả lời câu "bài làm này đúng tới đâu". Cổng này trả lời câu

@@ -49,8 +49,13 @@ describe('SearchTabs — seam quanh gói ngoài', () => {
     const host = container.querySelector('[data-slot="search-tabs"]') as HTMLElement;
     const value = host.style.getPropertyValue(variable);
     expect(value, `${variable} không được ghi đè ⇒ gói ngoài giữ hex mặc định của nó`).not.toBe('');
+    // Một token trần, hoặc (riêng `--gst-shadow`) một viền 1px dựng bằng
+    // độ dài + MỘT token màu: bản dựng lại cấm bóng trong trang, nên "bóng" của
+    // gói được dùng để vẽ hairline. Màu vẫn phải là token, không literal nào.
     expect(value, `${variable} phải trỏ về một token, không phải một giá trị tự đặt`).toMatch(
-      /^var\(--[a-z0-9-]+\)$/,
+      variable === '--gst-shadow'
+        ? /^(?:var\(--[a-z0-9-]+\)|0 0 0 1px var\(--[a-z0-9-]+\))$/
+        : /^var\(--[a-z0-9-]+\)$/,
     );
   });
 

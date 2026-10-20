@@ -1,0 +1,110 @@
+.closing {
+  display: flex;
+  align-items: center;
+  min-height: 130svh;
+  padding-block: clamp(120px, 16vw, 220px) clamp(80px, 10vw, 140px);
+  border-top: 1px solid var(--l-rule);
+  background: radial-gradient(ellipse 70% 60% at 50% 46%, transparent 0%, rgb(10 13 20 / 0.55) 62%, var(--l-bg) 100%);
+}
+
+.inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.loop {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px 18px;
+  margin: 0 0 34px;
+  font-family: var(--l-mono);
+  font-size: 0.74rem;
+  letter-spacing: 0.22em;
+  color: var(--l-muted);
+}
+
+.title {
+  display: grid;
+  margin: 0;
+  font-family: var(--l-display);
+  font-size: clamp(2.5rem, 6.4vw, 6.9rem);
+  font-weight: 900;
+  font-stretch: 118%;
+  font-variation-settings: 'wdth' 118;
+  line-height: 0.95;
+  letter-spacing: -0.035em;
+  text-transform: uppercase;
+}
+
+.titleA {
+  color: var(--l-ink);
+}
+
+.titleB {
+  color: var(--l-star);
+  text-shadow: 0 0 60px rgb(239 240 3 / 0.28);
+}
+
+.lede {
+  margin-inline: auto;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 40px;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  width: min(980px, 100%);
+  margin: clamp(56px, 7vw, 96px) 0 0;
+  border-top: 1px solid var(--l-rule);
+}
+
+.stat {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 8px;
+  padding: 18px 8px 0;
+  border-right: 1px solid var(--l-rule);
+}
+
+.stat:last-child {
+  border-right: 0;
+}
+
+.stat dt {
+  font-family: var(--l-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--l-muted);
+}
+
+.stat dd {
+  margin: 0;
+  font-family: var(--l-display);
+  font-size: clamp(1.8rem, 3.2vw, 2.8rem);
+  font-weight: 900;
+  font-stretch: 112%;
+  font-variation-settings: 'wdth' 112;
+  line-height: 1;
+}
+
+@media (max-width: 760px) {
+  .stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    row-gap: 18px;
+  }
+
+  .stat:nth-child(3) {
+    border-right: 0;
+  }
+}

@@ -1,0 +1,208 @@
+.section {
+  padding-block: clamp(96px, 13vw, 180px);
+  border-top: 1px solid var(--l-rule);
+}
+
+.header {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+  gap: clamp(24px, 5vw, 80px);
+  align-items: end;
+  margin-bottom: clamp(44px, 6vw, 80px);
+}
+
+.engine {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  margin: 22px 0 0;
+  font-family: var(--l-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  color: var(--l-muted);
+}
+
+.engine > span {
+  width: 8px;
+  height: 8px;
+  background: var(--l-k8s);
+  transform: rotate(45deg);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--l-rule);
+  border-left: 1px solid var(--l-rule);
+}
+
+.card {
+  --line: var(--l-red);
+  /* Màu tuyến khi làm CHỮ: pha sáng để đạt 4.5:1 trên nền tối (docker, k8s gốc chỉ ~3:1). */
+  --line-ink: color-mix(in oklab, var(--line) 62%, var(--l-ink));
+  --mx: 50%;
+  --my: 50%;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 460px;
+  padding: 28px 28px 30px;
+  border-right: 1px solid var(--l-rule);
+  border-bottom: 1px solid var(--l-rule);
+  isolation: isolate;
+  overflow: hidden;
+  transition: color 420ms var(--l-ease);
+}
+
+/* Nền tô kín màu tuyến khi hover, dâng lên từ đáy thẻ. */
+.card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--line);
+  transform: scaleY(0);
+  transform-origin: 50% 100%;
+  transition: transform 560ms var(--l-ease);
+}
+
+/* Đèn chiếu theo con trỏ, chỉ hiện khi chưa tô kín. */
+.card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  background: radial-gradient(
+    360px circle at var(--mx) var(--my),
+    color-mix(in oklab, var(--line) 22%, transparent),
+    transparent 70%
+  );
+  opacity: 0;
+  transition: opacity 300ms var(--l-ease);
+}
+
+.card:hover::after {
+  opacity: 1;
+}
+
+.card:hover::before,
+.card:focus-within::before {
+  transform: scaleY(1);
+}
+
+.card:hover,
+.card:focus-within {
+  color: var(--l-bg);
+}
+
+.index {
+  position: absolute;
+  top: 24px;
+  right: 26px;
+  font-family: var(--l-mono);
+  font-size: 0.74rem;
+  color: var(--l-faint);
+}
+
+.card:hover .index {
+  color: inherit;
+}
+
+.picto {
+  width: 132px;
+  height: 88px;
+  margin-bottom: 40px;
+  color: var(--line);
+  transition: color 420ms var(--l-ease);
+}
+
+.card:hover .picto,
+.card:focus-within .picto {
+  color: var(--l-bg);
+}
+
+.tag {
+  margin: 0 0 10px;
+  font-family: var(--l-mono);
+  font-size: 0.74rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--line-ink);
+}
+
+.card:hover .tag,
+.card:focus-within .tag {
+  color: inherit;
+}
+
+.title {
+  margin: 0;
+  font-family: var(--l-display);
+  font-size: clamp(1.6rem, 2.2vw, 2.1rem);
+  font-weight: 900;
+  font-stretch: 112%;
+  font-variation-settings: 'wdth' 112;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+}
+
+.body {
+  margin: 14px 0 26px;
+  line-height: 1.65;
+  color: var(--l-muted);
+  transition: color 420ms var(--l-ease);
+}
+
+.card:hover .body,
+.card:focus-within .body {
+  color: color-mix(in oklab, var(--l-bg) 82%, transparent);
+}
+
+.link {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: auto;
+  font-weight: 700;
+  color: inherit;
+  text-decoration: none;
+}
+
+/* Cả thẻ bấm được: liên kết phủ kín thẻ bằng pseudo-element. */
+.link::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+
+.link:focus-visible {
+  outline: none;
+}
+
+.card:focus-within {
+  outline: 2px solid var(--l-star);
+  outline-offset: -2px;
+}
+
+@media (max-width: 1100px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 680px) {
+  .header {
+    grid-template-columns: 1fr;
+  }
+
+  .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .card {
+    min-height: 0;
+  }
+}

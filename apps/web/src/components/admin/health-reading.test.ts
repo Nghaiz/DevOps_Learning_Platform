@@ -161,13 +161,13 @@ describe('describePool', () => {
     const reading = describePool(null);
     expect(reading.known).toBe(false);
     expect(reading.text).not.toMatch(/\b0\b/);
-    expect(reading.text).toContain('không phải "pool trống"');
+    expect(reading.text).toContain('không phải "hết pod"');
   });
 
   it('poolFree 0 là một phép đo THẬT và được nói ra như số', () => {
     const reading = describePool({ poolFree: 0, poolQuarantine: 2 });
     expect(reading.known).toBe(true);
-    expect(reading.text).toContain('0 pod ấm');
+    expect(reading.text).toContain('0 pod chờ sẵn');
     expect(reading.text).toContain('2 pod đang cách ly');
   });
 });

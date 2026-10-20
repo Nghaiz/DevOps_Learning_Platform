@@ -68,12 +68,18 @@ describe('planTerminate — nói ra AI là người bấm', () => {
    * biệt đó, nếu không cả công của D15 vô hình với người dùng nó.
    */
   it('nói rõ nhật ký ghi dưới tên NGƯỜI BẤM, không phải chủ phiên', () => {
-    expect(plan.body).toContain('dưới tên BẠN');
-    expect(plan.body).toContain('không phải dưới tên chủ phiên');
+    expect(plan.body).toContain('dưới tên bạn');
+    expect(plan.body).toContain('không phải tên chủ phiên');
   });
 
-  it('nêu lý do đúng chuỗi gửi xuống orchestrator', () => {
-    expect(plan.body).toContain('admin_terminated');
+  /**
+   * review-1 #26: mã lý do `admin_terminated` là chuỗi nội bộ gửi xuống
+   * orchestrator, không phải câu cho người bấm. Câu xác nhận nói việc bằng lời;
+   * chuỗi gốc vẫn hiện nguyên ở cột Chi tiết của trang Nhật ký
+   * (`describeAuditDetail`, gác ở `audit-row.test.ts`).
+   */
+  it('không lộ mã lý do nội bộ trong câu xác nhận', () => {
+    expect(plan.body).not.toContain('admin_terminated');
   });
 
   it('cảnh báo hậu quả không hoàn tác được', () => {
@@ -89,7 +95,7 @@ describe('planTerminate — nói ra AI là người bấm', () => {
     });
     expect(own.ownedBySelf).toBe(true);
     expect(own.body).toContain('chính bạn');
-    expect(own.body).toContain('dưới tên BẠN');
+    expect(own.body).toContain('dưới tên bạn');
   });
 
   it('tiêu đề nêu phiên nào', () => {
@@ -119,13 +125,15 @@ describe('describeExpiry', () => {
   });
 
   /**
-   * Phiên QUÁ HẠN mà vẫn nằm trong danh sách là thông tin thật (reaper chưa
-   * chạy tới). "còn -3 phút" thì không ai đọc ra điều đó.
+   * Phiên QUÁ HẠN mà vẫn nằm trong danh sách là thông tin thật (lượt dọn phiên
+   * chưa chạy tới). "còn -3 phút" thì không ai đọc ra điều đó. Câu nói bằng lời
+   * thường, không bằng tên tiến trình nội bộ (review-1 #26).
    */
-  it('quá hạn nói rõ là quá hạn và reaper chưa dọn', () => {
+  it('quá hạn nói rõ là quá hạn và chưa được dọn', () => {
     const text = describeExpiry('2026-09-06T09:57:00.000Z', now);
     expect(text).toContain('quá hạn 3 phút');
-    expect(text).toContain('reaper');
+    expect(text).toContain('sắp được dọn');
+    expect(text).not.toContain('reaper');
     expect(text).not.toContain('-3');
   });
 

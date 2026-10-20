@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useMemo, useRef, useState, type ReactElement } from 'react';
+import { t } from '@devops-platform/copy';
 import {
   CICD_UNSEEDED_REPLAY_SEED,
   toVerdictView,
@@ -65,9 +66,6 @@ import { describeTrpcError } from '../../../lib/trpc';
  * chạy tới nơi là bịa ra một phép đo.
  */
 
-const CAU_CHUA_NOP_DUOC =
-  'Bài này chưa có testcase nào nên chưa chấm được. Mở ở chế độ đọc và luyện ' +
-  'tay; hãy báo cho tác giả bài.';
 
 export interface CicdProblemScreenProps {
   /** Mã bài, từ `?problem=`. Đã lọc rỗng ở `page.tsx`. */
@@ -95,10 +93,10 @@ function ManBao({
       {onRetry === undefined ? null : (
         <button
           type="button"
-          className="rounded-md border border-border px-3 py-1.5 text-sm"
+          className="border border-border px-3 py-1.5 text-sm"
           onClick={onRetry}
         >
-          Thử lại
+          {t('games.cicd.oj.retry')}
         </button>
       )}
     </div>
@@ -288,7 +286,7 @@ function CicdProblemBody({ code }: { readonly code: string }): ReactElement {
   );
 
   if (solver.isPending) {
-    return <ManBao text="Đang nạp đề bài và dựng đường ống của bạn…" />;
+    return <ManBao text={t('games.cicd.oj.loading')} />;
   }
   if (solver.isError || problem === null) {
     return (
@@ -296,7 +294,10 @@ function CicdProblemBody({ code }: { readonly code: string }): ReactElement {
         onRetry={() => {
           void solver.refetch();
         }}
-        text={`Không mở được bài ${code}: ${solver.error === null ? 'không có dữ liệu' : describeTrpcError(solver.error)}`}
+        text={t('games.cicd.oj.load-error', {
+          code,
+          reason: solver.error === null ? t('games.cicd.oj.no-data') : describeTrpcError(solver.error),
+        })}
       />
     );
   }
@@ -311,7 +312,7 @@ function CicdProblemBody({ code }: { readonly code: string }): ReactElement {
   if (thieu !== null) {
     return (
       <ManBao
-        text={`Đề bài ${problem.code} thiếu phần "${thieu}", nên chưa dựng được màn chơi. Đây là lỗi của đề, không phải của bạn — hãy báo cho tác giả bài.`}
+        text={t('games.cicd.oj.spec-missing', { code: problem.code, part: thieu })}
       />
     );
   }
@@ -329,13 +330,13 @@ function CicdProblemBody({ code }: { readonly code: string }): ReactElement {
       }}
       oj={{
         gradable,
-        notice: gradable ? null : CAU_CHUA_NOP_DUOC,
-        submitLabel: submitting ? 'Đang chấm và nộp…' : 'Nộp bài',
+        notice: gradable ? null : t('games.cicd.oj.no-testcase'),
+        submitLabel: submitting ? t('games.cicd.oj.submitting') : t('games.cicd.oj.submit'),
         submitDisabled: !gradable || submitting,
         onSubmit: submit,
         result: ketQuaDocDuoc(view, errorMessage),
         failedLabels: (view?.failed ?? []).map(
-          (failed) => failed.label ?? 'Testcase ẩn chưa hiện tên',
+          (failed) => failed.label ?? t('games.cicd.oj.hidden-case'),
         ),
         hintReveals: hints.reveals,
         onRevealHint,
@@ -368,16 +369,16 @@ const CICD_SEED_PHAT_LAI: number = CICD_UNSEEDED_REPLAY_SEED;
  */
 function ketQuaDocDuoc(view: VerdictView | null, errorMessage: string | null): string | null {
   if (errorMessage !== null) {
-    return `Chưa nộp được: ${errorMessage}`;
+    return t('games.cicd.oj.submit-error', { message: errorMessage });
   }
   if (view === null) {
     return null;
   }
   if (view.fraction === null) {
-    return `CE — ${view.failedReason ?? 'lượt chơi không chạy tới nơi nên chưa chấm được.'}`;
+    return t('games.cicd.oj.ce', { reason: view.failedReason ?? t('games.cicd.oj.ce-default') });
   }
   const { passed, total } = view.fraction;
   return view.verdict === 'AC'
-    ? `AC (${String(passed)}/${String(total)}) — qua hết testcase.`
-    : `WA (${String(passed)}/${String(total)})`;
+    ? t('games.cicd.oj.ac', { passed, total })
+    : t('games.cicd.oj.wa', { passed, total });
 }

@@ -111,3 +111,29 @@ describe('describeAuditDetail', () => {
     expect(describeAuditDetail('la', circular)).toContain('không đọc được');
   });
 });
+
+/**
+ * Sáu hành động lớp học và kỳ thi mà `server/trpc/routers/{classes,exams}.ts`
+ * ghi thật. Trước 2026-10-03 chúng hiện ra là chuỗi tiếng Anh trần.
+ */
+describe('describeAuditAction · lớp học và kỳ thi', () => {
+  it.each([
+    ['class.create', 'Tạo lớp'],
+    ['class.addMember', 'Thêm sinh viên vào lớp'],
+    ['class.removeMember', 'Bỏ sinh viên khỏi lớp'],
+    ['exam.create', 'Tạo kỳ thi'],
+    ['exam.update', 'Sửa kỳ thi'],
+    ['exam.remove', 'Xoá kỳ thi'],
+  ])('%s đọc ra "%s"', (action, label) => {
+    expect(describeAuditAction(action)).toBe(label);
+  });
+
+  it('tên trùng thuộc tính của Object.prototype vẫn là hành động lạ, không phải hàm', () => {
+    expect(describeAuditAction('toString')).toBe('toString');
+    expect(describeAuditAction('__proto__')).toBe('__proto__');
+  });
+
+  it('đối tượng kỳ thi có nhãn tiếng Việt', () => {
+    expect(describeAuditTarget('exam', 'e-1')).toBe('Kỳ thi e-1');
+  });
+});

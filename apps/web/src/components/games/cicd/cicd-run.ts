@@ -1,3 +1,4 @@
+import { t } from '@devops-platform/copy';
 import {
   checkJobShapes,
   evaluate,
@@ -232,24 +233,27 @@ export function formatPercent(ratio: number): string {
  */
 export function describeJobShapeProblem(problem: JobShapeProblem): string {
   if (problem.kind === 'unknown-job') {
-    return `Màn này không có job "${problem.job}". Các job màn này biết: ${problem.knownJobs.join(', ')}.`;
+    return t('games.cicd.error.unknown-job', { job: problem.job, known: problem.knownJobs.join(', ') });
   }
   if (problem.kind === 'unknown-steps') {
-    return `Các bước của job "${problem.job}" (${problem.steps.join(', ') || 'không có bước nào'}) không khớp cách chia nào màn này chấm được. Giữ đúng id và thứ tự bước của job, đổi tên hay bỏ bước là không chấm.`;
+    return t('games.cicd.error.unknown-steps', {
+      job: problem.job,
+      steps: problem.steps.join(', ') || t('games.cicd.error.no-steps'),
+    });
   }
-  return `Tập job (${problem.jobs.join(', ') || 'rỗng'}) không khớp phương án nào màn này chấm được — đang thiếu hoặc thừa job. Bỏ hẳn một job kiểm thử cũng không được tính.`;
+  return t('games.cicd.error.unknown-jobs', { jobs: problem.jobs.join(', ') || t('games.cicd.error.no-jobs') });
 }
 
 /** Câu tiếng Việt cho từng dạng lỗi đồ thị. Nói ra TÊN job, không chỉ tên lỗi. */
 export function describeEngineError(error: EvaluationError | null): string {
   if (error === null) {
-    return 'Engine không dựng được lượt mô phỏng nào từ workflow này. Kiểm tra lại xem có job nào không, và workload có cấp hạng máy chạy tương ứng không.';
+    return t('games.cicd.error.no-run');
   }
   if (error.kind === 'cycle') {
-    return `Phụ thuộc vòng tròn: ${error.stages.join(' → ')} → ${error.stages[0] ?? '?'}. Không job nào trong vòng này chạy được, vì mỗi job đang đợi một job khác trong chính vòng đó.`;
+    return t('games.cicd.error.cycle', { path: `${error.stages.join(' → ')} → ${error.stages[0] ?? '?'}` });
   }
   if (error.kind === 'unknown-dependency') {
-    return `Job "${error.stage}" khai "needs: ${error.missing}" nhưng không có job nào tên "${error.missing}". Kiểm tra lại chính tả, và nhớ rằng tên job phân biệt chữ hoa chữ thường.`;
+    return t('games.cicd.error.unknown-needs', { stage: error.stage, missing: error.missing });
   }
-  return `Job "${error.stage}" đòi hạng máy chạy "${error.runnerClass}", nhưng kho máy của màn này không có hạng đó. Xem lại giá trị "runs-on".`;
+  return t('games.cicd.error.no-runner', { stage: error.stage, runner: error.runnerClass });
 }

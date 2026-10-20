@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
-import { ARC_PATH_D, ARC_STROKE } from '@devops-platform/motion/motif';
 import { EmptyState } from './empty-state.tsx';
 import { Button } from './button.tsx';
 
@@ -87,45 +86,28 @@ describe('EmptyState — icon', () => {
  * thường và trông "đầy đặn hơn" với mắt chưa đọc design. Nên nó có cổng riêng
  * chứ không gộp vào ô kiểm hình.
  */
-describe('EmptyState — vòng ellipse hở của motif', () => {
-  it('hình mặc định vẽ ĐÚNG `ARC_PATH_D`, nét đầy đủ', () => {
+describe('EmptyState: hình mặc định là đoạn tuyến tàu vuông', () => {
+  it('vẽ đoạn tuyến với ga vuông, không hình tròn nào', () => {
     const { container } = render(<EmptyState title="Chưa có lab nào" />);
-    const path = container.querySelector('svg path');
-    expect(path, 'không có cung nào ⇒ trạng thái rỗng mất hình chủ đạo').not.toBeNull();
-    expect(path?.getAttribute('d')).toBe(ARC_PATH_D);
-    expect(path?.getAttribute('stroke-width')).toBe(String(ARC_STROKE));
+    const svg = container.querySelector('svg[data-empty-glyph="station"]');
+    expect(svg, 'thiếu hình mặc định của trạng thái rỗng').not.toBeNull();
+    expect(svg?.querySelectorAll('rect').length).toBe(3);
+    expect(svg?.querySelectorAll('circle, ellipse').length).toBe(0);
   });
 
-  it('vòng RỖNG RUỘT — không tô nền, không hình nào khác nằm trong', () => {
+  it('ga cuối rỗng ruột, viền đứt: chưa có gì ở đó', () => {
     const { container } = render(<EmptyState title="Chưa có lab nào" />);
-    const svg = container.querySelector('svg');
-    expect(svg?.querySelectorAll('path')).toHaveLength(1);
-    expect(
-      svg?.querySelectorAll('circle, rect, ellipse, image, text'),
-      'có hình khác bên trong vòng ⇒ trái design §3 "bên trong không có gì"',
-    ).toHaveLength(0);
-    expect(container.querySelector('svg path')?.getAttribute('fill')).toBe('none');
+    const rects = container.querySelectorAll('svg rect');
+    const last = rects[rects.length - 1];
+    expect(last?.getAttribute('fill')).toBe('none');
+    expect(last?.getAttribute('stroke-dasharray')).not.toBeNull();
   });
 
-  /**
-   * Đĩa `rounded-full bg-muted` của bản `Inbox` đã bị GỠ. Một vòng hở mà bên
-   * trong có mảng đặc thì nó không còn hở — và đĩa đó nằm ở LỚP BỌC nên phép
-   * kiểm trên `<svg>` ở trên không với tới được.
-   */
-  it('lớp bọc không còn đĩa nền', () => {
+  it('lớp bọc không có đĩa nền tròn', () => {
     const { container } = render(<EmptyState title="Chưa có lab nào" />);
     const wrapper = container.querySelector('[aria-hidden="true"]');
-    const classes = (wrapper?.getAttribute('class') ?? '').split(/\s+/);
+    const classes = (wrapper?.getAttribute('class') ?? '').split(/s+/);
     expect(classes).not.toContain('bg-muted');
     expect(classes).not.toContain('rounded-full');
-  });
-
-  it('cung KHÔNG mang khe hở đã khép — vòng hở là điểm của cả hình', () => {
-    const { container } = render(<EmptyState title="Chưa có lab nào" />);
-    // `ARC_PATH_D` là một lệnh `A` đơn (cung 300°), không phải `Z` khép kín.
-    // Một ai đó "sửa" nó thành vòng khép sẽ thêm `Z` hoặc đổi sang `<ellipse>`.
-    const d = container.querySelector('svg path')?.getAttribute('d') ?? '';
-    expect(d.trim().endsWith('Z'), 'vòng bị khép lại ⇒ bỏ motif').toBe(false);
-    expect(d).toContain('A');
   });
 });

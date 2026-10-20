@@ -1,34 +1,36 @@
 import type { Metadata } from 'next';
+import { Suspense } from 'react';
 import { t } from '@devops-platform/copy';
 // Đường dẫn TƯƠNG ĐỐI, không phải `@/components/...`: repo này không khai
 // `paths` ở tsconfig nào và không đặt alias webpack, nên dạng `@/` sẽ đỏ ở cả
 // typecheck lẫn `next build`.
 import { ArenaEntry } from '../../../components/k8s-arena/arena-entry';
+import { K8sCampaign } from '../../../components/games/k8s/k8s-campaign';
 
 export const metadata: Metadata = {
-  title: t('catalog.meta-title.games-k8s'),
-  description: t('catalog.games.k8s-meta-description'),
+  title: t('games.k8s.meta-title'),
+  description: t('games.k8s.meta-description'),
 };
 
 /**
- * `/games/k8s` — vỏ route của Kubernetes Arena.
+ * `/games/k8s`: trang chọn màn của Kubernetes Arena, hoặc một bài OJ.
  *
- * Server Component **rỗng nghiệp vụ**, có chủ ý: không tạo phiên, không giữ
- * state game, không đọc session. Nó làm đúng hai việc — gắn `metadata`, và đọc
- * tham số `problem` để quyết định chế độ.
+ * Server Component rỗng nghiệp vụ: không tạo phiên, không giữ state game, không
+ * đọc session.
  *
  * ⛔ Chỉ file NÀY đọc `?problem=`. Hợp đồng (`arena-contract.ts`, `ArenaMode`)
- * cấm các component con tự đọc: hai chỗ cùng đọc một tham số là hai chỗ có thể
- * bất đồng về việc đang ở chế độ nào, và một component thấy `problemCode == null`
- * rồi tự kết luận đang ở chế độ level sẽ hiểu sai đúng lúc bài đang tải.
+ * cấm component con tự đọc: hai chỗ cùng đọc một tham số là hai chỗ có thể bất
+ * đồng về việc đang ở chế độ nào. Có mã bài ⇒ đi đường `ArenaEntry` của chính
+ * arena (màn làm bài dựng level từ đề), phủ kín vỏ trang. Không có ⇒ trang chọn
+ * màn `K8sCampaign`, nằm ngoài canvas game và giữ màn đang chơi ở `?level=`.
  *
- * Không gác auth — game chạy hoàn toàn trong trình duyệt, tiến độ ở
- * `localStorage`, nên `/games` KHÔNG có trong `PROTECTED_PATHS` của `proxy.ts`
- * (hợp đồng §4.2). Chế độ làm bài OJ thì cổng nằm ở tRPC lúc nộp bài, không nằm
- * ở route này.
+ * `arena-entry.tsx` vẫn chứa đường chọn màn cũ (`LevelPicker`); route này không
+ * còn đi qua nhánh đó, nhưng file thuộc arena nên được để nguyên.
  *
- * KHÔNG render `main` của riêng nó — vỏ ứng dụng sở hữu landmark đó cho mọi
- * trang (`components/session/landmark-contract.test.ts` quét tĩnh việc này).
+ * Không gác auth: game chạy hoàn toàn trong trình duyệt, tiến độ ở
+ * `localStorage`, nên `/games` KHÔNG có trong `PROTECTED_PATHS` của `proxy.ts`.
+ *
+ * KHÔNG render `main` của riêng nó: vỏ ứng dụng sở hữu landmark đó.
  */
 export default async function K8sArenaPage({
   searchParams,
@@ -39,5 +41,18 @@ export default async function K8sArenaPage({
   const raw = params.problem;
   const problemCode = typeof raw === 'string' && raw.length > 0 ? raw : null;
 
-  return <ArenaEntry problemCode={problemCode} />;
+  if (problemCode !== null) {
+    // z-[45]: trên thanh đầu trang, dưới portal Radix. Xem `k8s-campaign.tsx`.
+    return (
+      <div className="fixed inset-0 z-[45] bg-ink">
+        <ArenaEntry problemCode={problemCode} />
+      </div>
+    );
+  }
+
+  return (
+    <Suspense>
+      <K8sCampaign />
+    </Suspense>
+  );
 }

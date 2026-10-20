@@ -79,16 +79,26 @@ describe('problem-query', () => {
 
     // `.strict()` ở tầng Zod sẽ trả 400 cho bất kỳ khoá lạ nào — kể cả khoá do
     // một tầng thư viện tự chèn. Ghim đúng tập khoá thay vì chỉ ghim giá trị.
-    expect(Object.keys(input).sort()).toEqual(['direction', 'limit', 'orderBy']);
+    expect(Object.keys(input).sort()).toEqual(['direction', 'filter', 'limit', 'orderBy']);
     expect(input.limit).toBe(PROBLEM_PAGE_SIZE);
+    // Trang chưa lọc gì vẫn chỉ xin bài của game đang chọn.
+    expect(input.filter).toEqual({ gameId: DEFAULT_PROBLEM_QUERY.game });
   });
 
-  it('input mang `filter` khi có lọc, và mang `cursor` khi không ở trang đầu', () => {
+  it('input mang lọc của người dùng cùng game, và mang `cursor` khi không ở trang đầu', () => {
     const query = parseProblemQuery(new URLSearchParams('difficulty=easy'));
     const input = buildProblemListInput(query, 'K8S-0007');
 
     expect(Object.keys(input).sort()).toEqual(['cursor', 'direction', 'filter', 'limit', 'orderBy']);
     expect(input.cursor).toBe('K8S-0007');
-    expect(input.filter).toEqual({ difficulty: ['easy'] });
+    expect(input.filter).toEqual({ difficulty: ['easy'], gameId: DEFAULT_PROBLEM_QUERY.game });
+  });
+
+  it('đổi game là đổi tập bài xin về, nhưng KHÔNG tính là một bộ lọc đang bật', () => {
+    const query = parseProblemQuery(new URLSearchParams('game=git'));
+
+    expect(buildProblemListInput(query, undefined).filter).toEqual({ gameId: 'git' });
+    // Nếu game nằm trong `filter`, màn rỗng sẽ mời bấm "xoá lọc" cho một trang chưa lọc gì.
+    expect(hasActiveFilter(query.filter)).toBe(false);
   });
 });

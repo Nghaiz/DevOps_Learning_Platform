@@ -1,78 +1,83 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import Link from 'next/link';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import { parseContentBlocks } from '@devops-platform/scenario/content-blocks';
 import { errText, t } from '@devops-platform/copy';
-import { Alert, AlertDescription, Button, ContentView, ProgressBar, StepNav } from '@devops-platform/ui';
+import { Button, ContentView, Meter, StepNav, TopicBadge } from '@devops-platform/ui';
 import {
   DEFAULT_PROFILE,
   IdePane,
+  NoticeStrip,
   SessionControls,
-  ShellFallbackNotice,
+  SessionStatusPill,
   TerminalPane,
+  WorkspaceBar,
   WorkspacePanel,
   WorkspaceSplit,
+  checkBlockedReason,
+  contentViewLabels,
+  execBlockedReason,
+  resolveShellFallbackNotice,
   shouldShowIdePane,
+  stepNavLabels,
   useResolvedTerminalTheme,
+  useTerminalHandoff,
+  type PracticeNotice,
 } from '../../../components/session';
 import { useWorkspaceTabs } from '../../../components/session/use-workspace-tabs';
+import { lineForTopic } from '../../../lib/topic-line';
 import { api } from '../../../lib/trpc-react';
 import { describeTrpcError } from '../../../lib/trpc';
+import { canReconnect } from '../../../lib/use-sandbox-session';
 import { buildPhases, canCheck, phaseKeyForStepIndex } from './phases';
 import { summarizeProgress } from './progress';
 import { useLessonSession } from './use-lesson-session';
 import { CheckResultPanel, type CheckOutcome } from './check-result-panel';
 
-export function LessonClient({ scenarioId }: { readonly scenarioId: string }): React.ReactElement {
+/**
+ * Kết quả chấm GẮN VỚI BƯỚC đã chấm (M5).
+ *
+ * Bản trước giữ MỘT `check` cho cả trang và xoá nó khi đổi bước. Một lượt chấm
+ * đang bay mà người học bấm sang bước khác thì kết quả về sau rơi vào bước MỚI:
+ * "Đạt" hiện dưới một bước chưa ai làm. Nay khoá theo `phase.key`, và `seq` của
+ * từng lượt chặn một lượt cũ về muộn đè lên lượt mới của CÙNG bước.
+ */
+interface StepCheck {
+  readonly seq: number;
+  readonly outcome: CheckOutcome;
+}
+
+export function LessonClient({ scenarioId }: { readonly scenarioId: string }): ReactElement {
   const utils = api.useUtils();
   const query = api.lessons.get.useQuery({ scenarioId });
   const session = useLessonSession(scenarioId);
+  const handoff = useTerminalHandoff(session.state.sessionId);
 
-  // Theme terminal: tuỳ chọn hồ sơ thắng, không có thì đi theo theme ứng dụng
-  // (C1/D2). Trước đây chốt cứng `DEFAULT_THEME` nên bật dark mode ở vỏ không
-  // đụng gì tới terminal.
   const me = api.me.get.useQuery({});
   const terminalTheme = useResolvedTerminalTheme(me.data?.preferences.terminalTheme ?? null);
 
-  /*
-    Sức chứa cho nhãn "còn N chỗ" (C5). CHỈ hỏi khi chưa có phiên: sau khi phiên
-    mở, con số không còn quyết định gì và một nhịp poll 15s trên mọi trang bài
-    học đang mở là tải thừa.
-
-    ⛔ KHÔNG lưu vào state rồi khẳng định — `SessionControls` đọc thẳng
-    `data`, và "chưa biết" (`undefined`) khác "biết là 0" (xem `describeCapacity`).
-  */
+  // "Còn N chỗ": CHỈ hỏi khi chưa có phiên. Đọc thẳng `data`: chưa biết khác biết là 0.
   const capacity = api.capacity.get.useQuery(
     {},
     { refetchInterval: 15_000, enabled: session.state.sessionId === null },
   );
 
   const [activeKey, setActiveKey] = useState<string | null>(null);
-  const [check, setCheck] = useState<CheckOutcome | null>(null);
+  const [checks, setChecks] = useState<Readonly<Record<string, StepCheck>>>({});
+  const checkSeq = useRef(0);
   const [setupError, setSetupError] = useState<string | null>(null);
-  /** Tăng để BUỘC effect setup chạy lại — nút "Thử lại" của lỗi setup. */
   const [setupAttempt, setSetupAttempt] = useState(0);
+  const [popupBlocked, setPopupBlocked] = useState(false);
   /**
-   * Step ĐÃ CHẤM ĐẠT trong phiên làm việc này.
-   *
-   * ⛔ KHÔNG suy dấu ✓ từ `progress.stepIndex`. Router ghi rõ `stepIndex` là
-   * "VỊ TRÍ HIỆN TẠI, không phải step xa nhất từng tới", và `onSelect` ghi nó
-   * mỗi lần người học chỉ ĐIỀU HƯỚNG. Suy từ đó nghĩa là: mở bài, bấm vào step
-   * cuối để xem trước ⇒ mọi step trước nó lập tức hiện ✓ và thanh tiến độ nhảy
-   * lên gần đầy, trong khi KHÔNG lượt chấm nào từng chạy. Dấu ✓ khi đó là lời
-   * nói dối, và nó nói dối đúng về thứ nền tảng này tồn tại để đo.
-   *
-   * Nguồn sự thật duy nhất còn lại ở client là kết quả `checkStep` thật.
+   * Bước ĐÃ CHẤM ĐẠT trong lượt xem này. ⛔ Không suy dấu ✓ từ `progress.stepIndex`:
+   * đó là vị trí hiện tại, không phải bước đã đạt.
    */
   const [passedSteps, setPassedSteps] = useState<ReadonlySet<number>>(new Set());
 
   const scenario = query.data?.scenario ?? null;
   const phases = useMemo(() => (scenario === null ? [] : buildPhases(scenario)), [scenario]);
 
-  // Mở lại đúng chỗ đang dở — nửa "khôi phục" của ô AC tiến độ. Chỉ đặt MỘT lần
-  // (khi activeKey còn null): đặt lại mỗi khi `progress` đổi sẽ kéo người học
-  // nhảy phase ngay sau mỗi lượt chấm đạt.
+  // Mở lại đúng chỗ đang dở, MỘT lần (đặt lại mỗi khi `progress` đổi sẽ kéo người học nhảy bước).
   useEffect(() => {
     if (activeKey === null && phases.length > 0 && query.data !== undefined) {
       setActiveKey(phaseKeyForStepIndex(phases, query.data.progress.stepIndex));
@@ -87,55 +92,40 @@ export function LessonClient({ scenarioId }: { readonly scenarioId: string }): R
   const runSetup = api.lessons.runSetup.useMutation();
   const checkStep = api.lessons.checkStep.useMutation();
 
-  // ── Setup script: chạy đúng MỘT lần cho mỗi phase, và chỉ khi phiên đã sẵn sàng ──
-  //
-  // `runSetup` KHÔNG đảm bảo idempotent (nó chạy `background` thật), nên phải tự
-  // nhớ phase nào đã chạy. Ref chứ không state: giá trị này không được phép gây
-  // re-render, và nếu nó nằm trong state thì lần set đầu tiên sẽ chạy lại effect
-  // trước khi cờ kịp có tác dụng — tức chạy setup hai lần.
   const setupDone = useRef(new Set<string>());
   const terminal = session.terminal;
   const sessionId = session.state.sessionId;
 
-  /*
-    ⚠ Gọi ở ĐÂY, TRÊN mọi `return` sớm bên dưới — `scenario` lúc này còn có thể
-    là `null` và điều đó không sao (bài chưa tải xong thì chưa có tab Editor).
-    Đặt xuống cạnh phần JSX dùng nó sẽ thành một hook nằm sau
-    `if (query.isPending) return …`, tức số hook đổi giữa hai lượt render.
-  */
+  // Hook gọi TRÊN mọi `return` sớm: số hook không được đổi giữa hai lượt render.
   const showIde = shouldShowIdePane(scenario?.interfaceLayout ?? null);
   const tabs = useWorkspaceTabs({ terminal, hasEditor: showIde, sessionId });
 
+  /*
+    Terminal đã giao sang cửa sổ riêng thì trang thả kết nối, nên `terminal` ở
+    đây là `null` cho tới khi người học lấy về, có khi không bao giờ. Chờ nó như
+    ca thường là setup của phase đầu không bao giờ chạy. `background` chạy ở máy
+    chủ nên không cần terminal của trang; chỉ cần phiên còn pod.
+  */
+  const setupWithoutTerminal = handoff.state !== 'here' && canReconnect(session.state);
+
+  // ── Setup: đúng MỘT lần cho mỗi phase của mỗi phiên, khi terminal đã nối (hoặc đã giao đi) ──
   useEffect(() => {
-    if (active === null || sessionId === null || terminal === null || phases.length === 0) {
+    // ⛔ Ca thường vẫn CHỜ terminal: chạy setup trước khi chunk xterm kịp gắn là
+    // `foreground` của intro rơi mất, vì lúc lượt gọi về thì chưa có gì để gõ vào.
+    if (active === null || sessionId === null || (terminal === null && !setupWithoutTerminal) || phases.length === 0) {
       return;
     }
-
-    // ⛔ Phải chuẩn bị phase ĐẦU TIÊN, không chỉ phase đang mở.
-    //
-    // Asset chỉ được đẩy ở phase setup đầu tiên (`isAssetPushPhase`), và
-    // `intro/background.sh` cũng chỉ chạy ở đó. Nhưng người học quay lại được
-    // thả đúng vào step đang dở (khôi phục tiến độ). Chuỗi thật:
-    //   qua step 1 → phiên hết hạn → mở lại (rơi vào step1) → bấm "Bắt đầu"
-    // ⇒ pod MỚI TOANH, mà lượt runSetup duy nhất là cho `step1` — phase không có
-    // `background` — nên `intro` không bao giờ chạy và `lab-seed.json` không bao
-    // giờ tới pod. Mọi verify sau đó trượt với "Chua thay /root/lab/hello.txt".
-    //
-    // Đó ĐÚNG là hạng lỗi "asset chưa tới pod" mà cả lane này sinh ra để đóng,
-    // bị đường khôi-phục-tiến-độ dựng lại.
+    // ⛔ Phải chuẩn bị phase ĐẦU TIÊN, không chỉ phase đang mở: asset chỉ được
+    // đẩy ở phase đầu, và người học quay lại được thả thẳng vào bước đang dở.
     const first = phases[0];
     const needed = first === undefined || first.key === active.key ? [active] : [first, active];
 
     for (const target of needed) {
-      // Bỏ qua phase chẳng có gì để chuẩn bị — trừ phase đầu, nơi asset được đẩy
-      // (việc đó là logic phía server, client không thấy trong DTO).
       const isFirst = target.key === first?.key;
       if (!isFirst && !target.phase.hasSetup) {
         continue;
       }
-
-      // Khoá gồm CẢ `sessionId`: khoá chỉ theo phase thì cờ của phiên CŨ sống
-      // sót sang pod mới và setup không bao giờ chạy lại.
+      // Khoá gồm cả `sessionId`: cờ của phiên cũ không được sống sót sang pod mới.
       const runKey = `${sessionId}:${target.key}`;
       if (setupDone.current.has(runKey)) {
         continue;
@@ -147,39 +137,29 @@ export function LessonClient({ scenarioId }: { readonly scenarioId: string }): R
         {
           onSuccess: (result) => {
             setSetupError(null);
-            // `foreground` được TRẢ VỀ chứ không chạy ở server — đó là định
-            // nghĩa của nó (phải hiện ra trong terminal người học đang nhìn).
-            // Chỉ gõ của phase ĐANG MỞ: gõ foreground của intro trong lúc người
-            // ta đang ở step 3 là bơm lệnh lạ vào màn hình họ đang làm bài.
-            if (result.foreground !== null && target.key === active.key) {
+            // `foreground` của phase ĐANG MỞ mới gõ vào terminal người học đang nhìn.
+            // Terminal ở cửa sổ riêng ⇒ trang không có gì để gõ vào, và lệnh này bị bỏ chứ
+            // không dồn lại: gõ nó lúc người học lấy terminal về là gõ một lệnh cũ vào giữa việc đang làm.
+            if (result.foreground !== null && target.key === active.key && terminal !== null) {
               terminal.sendInput(`${result.foreground}\r`);
             }
           },
           onError: (error) => {
-            // ⛔ Setup hỏng PHẢI hiện ra. Bản đầu chỉ xoá cờ rồi im lặng: người
-            // học nhìn một terminal bình thường trong khi môi trường bài chưa hề
-            // được dựng, và mọi verify sau đó trượt vì lý do không liên quan.
-            // Xoá cờ mà không có gì kích hoạt lại effect cũng KHÔNG phải "cho
-            // phép thử lại" — nút "Thử lại" ở dưới mới là.
+            // ⛔ Setup hỏng PHẢI hiện ra, kèm nút Thử lại.
             setupDone.current.delete(runKey);
             setSetupError(describeTrpcError(error));
           },
         },
       );
     }
-    // `runSetup` bị loại khỏi deps có chủ ý: danh tính của mutation object đổi
-    // mỗi lần render, và đưa nó vào deps sẽ chạy lại effect liên tục.
-  }, [active, phases, sessionId, terminal, scenarioId, setupAttempt]);
+    // `runSetup` ngoài deps có chủ ý: danh tính mutation đổi mỗi lượt render.
+  }, [active, phases, sessionId, terminal, setupWithoutTerminal, scenarioId, setupAttempt]);
 
-  // ── Điều hướng ──────────────────────────────────────────────────────────────
   const onSelect = useCallback(
     (key: string) => {
       setActiveKey(key);
-      setCheck(null);
-
       const target = phases.find((p) => p.key === key);
-      // `saveProgress` chỉ có nghĩa với STEP — intro/finish không nằm trong hệ
-      // đếm `stepIndex`, và ghi chúng vào đó sẽ làm tiến độ nhảy lung tung.
+      // `saveProgress` chỉ có nghĩa với STEP: intro/finish không nằm trong hệ đếm `stepIndex`.
       if (target?.stepIndex !== null && target?.stepIndex !== undefined) {
         saveProgress.mutate({ scenarioId, stepIndex: target.stepIndex });
       }
@@ -191,29 +171,28 @@ export function LessonClient({ scenarioId }: { readonly scenarioId: string }): R
     if (active === null || sessionId === null) {
       return;
     }
-    setCheck({ kind: 'running' });
+    const key = active.key;
+    const stepIndex = active.stepIndex;
+    checkSeq.current += 1;
+    const seq = checkSeq.current;
+    const land = (outcome: CheckOutcome): void => {
+      // Chỉ lượt MỚI NHẤT của CHÍNH bước này được ghi.
+      setChecks((prev) => (prev[key]?.seq === seq ? { ...prev, [key]: { seq, outcome } } : prev));
+    };
+    setChecks((prev) => ({ ...prev, [key]: { seq, outcome: { kind: 'running' } } }));
     checkStep.mutate(
       { scenarioId, sessionId, phase: active.ref },
       {
         onSuccess: (result) => {
-          setCheck({
-            kind: 'result',
-            passed: result.passed,
-            exitCode: result.exitCode,
-            output: result.output,
-          });
-          // Chỉ ĐÂY mới sinh ra dấu ✓ — một lượt chấm ĐẠT có thật.
-          if (result.passed && active.stepIndex !== null) {
-            const index = active.stepIndex;
-            setPassedSteps((prev) => new Set(prev).add(index));
+          land({ kind: 'result', passed: result.passed, exitCode: result.exitCode, output: result.output });
+          if (result.passed && stepIndex !== null) {
+            setPassedSteps((prev) => new Set(prev).add(stepIndex));
           }
           void utils.lessons.invalidate();
         },
-        // ⛔ Lỗi hệ thống KHÔNG được hiện thành "bài sai". Phiên hết hạn, pod bị
-        // thu hồi, apiserver trục trặc — cả ba đều tới đây dưới dạng ném, và vẽ
-        // chúng thành dấu X đỏ sẽ bắt người học đi sửa một bài vốn đã đúng.
+        // ⛔ Lỗi hệ thống KHÔNG được hiện thành "bài sai".
         onError: (error) => {
-          setCheck({ kind: 'error', message: describeTrpcError(error) });
+          land({ kind: 'error', message: describeTrpcError(error) });
         },
       },
     );
@@ -230,26 +209,9 @@ export function LessonClient({ scenarioId }: { readonly scenarioId: string }): R
     [scenarioId],
   );
 
-  /*
-    §Y3 — `onExec(command, interrupt)`, HAI tham số. `ExecOptions`/`ExecTarget`
-    của bản trước bị gỡ cùng terminal thứ hai: một terminal thì không còn quyết
-    định định tuyến nào để mang, nên một `options` object chỉ còn một trường là
-    một lớp bọc không nói thêm gì.
-
-    Exec CHUYỂN TAB khi terminal đang bị ẩn, rồi mới gõ và `focus()`.
-
-    ⚠ Chú thích ở đây trước SỬA ĐỔI 3 viết ngược: "exec KHÔNG chuyển tab nữa, vì
-    terminal hiện ở cả hai tab, nên không có gì để chuyển tới". Tiền đề đó là
-    của mô hình SỬA ĐỔI 2 và đã bị bãi bỏ, nhưng câu chú thích thì nằm lại và
-    giữ hành vi sai thêm một nhịp: ở tab Editor hàng terminal nay mang `hidden`,
-    nên lệnh được gõ vào một khoang người học không nhìn thấy, và `focus()` trên
-    một phần tử trong cây `display:none` là no-op IM LẶNG. Đường đi đầy đủ nằm ở
-    `use-workspace-tabs.ts`.
-
-    Việc giữ `\x03` là một sự kiện bàn phím RIÊNG (không nối vào chuỗi lệnh)
-    cũng nằm ở đó, vì cả ba trang học cần đúng một bản của quyết định đó.
-  */
-  const onExec = tabs.exec;
+  const onPopOut = useCallback(() => {
+    setPopupBlocked(!handoff.popOut());
+  }, [handoff]);
 
   if (query.isPending) {
     return <Centered>{t('session.lesson.loading')}</Centered>;
@@ -261,254 +223,169 @@ export function LessonClient({ scenarioId }: { readonly scenarioId: string }): R
     return <Centered tone="error">{t('session.lesson.not-found')}</Centered>;
   }
 
+  const line = lineForTopic({ topic: scenario.topic ?? null, id: scenario.id });
+  const topicLine = line === 'ink' ? undefined : line;
   const blocks = parseContentBlocks(active.phase.markdown);
   const completed = query.data.progress.status === 'completed';
   const unsupported = query.data.unsupportedCapabilities;
+  const phase = session.state.phase;
 
-  // `done` = ĐÃ CHẤM ĐẠT, không phải "đã đi qua". Bài đã hoàn thành
-  // (`completed`, do server ghi `completedAt` khi chấm đạt step cuối) thì mọi
-  // step đều đạt; ngoài ra chỉ tick thứ chính phiên này chấm đạt.
+  // `done` = ĐÃ CHẤM ĐẠT, không phải "đã đi qua".
   const navItems = phases.map((p) => ({
     key: p.key,
     label: p.label,
     done: p.stepIndex === null ? false : completed || passedSteps.has(p.stepIndex),
   }));
-
-  // Thanh tiến độ đếm CÙNG một thứ với dấu ✓ — nếu nó đếm `stepIndex` thì hai
-  // chỉ báo cạnh nhau sẽ nói hai điều khác nhau về cùng một bài.
-  //
-  // Nhãn thì tách hẳn sang `summarizeProgress`: nhánh `completed` đặt con số
-  // bằng tổng số step từ MỘT lượt chấm, nên câu "N/N bước đã đạt" khẳng định
-  // nhiều hơn thứ ta lưu (nợ P2 §2). Xem `progress.ts`.
   const progress = summarizeProgress({
     stepCount: scenario.steps.length,
     passedInSession: passedSteps.size,
     completed,
   });
 
-  const contentPane = (
-    <div className="flex h-full flex-col bg-background">
-      <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
-        <ContentView
-          diagrams={scenario.diagrams}
-          blocks={blocks}
-          resolveAssetUrl={resolveAssetUrl}
-          onExec={onExec}
-          execEnabled={terminal !== null}
-        />
-      </div>
+  const checkReason = checkBlockedReason({ phase, hasSession: sessionId !== null, handoff: handoff.state });
+  const execReason = execBlockedReason({
+    phase,
+    hasSession: sessionId !== null,
+    terminalAttached: terminal !== null,
+    handoff: handoff.state,
+  });
+  const activeCheck = checks[active.key]?.outcome ?? null;
+  const checking = activeCheck?.kind === 'running';
 
-      {canCheck(active) && (
-        <div className="border-t border-border px-5 py-3">
-          <Button
-            onClick={onCheck}
-            disabled={sessionId === null || check?.kind === 'running'}
-            loading={check?.kind === 'running'}
-            title={sessionId === null ? t('session.lesson.check-blocked') : undefined}
-          >
-            {t('session.lesson.check')}
-          </Button>
-          <CheckResultPanel outcome={check} />
-        </div>
-      )}
+  const shellNotice = resolveShellFallbackNotice({
+    sessionId,
+    preferencesApplied: session.preferencesApplied,
+    shell: me.data?.preferences.defaultShell ?? null,
+  });
+  const notices: PracticeNotice[] = [
+    ...(session.startError === null ? [] : [{ id: `start:${session.startError}`, tone: 'destructive' as const, text: session.startError }]),
+    ...(setupError === null
+      ? []
+      : [
+          {
+            id: `setup:${setupError}`,
+            tone: 'destructive' as const,
+            text: errText('session.lesson.error.setup', { reason: setupError }),
+            action: (
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => {
+                  setSetupError(null);
+                  setSetupAttempt((n) => n + 1);
+                }}
+              >
+                {t('session.lesson.retry')}
+              </Button>
+            ),
+          },
+        ]),
+    // Cảnh báo năng lực BẮT BUỘC hiện: thiếu nó, người học gặp `kubectl: command not found` không lời giải thích.
+    ...(unsupported.length > 0
+      ? [{ id: 'unsupported', tone: 'warning' as const, text: t('session.lesson.unsupported', { capabilities: unsupported.join(', ') }) }]
+      : []),
+    ...(shellNotice === null
+      ? []
+      : [{ id: `shell:${sessionId ?? ''}`, tone: 'warning' as const, text: shellNotice.lines.join(' ') }]),
+    ...(popupBlocked ? [{ id: 'popup', tone: 'warning' as const, text: t('session.overlay.popup-blocked') }] : []),
+  ];
+
+  const instructions = (
+    <div className="h-full overflow-y-auto bg-card text-card-foreground">
+      <div className="mx-auto max-w-[68ch] px-5 py-6 md:px-8">
+        <StepNav
+          items={navItems}
+          activeKey={active.key}
+          onSelect={onSelect}
+          labels={stepNavLabels()}
+          {...(topicLine === undefined ? {} : { line: topicLine })}
+        >
+          <ContentView
+            blocks={blocks}
+            leadingTitle={active.phase.title ?? undefined}
+            diagrams={scenario.diagrams}
+            resolveAssetUrl={resolveAssetUrl}
+            onExec={tabs.exec}
+            execEnabled={execReason === null}
+            execDisabledReason={execReason}
+            labels={contentViewLabels()}
+          />
+          {canCheck(active) ? (
+            <div className="mt-6 border-t-2 border-foreground pt-4">
+              <div className="flex flex-wrap items-center gap-3">
+                <Button onClick={onCheck} disabled={checkReason !== null || checking} loading={checking}>
+                  {t('session.lesson.check')}
+                </Button>
+                {/* Lý do khoá là CHỮ: nút disabled không nhận focus nên `title` của nó không ai đọc được. */}
+                {checkReason !== null && <span className="text-sm text-muted-foreground">{checkReason}</span>}
+              </div>
+              <CheckResultPanel outcome={activeCheck} />
+            </div>
+          ) : (
+            active.stepIndex !== null && <p className="mt-6 text-sm text-muted-foreground">{t('session.lesson.no-check')}</p>
+          )}
+        </StepNav>
+      </div>
     </div>
   );
 
-  const terminalPane = (
-    <TerminalPane
-      session={session}
-      theme={terminalTheme}
-      placeholder={
-        <span>{t('session.terminal.empty')}</span>
-      }
-    />
-  );
+  const terminalPane = <TerminalPane session={session} theme={terminalTheme} handoff={handoff} />;
 
-  // Gốc trang KHÔNG mang `h-screen`/`min-h-screen`: vỏ ứng dụng đã dựng
-  // `<main class="flex min-h-0 flex-1 flex-col">` BÊN DƯỚI một thanh đầu trang,
-  // nên 100vh ở đây cao hơn phần còn lại đúng bằng chiều cao thanh đó và đẻ ra
-  // một thanh cuộn thừa trên mọi trang có terminal. `flex-1 min-h-0` lấy đúng
-  // phần còn lại — không con số nào phải khớp tay với chiều cao thanh đầu trang.
   return (
-    <div className="flex min-h-0 flex-1 flex-col bg-background text-foreground">
-      <header className="flex flex-wrap items-center gap-3 border-b border-border bg-card px-4 py-2">
-        <Link href="/lessons" className="text-sm text-muted-foreground hover:text-foreground">
-          {t('session.lesson.back')}
-        </Link>
-        <h1 className="text-sm font-semibold">{scenario.title}</h1>
-
-        <div className="w-40">
-          <ProgressBar value={progress.value} max={progress.max} label={progress.label} />
-        </div>
-
-        {/*
-          C5 — badge pha, câu lý do phiên chết, Bắt đầu/Kết thúc/Thêm giờ, đồng
-          hồ TTL, cảnh báo hardCap, "còn N chỗ". Trước đây cả khối này được chép
-          tay ở ba trang; ba bản chép đã bắt đầu lệch nhau (playground thiếu
-          nhãn TTL sau khi phiên mở, lab thiếu tooltip hardCap).
-        */}
-        <div className="ml-auto">
-          {/*
-            `profile` là mảnh làm nhãn nói về ĐÚNG bài này thay vì về "bài
-            thường". Thiếu nó, trang bài IDE in con số của profile mặc định —
-            đúng lỗi 2026-09-07: "Còn 14 chỗ" trong lúc `startSession` trả 429
-            vì quota còn 576Mi mà pod IDE cần 768Mi.
-
-            Nguồn là `lessons.get` (CÙNG hàm `profileForScenario` mà
-            `startSession` dùng), không phải một phép suy ở FE và cũng không
-            phải một lượt đọc nội dung riêng ở Server Component. `??
-            DEFAULT_PROFILE` là lưới an toàn cho lượt render trước khi có
-            payload: lúc đó `capacity` cũng chưa có nên chưa vẽ nhãn nào.
-          */}
+    <div className="flex h-dvh min-h-0 flex-col overflow-hidden bg-background text-foreground">
+      <WorkspaceBar
+        backHref="/lessons"
+        backLabel={t('session.lesson.back')}
+        title={scenario.title}
+        {...(topicLine === undefined ? {} : { badge: <TopicBadge line={topicLine} size="sm" /> })}
+        progress={
+          <div className="flex flex-col gap-1">
+            <span className="truncate font-mono text-[11px] text-chrome-muted">{progress.label}</span>
+            <Meter
+              value={progress.value}
+              max={progress.max}
+              segments={Math.max(progress.max, 1)}
+              tone={progress.value >= progress.max ? 'success' : (topicLine ?? 'primary')}
+              label={t('session.lesson.progress-label')}
+            />
+          </div>
+        }
+        controls={
           <SessionControls
             session={session}
             actions={{ start: session.start, end: session.end, extend: session.extend }}
             capacity={capacity.data ?? null}
             profile={query.data?.profile ?? DEFAULT_PROFILE}
           />
-        </div>
-      </header>
-
-      {/*
-        Cảnh báo năng lực — BẮT BUỘC hiện (2.B §2.2). `unsupportedCapabilities`
-        là cái giá của quyết định "cảnh báo, không chặn": bỏ nó đi thì người học
-        mở bài CKAD và gặp `kubectl: command not found` mà không có lời giải
-        thích nào, và một đánh đổi đã cân nhắc trở thành một lỗi im lặng.
-      */}
-      {unsupported.length > 0 && (
-        <Alert variant="warning" className="rounded-none border-x-0 border-t-0">
-          <AlertDescription className="text-foreground">
-            {t('session.lesson.unsupported', { capabilities: unsupported.join(', ') })}
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {session.startError !== null && (
-        <Alert variant="destructive" className="rounded-none border-x-0 border-t-0">
-          <AlertDescription className="text-foreground">{session.startError}</AlertDescription>
-        </Alert>
-      )}
-
-      {/*
-        D7 — `preferencesApplied` là thứ DUY NHẤT nói cho người học biết phiên
-        này bỏ qua shell họ đã chọn. Không có băng này, đường "cold" (pool cạn,
-        pod chưa cấp lúc start trả lời) im lặng đưa họ về shell mặc định của máy.
-      */}
-      <ShellFallbackNotice
-        sessionId={session.state.sessionId}
-        preferencesApplied={session.preferencesApplied}
-        shell={me.data?.preferences.defaultShell ?? null}
+        }
       />
-
-      {/*
-        Setup hỏng KHÔNG được im lặng. Không có khối này, một lượt đẩy asset lỗi
-        hay `background` thoát non-zero hiện ra dưới dạng: không gì cả — terminal
-        trông bình thường, còn bài thì lặng lẽ không chạy được.
-      */}
-      {setupError !== null && (
-        <Alert variant="destructive" className="rounded-none border-x-0 border-t-0">
-          <AlertDescription className="flex flex-wrap items-center gap-3 text-foreground">
-            <span>{errText('session.lesson.error.setup', { reason: setupError })}</span>
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => {
-                setSetupError(null);
-                setSetupAttempt((n) => n + 1);
-              }}
-            >
-              {t('session.lesson.retry')}
-            </Button>
-          </AlertDescription>
-        </Alert>
-      )}
-
-      <div className="border-b border-border px-4 py-2">
-        <StepNav items={navItems} activeKey={active.key} onSelect={onSelect} />
-      </div>
-
+      <NoticeStrip notices={notices} />
       <div className="min-h-0 flex-1">
-        {/*
-          D8 + §Y1 — khoang phải là `WorkspacePanel`: tab Editor (chỉ khi bài khai
-          `interface.layout: ide`) + tab Terminal, HAI tab loại trừ nhau và dùng
-          chung MỘT terminal. Tab nào tới lượt thì chiếm trọn khoang, hàng kia
-          mang `hidden` (SỬA ĐỔI 3, 2026-09-13; bản trước cho terminal neo đáy
-          ~40% ở tab Editor, dải đó đã bị gỡ). Terminal vẫn KHÔNG đổi cha và
-          KHÔNG unmount: `hidden` chỉ thôi vẽ, nó không chạm vào cây React.
-
-          `WorkspaceSplit` GIỮ NGUYÊN và vẫn bọc ngoài: nó trả lời một câu khác
-          hẳn — chia trái/phải bao nhiêu, và gập thế nào dưới 768px. Thay nó
-          bằng panel sẽ làm mất nhánh hẹp, tức mất đúng nửa "≤768px hạ cấp có
-          chủ ý" mà `TerminalPane`/`NarrowScreenNotice` đã trả giá để có.
-
-          Khoá localStorage vẫn tách theo bố cục: dùng chung một khoá thì tỉ lệ
-          "nội dung vs terminal" của bài thường bị áp lên "nội dung vs
-          (editor+terminal)" của bài IDE, và người học mở bài IDE đầu tiên thấy
-          một khoang phải bị bóp một nửa.
-        */}
         <WorkspaceSplit
           storageKey={showIde ? 'dlp-lesson-split-ide' : 'dlp-lesson-split'}
-          {...(showIde ? { defaultRatio: 0.32 } : {})}
-          content={contentPane}
+          {...(showIde ? { defaultRatio: 0.34 } : {})}
+          content={instructions}
           side={
             <WorkspacePanel
-              /*
-                Bài không khai `layout: ide` ⇒ KHÔNG truyền `editor` (spread có
-                điều kiện, không phải `editor={undefined}`: `exactOptional-
-                PropertyTypes` đang bật nên truyền tường minh `undefined` cho một
-                prop `?:` là lỗi kiểu). Vắng prop = panel không vẽ tab Editor —
-                và khi đó panel bỏ luôn thanh tablist một mục (§Y4).
-              */
-              {...(showIde ? { editor: <IdePane sessionId={sessionId} /> } : {})}
-              /*
-                ⛔ MỘT node terminal, truyền THẲNG. `terminals` (Map) của bản
-                trước đã biến mất cùng terminal thứ hai, kéo theo nút '+', nút
-                '×' và nút tách đôi. Một phiên terminal thì không còn tab nào để
-                đóng và không còn gì để tách: hai tab ở đây là hai KHUNG NHÌN
-                lên cùng một terminal, không phải hai terminal.
-
-                Lý do cũ chép ở đây là "tab Editor ĐÃ LÀ bố cục hai khoang,
-                editor trên và terminal neo đáy ~40%". Bố cục đó đã bị gỡ ở SỬA
-                ĐỔI 3 (2026-09-13); kết luận thì không đổi.
-              */
+              {...(showIde ? { editor: <IdePane sessionId={sessionId} phase={phase} /> } : {})}
               terminal={terminalPane}
               activeTab={tabs.activeTab}
               onActivate={tabs.onActivate}
-              popOutUrl={tabs.popOutUrl}
-              /*
-                MỘT khoá gốc, không phải hai. `workspace-tabs.ts` của Lane E tự
-                nối hậu tố `:ide` / `:plain` (`workspaceStorageKey`) — truyền
-                sẵn hai khoá ở đây là để hậu tố đó nối lên một khoá đã phân
-                nhánh, tức bốn khoá cho hai bố cục.
-              */
+              onPopOut={sessionId === null ? null : onPopOut}
+              status={<SessionStatusPill phase={phase} />}
               storageKey="dlp-lesson-workspace"
             />
           }
-          /* Khi hẹp: bỏ hẳn khoang editor VÀ thanh tab, chỉ còn nội dung +
-             terminal. Theia trong một khung 768px không thao tác được, và nạp
-             nguội nó ~20s để rồi không dùng nổi là tệ hơn việc không mở. */
-          narrowSide={terminalPane}
         />
       </div>
     </div>
   );
 }
 
-
-function Centered({
-  children,
-  tone,
-}: {
-  children: React.ReactNode;
-  tone?: 'error';
-}): React.ReactElement {
-  // `flex-1 min-h-0` chứ không `min-h-screen`: căn giữa theo phần vỏ chừa lại,
-  // không theo cả màn hình (xem chú thích ở gốc trang).
+function Centered({ children, tone }: { children: React.ReactNode; tone?: 'error' }): ReactElement {
   return (
-    <div className="flex min-h-0 flex-1 items-center justify-center px-6">
-      <p className={tone === 'error' ? 'text-sm text-destructive' : 'text-sm text-muted-foreground'}>
-        {children}
-      </p>
+    <div className="flex h-dvh items-center justify-center bg-background px-6">
+      <p className={tone === 'error' ? 'text-sm text-destructive' : 'text-sm text-muted-foreground'}>{children}</p>
     </div>
   );
 }

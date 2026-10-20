@@ -103,11 +103,6 @@ export function describeSessionExpiry(expiresAt: string | null, now: number): st
   return t('me.expiry.overdue');
 }
 
-/** Id rút gọn cho tiêu đề hộp thoại. Danh sách vẫn hiện id ĐẦY ĐỦ. */
-export function shortSessionId(id: string): string {
-  return id.length <= 12 ? id : `${id.slice(0, 12)}…`;
-}
-
 /**
  * Lỗi khi kết thúc phiên hỏng: nói chuyện gì xảy ra VÀ làm gì tiếp.
  *

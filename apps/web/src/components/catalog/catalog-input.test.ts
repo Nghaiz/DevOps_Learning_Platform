@@ -121,3 +121,27 @@ describe('hasActiveFilter', () => {
     expect(hasActiveFilter({ difficulty: 'all', tier: 'kata' })).toBe(true);
   });
 });
+
+describe('bộ lọc chủ đề', () => {
+  const TOPIC_FILTERABLE = ['lessons.list', 'labs.list', 'playgrounds.list'] as const;
+
+  it.each(TOPIC_FILTERABLE)('%s nhận `topic` do client dựng', (path) => {
+    const input = buildCatalogListInput({ difficulty: 'all', tier: 'all', topic: 'docker' }, undefined);
+    expect(input).toEqual({ topic: 'docker' });
+    expect(inputSchemaOf(path).safeParse(input).success).toBe(true);
+  });
+
+  it.each(TOPIC_FILTERABLE)('%s: sentinel "all" của chủ đề KHÔNG đi lên server', (path) => {
+    expect(buildCatalogListInput({ difficulty: 'all', tier: 'all', topic: 'all' }, undefined)).toEqual({});
+    expect(inputSchemaOf(path).safeParse({ topic: 'all' }).success).toBe(false);
+  });
+
+  it.each(CURSOR_ONLY)('%s từ chối `topic`, nên trang đó không được hiện chip chủ đề', (path) => {
+    expect(inputSchemaOf(path).safeParse({ topic: 'docker' }).success).toBe(false);
+  });
+
+  it('chọn chủ đề tính là bộ lọc đang bật', () => {
+    expect(hasActiveFilter({ difficulty: 'all', tier: 'all', topic: 'git' })).toBe(true);
+    expect(hasActiveFilter({ difficulty: 'all', tier: 'all', topic: 'all' })).toBe(false);
+  });
+});

@@ -32,6 +32,7 @@
 
 import type { ReactElement } from 'react';
 import { SECONDS_PER_TICK } from '@devops-platform/games';
+import { t } from '@devops-platform/copy';
 import type {
   AttemptRecord,
   BlockedBy,
@@ -58,11 +59,11 @@ function ticks(count: number): string {
 function describeBlockedBy(blocked: BlockedBy): string {
   switch (blocked.kind) {
     case 'none':
-      return 'Chạy ngay khi sẵn sàng — không chờ gì.';
+      return t('games.cicd.inspector.blocked-none');
     case 'dependency':
-      return `Chờ "${blocked.instance}" xong (đây là phụ thuộc xong muộn nhất).`;
+      return t('games.cicd.inspector.blocked-dep', { instance: blocked.instance });
     case 'runner':
-      return `Chờ máy hạng "${blocked.runnerClass}" — "${blocked.instance}" đang giữ chỗ.`;
+      return t('games.cicd.inspector.blocked-runner', { runner: blocked.runnerClass, instance: blocked.instance });
   }
 }
 
@@ -75,15 +76,15 @@ function describeBlockedBy(blocked: BlockedBy): string {
 function describeCause(cause: FailureCause): string {
   switch (cause.kind) {
     case 'flake':
-      return `Đỏ giả (${cause.nature}) — chạy lại có thể xanh, nhưng mỗi lần chạy lại vẫn đốt runner-phút.`;
+      return t('games.cicd.inspector.cause-flake', { nature: cause.nature });
     case 'missing-output':
-      return `Bước "${cause.step}" cần sản phẩm "${cause.output}" mà job này không phụ thuộc (kể cả bắc cầu) vào nơi tạo ra nó.`;
+      return t('games.cicd.inspector.cause-missing-output', { step: cause.step, output: cause.output });
     case 'stale-cache':
-      return `Trúng khoá cache "${cause.cache}" nhưng nội dung đã ôi — bước "${cause.step}" chạy trên bản cũ. Khoá đang quá hẹp, không phải quá rộng.`;
+      return t('games.cicd.inspector.cause-stale-cache', { cache: cause.cache, step: cause.step });
     case 'upstream-failed':
-      return `Job phía trên "${cause.stage}" đỏ và nó chặn, nên job này không chạy.`;
+      return t('games.cicd.inspector.cause-upstream', { stage: cause.stage });
     case 'approval-rejected':
-      return 'Cổng phê duyệt bị từ chối. Chạy lại không cứu được.';
+      return t('games.cicd.inspector.cause-approval');
   }
 }
 
@@ -94,10 +95,7 @@ function lastAttempt(record: StageInstanceRecord): AttemptRecord | null {
 export function CicdInspector({ node, run, selectedId }: CicdInspectorProps): ReactElement {
   if (node === null || selectedId === null) {
     return (
-      <p className="text-xs text-muted-foreground">
-        Chưa chọn job nào. Bấm một node trên sân, hoặc chọn một chấm trên bản đồ thu nhỏ — bản đồ
-        đi được bằng phím Tab.
-      </p>
+      <p className="text-xs text-muted-foreground">{t('games.cicd.inspector.empty')}</p>
     );
   }
 
@@ -118,43 +116,41 @@ export function CicdInspector({ node, run, selectedId }: CicdInspectorProps): Re
          * Chưa chạy lượt nào, hoặc thực thể này không có trong lượt đang xem.
          * ⛔ Không vẽ các ô số rỗng: một bảng đầy dấu gạch trông như bảng hỏng.
          */
-        <p className="text-muted-foreground">
-          Chưa có số liệu cho job này. Bấm “Chạy thử” để engine mô phỏng một lượt.
-        </p>
+        <p className="text-muted-foreground">{t('games.cicd.inspector.no-data')}</p>
       ) : (
         <>
           <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
-            <dt className="text-muted-foreground">Thời lượng</dt>
+            <dt className="text-muted-foreground">{t('games.cicd.inspector.duration')}</dt>
             <dd className="text-foreground">
               {ticks(record.finishedTick - record.startedTick)}
             </dd>
 
-            <dt className="text-muted-foreground">Chờ máy</dt>
+            <dt className="text-muted-foreground">{t('games.cicd.inspector.wait')}</dt>
             <dd className="text-foreground">{ticks(record.startedTick - record.readyTick)}</dd>
 
-            <dt className="text-muted-foreground">Runner-phút</dt>
+            <dt className="text-muted-foreground">{t('games.cicd.inspector.runner')}</dt>
             <dd className="text-foreground">
               {((record.runnerTicks * SECONDS_PER_TICK) / 60).toFixed(1)}
             </dd>
 
-            <dt className="text-muted-foreground">Số lần thử</dt>
+            <dt className="text-muted-foreground">{t('games.cicd.inspector.attempts')}</dt>
             <dd className="text-foreground">
               {record.attempts.length}
-              {record.attempts.length > 1 ? ' (có thử lại)' : ''}
+              {record.attempts.length > 1 ? ` ${t('games.cicd.inspector.retried')}` : ''}
             </dd>
 
-            <dt className="text-muted-foreground">Cache</dt>
+            <dt className="text-muted-foreground">{t('games.cicd.inspector.cache')}</dt>
             <dd className="text-foreground">
               {node.cacheHit === null
-                ? 'job này không khai cache'
+                ? t('games.cicd.inspector.cache-none')
                 : node.cacheHit
-                  ? 'trúng ở mọi bước có khai'
-                  : 'trượt ở ít nhất một bước'}
+                  ? t('games.cicd.inspector.cache-hit')
+                  : t('games.cicd.inspector.cache-miss')}
             </dd>
 
             {node.environment === null ? null : (
               <>
-                <dt className="text-muted-foreground">Môi trường</dt>
+                <dt className="text-muted-foreground">{t('games.cicd.inspector.env')}</dt>
                 <dd className="text-foreground">{node.environment}</dd>
               </>
             )}
@@ -163,10 +159,12 @@ export function CicdInspector({ node, run, selectedId }: CicdInspectorProps): Re
           <p className="text-muted-foreground">{describeBlockedBy(record.blockedBy)}</p>
 
           {attempt === null || attempt.cause === null ? null : (
-            <p className="rounded-md border border-destructive/40 bg-destructive/5 px-2 py-1 text-destructive">
+            <p className="border border-destructive/40 bg-destructive/5 px-2 py-1 text-destructive">
               {describeCause(attempt.cause)}
               {attempt.failedStep === null ? null : (
-                <span className="text-muted-foreground"> Bước gãy: {attempt.failedStep}.</span>
+                <span className="text-muted-foreground">
+                  {` ${t('games.cicd.inspector.failed-step', { step: attempt.failedStep })}`}
+                </span>
               )}
             </p>
           )}
@@ -174,7 +172,7 @@ export function CicdInspector({ node, run, selectedId }: CicdInspectorProps): Re
           {attempt === null || attempt.steps.length === 0 ? null : (
             <div>
               <h3 className="mb-1 font-semibold tracking-wide text-muted-foreground uppercase">
-                Các bước đã chạy ({attempt.steps.length})
+                {t('games.cicd.inspector.steps', { n: attempt.steps.length })}
               </h3>
               <ul className="flex flex-col gap-0.5">
                 {attempt.steps.map((step) => (
@@ -182,7 +180,9 @@ export function CicdInspector({ node, run, selectedId }: CicdInspectorProps): Re
                     <span className="truncate font-mono text-foreground">{step.id}</span>
                     <span className="shrink-0 text-muted-foreground">
                       {ticks(step.durationTicks)}
-                      {step.cacheHit === null ? '' : step.cacheHit ? ' · cache trúng' : ' · cache trượt'}
+                      {step.cacheHit === null
+                        ? ''
+                        : ` · ${step.cacheHit ? t('games.cicd.inspector.step-hit') : t('games.cicd.inspector.step-miss')}`}
                     </span>
                   </li>
                 ))}

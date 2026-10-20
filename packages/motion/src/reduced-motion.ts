@@ -10,7 +10,7 @@
  * | `prefersReducedMotion()` | đọc một lần, ngoài React (script, khởi tạo cảnh) |
  * | `subscribeReducedMotion(fn)` | theo dõi thay đổi, ngoài React |
  * | `useReducedMotion()` | trong component React |
- * | `startGatedFrameLoop({onFrame})` | **mọi** vòng `requestAnimationFrame` |
+ * | `startGatedFrameLoop({onFrame})` | vòng `requestAnimationFrame` tự viết (GSAP/Lenis tự gác bằng `gsap.matchMedia`/chế độ của landing) |
  *
  * ⛔ Cung tiến độ KHÔNG dùng gì ở đây. Nó chạy bằng CSS transition (§8.4) nên
  * khối `@media` phổ quát trong `globals.css` đã phủ sẵn — thêm một cổng JS vào

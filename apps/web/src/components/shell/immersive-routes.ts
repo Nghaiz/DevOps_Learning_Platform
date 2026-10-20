@@ -15,15 +15,16 @@
  *
  * ## Hai luật so khớp, và vì sao KHÔNG gộp được thành một
  *
- * `/games/k8s` là một trang CỤ THỂ: chính nó immersive, và mọi trang con của nó
- * cũng vậy. `/labs` và `/lessons` thì ngược hẳn — trang danh mục ở đúng tiền tố
- * đó là một trang đọc bình thường, PHẢI giữ thanh điều hướng; chỉ trang con
- * `/labs/<id>` mới immersive.
+ * Bản dựng lại PTIT (2026-10-03): `/session/...` (cửa sổ terminal riêng) là
+ * trang CỤ THỂ, chính nó và mọi trang con đều immersive. `/labs`, `/lessons`,
+ * `/playgrounds`, `/games/cicd` thì ngược lại: trang danh mục giữ header, chỉ
+ * trang con mới immersive. `/games/k8s` KHÔNG còn immersive: trang chọn màn mới
+ * có header, còn lúc chơi thì màn game tự phủ kín viewport.
  *
- * Gộp hai luật lại bằng một danh sách duy nhất là mất một trong hai vế:
+ * Gộp hai luật thành một danh sách là mất một vế:
  *
- * | Nếu thêm `/labs` vào danh sách khớp-chính-nó | `/labs` mất thanh điều hướng |
- * | Nếu chuyển `/games/k8s` sang danh sách chỉ-khớp-con | `/games/k8s` mất immersive |
+ * | Nếu thêm `/labs` vào danh sách khớp-chính-nó | `/labs` mất header |
+ * | Nếu chuyển `/session` sang danh sách chỉ-khớp-con | không ảnh hưởng ngay, nhưng một trang `/session` trần sẽ có header |
  *
  * Cả hai đều hỏng IM LẶNG: trang vẫn render, vẫn không lỗi, chỉ là vỏ sai. Nên
  * hai danh sách, mỗi cái một luật, và mỗi cái có ô test riêng.
@@ -36,7 +37,7 @@
  * khớp một route tương lai tên `/games/k8s-nang-cao`, và trang đó sẽ mất thanh
  * điều hướng mà không ai hiểu vì sao.
  */
-const IMMERSIVE_PREFIXES: readonly string[] = ['/games/k8s'];
+const IMMERSIVE_PREFIXES: readonly string[] = ['/session'];
 
 /**
  * Route immersive CHỈ Ở TRANG CON. Chính tiền tố thì KHÔNG.
@@ -69,7 +70,12 @@ const IMMERSIVE_PREFIXES: readonly string[] = ['/games/k8s'];
  * `?level=`, và một tham số truy vấn thì luật nào ở file này cũng không thấy:
  * `isImmersiveRoute` chỉ nhận `pathname`.
  */
-const IMMERSIVE_CHILD_PREFIXES: readonly string[] = ['/labs', '/lessons', '/games/cicd'];
+const IMMERSIVE_CHILD_PREFIXES: readonly string[] = [
+  '/labs',
+  '/lessons',
+  '/playgrounds',
+  '/games/cicd',
+];
 
 /** Bỏ dấu `/` ở cuối, trừ khi đường dẫn CHÍNH LÀ `/`. */
 function normalize(pathname: string): string {

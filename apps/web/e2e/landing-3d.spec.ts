@@ -1,608 +1,428 @@
+/**
+ * Nghiệm thu 3D của landing — CHỈ chạy trên máy có GPU thật:
+ *   pnpm --filter @devops-platform/web e2e:landing3d   (e2e/landing.config.ts, full Chromium,
+ *   `--use-angle=d3d11` trên win32). CI không chạy suite này: runner không có GPU, và một ngân
+ *   sách khung hình đo trên SwiftShader là đo CPU của runner chứ không đo trang.
+ *
+ * ⚠ VIẾT LẠI 2026-10-03 cho landing 3D mới (canvas cố định + sáu ga ghim + terminal ghim).
+ *
+ * Năm nhóm ô, mỗi ô tự mở trang mới:
+ *   1. renderer là phần cứng, `data-calls` > 0, LCP < 2,5 s và phần tử LCP không phải canvas;
+ *   2. cuộn theo kịch bản hết trang, lấy khoảng giữa các rAF: p95 ≤ 20 ms, max ≤ 60 ms. Số đo
+ *      luôn được ghi ra (annotation + JSON đính kèm) kể cả khi ô đỏ;
+ *   3. bốn đường rơi về hình tĩnh: giảm chuyển động, WebGL2 trả null, mất context sau khi đã
+ *      vẽ, chunk cảnh tải lỗi — nội dung trang phải còn nguyên ở cả bốn;
+ *   4. axe: không vi phạm serious/critical ở đầu và ở cuối trang.
+ */
+
 import AxeBuilder from '@axe-core/playwright';
 import { writeFileSync } from 'node:fs';
-import { expect, test, type Page, type TestInfo } from '@playwright/test';
+import { t } from '@devops-platform/copy';
+import { expect, test, type Locator, type Page, type TestInfo } from '@playwright/test';
 import { openScreen } from './fixtures/nav';
-import { E2E_BASE_URL } from './env';
-
-type Audit = {
-  csp: { directive: string; blockedURI: string }[];
-  draws: number[];
-  lcp: { time: number; tag: string }[];
-  longTasks: number[];
-  rafStamp: number;
-  blockedContexts: number;
-};
-
-declare global {
-  interface Window {
-    __journeyAudit?: Audit;
-  }
-}
 
 test.use({ storageState: { cookies: [], origins: [] } });
 
-test.afterEach(async ({ page }, info) => {
-  if (page.isClosed()) return;
-  const audit = await page.evaluate(() => window.__journeyAudit);
-  if (audit) await attach(info, 'landing-browser-audit.json', audit);
-});
+const SECTION_TEST_IDS = [
+  'landing-hero',
+  'landing-journey',
+  'landing-terminal',
+  'landing-modes',
+  'landing-paths',
+  'landing-games',
+  'landing-closing',
+] as const;
 
-async function observe(page: Page): Promise<string[]> {
+const SOFTWARE_RENDERER = /swiftshader|llvmpipe|softpipe|software|basic render/i;
+
+/** Ngân sách đã chốt ở plan (AC 7) và trong brief của lane e2e. */
+const FRAME_P95_BUDGET_MS = 20;
+const FRAME_MAX_BUDGET_MS = 60;
+const LCP_BUDGET_MS = 2500;
+/** Tốc độ cuộn kịch bản: 2 400 px/s, cỡ một lượt lăn bánh xe nhanh. Tính theo THỜI GIAN chứ
+ *  không theo số khung, để màn 144 Hz và 60 Hz cuộn cùng một quãng mỗi giây. */
+const SCROLL_PX_PER_MS = 2.4;
+
+const STAGE_SETTLE_MS = 25_000;
+
+type LcpEntry = { time: number; tag: string; detail: string };
+
+declare global {
+  interface Window {
+    __landingLcp?: LcpEntry[];
+    __webglRequests?: number;
+  }
+}
+
+function watchErrors(page: Page): string[] {
   const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
+  page.on('pageerror', (error) => errors.push(`pageerror: ${error.message}`));
   page.on('console', (message) => {
-    if (message.type() === 'error') errors.push(message.text());
-  });
-  await page.addInitScript(() => {
-    const audit: Audit = {
-      csp: [],
-      draws: [],
-      lcp: [],
-      longTasks: [],
-      rafStamp: 0,
-      blockedContexts: 0,
-    };
-    window.__journeyAudit = audit;
-    document.addEventListener('securitypolicyviolation', (event) => {
-      audit.csp.push({ directive: event.effectiveDirective, blockedURI: event.blockedURI });
-    });
-    const originalRaf = window.requestAnimationFrame.bind(window);
-    window.requestAnimationFrame = (callback) =>
-      originalRaf((stamp) => {
-        audit.rafStamp = stamp;
-        callback(stamp);
-      });
-    for (const prototype of [WebGLRenderingContext.prototype, WebGL2RenderingContext.prototype]) {
-      for (const method of [
-        'drawArrays',
-        'drawElements',
-        'drawArraysInstanced',
-        'drawElementsInstanced',
-      ]) {
-        const original = Reflect.get(prototype, method) as unknown;
-        if (typeof original !== 'function') continue;
-        Object.defineProperty(prototype, method, {
-          configurable: true,
-          writable: true,
-          value: function (this: WebGLRenderingContext, ...args: unknown[]) {
-            if (audit.draws.at(-1) !== audit.rafStamp) audit.draws.push(audit.rafStamp);
-            return Reflect.apply(original, this, args);
-          },
-        });
-      }
-    }
-    if (PerformanceObserver.supportedEntryTypes.includes('largest-contentful-paint')) {
-      new PerformanceObserver((list) => {
-        for (const entry of list.getEntries()) {
-          const candidate = entry as PerformanceEntry & { element?: Element };
-          audit.lcp.push({ time: entry.startTime, tag: candidate.element?.tagName ?? '' });
-        }
-      }).observe({ type: 'largest-contentful-paint', buffered: true });
-    }
-    if (PerformanceObserver.supportedEntryTypes.includes('longtask')) {
-      new PerformanceObserver((list) => {
-        audit.longTasks.push(...list.getEntries().map((entry) => entry.duration));
-      }).observe({ type: 'longtask', buffered: true });
-    }
+    if (message.type() === 'error') errors.push(`console.error: ${message.text()}`);
   });
   return errors;
 }
 
-async function capture(page: Page, info: TestInfo, name: string): Promise<void> {
-  // Capture the real WebGL canvas after the damped camera has settled.
-  await page.waitForTimeout(650);
-  await page.screenshot({ path: info.outputPath(`${name}.png`) });
+/** Đếm mọi lời xin context WebGL (kể cả lượt dò `webglAvailable`) — "0 context" phải đo được. */
+async function countWebglRequests(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    window.__webglRequests = 0;
+    const original = HTMLCanvasElement.prototype.getContext;
+    Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
+      configurable: true,
+      writable: true,
+      value: function (this: HTMLCanvasElement, kind: string, ...rest: unknown[]) {
+        if (/webgl/i.test(kind)) window.__webglRequests = (window.__webglRequests ?? 0) + 1;
+        return Reflect.apply(original, this, [kind, ...rest]) as unknown;
+      },
+    });
+  });
 }
 
-async function attach(info: TestInfo, name: string, data: unknown): Promise<void> {
+async function attachJson(info: TestInfo, name: string, data: unknown): Promise<void> {
   const path = info.outputPath(name);
   writeFileSync(path, `${JSON.stringify(data, null, 2)}\n`);
   await info.attach(name, { contentType: 'application/json', path });
 }
 
-async function assertHealthy(page: Page, info: TestInfo, errors: string[]): Promise<void> {
-  const result = await new AxeBuilder({ page }).analyze();
-  await attach(info, 'landing-accessibility.json', {
-    passes: result.passes.length,
-    violations: result.violations,
-    incomplete: result.incomplete.map((entry) => entry.id),
-  });
-  expect(result.passes.length).toBeGreaterThan(0);
-  expect(result.violations).toEqual([]);
-  const csp = await page.evaluate(() => window.__journeyAudit?.csp);
-  expect(csp).toEqual([]);
-  expect(errors).toEqual([]);
-  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
-    page.viewportSize()?.width ?? 0,
+async function settleStage(page: Page): Promise<string> {
+  const stage = page.getByTestId('landing-stage');
+  await expect
+    .poll(() => stage.getAttribute('data-scene-state'), { timeout: STAGE_SETTLE_MS })
+    .toMatch(/^(?:ready|fallback)$/);
+  return (await stage.getAttribute('data-scene-state')) ?? '';
+}
+
+/** Rơi về hình tĩnh nghĩa là: không canvas, hình tĩnh hiện, và mọi nội dung DOM còn nguyên. */
+async function expectReadableFallback(page: Page): Promise<void> {
+  const stage = page.getByTestId('landing-stage');
+  await expect(stage).toHaveAttribute('data-scene-state', 'fallback', { timeout: STAGE_SETTLE_MS });
+  await expect(stage.locator('canvas')).toHaveCount(0);
+  await expect(stage.getByRole('img', { name: t('home.scene.fallback') })).toHaveAttribute(
+    'data-visible',
+    'true',
   );
+  await expectContentIntact(page);
 }
 
-for (const width of [1440, 390]) {
-  for (const theme of ['light', 'dark'] as const) {
-    test(`landing 3D — ${width}px ${theme}, four scroll chapters and incident recovery`, async ({
-      page,
-    }, info) => {
-      const errors = await observe(page);
-      await page.setViewportSize({ width, height: width === 390 ? 844 : 1000 });
-      await page.emulateMedia({ colorScheme: theme, reducedMotion: 'no-preference' });
-      await page.addInitScript((value) => localStorage.setItem('dlp.theme', value), theme);
-      await openScreen(page, '/', 'anon');
-      const journey = page.getByTestId('landing-journey');
-      await expect(journey).toHaveAttribute('data-scene-state', 'ready');
-      await capture(page, info, `home-${width}-${theme}-hero`);
-      const drawCounts: number[] = [];
-      for (let stage = 0; stage < 4; stage += 1) {
-        await page.getByTestId(`journey-stage-button-${stage}`).click();
-        await expect(journey).toHaveAttribute('data-stage', String(stage));
-        await capture(page, info, `home-${width}-${theme}-stage-${stage}`);
-        drawCounts.push(await page.evaluate(() => window.__journeyAudit?.draws.length ?? 0));
-      }
-      expect(drawCounts[0]).toBeGreaterThan(0);
-      for (let stage = 1; stage < 4; stage += 1) {
-        expect(drawCounts[stage]).toBeGreaterThan(drawCounts[stage - 1] ?? 0);
-      }
-      await page.getByTestId('journey-fault').click();
-      await expect(journey).toHaveAttribute('data-event', 'fault');
-      await capture(page, info, `home-${width}-${theme}-fault`);
-      await assertHealthy(page, info, errors);
-      await page.getByTestId('journey-recover').click();
-      await expect(journey).toHaveAttribute('data-event', 'recovered');
-      await capture(page, info, `home-${width}-${theme}-recovered`);
-      await page.getByTestId('journey-stage-button-0').click();
-      await expect(journey).toHaveAttribute('data-stage', '0');
-      await attach(info, 'landing-render-progress.json', { width, theme, drawCounts });
-      expect(errors).toEqual([]);
-    });
-  }
+async function expectContentIntact(page: Page): Promise<void> {
+  await expect(
+    page.getByTestId('landing-hero').getByRole('heading', { level: 1 }),
+  ).toContainText(t('home.hero.title-a'));
+  await expect(page.getByTestId('landing-cta-primary')).toHaveAttribute('href', '/register');
+  for (const testId of SECTION_TEST_IDS) await expect(page.getByTestId(testId), testId).toHaveCount(1);
+  await expect(page.locator('[data-testid^="journey-station-"]')).toHaveCount(6);
 }
 
-test('landing 3D — native wheel, keyboard and reverse scrolling update the chapter', async ({
-  page,
-}, info) => {
-  await observe(page);
+function stageCanvas(page: Page): Locator {
+  return page.getByTestId('landing-stage').locator('canvas');
+}
+
+async function openFull(page: Page): Promise<void> {
+  await page.setViewportSize({ width: 1440, height: 1000 });
   await page.emulateMedia({ reducedMotion: 'no-preference' });
   await openScreen(page, '/', 'anon');
-  const journey = page.getByTestId('landing-journey');
-  await page.getByTestId('journey-stage-button-0').click();
-  await expect(journey).toHaveAttribute('data-scene-state', 'ready');
-  await expect(journey).toHaveAttribute('data-stage', '0');
-  const firstHeading = page.getByTestId('journey-chapter-0').getByRole('heading', { level: 1 });
-  const firstTop = (await firstHeading.boundingBox())?.y;
-  expect(firstTop).toBeDefined();
-  for (let chapter = 1; chapter < 4; chapter += 1) {
-    await expect(
-      page.getByTestId(`journey-chapter-${chapter}`).getByRole('heading', { level: 2 }),
-    ).toBeVisible();
-  }
-  const start = await page.evaluate(() => window.scrollY);
-  for (let step = 0; step < 12 && (await journey.getAttribute('data-stage')) === '0'; step += 1) {
-    await page.mouse.wheel(0, 240);
-    await page.waitForTimeout(100);
-  }
-  await expect(journey).not.toHaveAttribute('data-stage', '0');
-  const wheeled = await page.evaluate(() => window.scrollY);
-  expect(wheeled).toBeGreaterThan(start);
-  const movedTop = (await firstHeading.boundingBox())?.y;
-  expect(movedTop).toBeDefined();
-  expect(
-    (firstTop ?? 0) - (movedTop ?? 0),
-    'The first heading must travel with the document, not stay pinned',
-  ).toBeGreaterThan(200);
-  await page.keyboard.press('PageDown');
-  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(wheeled);
-  for (let step = 0; step < 16 && (await journey.getAttribute('data-stage')) !== '0'; step += 1) {
-    await page.mouse.wheel(0, -300);
-    await page.waitForTimeout(100);
-  }
-  await expect(journey).toHaveAttribute('data-stage', '0');
-  await attach(info, 'native-scroll.json', {
-    start,
-    wheeled,
-    firstHeadingTop: firstTop,
-    firstHeadingTopAfterWheel: movedTop,
-    reversed: await page.evaluate(() => window.scrollY),
-  });
-  await page.getByTestId('journey-stage-button-3').focus();
-  await page.keyboard.press('Enter');
-  await expect(journey).toHaveAttribute('data-stage', '3');
-  await expect
-    .poll(() =>
-      page
-        .getByTestId('journey-chapter-3')
-        .evaluate((element) => element.contains(document.activeElement)),
-    )
-    .toBe(true);
-  await page.keyboard.press('Tab');
-  await expect(page.getByTestId('journey-fault')).toBeFocused();
-});
+  await expect(page.getByTestId('landing-root')).toHaveAttribute('data-motion', 'full');
+}
 
-test('landing 3D — reduced motion keeps all chapters readable without WebGL work', async ({
+test('landing 3D — GPU renderer, draw calls, and a non-canvas LCP under 2.5 s', async ({
   page,
 }, info) => {
-  const errors = await observe(page);
-  await page.setViewportSize({ width: 390, height: 844 });
+  const errors = watchErrors(page);
+  await page.addInitScript(() => {
+    const entries: LcpEntry[] = [];
+    window.__landingLcp = entries;
+    new PerformanceObserver((list) => {
+      for (const entry of list.getEntries()) {
+        const element = (entry as PerformanceEntry & { element?: Element | null }).element ?? null;
+        entries.push({
+          time: entry.startTime,
+          tag: element?.tagName ?? '(detached)',
+          detail: element
+            ? `${element.className.toString().slice(0, 60)} | ${(element.textContent ?? '').trim().slice(0, 60)}`
+            : '',
+        });
+      }
+    }).observe({ type: 'largest-contentful-paint', buffered: true });
+  });
+  await openFull(page);
+  const state = await settleStage(page);
+  expect(state, 'phần cứng có GPU mà cảnh vẫn rơi về hình tĩnh').toBe('ready');
+
+  const canvas = stageCanvas(page);
+  const renderer = (await canvas.getAttribute('data-renderer')) ?? '';
+  info.annotations.push({ type: 'renderer', description: renderer });
+  expect(renderer, 'renderer rỗng: cảnh không báo được nó vẽ bằng gì').not.toBe('');
+  expect(renderer, 'suite này phải chạy trên đường đồ hoạ phần cứng').not.toMatch(SOFTWARE_RENDERER);
+
+  // `data-calls` chỉ được ghi mỗi 30 khung, nên chờ nó xuất hiện chứ không đọc ngay.
+  await expect
+    .poll(async () => Number((await canvas.getAttribute('data-calls')) ?? '0'))
+    .toBeGreaterThan(0);
+  const calls = Number(await canvas.getAttribute('data-calls'));
+
+  // LCP: đọc TRƯỚC mọi tương tác (tương tác chốt LCP lại). Đợi cảnh xong để mọi ứng viên đã vẽ.
+  const lcpEntries = await page.evaluate(() => window.__landingLcp ?? []);
+  const lcp = lcpEntries.at(-1);
+  await attachJson(info, 'landing-lcp.json', { renderer, calls, lcp, lcpEntries });
+  info.annotations.push({
+    type: 'lcp',
+    description: lcp ? `${lcp.time.toFixed(0)} ms <${lcp.tag}> ${lcp.detail}` : 'none',
+  });
+  expect(lcp, 'không có mục LCP nào: "không đo được" không phải là 0').toBeDefined();
+  expect(lcp?.time ?? Infinity).toBeLessThan(LCP_BUDGET_MS);
+  expect(lcp?.tag, 'phần tử LCP không được là canvas').not.toBe('CANVAS');
+  expect(errors).toEqual([]);
+});
+
+/**
+ * Một lượt cuộn kịch bản từ đỉnh tới đáy, chạy TRONG trang: mỗi rAF đặt `scrollTo` theo thời gian
+ * đã trôi và ghi khoảng cách tới rAF trước. Tự đủ (được tuần tự hoá sang trình duyệt), nên không
+ * được tham chiếu gì ngoài tham số.
+ */
+async function scrollPass(speed: number) {
+  const sections = Array.from(document.querySelectorAll('[data-testid^="landing-"]'))
+    .filter((element) => element.tagName === 'SECTION')
+    .map((element) => {
+      const parent = element.parentElement;
+      const anchor = parent?.classList.contains('pin-spacer') ? parent : element;
+      return {
+        id: element.getAttribute('data-testid') ?? '',
+        top: anchor.getBoundingClientRect().top + window.scrollY,
+      };
+    })
+    .sort((a, b) => a.top - b.top);
+  const sectionAt = (y: number): string => {
+    let found = 'top-bar';
+    for (const section of sections) if (y + 1 >= section.top) found = section.id;
+    return found;
+  };
+  const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+  window.scrollTo(0, 0);
+  await new Promise<void>((resolve) =>
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+  );
+
+  const frames: { ms: number; y: number }[] = [];
+  await new Promise<void>((resolve) => {
+    let origin = 0;
+    let previous = 0;
+    const tick = (stamp: number) => {
+      if (origin === 0) origin = stamp;
+      else frames.push({ ms: stamp - previous, y: Math.round(window.scrollY) });
+      previous = stamp;
+      const y = Math.min(maxScroll, (stamp - origin) * speed);
+      window.scrollTo(0, y);
+      if (y >= maxScroll) resolve();
+      else requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  });
+
+  const sorted = frames.map((frame) => frame.ms).sort((a, b) => a - b);
+  const rank = (p: number): number => sorted[Math.max(0, Math.ceil(p * sorted.length) - 1)] ?? NaN;
+  const worst = frames
+    .slice()
+    .sort((a, b) => b.ms - a.ms)
+    .slice(0, 12)
+    .map((frame) => ({ ...frame, ms: Number(frame.ms.toFixed(1)), section: sectionAt(frame.y) }));
+  const canvas = document.querySelector<HTMLCanvasElement>('[data-testid="landing-stage"] canvas');
+  return {
+    viewport: { width: window.innerWidth, height: window.innerHeight, dpr: window.devicePixelRatio },
+    canvasPixelRatio: canvas ? Number((canvas.width / canvas.clientWidth).toFixed(3)) : null,
+    scrollHeight: maxScroll + window.innerHeight,
+    reachedBottom: window.scrollY + window.innerHeight >= maxScroll + window.innerHeight - 2,
+    samples: sorted.length,
+    elapsedMs: Number(sorted.reduce((sum, value) => sum + value, 0).toFixed(0)),
+    p50Ms: Number(rank(0.5).toFixed(2)),
+    p95Ms: Number(rank(0.95).toFixed(2)),
+    p99Ms: Number(rank(0.99).toFixed(2)),
+    maxMs: Number((sorted.at(-1) ?? NaN).toFixed(2)),
+    over20ms: sorted.filter((value) => value > 20).length,
+    over33ms: sorted.filter((value) => value > 33).length,
+    worst,
+    scope: 'rAF intervals during window.scrollTo driven scroll; local Chromium, not field FPS/INP.',
+  };
+}
+
+test('landing 3D — scripted scroll through the whole page stays inside the frame budget', async ({
+  page,
+}, info) => {
+  test.setTimeout(120_000);
+  const errors = watchErrors(page);
+  await openFull(page);
+  expect(await settleStage(page)).toBe('ready');
+  const renderer = (await stageCanvas(page).getAttribute('data-renderer')) ?? '';
+  expect(renderer).not.toMatch(SOFTWARE_RENDERER);
+
+  /*
+    Lượt NGUỘI là lượt được gác: đó là lần cuộn đầu tiên của một người dùng thật, kể cả mọi
+    chi phí chỉ trả một lần (biên dịch shader khi một model lần đầu vào khung nhìn, tạo texture).
+    Lượt ẤM ngay sau đó trên cùng trang chỉ được GHI LẠI, không gác: nó tách "giật vì lần đầu"
+    khỏi "giật ở mọi lượt" khi ô đỏ, để người sửa biết nên nhìn vào đâu.
+  */
+  const cold = await page.evaluate(scrollPass, SCROLL_PX_PER_MS);
+  const warm = await page.evaluate(scrollPass, SCROLL_PX_PER_MS);
+
+  const line = (pass: typeof cold) =>
+    `p50 ${pass.p50Ms} ms · p95 ${pass.p95Ms} ms · max ${pass.maxMs} ms · ${pass.samples} khung`;
+  const summary = `nguội: ${line(cold)} | ấm: ${line(warm)} | ${renderer}`;
+  info.annotations.push({ type: 'frames', description: summary });
+  // Ra thẳng stdout để reporter `list` in số đo kể cả khi ô xanh (annotation không hiện ở đó).
+  process.stdout.write(`[landing-3d] frames: ${summary}
+`);
+  await attachJson(info, 'landing-frame-sample.json', { renderer, cold, warm });
+
+  expect(cold.samples, 'quá ít khung để có p95 nghĩa lý').toBeGreaterThan(100);
+  // Cuộn tới đáy thật: một vòng rAF dừng sớm sẽ cho số đẹp trên nửa trang đầu.
+  expect(cold.reachedBottom, 'lượt cuộn không chạm đáy trang').toBe(true);
+  expect.soft(cold.p95Ms, `p95 khoảng khung (${summary})`).toBeLessThanOrEqual(FRAME_P95_BUDGET_MS);
+  expect.soft(cold.maxMs, `khung dài nhất (${summary})`).toBeLessThanOrEqual(FRAME_MAX_BUDGET_MS);
+  expect(errors).toEqual([]);
+});
+
+test('landing 3D — reduced motion creates no WebGL context and no canvas', async ({ page }) => {
+  const errors = watchErrors(page);
+  await countWebglRequests(page);
+  await page.setViewportSize({ width: 1440, height: 1000 });
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await openScreen(page, '/', 'anon');
-  const journey = page.getByTestId('landing-journey');
-  await journey.scrollIntoViewIfNeeded();
-  await expect(journey).toHaveAttribute('data-scene-state', 'fallback');
-  for (let stage = 0; stage < 4; stage += 1) {
-    await page.getByTestId(`journey-stage-button-${stage}`).click();
-    await expect(journey).toHaveAttribute('data-stage', String(stage));
-  }
-  await capture(page, info, 'home-390-reduced-motion');
-  expect(await page.evaluate(() => window.__journeyAudit?.draws.length)).toBe(0);
-  await assertHealthy(page, info, errors);
+  await expect(page.getByTestId('landing-root')).toHaveAttribute('data-motion', 'reduced');
+  await expectReadableFallback(page);
+  await expect(page.locator('canvas')).toHaveCount(0);
+  expect(await page.evaluate(() => window.__webglRequests)).toBe(0);
+  await expect(page.getByTestId('landing-terminal')).toHaveAttribute('data-step', '3');
+  expect(errors).toEqual([]);
 });
 
-test('landing 3D — unavailable WebGL preserves controls and fallback information', async ({
-  page,
-}, info) => {
-  await observe(page);
-  await page.emulateMedia({ reducedMotion: 'no-preference' });
+test('landing 3D — WebGL2 unavailable falls back to the static map', async ({ page }) => {
   await page.addInitScript(() => {
+    window.__webglRequests = 0;
     const original = HTMLCanvasElement.prototype.getContext;
     Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
       configurable: true,
-      value: function (this: HTMLCanvasElement, kind: string, ...args: unknown[]) {
-        if (/webgl|experimental-webgl/.test(kind)) {
-          if (window.__journeyAudit) window.__journeyAudit.blockedContexts += 1;
+      writable: true,
+      value: function (this: HTMLCanvasElement, kind: string, ...rest: unknown[]) {
+        if (kind === 'webgl2') {
+          window.__webglRequests = (window.__webglRequests ?? 0) + 1;
           return null;
         }
-        return Reflect.apply(original, this, [kind, ...args]);
+        return Reflect.apply(original, this, [kind, ...rest]) as unknown;
       },
     });
   });
-  await openScreen(page, '/', 'anon');
-  const journey = page.getByTestId('landing-journey');
-  await journey.scrollIntoViewIfNeeded();
-  await expect(journey).toHaveAttribute('data-scene-state', 'fallback');
-  expect(await page.evaluate(() => window.__journeyAudit?.blockedContexts)).toBeGreaterThan(0);
-  await page.getByTestId('journey-stage-button-3').click();
-  await expect(journey).toHaveAttribute('data-stage', '3');
-  await page.getByTestId('journey-fault').click();
-  await expect(journey).toHaveAttribute('data-event', 'fault');
-  await page.getByTestId('journey-recover').click();
-  await expect(journey).toHaveAttribute('data-event', 'recovered');
-  await capture(page, info, 'home-no-webgl');
-  expect(await page.evaluate(() => window.__journeyAudit?.draws.length)).toBe(0);
-  expect(await page.evaluate(() => window.__journeyAudit?.csp)).toEqual([]);
+  await openFull(page);
+  await expectReadableFallback(page);
+  // Đối chứng: bản vá phải thực sự bị gọi, nếu không "fallback" có thể đến từ lý do khác.
+  expect(await page.evaluate(() => window.__webglRequests)).toBeGreaterThan(0);
 });
 
-test('landing 3D — lost WebGL context recovers to readable fallback', async ({ page }, info) => {
-  await observe(page);
-  await page.emulateMedia({ reducedMotion: 'no-preference' });
-  await openScreen(page, '/', 'anon');
-  const journey = page.getByTestId('landing-journey');
-  await journey.scrollIntoViewIfNeeded();
-  await expect(journey).toHaveAttribute('data-scene-state', 'ready');
-  const induced = await journey.evaluate((element) => {
-    const canvas = element.querySelector('canvas');
-    const gl = canvas?.getContext('webgl2');
+test('landing 3D — losing the WebGL context after the first frame falls back', async ({ page }) => {
+  await openFull(page);
+  expect(await settleStage(page)).toBe('ready');
+  const induced = await stageCanvas(page).evaluate((canvas: HTMLCanvasElement) => {
+    // Trả về context SẴN CÓ của three (cùng kiểu webgl2), không tạo context mới.
+    const gl = canvas.getContext('webgl2');
     const extension = gl?.getExtension('WEBGL_lose_context');
     if (!extension) return false;
     extension.loseContext();
     return true;
   });
-  expect(induced, 'The browser must actually lose an existing WebGL context').toBe(true);
-  await expect(journey).toHaveAttribute('data-scene-state', 'fallback');
-  await page.getByTestId('journey-stage-button-2').click();
-  await expect(journey).toHaveAttribute('data-stage', '2');
-  await capture(page, info, 'home-context-lost');
+  expect(induced, 'trình duyệt phải thực sự làm mất một context đang sống').toBe(true);
+  await expectReadableFallback(page);
 });
 
-test('landing 3D — report real rendered frames and DOM LCP separately', async ({ page }, info) => {
-  await observe(page);
-  await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.emulateMedia({ reducedMotion: 'no-preference' });
-  await openScreen(page, '/', 'anon');
-  const lcp = await page.evaluate(() => window.__journeyAudit?.lcp.at(-1));
-  expect(lcp, 'Missing LCP is unknown, never zero').toBeDefined();
-  expect(lcp?.time).toBeGreaterThan(0);
-  expect(lcp?.time).toBeLessThan(2500);
-  const journey = page.getByTestId('landing-journey');
-  await page.getByTestId('journey-stage-button-0').click();
-  await expect(journey).toHaveAttribute('data-scene-state', 'ready');
-  const sample = await journey.evaluate(async (element) => {
-    const audit = window.__journeyAudit;
-    if (!audit) throw new Error('Collector not installed');
-    const gl = element.querySelector('canvas')?.getContext('webgl2');
-    if (!gl) throw new Error('Ready scene has no WebGL2 context');
-    const debug = gl.getExtension('WEBGL_debug_renderer_info');
-    const renderer = debug
-      ? String(gl.getParameter(debug.UNMASKED_RENDERER_WEBGL))
-      : String(gl.getParameter(gl.RENDERER));
-    audit.draws = [];
-    audit.longTasks = [];
-    const intervals: number[] = [];
-    const start = window.scrollY;
-    const distance = Math.max(
-      500,
-      element.getBoundingClientRect().height - window.innerHeight - 100,
-    );
-    let previous = 0;
-    await new Promise<void>((resolve) => {
-      let frame = 0;
-      const tick = (stamp: number) => {
-        if (previous) intervals.push(stamp - previous);
-        previous = stamp;
-        window.scrollTo({ top: start + (distance * frame) / 180, behavior: 'instant' });
-        frame += 1;
-        if (frame <= 180) requestAnimationFrame(tick);
-        else resolve();
-      };
-      requestAnimationFrame(tick);
-    });
-    const ordered = intervals.slice().sort((a, b) => a - b);
-    return {
-      renderer,
-      viewport: { width: innerWidth, height: innerHeight },
-      dpr: devicePixelRatio,
-      rafSamples: intervals.length,
-      renderedFrames: audit.draws.length,
-      rafMedianMs: ordered[Math.floor(ordered.length * 0.5)],
-      rafP95Ms: ordered[Math.floor(ordered.length * 0.95)],
-      targetP95Ms: 32,
-      targetMet: (ordered[Math.floor(ordered.length * 0.95)] ?? Infinity) <= 32,
-      rafMaximumMs: ordered.at(-1),
-      longTasksMs: audit.longTasks,
-      elapsedMs: intervals.reduce((sum, value) => sum + value, 0),
-      jsResources: performance
-        .getEntriesByType('resource')
-        .filter((entry) => new URL(entry.name).pathname.endsWith('.js'))
-        .map((entry) => {
-          const resource = entry as PerformanceResourceTiming;
-          return {
-            path: new URL(resource.name).pathname,
-            encodedBodyBytes: resource.encodedBodySize,
-            decodedBodyBytes: resource.decodedBodySize,
-            transferBytes: resource.transferSize,
-          };
-        }),
-      scope: 'Local Chromium RAF intervals and observed WebGL draw frames; not field FPS or INP.',
-    };
-  });
-  await attach(info, 'landing-frame-sample.json', { lcp, ...sample });
-  expect(sample.rafSamples).toBe(180);
-  expect(sample.renderedFrames).toBeGreaterThan(20);
-  expect(
-    sample.renderer,
-    'This acceptance target requires the actual hardware graphics path',
-  ).not.toMatch(/swiftshader|llvmpipe|software/i);
-  expect(
-    sample.rafP95Ms,
-    `p95 on ${sample.renderer} exceeds the agreed 32ms target`,
-  ).toBeLessThanOrEqual(32);
-});
-
-for (const viewport of [
-  { width: 320, height: 568 },
-  { width: 768, height: 600 },
-]) {
-  test(`landing 3D — ${viewport.width}x${viewport.height} keeps incident controls inside the viewport`, async ({
-    page,
-  }, info) => {
-    await page.setViewportSize(viewport);
-    await page.emulateMedia({ reducedMotion: 'no-preference' });
-    await openScreen(page, '/', 'anon');
-    const journey = page.getByTestId('landing-journey');
-    await page.getByTestId('journey-stage-button-3').click();
-    await expect(journey).toHaveAttribute('data-stage', '3');
-    await expect(journey).toHaveAttribute('data-scene-state', 'ready');
-    await page.waitForTimeout(700);
-    await page.getByTestId('journey-fault').scrollIntoViewIfNeeded();
-    for (const id of ['journey-fault', 'journey-recover']) {
-      const bounds = await page.getByTestId(id).boundingBox();
-      expect(bounds).not.toBeNull();
-      if (!bounds) throw new Error(`${id} has no rendered box`);
-      expect(bounds.x).toBeGreaterThanOrEqual(0);
-      expect(bounds.y).toBeGreaterThanOrEqual(0);
-      expect(bounds.x + bounds.width).toBeLessThanOrEqual(viewport.width);
-      expect(bounds.y + bounds.height).toBeLessThanOrEqual(viewport.height);
-    }
-    await page.getByTestId('journey-fault').click();
-    await expect(journey).toHaveAttribute('data-event', 'fault');
-    await page.getByTestId('journey-recover').click();
-    await expect(journey).toHaveAttribute('data-event', 'recovered');
-    await capture(page, info, `home-${viewport.width}x${viewport.height}-controls`);
-    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
-      viewport.width,
-    );
-  });
-}
-
-test('landing 3D — demand renderer sleeps when idle and wakes through lower page sections', async ({
-  page,
-}, info) => {
-  await observe(page);
-  await page.emulateMedia({ reducedMotion: 'no-preference' });
-  await openScreen(page, '/', 'anon');
-  const journey = page.getByTestId('landing-journey');
-  await page.getByTestId('journey-stage-button-1').click();
-  await expect(journey).toHaveAttribute('data-scene-state', 'ready');
-  await expect(journey).toHaveAttribute('data-stage', '1');
-  await page.mouse.move(0, 0);
-  // The damped camera is allowed to settle; then a quiet interval must do no GPU draws.
-  await page.waitForTimeout(2000);
-  const beforeIdle = await page.evaluate(() => window.__journeyAudit?.draws.length ?? 0);
-  await page.waitForTimeout(500);
-  const afterIdle = await page.evaluate(() => window.__journeyAudit?.draws.length ?? 0);
-  expect(beforeIdle).toBeGreaterThan(0);
-  expect(afterIdle).toBe(beforeIdle);
-  await page.getByTestId('landing-lab-preview').scrollIntoViewIfNeeded();
-  await page.waitForTimeout(400);
-  await expect
-    .poll(() => page.evaluate(() => window.__journeyAudit?.draws.length ?? 0))
-    .toBeGreaterThan(afterIdle);
-  await page.mouse.move(0, 0);
-  await page.waitForTimeout(2000);
-  const beforeLowerIdle = await page.evaluate(() => window.__journeyAudit?.draws.length ?? 0);
-  await page.waitForTimeout(500);
-  const afterLowerIdle = await page.evaluate(() => window.__journeyAudit?.draws.length ?? 0);
-  expect(afterLowerIdle).toBe(beforeLowerIdle);
-  await page.getByTestId('journey-stage-button-0').click();
-  await expect(journey).toHaveAttribute('data-stage', '0');
-  await expect
-    .poll(() => page.evaluate(() => window.__journeyAudit?.draws.length ?? 0))
-    .toBeGreaterThan(afterLowerIdle);
-  await attach(info, 'landing-sleep-wake.json', {
-    beforeIdle,
-    afterIdle,
-    beforeLowerIdle,
-    afterLowerIdle,
-  });
-});
-
-test('landing 3D — a failed lazy renderer chunk leaves chapter information usable', async ({
-  page,
-}, info) => {
-  await page.emulateMedia({ reducedMotion: 'no-preference' });
-  let blockedChunk = '';
-  await page.route('**/_next/static/chunks/*.js', async (route) => {
-    const response = await route.fetch();
-    const body = await response.text();
-    // Discover the actual emitted renderer chunk by its palette boundary, not a stale hash.
-    if (body.includes('--journey-') && body.includes('powerPreference')) {
-      blockedChunk = new URL(route.request().url()).pathname;
-      await route.abort('failed');
-      return;
-    }
-    await route.fulfill({ response, body });
-  });
-  await openScreen(page, '/', 'anon');
-  const journey = page.getByTestId('landing-journey');
-  await journey.scrollIntoViewIfNeeded();
-  await expect(journey).toHaveAttribute('data-scene-state', 'fallback');
-  expect(blockedChunk, 'An actual renderer JS request must have been blocked').not.toBe('');
-  await page.getByTestId('journey-stage-button-3').click();
-  await expect(journey).toHaveAttribute('data-stage', '3');
-  await page.getByTestId('journey-fault').click();
-  await expect(journey).toHaveAttribute('data-event', 'fault');
-  await page.getByTestId('journey-recover').click();
-  await expect(journey).toHaveAttribute('data-event', 'recovered');
-  await attach(info, 'landing-blocked-chunk.json', { blockedChunk });
-  await capture(page, info, 'home-renderer-chunk-failed');
-});
-
-test('landing 3D — the model follows lower sections and terminal scroll never runs a command', async ({
-  page,
-}, info) => {
-  const errors = await observe(page);
-  await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.emulateMedia({ reducedMotion: 'no-preference' });
-  await openScreen(page, '/', 'anon');
-  await expect(page.getByTestId('landing-journey')).toHaveAttribute('data-scene-state', 'ready');
-  const preview = page.getByTestId('landing-lab-preview');
-  const output = page.getByTestId('landing-demo-output');
-  const positions = [];
-  for (const kind of ['terminal', 'catalog', 'curriculum', 'practice', 'closing']) {
-    const section = page.getByTestId(`journey-section-${kind}`);
-    await section.scrollIntoViewIfNeeded();
-    await capture(page, info, `home-flow-${kind}`);
-    const position = await section.evaluate((element) => {
-      const anchor = element.querySelector('[data-journey-anchor]');
-      if (!anchor) throw new Error('The section has no measured scene destination');
-      const box = anchor.getBoundingClientRect();
-      return {
-        anchorX: (box.left + box.width / 2) / window.innerWidth,
-        anchorY: (box.top + box.height / 2) / window.innerHeight,
-        draws: window.__journeyAudit?.draws.length ?? 0,
-      };
-    });
-    positions.push({ kind, ...position });
-  }
-  expect(positions.every((sample) => sample.draws > 0)).toBe(true);
-  const anchorXs = positions.map((sample) => sample.anchorX);
-  expect(Math.max(...anchorXs) - Math.min(...anchorXs)).toBeGreaterThan(0.5);
-  await attach(info, 'landing-lower-sections.json', positions);
-  const stages = new Set<string>();
-  const progressValues = new Set<string>();
-  for (const fraction of [0, 0.35, 0.7, 1]) {
-    await preview.evaluate((element, part) => {
-      const box = element.getBoundingClientRect();
-      const top = window.scrollY + box.top;
-      window.scrollTo({
-        top: top - window.innerHeight * 0.9 + (window.innerHeight + box.height) * part,
-        behavior: 'instant',
-      });
-    }, fraction);
-    await page.waitForTimeout(200);
-    const value = await preview.evaluate((element) => ({
-      stage: element.getAttribute('data-scroll-stage'),
-      progress: (element as HTMLElement).style.getPropertyValue('--bench-progress'),
-    }));
-    if (value.stage) stages.add(value.stage);
-    progressValues.add(value.progress);
-    await expect(preview).toHaveAttribute('data-has-run', 'false');
-    await expect(output).not.toContainText(/web[\s\S]*Up[\s\S]*8080/);
-  }
-  expect(stages.size, 'Scrolling must change the terminal visual sequence').toBeGreaterThan(1);
-  expect(progressValues.size).toBeGreaterThan(1);
-  await preview.scrollIntoViewIfNeeded();
-  await capture(page, info, 'home-color-terminal-unexecuted');
-  await preview.getByRole('button', { name: 'Chạy ví dụ', exact: true }).click();
-  await expect(preview).toHaveAttribute('data-has-run', 'true');
-  await expect(output).toContainText(/web[\s\S]*Up[\s\S]*8080/);
-  await capture(page, info, 'home-color-terminal-executed');
-  await assertHealthy(page, info, errors);
-});
-
-test.describe('landing touch scrolling', () => {
-  test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
-
-  test('landing 3D — a touch swipe scrolls the document through the full-viewport canvas', async ({
-    page,
-  }, info) => {
-    await page.emulateMedia({ reducedMotion: 'no-preference' });
-    const cdp = await page.context().newCDPSession(page);
-    const swipe = async () => {
-      await cdp.send('Input.dispatchTouchEvent', {
-        type: 'touchStart',
-        touchPoints: [{ x: 195, y: 620 }],
-      });
-      for (let y = 580; y >= 180; y -= 40) {
-        await cdp.send('Input.dispatchTouchEvent', {
-          type: 'touchMove',
-          touchPoints: [{ x: 195, y }],
-        });
-        await page.waitForTimeout(35);
+test('landing 3D — a failed stage chunk leaves the page content intact', async ({ page }, info) => {
+  const errors = watchErrors(page);
+  const blocked: string[] = [];
+  await page.route(
+    (url) => url.pathname.startsWith('/_next/static/chunks/') && url.pathname.endsWith('.js'),
+    async (route) => {
+      const response = await route.fetch();
+      const body = await response.text();
+      // Tìm chunk cảnh bằng nội dung, không bằng hash: hash đổi mỗi lượt build.
+      if (body.includes('powerPreference') || body.includes('@react-three')) {
+        blocked.push(new URL(route.request().url()).pathname);
+        await route.abort('failed');
+        return;
       }
-      await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-    };
-    // Chromium's synthetic-scroll helper produced no scroll even on this control.
-    // Native touch packets are proven here before testing the actual app.
-    await page.setContent(
-      '<meta name="viewport" content="width=device-width, initial-scale=1"><main style="height:3000px">Touch driver control</main>',
-    );
-    await swipe();
-    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(200);
-    const controlScroll = await page.evaluate(() => window.scrollY);
-    await openScreen(page, '/', 'anon');
-    await expect(page.getByTestId('landing-journey')).toHaveAttribute('data-scene-state', 'ready');
-    const start = await page.evaluate(() => window.scrollY);
-    await swipe();
-    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(start + 200);
-    const end = await page.evaluate(() => window.scrollY);
-    await cdp.detach();
-    await attach(info, 'landing-touch-scroll.json', {
-      controlScroll,
-      start,
-      end,
-      viewport: page.viewportSize(),
-    });
-    await capture(page, info, 'home-touch-scroll');
-  });
+      await route.fulfill({ response });
+    },
+  );
+  const started = Date.now();
+  await openFull(page);
+  await expectReadableFallback(page);
+  const fallbackAfterMs = Date.now() - started;
+  await attachJson(info, 'landing-blocked-chunks.json', { blocked, fallbackAfterMs, errors });
+  expect(blocked.length, 'phải chặn được ít nhất một chunk cảnh thật').toBeGreaterThan(0);
+  // Ranh giới lỗi của cảnh phải bắt được — không phải chờ hẹn giờ 15 s mới rơi về hình tĩnh.
+  expect(errors.some((line) => line.includes('[landing] 3D stage failed'))).toBe(true);
 });
 
-test('landing 3D — a guest curriculum link reaches the local login without an HTTPS upgrade', async ({
+test('landing 3D — axe finds no serious or critical violation at the top and the end', async ({
   page,
-}) => {
-  const errors = await observe(page);
-  await openScreen(page, '/', 'anon');
-  const curriculum = page.getByTestId('journey-section-curriculum');
-  await curriculum.scrollIntoViewIfNeeded();
-  await curriculum.getByRole('link').first().click();
-  await expect(page).toHaveURL(`${E2E_BASE_URL}/login`);
-  await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-  expect(errors).toEqual([]);
+}, info) => {
+  // Hai lượt axe trên trang đang vẽ WebGL mỗi tick đo được 59 s và 108 s (2026-10-03, RTX 4060):
+  // 90 s sẽ đỏ vì hết giờ chứ không vì vi phạm.
+  test.setTimeout(180_000);
+  await openFull(page);
+  await settleStage(page);
+  const audit = async (where: string) => {
+    const result = await new AxeBuilder({ page }).analyze();
+    const blocking = result.violations.filter(
+      (violation) => violation.impact === 'serious' || violation.impact === 'critical',
+    );
+    await attachJson(info, `landing-axe-${where}.json`, {
+      passes: result.passes.length,
+      violations: result.violations.map((violation) => ({
+        id: violation.id,
+        impact: violation.impact,
+        nodes: violation.nodes.map((node) => ({
+          target: node.target.join(' '),
+          summary: node.failureSummary ?? '',
+        })),
+      })),
+      incomplete: result.incomplete.map((entry) => entry.id),
+    });
+    expect(result.passes.length, `axe không chạy được ở ${where}`).toBeGreaterThan(0);
+    // Soft: một vi phạm ở đầu trang không được che mất lượt quét cuối trang.
+    expect
+      .soft(
+        blocking.map(
+          (violation) =>
+            `${violation.id} (${violation.impact}): ${violation.nodes.map((node) => node.target.join(' ')).join(', ')}`,
+        ),
+        `axe ${where}`,
+      )
+      .toEqual([]);
+  };
+
+  // Chữ hero lộ bằng keyframe CSS; quét khi từng ký tự đã hiện đủ, không phải giữa chừng.
+  await expect
+    .poll(() =>
+      page
+        .getByTestId('landing-hero')
+        .locator('[data-kinetic-char]')
+        .evaluateAll((chars) => chars.every((char) => getComputedStyle(char).opacity === '1')),
+    )
+    .toBe(true);
+  await audit('top');
+
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 2,
+      ),
+    )
+    .toBe(true);
+  await expect
+    .poll(() =>
+      page
+        .getByTestId('landing-closing')
+        .locator('[data-kinetic-char]')
+        .evaluateAll((chars) => chars.every((char) => getComputedStyle(char).opacity === '1')),
+    )
+    .toBe(true);
+  await audit('end');
 });

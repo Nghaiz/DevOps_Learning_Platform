@@ -18,9 +18,9 @@ export function DropdownMenuContent({
         data-slot="dropdown-menu-content"
         sideOffset={sideOffset}
         className={cn(
-          'z-50 min-w-[8rem] overflow-hidden rounded-lg border border-border bg-popover p-1 text-popover-foreground',
-          // §5: popover cùng bậc `lg` với card/dialog. §6: popover = bậc nâng nền 3.
-          'shadow-elevation-3',
+          // Lớp nổi: vuông, viền mực, bóng cứng `shadow-float` (design-brief §5).
+          'z-50 min-w-[10rem] overflow-hidden rounded-surface border border-ink bg-popover p-1 text-popover-foreground',
+          'shadow-float animate-rise [animation-duration:var(--motion-fast)]',
           className,
         )}
         {...props}
@@ -34,8 +34,8 @@ export function DropdownMenuItem({ className, ...props }: ComponentProps<typeof 
     <RadixDropdownMenu.Item
       data-slot="dropdown-menu-item"
       className={cn(
-        'relative flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none select-none',
-        'focus:bg-accent focus:text-accent-foreground',
+        'relative flex cursor-default items-center gap-2 rounded-control px-2 py-2 text-sm outline-none select-none',
+        'focus:bg-muted focus:text-foreground',
         'data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
         className,
       )}
@@ -61,7 +61,7 @@ export function DropdownMenuLabel({ className, ...props }: ComponentProps<typeof
   return (
     <RadixDropdownMenu.Label
       data-slot="dropdown-menu-label"
-      className={cn('px-2 py-1.5 text-xs font-medium text-muted-foreground', className)}
+      className={cn('px-2 py-1.5 type-label text-muted-foreground', className)}
       {...props}
     />
   );

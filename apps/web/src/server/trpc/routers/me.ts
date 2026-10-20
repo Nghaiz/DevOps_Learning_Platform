@@ -9,6 +9,7 @@ import type { Database } from '../../db/client';
 import { accounts, labAttempts, progress, quizAnswers, quizAttempts, users } from '../../db/schema';
 import { DEFAULT_PREFERENCES, readUserPreferences, writeUserPreferences } from '../../me/preferences';
 import { endSessionAs, listSessionsPage } from '../../sessions/list';
+import { resolveSessionContents } from '../../sessions/origins';
 import { loadResults, scoreAndStatus } from './labs';
 import { loadQuizFull, type QuizVisibility } from '../../quiz/repository';
 import { toAnswerInputs } from './quiz';
@@ -69,6 +70,26 @@ export function toProgressRowDTO(row: typeof progress.$inferSelect): ProgressRow
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
+}
+
+/**
+ * Tên bài học theo id, cho lịch sử của CHÍNH người gọi.
+ *
+ * Tầm nhìn `admin` (thấy mọi state, kể cả `archived`) — cùng lý do khối đầu file
+ * ghi cho lab/quiz: lịch sử của người học không được mất tên chỉ vì tác giả đã
+ * archive bài sau đó. Đây là phép ĐỌC tên, không cấp quyền mở bài: link vẫn đi
+ * qua `lessons.get`, nơi tầm nhìn thật của người gọi được áp.
+ *
+ * Bài không tra ra ⇒ vắng khỏi map (chỗ gọi đọc thành `null`).
+ */
+async function lessonTitlesFor(lessonIds: readonly string[]): Promise<ReadonlyMap<string, string>> {
+  const source = contentSourceFor({ kind: 'admin' });
+  const entries = await Promise.all(
+    [...new Set(lessonIds)].map(async (id) => [id, (await source.get(id))?.title ?? null] as const),
+  );
+  return new Map(
+    entries.filter((entry): entry is readonly [string, string] => entry[1] !== null),
+  );
 }
 
 /** Bracket ADMIN THEO NGHĨA "thấy mọi state", KHÔNG cấp quyền ghi — chỉ dùng để đọc lại lịch sử. */
@@ -161,9 +182,28 @@ export const meRouter = createTRPCRouter({
     return next;
   }),
 
-  /** `ListSessions(user_id = tôi)` — KHÔNG được truyền rỗng (đó là quyền của `admin.sessions.list`). */
+  /**
+   * `ListSessions(user_id = tôi)` — KHÔNG được truyền rỗng (đó là quyền của `admin.sessions.list`).
+   *
+   * Mỗi phiên mang thêm `content: { kind, id, title } | null` — nội dung đã mở
+   * nó, để "Làm tiếp" dẫn về đúng trang. `null` khi không tra ra (phiên mở trước
+   * migration 0018, hoặc nội dung đã biến mất). Xem `sessions/origins.ts`.
+   */
   activeSessions: protectedProcedure.input(listInputSchema).query(async ({ ctx, input }) => {
-    return listSessionsPage(ctx, { userId: ctx.user.id, limit: input.limit, cursor: input.cursor });
+    const page = await listSessionsPage(ctx, {
+      userId: ctx.user.id,
+      limit: input.limit,
+      cursor: input.cursor,
+    });
+    const contents = await resolveSessionContents(
+      ctx.db,
+      ctx.user.id,
+      page.items.map((session) => session.id),
+    );
+    return {
+      items: page.items.map((session) => ({ ...session, content: contents.get(session.id) ?? null })),
+      nextCursor: page.nextCursor,
+    };
   }),
 
   /** Kết thúc SỚM một phiên của chính mình — orchestrator tự kiểm chủ sở hữu (luật 1). */
@@ -386,8 +426,19 @@ export const meRouter = createTRPCRouter({
 
     const hasMore = rows.length > input.limit;
     const page = hasMore ? rows.slice(0, input.limit) : rows;
+    const titles = await lessonTitlesFor(page.map((row) => row.lessonId));
     return {
-      items: page.map(toProgressRowDTO),
+      /*
+       * `lessonTitle` đi KÈM dòng, cùng lối `listLabAttempts` mang `labTitle` —
+       * để tab lịch sử không phải gọi `lessons.get` một lượt cho mỗi dòng.
+       * `null` = bài không còn đọc được ở BẤT KỲ nguồn nào (đĩa lẫn DB). Khác lab,
+       * dòng KHÔNG bị bỏ: tiến độ không cần nội dung bài để có nghĩa, nên một tên
+       * vắng mặt là thiếu một nhãn, không phải một dòng nói dối.
+       */
+      items: page.map((row) => ({
+        ...toProgressRowDTO(row),
+        lessonTitle: titles.get(row.lessonId) ?? null,
+      })),
       limit: input.limit,
       nextCursor: hasMore && page.length > 0 ? (page[page.length - 1]?.id ?? null) : null,
     };

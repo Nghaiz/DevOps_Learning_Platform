@@ -1,0 +1,195 @@
+/* Hiệu ứng chữ và motion graphics dùng chung của landing. Màu lấy từ biến --l-* của gốc landing. */
+
+/* ---------- Kinetic text ---------- */
+.kinetic {
+  display: inline;
+}
+
+.word {
+  display: inline-block;
+  white-space: nowrap;
+}
+
+.char {
+  display: inline-block;
+  transform-origin: 50% 100%;
+  /* `backwards`, không `both`: khung cuối trùng style gốc nên giữ hiệu ứng sau khi chạy xong là
+     thừa, và Chrome giữ MỖI ký tự trên một lớp compositor riêng chừng nào hiệu ứng còn hiệu lực
+     (trace: 44 lớp tô lại cùng lúc ở khung hero). */
+  animation: char-rise 1050ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  animation-delay: calc(var(--kinetic-delay, 0ms) + var(--i, 0) * 30ms);
+}
+
+/* globals.css rút animation-duration về 0,01ms dưới reduced-motion nhưng KHÔNG đụng delay: ký tự
+   sẽ đứng ở opacity 0,02 tới cả giây. Tắt hẳn animation để chữ hiện ngay. */
+@media (prefers-reduced-motion: reduce) {
+  .char {
+    animation: none;
+  }
+}
+
+.charManual {
+  display: inline-block;
+  transform-origin: 50% 100%;
+}
+
+@keyframes char-rise {
+  from {
+    opacity: 0.02;
+    transform: translate3d(0, 0.55em, 0) rotate(8deg) scaleY(1.35);
+  }
+  60% {
+    opacity: 1;
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---------- Split-flap (bảng tàu chạy) ---------- */
+.flapRow {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  perspective: 420px;
+}
+
+.flapCell {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.32em;
+  height: 1.7em;
+  background: linear-gradient(
+    to bottom,
+    var(--l-bg-3) 0 49%,
+    rgb(0 0 0 / 0.55) 49% 51%,
+    var(--l-bg-2) 51% 100%
+  );
+  box-shadow: inset 0 0 0 1px var(--l-rule);
+  overflow: hidden;
+}
+
+.flapGlyph {
+  display: block;
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
+  font-weight: 700;
+  line-height: 1;
+  transform-origin: 50% 50%;
+  backface-visibility: hidden;
+}
+
+.flapGap {
+  display: inline-block;
+  width: 0.7em;
+}
+
+/* ---------- Magnetic ---------- */
+.magnetic {
+  display: inline-flex;
+  will-change: transform;
+}
+
+/* ---------- Odometer ---------- */
+.odometer {
+  display: inline-flex;
+  font-variant-numeric: tabular-nums;
+}
+
+.odoWindow {
+  display: inline-block;
+  height: 1em;
+  line-height: 1;
+  overflow: hidden;
+}
+
+.odoColumn {
+  display: flex;
+  flex-direction: column;
+  will-change: transform;
+}
+
+.odoColumn > span {
+  display: block;
+  height: 1em;
+  line-height: 1;
+}
+
+/* ---------- Velocity marquee ---------- */
+.marquee {
+  position: relative;
+  display: grid;
+  gap: clamp(4px, 1vw, 12px);
+  padding-block: clamp(28px, 6vw, 72px);
+  overflow: hidden;
+  border-block: 1px solid var(--l-rule);
+  background: var(--l-bg);
+}
+
+.marqueeViewport {
+  overflow: hidden;
+}
+
+.marqueeRow {
+  display: flex;
+  width: max-content;
+  will-change: transform;
+}
+
+.marqueeWord {
+  display: inline-flex;
+  align-items: center;
+  gap: clamp(18px, 3vw, 44px);
+  padding-right: clamp(18px, 3vw, 44px);
+  font-family: var(--font-archivo), var(--font-be-vietnam-pro), sans-serif;
+  font-size: clamp(2.6rem, 9vw, 8.5rem);
+  font-weight: 900;
+  font-stretch: 125%;
+  font-variation-settings: 'wdth' 125;
+  line-height: 0.95;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+  color: var(--l-ink);
+}
+
+.marqueeRow[data-outline] .marqueeWord {
+  color: transparent;
+  -webkit-text-stroke: 1.5px color-mix(in oklab, var(--l-ink) 55%, transparent);
+}
+
+.marqueeDot {
+  display: inline-block;
+  width: 0.22em;
+  height: 0.22em;
+  background: var(--l-red);
+  transform: rotate(45deg);
+}
+
+/* ---------- Dải màu quét chuyển cảnh ---------- */
+.wipe {
+  position: absolute;
+  inset: -18vh 0 auto;
+  z-index: 3;
+  display: none;
+  height: 36vh;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+:global([data-motion='full']) .wipe {
+  display: grid;
+  grid-auto-rows: 1fr;
+  gap: 3px;
+}
+
+.band {
+  display: block;
+  width: 130%;
+  margin-left: -15%;
+  background: linear-gradient(90deg, transparent, var(--line) 22%, var(--line) 78%, transparent);
+  /* Chỉ skew ở đây; dịch ngang do GSAP (xPercent). Đặt sẵn translateX trong CSS thì GSAP đọc nó
+     thành `x` rồi cộng thêm xPercent, dải lệch gấp đôi (cùng bẫy với đồng hồ số). */
+  transform: skewX(-28deg);
+  will-change: transform;
+}

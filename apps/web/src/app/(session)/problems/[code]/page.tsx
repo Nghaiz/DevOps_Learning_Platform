@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
+import { withReturnPath } from '../../../login/return-path';
 import { t } from '@devops-platform/copy';
 /*
  * `isAnyProblemCode`, KHÔNG phải `isProblemCode` của barrel.
@@ -28,7 +29,7 @@ export async function generateMetadata({ params }: { params: Promise<{ code: str
   // Tiêu đề dựng từ MÃ chứ không từ tên bài: lấy tên đòi một lượt gọi máy chủ
   // thứ hai chỉ để điền thẻ `<title>`, trong khi mã bài đã là thứ người ta đọc
   // cho nhau nghe ("làm được K8S-0042 chưa?") và nó không bao giờ đổi.
-  return { title: t('catalog.problem.meta-title', { code: code.toUpperCase() }) };
+  return { title: t('problem.oj.detail.meta-title', { code: code.toUpperCase() }) };
 }
 
 /**
@@ -51,7 +52,8 @@ export default async function ProblemPage({ params }: { params: Promise<{ code: 
   const { code } = await params;
 
   if ((await readViewerSession()) === null) {
-    redirect('/login');
+    // Mang đường về theo: đăng nhập xong thì quay lại đúng bài này.
+    redirect(withReturnPath('/login', `/problems/${encodeURIComponent(code)}`));
   }
 
   const canonical = code.toUpperCase();

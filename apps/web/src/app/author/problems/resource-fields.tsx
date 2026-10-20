@@ -1,78 +1,83 @@
 'use client';
 
-import { t } from '@devops-platform/copy';
 import type { ReactElement } from 'react';
-import {
-  Button,
-  Label,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@devops-platform/ui';
+import { Trash2 } from 'lucide-react';
+import { t } from '@devops-platform/copy';
+import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@devops-platform/ui';
 import type { IncidentKind, ResourceKind } from '@devops-platform/games';
-import { TextAreaField, TextField, issueFor } from '../../../components/author/field';
+import { Field, TextAreaField, TextField, issueFor } from '../../../components/author/field';
+import type { TopicLine } from '../../../components/kit';
 import type { FieldIssue, ResourceFormState } from './cluster-form';
+import { ItemBlock } from './item-block';
 import { INCIDENT_KINDS, INCIDENT_LABELS, RESOURCE_KINDS, isClusterScoped } from './vocabulary';
+
+/** Radix Select không nhận `value=""` cho một mục, nên "không gieo" mang một token riêng. */
+const NO_INCIDENT = 'khong';
 
 /**
  * Một tài nguyên trong cụm ban đầu, kèm ô gieo sự cố.
  *
- * ## Gieo sự cố là cách một bài "hỏng sẵn"
- *
- * Không có nó, người soạn phải tả tay từng trạng thái pod trong `spec` để dựng
- * một cụm đang lỗi — vừa dài vừa dễ tả ra một trạng thái mà engine không bao giờ
- * sinh được. Chọn một trong 32 loại thì engine tự dựng đúng cặp (triệu chứng →
- * nguyên nhân) mà nó biết cách gỡ.
+ * Gieo sự cố là cách một bài "hỏng sẵn". Không có nó, người soạn phải tả tay
+ * từng trạng thái pod để dựng một cụm đang lỗi, vừa dài vừa dễ tả ra một trạng
+ * thái engine không bao giờ sinh được. Chọn một loại sự cố thì engine tự dựng
+ * đúng cặp (triệu chứng, nguyên nhân) mà nó biết cách gỡ.
  */
 export function ResourceFields(props: {
   readonly resource: ResourceFormState;
   readonly index: number;
+  readonly line: TopicLine;
   readonly issues: readonly FieldIssue[];
   readonly onChange: (patch: Partial<ResourceFormState>) => void;
   readonly onRemove: () => void;
 }): ReactElement {
   const base = `resources.${String(props.index)}`;
-  const clusterScoped = isClusterScoped(props.resource.kind);
+  const { resource } = props;
+  const clusterScoped = isClusterScoped(resource.kind);
 
   return (
-    <div className="flex flex-col gap-3 rounded-md border border-border p-4">
-      <div className="flex items-start justify-between gap-3">
-        <h4 className="text-sm font-medium text-foreground">
-          {props.resource.kind}
-          {props.resource.name === '' ? '' : ` / ${props.resource.name}`}
-        </h4>
-        <Button type="button" variant="ghost" size="sm" onClick={props.onRemove}>
+    <ItemBlock
+      index={props.index}
+      line={props.line}
+      path={base}
+      title={resource.name === '' ? resource.kind : `${resource.kind} / ${resource.name}`}
+      actions={
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          iconLeft={<Trash2 aria-hidden className="size-4" />}
+          onClick={props.onRemove}
+        >
           {t('common.action.delete')}
         </Button>
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor={`kind-${props.resource.key}`}>{t('problem.resource-fields-loai')}</Label>
-          <Select
-            value={props.resource.kind}
-            onValueChange={(value) => {
-              props.onChange({ kind: value as ResourceKind });
-            }}
-          >
-            <SelectTrigger id={`kind-${props.resource.key}`}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {RESOURCE_KINDS.map((kind) => (
-                <SelectItem key={kind} value={kind}>
-                  {kind}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
+      }
+    >
+      <div className="grid gap-5 sm:grid-cols-2">
+        <Field label={t('problem.resource-fields-loai')}>
+          {({ id }) => (
+            <Select
+              value={resource.kind}
+              onValueChange={(value) => {
+                props.onChange({ kind: value as ResourceKind });
+              }}
+            >
+              <SelectTrigger id={id} className="font-mono">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {RESOURCE_KINDS.map((kind) => (
+                  <SelectItem key={kind} value={kind} className="font-mono">
+                    {kind}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </Field>
         <TextField
           label={t('problem.predicate-arg-types-ten')}
-          value={props.resource.name}
+          value={resource.name}
+          path={`${base}.name`}
           onChange={(name) => {
             props.onChange({ name });
           }}
@@ -81,16 +86,15 @@ export function ResourceFields(props: {
       </div>
 
       {clusterScoped ? (
-        <p className="text-xs text-muted-foreground">
-          <code className="font-mono">{props.resource.kind}</code>{' '}
-          {t(
-            'problem.resource-fields-co-pham-vi-cluster-nen-khong-thuoc-namespace-nao-o-namespace-bi-bo-qua',
-          )}
+        <p className="text-sm text-muted-foreground">
+          <code className="font-mono text-foreground">{resource.kind}</code>{' '}
+          {t('problem.resource-fields-co-pham-vi-cluster-nen-khong-thuoc-namespace-nao-o-namespace-bi-bo-qua')}
         </p>
       ) : (
         <TextField
           label={t('problem.cluster-fields-namespace')}
-          value={props.resource.namespace}
+          value={resource.namespace}
+          path={`${base}.namespace`}
           onChange={(namespace) => {
             props.onChange({ namespace });
           }}
@@ -101,7 +105,8 @@ export function ResourceFields(props: {
 
       <TextAreaField
         label={t('problem.resource-fields-phan-than-json')}
-        value={props.resource.specJson}
+        value={resource.specJson}
+        path={`${base}.spec`}
         onChange={(specJson) => {
           props.onChange({ specJson });
         }}
@@ -113,31 +118,28 @@ export function ResourceFields(props: {
         )}
       />
 
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor={`incident-${props.resource.key}`}>
-          {t('problem.resource-fields-gieo-san-su-co-tuy-chon')}
-        </Label>
-        <Select
-          value={props.resource.seededIncident === '' ? 'khong' : props.resource.seededIncident}
-          onValueChange={(value) => {
-            // Radix Select không nhận `value=""` cho một item, nên "không gieo"
-            // phải mang một token riêng thay vì chuỗi rỗng.
-            props.onChange({ seededIncident: value === 'khong' ? '' : (value as IncidentKind) });
-          }}
-        >
-          <SelectTrigger id={`incident-${props.resource.key}`}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="khong">{t('problem.resource-fields-khong-gieo-su-co')}</SelectItem>
-            {INCIDENT_KINDS.map((kind) => (
-              <SelectItem key={kind} value={kind}>
-                {INCIDENT_LABELS[kind]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-    </div>
+      <Field label={t('problem.resource-fields-gieo-san-su-co-tuy-chon')}>
+        {({ id }) => (
+          <Select
+            value={resource.seededIncident === '' ? NO_INCIDENT : resource.seededIncident}
+            onValueChange={(value) => {
+              props.onChange({ seededIncident: value === NO_INCIDENT ? '' : (value as IncidentKind) });
+            }}
+          >
+            <SelectTrigger id={id}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NO_INCIDENT}>{t('problem.resource-fields-khong-gieo-su-co')}</SelectItem>
+              {INCIDENT_KINDS.map((kind) => (
+                <SelectItem key={kind} value={kind}>
+                  {INCIDENT_LABELS[kind]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+      </Field>
+    </ItemBlock>
   );
 }

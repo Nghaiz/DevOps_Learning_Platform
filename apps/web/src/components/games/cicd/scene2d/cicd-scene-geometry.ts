@@ -41,6 +41,7 @@
  */
 
 import { SECONDS_PER_TICK, type CicdBounds, type ScenePoint } from '@devops-platform/games';
+import { t } from '@devops-platform/copy';
 import {
   project2d,
   type CicdPlacedNode,
@@ -295,7 +296,10 @@ export function formatRunTime(ticks: number): string {
   const giay = ticks * SECONDS_PER_TICK;
   const phut = Math.floor(giay / 60);
   const du = Math.round(giay % 60);
-  const doc = phut === 0 ? `${String(Math.round(giay))} giây` : `${String(phut)} phút ${String(du)} giây`;
+  const doc =
+    phut === 0
+      ? t('games.cicd.scene.seconds', { s: Math.round(giay) })
+      : t('games.cicd.scene.minutes', { m: phut, s: du });
   return `${doc} (${String(ticks)} tick)`;
 }
 
@@ -349,7 +353,7 @@ export function envBands(
     if (byBand.has(band)) continue;
     const env = n.node.environment;
     byBand.set(band, {
-      label: env ?? 'chưa phát hành',
+      label: env ?? t('games.cicd.scene.unreleased'),
       y: PAD_TOP + n.spot.y * V_STEP_CD,
     });
   }

@@ -20,6 +20,7 @@
  * không có cổng gác.
  */
 
+import { t } from '@devops-platform/copy';
 import type { ColorToken } from '../git-palette.ts';
 import type { SceneFileCell, SceneFileStatus, SceneRefKind } from '../../shared/scene-props.ts';
 
@@ -312,7 +313,7 @@ export const PLATE_STATUS = {
     sigil: '·',
     height: 1,
     lift: 0,
-    label: 'không đổi',
+    label: t('games.git.plate.unchanged'),
   },
   modified: {
     fill: '--status-progress',
@@ -321,7 +322,7 @@ export const PLATE_STATUS = {
     sigil: '~',
     height: 1.6,
     lift: 0.3,
-    label: 'đã sửa',
+    label: t('games.git.plate.modified'),
   },
   added: {
     fill: '--success',
@@ -330,7 +331,7 @@ export const PLATE_STATUS = {
     sigil: '+',
     height: 2.4,
     lift: 0.7,
-    label: 'mới thêm',
+    label: t('games.git.plate.added'),
   },
   deleted: {
     fill: '--muted',
@@ -339,7 +340,7 @@ export const PLATE_STATUS = {
     sigil: '-',
     height: 0.8,
     lift: -0.9,
-    label: 'đã xoá',
+    label: t('games.git.plate.deleted'),
   },
   untracked: {
     fill: '--warning',
@@ -348,7 +349,7 @@ export const PLATE_STATUS = {
     sigil: '?',
     height: 1.2,
     lift: 0.1,
-    label: 'git chưa theo dõi',
+    label: t('games.git.plate.untracked'),
   },
   conflicted: {
     fill: '--destructive',
@@ -357,7 +358,7 @@ export const PLATE_STATUS = {
     sigil: '!',
     height: 2,
     lift: 0.5,
-    label: 'đang xung đột',
+    label: t('games.git.plate.conflicted'),
   },
 } as const satisfies Record<SceneFileStatus, PlateStyle>;
 
@@ -405,7 +406,7 @@ export function plateCellTopY(planeY: number, status: SceneFileStatus): number {
  * cần dịch; phần chú giải mới là tiếng Việt. Cùng luật với `Index` / `Worktree`.
  */
 export const PLATE_ZONE_LABEL = {
-  worktree: 'Worktree · đang sửa',
-  index: 'Index · đã stage',
-  head: 'HEAD · đã cam kết',
+  worktree: t('games.git.plate.zone-worktree'),
+  index: t('games.git.plate.zone-index'),
+  head: t('games.git.plate.zone-head'),
 } as const satisfies Record<SceneFileCell['zone'], string>;

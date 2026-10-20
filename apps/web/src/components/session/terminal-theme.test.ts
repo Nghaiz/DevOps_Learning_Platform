@@ -60,21 +60,20 @@ describe('subpath ./themes — nạp sạch ở node', () => {
   });
 });
 
-describe('resolveTerminalTheme — C5', () => {
-  it('không có tuỳ chọn hồ sơ ⇒ đi theo theme ứng dụng', () => {
-    expect(resolveTerminalTheme(null, 'dark')).toBe('dlp-dark');
-    expect(resolveTerminalTheme(null, 'light')).toBe('dlp-light');
-    expect(resolveTerminalTheme(undefined, 'dark')).toBe('dlp-dark');
+describe('resolveTerminalTheme: khoang làm việc tối ở cả hai theme', () => {
+  it('không có tuỳ chọn hồ sơ ⇒ theme đêm, không theo theme ứng dụng', () => {
+    expect(resolveTerminalTheme(null)).toBe('dlp-dark');
+    expect(resolveTerminalTheme(undefined)).toBe('dlp-dark');
   });
 
-  it('tuỳ chọn hồ sơ THẮNG theme ứng dụng — kể cả khi ngược nhau', () => {
-    expect(resolveTerminalTheme('dlp-light', 'dark')).toBe('dlp-light');
-    expect(resolveTerminalTheme('dlp-contrast', 'light')).toBe('dlp-contrast');
+  it('tuỳ chọn hồ sơ THẮNG, kể cả theme sáng hay tương phản cao', () => {
+    expect(resolveTerminalTheme('dlp-light')).toBe('dlp-light');
+    expect(resolveTerminalTheme('dlp-contrast')).toBe('dlp-contrast');
   });
 
-  it('giá trị lạ (DB cũ, localStorage cũ) rơi về theme ứng dụng, không ném', () => {
-    expect(resolveTerminalTheme('solarized' as ThemeName, 'dark')).toBe('dlp-dark');
-    expect(resolveTerminalTheme('' as ThemeName, 'light')).toBe('dlp-light');
+  it('giá trị lạ (DB cũ, localStorage cũ) rơi về theme đêm, không ném', () => {
+    expect(resolveTerminalTheme('solarized' as ThemeName)).toBe('dlp-dark');
+    expect(resolveTerminalTheme('' as ThemeName)).toBe('dlp-dark');
   });
 });
 

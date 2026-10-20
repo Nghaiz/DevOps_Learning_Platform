@@ -1,3 +1,5 @@
+> **ĐÃ BỊ THAY THẾ (2026-10-03).** Landing đã dựng lại theo [plans/devops-learning-platform/landing-3d/plan.md](../devops-learning-platform/landing-3d/plan.md). Các quyết định "không GSAP/Lenis/Locomotive", "không ghim nội dung", "chỉ `frameloop=demand`" trong báo cáo này không còn hiệu lực: chủ dự án yêu cầu tường minh điều ngược lại. Giữ file làm lịch sử.
+
 # Plan: Landing 3D theo tiến trình cuộn
 
 ## Latest user correction: continuous full-page flow

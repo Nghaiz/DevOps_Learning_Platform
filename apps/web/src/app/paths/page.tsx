@@ -8,7 +8,12 @@ export const metadata: Metadata = {
   title: t('catalog.meta-title.paths'),
 };
 
-/** Server Component — kiểm auth THẬT (đụng DB), cùng khuôn `/labs`. */
+/**
+ * Server Component, kiểm auth THẬT (đụng DB), cùng khuôn `/labs`.
+ *
+ * Không đọc `readCatalogCounts`: hàm đó không đếm lộ trình. Nhãn đầu trang lấy
+ * số từ danh sách khi đã tải hết (`paths.list` không có bộ lọc nào).
+ */
 export default async function PathsPage() {
   const session = await readViewerSession();
 

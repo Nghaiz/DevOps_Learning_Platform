@@ -21,7 +21,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { PROBLEM_TOPICS } from '@devops-platform/games';
+import { GAME_IDS, PROBLEM_TOPICS } from '@devops-platform/games';
 
 import { problemFilterSchema } from './list-input';
 
@@ -55,7 +55,12 @@ describe('nới chủ đề KHÔNG nới những thứ khác', () => {
   it('khoá lạ vẫn bị .strict() từ chối', () => {
     // `ProblemFilter` là SSOT của bộ lọc. Một khoá lạ lọt qua đây sẽ bị nhận rồi
     // bỏ qua trong im lặng, và người gọi tưởng bộ lọc của họ đang chạy.
-    expect(problemFilterSchema.safeParse({ gameId: 'git' }).success).toBe(false);
+    //
+    // ⚠ Ô này từng dùng `{ gameId: 'git' }` làm "khoá lạ". Từ khi `ProblemFilter`
+    // có `gameId` (bộ lọc theo game của kho bài), khoá đó là khoá THẬT — đã đảo ở
+    // khối `gameId` dưới. Khoá lạ bây giờ là một khoá hợp đồng không bao giờ có:
+    // chủ sở hữu (`problems.mine` là thủ tục riêng, không phải một cờ lọc).
+    expect(problemFilterSchema.safeParse({ authorId: 'u-1' }).success).toBe(false);
   });
 
   it('chủ đề rỗng và chủ đề quá dài đều bị từ chối', () => {
@@ -68,5 +73,23 @@ describe('nới chủ đề KHÔNG nới những thứ khác', () => {
   it('độ khó vẫn là tập ĐÓNG — nới chủ đề không được lan sang đây', () => {
     expect(problemFilterSchema.safeParse({ difficulty: ['easy'] }).success).toBe(true);
     expect(problemFilterSchema.safeParse({ difficulty: ['sieu-kho'] }).success).toBe(false);
+  });
+});
+
+describe('problemFilterSchema — gameId: một game, tập ĐÓNG', () => {
+  it('nhận mọi id trong GAME_IDS', () => {
+    for (const gameId of GAME_IDS) {
+      const ket = problemFilterSchema.safeParse({ gameId });
+      expect(ket.success, `${gameId}: ${JSON.stringify(ket.error?.issues)}`).toBe(true);
+    }
+  });
+
+  it('id game gõ sai bị 400, không bị nhận rồi lọc ra trang rỗng', () => {
+    // Nhận rồi lọc ra rỗng sẽ nói dối rằng "game đó chưa có bài nào".
+    expect(problemFilterSchema.safeParse({ gameId: 'kubernetes' }).success).toBe(false);
+  });
+
+  it('một game, không phải mảng — bộ chọn game là một-game-một-lúc', () => {
+    expect(problemFilterSchema.safeParse({ gameId: ['k8s', 'git'] }).success).toBe(false);
   });
 });

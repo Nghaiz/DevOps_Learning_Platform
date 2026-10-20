@@ -217,6 +217,10 @@ RUN addgroup -g 1001 -S nodejs && adduser -S nextjs -u 1001 -G nodejs
 # prune chỉ còn dependency thật sự dùng lúc chạy — không cần node_modules đầy đủ.
 COPY --from=builder /repo/apps/web/.next/standalone ./
 COPY --from=builder /repo/apps/web/.next/static ./apps/web/.next/static
+# public/ (favicon.svg, logo-ptit-mark.svg...) KHÔNG nằm trong .next/standalone: Next chỉ phục vụ
+# nó khi thư mục có mặt cạnh server.js. Thiếu dòng này thì ảnh production trả 404 cho mọi file
+# tĩnh, đo được 2026-10-03 trên cụm (logo và favicon đều 404) dù CI xanh, vì CI chạy next start
+# ngay trong cây nguồn nơi public/ có sẵn.
 COPY --from=builder /repo/apps/web/public ./apps/web/public
 
 # Nội dung bài học (P2 — trụ cột Lessons).

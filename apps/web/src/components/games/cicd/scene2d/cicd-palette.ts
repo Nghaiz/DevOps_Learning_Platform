@@ -1,3 +1,4 @@
+import { t } from '@devops-platform/copy';
 /**
  * Bảng màu + ba kênh mã hoá của cảnh 2D game CI/CD (19.D.2.5).
  *
@@ -276,14 +277,14 @@ export const DEPENDENCY_EDGE: EdgePaint = {
   stroke: '--muted-foreground',
   width: 2,
   dash: null,
-  label: 'phụ thuộc',
+  label: t('games.cicd.scene.edge-dependency'),
 };
 
 export const RESOURCE_EDGE: EdgePaint = {
   stroke: '--muted-foreground',
   width: 1.5,
   dash: '9 6',
-  label: 'chờ máy chạy',
+  label: t('games.cicd.scene.edge-machine'),
 };
 
 export function edgePaint(resourceEdge: boolean): EdgePaint {

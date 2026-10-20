@@ -28,6 +28,14 @@
  * 2026-09-15: đổi `t(LIMIT_TEXT[limit])` thành một chuỗi cứng ⇒ ô "đọc danh sách
  * giới hạn từ BUILDER_CANNOT_EXPRESS" ĐỎ. Xoá dòng `check.scope` ⇒ ô "câu phạm vi
  * của E.7" ĐỎ. Khôi phục ⇒ cả hai xanh lại.
+ *
+ * ## Ô đọc file nào (từ 2026-10-03)
+ *
+ * Bản dựng lại PTIT tách `git-builder.tsx` thành từng bước. Hai câu cần gác giờ
+ * nằm ở `builder-intro.tsx` (giới hạn) và `check-step.tsx` (phạm vi E.7). Tách
+ * file mở ra một lỗ mới mà bản một-file không có: component đúng nhưng không ai
+ * render nó. Nên khối này đòi thêm `git-builder.tsx` render CẢ HAI, cùng lý lẽ
+ * với lời hứa 2 của `save-problem-promises.test.ts`.
  */
 
 import { readFileSync } from 'node:fs';
@@ -40,6 +48,8 @@ import { t } from '@devops-platform/copy';
 import { ISSUE_TEXT, LIMIT_TEXT } from './builder-copy';
 
 const BUILDER = join(import.meta.dirname, 'git-builder.tsx');
+const INTRO = join(import.meta.dirname, 'builder-intro.tsx');
+const CHECK = join(import.meta.dirname, 'check-step.tsx');
 const GAME = join(import.meta.dirname, '..', 'git-game.tsx');
 const SANDBOX = join(import.meta.dirname, '..', 'git-sandbox.tsx');
 
@@ -76,10 +86,32 @@ describe('E.6 chơi thử không nuốt mất bản nháp', () => {
 });
 
 describe('Builder giữ hai lời hứa về chữ', () => {
-  const source = readFileSync(BUILDER, 'utf8');
+  const builder = readFileSync(BUILDER, 'utf8');
+  const intro = readFileSync(INTRO, 'utf8');
+  const check = readFileSync(CHECK, 'utf8');
+
+  it('bộ quét đọc được file thật, không phải chuỗi rỗng', () => {
+    // Ba ô dưới đây đều là `toMatch`; một file rỗng làm chúng ĐỎ chứ không xanh,
+    // nhưng một file chỉ còn vỏ thì không. Sàn độ dài chặn vế đó.
+    for (const source of [builder, intro, check]) {
+      expect(source.length).toBeGreaterThan(1000);
+    }
+  });
+
+  it('git-builder.tsx render khối giới hạn và bước kiểm, không để chúng thành mã chết', () => {
+    expect(builder).toContain('<BuilderLimits');
+    expect(builder).toContain('<CheckStep');
+  });
 
   it('câu phạm vi của E.7 nằm trên màn, không nằm trong tài liệu', () => {
-    expect(source).toMatch(/t\('author\.builder\.check\.scope'\)/);
+    expect(check).toMatch(/t\('author\.builder\.check\.scope'\)/);
+  });
+
+  it('câu phạm vi đứng TRƯỚC nút kiểm, không đứng sau kết quả', () => {
+    const scopeAt = check.indexOf("t('author.builder.check.scope')");
+    const buttonAt = check.indexOf('git-builder-run-check');
+    expect(scopeAt).toBeGreaterThan(-1);
+    expect(buttonAt).toBeGreaterThan(scopeAt);
   });
 
   it('câu phạm vi thật sự nói ra giới hạn, không chỉ có mặt', () => {
@@ -94,8 +126,8 @@ describe('Builder giữ hai lời hứa về chữ', () => {
   });
 
   it('đọc danh sách giới hạn từ BUILDER_CANNOT_EXPRESS, không từ mảng chép tay', () => {
-    expect(source).toMatch(/BUILDER_CANNOT_EXPRESS\.map\(/);
-    expect(source).toMatch(/t\(LIMIT_TEXT\[limit\]\)/);
+    expect(intro).toMatch(/BUILDER_CANNOT_EXPRESS\.map\(/);
+    expect(intro).toMatch(/t\(LIMIT_TEXT\[limit\]\)/);
   });
 
   it('mọi phần tử của BUILDER_CANNOT_EXPRESS có câu tương ứng', () => {

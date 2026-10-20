@@ -1,23 +1,24 @@
 'use client';
 
 /**
- * Thanh trên cùng của sân chơi CI/CD (19.D.4.2 + D.4.4).
+ * Thanh trên cùng của sân chơi CI/CD (19.D.4.2 + D.4.4), khối mực của hệ PTIT.
  *
- * Mượn vai trò và ngôn ngữ thị giác của `k8s-arena/hud/top-bar.tsx` (quyết định
- * #2), không chép bảng props: thanh của arena chở tốc độ mô phỏng, đồng hồ và
- * danh sách mục tiêu cụm — ba thứ game này không có. Thanh này chở đúng thứ game
- * này có: chương/level, nút chạy, chế độ vẽ, bậc chất lượng, các công tắc lớp
- * phủ, và trợ giúp.
+ * Mượn vai trò của `k8s-arena/hud/top-bar.tsx` (quyết định #2), không chép bảng
+ * props: thanh này chở đúng thứ game này có: chương/màn, nút chạy, chế độ vẽ,
+ * bậc chất lượng, các công tắc lớp phủ, và trợ giúp.
  *
  * ⚠ **Chiều cao thanh là một hợp đồng bố cục**, không phải trang trí: sân chơi
  * neo ngay dưới nó (`CICD_FIELD_TOP_OFFSET`), và AC-D7 đo `boundingBox()` của
  * sân. Hai hằng chứ không một phép tính, vì Tailwind quét chuỗi lớp NGUYÊN VẸN
- * và không sinh được `top-${n}` từ một con số. Chúng phải khớp nhau; đặt cạnh
- * nhau ở đây để chỗ cần sửa là MỘT chỗ.
+ * và không sinh được `top-${n}` từ một con số.
+ *
+ * Công tắc đang bật = khối vàng tín hiệu (không phải viền), chế độ vẽ đang chạy =
+ * khối đỏ: trạng thái đọc ra bằng HÌNH khối, và `aria-pressed` nói nó bằng lời.
  */
 
 import type { ReactElement } from 'react';
 import { CircleHelp, LogOut, Play } from 'lucide-react';
+import { t } from '@devops-platform/copy';
 import { Button, cn } from '@devops-platform/ui';
 
 import type { RendererMode, ResolvedMode } from '../../shared/renderer-mode';
@@ -31,20 +32,22 @@ export const CICD_FIELD_TOP_OFFSET = 'top-14';
 export type CicdQualityTier = 'low' | 'medium' | 'high';
 
 const QUALITY_LABEL: Readonly<Record<CicdQualityTier, string>> = {
-  low: 'Thấp',
-  medium: 'Vừa',
-  high: 'Cao',
+  low: t('games.cicd.quality.low'),
+  medium: t('games.cicd.quality.medium'),
+  high: t('games.cicd.quality.high'),
 };
 
 const PANEL_LABEL: Readonly<Record<CicdPanelId, string>> = {
-  editor: 'Ô soạn',
-  mission: 'Đề bài',
-  inspector: 'Thông số',
-  result: 'Kết quả',
-  tools: 'Bảng núm',
-  learn: 'Bài học',
-  minimap: 'Bản đồ',
+  editor: t('games.cicd.panel.editor'),
+  mission: t('games.cicd.panel.mission'),
+  inspector: t('games.cicd.panel.inspector'),
+  result: t('games.cicd.panel.result'),
+  tools: t('games.cicd.panel.tools'),
+  learn: t('games.cicd.panel.learn'),
+  minimap: t('games.cicd.panel.minimap'),
 };
+
+const ON_INK_GHOST = 'text-ink-foreground hover:bg-ink-foreground/10 hover:text-ink-foreground';
 
 export interface CicdTopBarProps {
   readonly levelId: string;
@@ -85,49 +88,46 @@ export function CicdTopBar({
   return (
     <header
       className={cn(
-        'pointer-events-auto absolute inset-x-0 top-0 z-30 flex items-center gap-2 overflow-x-auto border-b border-border bg-card/95 px-3 backdrop-blur-sm',
+        'pointer-events-auto absolute inset-x-0 top-0 z-30 flex items-center gap-3 overflow-x-auto bg-ink px-3 text-ink-foreground',
         CICD_TOP_BAR_HEIGHT,
       )}
-      aria-label="Thanh điều khiển màn chơi"
+      aria-label={t('games.cicd.hud.bar-aria')}
     >
-      <Button variant="ghost" size="sm" onClick={onExit}>
+      <Button variant="ghost" size="sm" onClick={onExit} className={ON_INK_GHOST}>
         <LogOut className="size-4 rotate-180" aria-hidden="true" />
-        Danh sách màn
+        {t('games.cicd.hud.exit')}
       </Button>
 
+      <span aria-hidden="true" className="h-8 w-1.5 shrink-0 bg-line-cicd" />
+
       <div className="flex min-w-0 flex-col leading-tight">
-        <span className="truncate text-sm font-semibold text-foreground">{title}</span>
-        <span className="font-mono text-[0.65rem] text-muted-foreground">
-          {levelId} · chương {chapter === 'cd' ? 'CD' : 'CI'}
+        <span className="truncate font-display text-[0.95rem] font-bold">{title}</span>
+        <span className="font-mono text-[0.65rem] tracking-[0.08em] text-ink-foreground/70 uppercase">
+          {t('games.cicd.hud.chapter', { id: levelId, chapter: chapter === 'cd' ? 'CD' : 'CI' })}
         </span>
       </div>
 
       <div className="ml-auto flex shrink-0 items-center gap-2">
-        <Button size="sm" onClick={onRun}>
-          <Play className="size-4" aria-hidden="true" />
-          Chạy thử
+        <Button size="sm" onClick={onRun} iconLeft={<Play className="size-4" aria-hidden="true" />}>
+          {t('games.cicd.hud.run')}
         </Button>
 
         {onNext === undefined ? null : (
-          <Button variant="secondary" size="sm" onClick={onNext}>
-            Màn tiếp
+          <Button variant="outline" size="sm" onClick={onNext} className="border-ink-foreground/60 text-ink-foreground hover:bg-ink-foreground/10">
+            {t('games.cicd.hud.next')}
           </Button>
         )}
 
         {/*
          * Nút 2D/3D. `aria-pressed` chứ không `aria-selected`: đây là hai công
-         * tắc, không phải một tab-list — chế độ đang chạy là một TRẠNG THÁI của
-         * nút, và trình đọc màn hình đọc ra "đã bật".
-         *
-         * ⚠ Nhãn nói CHẾ ĐỘ, và câu giải thích nói VÌ SAO. Hai thứ tách nhau vì
-         * "đang ở 2D vì bạn chọn" và "đang ở 2D vì máy không chạy nổi 3D" trông
-         * y hệt nhau trên màn hình mà đòi hai câu khác hẳn nhau
-         * (`rendererModeReasonText`).
+         * tắc, không phải một tab-list. Nhãn nói CHẾ ĐỘ, `title` nói VÌ SAO
+         * (`rendererModeReasonText`): "2D vì bạn chọn" và "2D vì máy không chạy
+         * nổi 3D" trông y hệt nhau mà đòi hai câu khác hẳn nhau.
          */}
         <div
-          className="flex items-center rounded-md border border-border p-0.5"
+          className="flex items-center border border-ink-foreground/30"
           role="group"
-          aria-label="Chế độ vẽ"
+          aria-label={t('games.cicd.hud.mode-group')}
         >
           {(['2d', '3d'] as const).map((mode) => (
             <button
@@ -139,10 +139,10 @@ export function CicdTopBar({
                 onMode(mode);
               }}
               className={cn(
-                'rounded px-2 py-1 text-xs font-semibold focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+                'h-8 min-w-9 px-2 font-mono text-xs font-semibold transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
                 resolved.mode === mode
                   ? 'bg-primary text-primary-foreground'
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                  : 'text-ink-foreground/75 hover:bg-ink-foreground/10 hover:text-ink-foreground',
               )}
             >
               {mode === '2d' ? '2D' : '3D'}
@@ -150,20 +150,17 @@ export function CicdTopBar({
           ))}
         </div>
 
-        {/*
-         * Bậc chất lượng chỉ có nghĩa ở 3D. Hiện một ô điều khiển không làm gì ở
-         * 2D là mời người chơi đi sửa một thứ không liên quan tới thứ họ đang
-         * thấy.
-         */}
+        {/* Bậc chất lượng chỉ có nghĩa ở 3D: ở 2D nó là một núm không làm gì. */}
         {resolved.mode === '3d' ? (
-          <label className="flex items-center gap-1 text-xs text-muted-foreground">
-            Chất lượng
+          <label className="flex items-center gap-1.5 font-mono text-xs text-ink-foreground/75">
+            {t('games.cicd.hud.quality')}
             <select
               value={quality}
+              aria-label={t('games.cicd.quality.aria')}
               onChange={(event) => {
                 onQuality(event.target.value as CicdQualityTier);
               }}
-              className="rounded-md border border-border bg-background px-1 py-1 text-xs text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+              className="h-8 border border-ink-foreground/30 bg-ink px-1 text-xs text-ink-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
             >
               {(['low', 'medium', 'high'] as const).map((tier) => (
                 <option key={tier} value={tier}>
@@ -174,7 +171,7 @@ export function CicdTopBar({
           </label>
         ) : null}
 
-        <div className="flex items-center gap-1" role="group" aria-label="Lớp phủ">
+        <div className="flex items-center gap-1" role="group" aria-label={t('games.cicd.hud.overlays')}>
           {panelIds.map((id) => (
             <button
               key={id}
@@ -184,23 +181,28 @@ export function CicdTopBar({
                 onTogglePanel(id);
               }}
               className={cn(
-                'rounded-md border px-2 py-1 text-xs focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+                'h-8 px-2 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none motion-safe:active:translate-y-px',
                 panels[id]
-                  ? 'border-primary bg-primary/10 text-foreground'
-                  : 'border-border text-muted-foreground hover:bg-muted hover:text-foreground',
+                  ? 'bg-signal text-signal-foreground'
+                  : 'text-ink-foreground/75 hover:bg-ink-foreground/10 hover:text-ink-foreground',
               )}
             >
               {PANEL_LABEL[id]}
             </button>
           ))}
-          <Button variant="ghost" size="sm" onClick={onCloseAllPanels}>
-            Thu hết
+          <Button variant="ghost" size="sm" onClick={onCloseAllPanels} className={ON_INK_GHOST}>
+            {t('games.cicd.hud.close-all')}
           </Button>
         </div>
 
-        <Button variant="ghost" size="sm" onClick={onHelp}>
-          <CircleHelp className="size-4" aria-hidden="true" />
-          Trợ giúp
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onHelp}
+          className={ON_INK_GHOST}
+          iconLeft={<CircleHelp className="size-4" aria-hidden="true" />}
+        >
+          {t('games.cicd.hud.help')}
         </Button>
       </div>
     </header>

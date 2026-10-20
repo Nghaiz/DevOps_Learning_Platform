@@ -1,170 +1,192 @@
-import type { ReactElement } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 import Link from 'next/link';
-import { Play, Timer } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import type { inferRouterOutputs } from '@trpc/server';
 import { renderCopy, t } from '@devops-platform/copy';
-import { Alert, AlertDescription, Badge, Button, MarkdownView } from '@devops-platform/ui';
+import { Button, LINE_CODE, Meter, Num } from '@devops-platform/ui';
 import {
   problemTopicLabels,
   type ProblemStats,
+  type ProblemSubmission,
   type ProblemViewerStatus,
 } from '@devops-platform/games';
 import type { AppRouter } from '../../../../server/trpc/routers/app-router';
-import { DifficultyBadge, ViewerStatusBadge } from '../problem-badges';
-import { formatAcceptance, formatTimeLimit, topicLabel } from '../problem-labels';
+import { lineFillClass, lineForTopic } from '../../../../components/kit';
+import { ProblemDifficultyMark, ViewerStatusMark } from '../problem-badges';
+import { acceptancePercent, formatAcceptance, formatTimeLimit, topicLabel } from '../problem-labels';
+import { gameName } from '../problem-game';
+import { VerdictChip } from './verdict-chip';
 /*
- * Nhập từ `lib/`, KHÔNG từ `author/problems/game-plugin-view` — module đó nhập
+ * Nhập từ `lib/`, KHÔNG từ `author/problems/game-plugin-view`: module đó nhập
  * `PROBLEM_PLUGINS`, và bảng plugin kéo cả hai engine vào bundle của route này.
  * Xem khối đầu `lib/problem-preview-href.ts` về cái giá đã đo.
  */
 import { problemPreviewHref } from '../../../../lib/problem-preview-href';
 
 /**
- * Bài ĐÚNG NHƯ NÓ TỚI QUA DÂY, suy từ router thay vì khai lại.
- *
- * ⚠ Bản trước nhận `SolverProblem` nhập thẳng từ `server/problems/solver.ts`, và
- * nó vỡ ngay khi `StoredProblem.initialState` đổi sang `unknown`: `unknown` bao
- * gồm cả `undefined`, nên kiểu đầu ra tRPC suy ra khai `initialState?: unknown`
- * — TUỲ CHỌN — trong khi `SolverProblem` đòi BẮT BUỘC. Với
- * `exactOptionalPropertyTypes: true` thì hai hình dạng đó không gán được cho
- * nhau, và lời khai đúng là lời khai của dây: `JSON.stringify` bỏ hẳn khoá mang
- * `undefined`, nên trường đó THẬT SỰ có thể không tới.
- *
- * Suy từ `inferRouterOutputs` là khuôn đang dùng ở chín trang client khác của
- * app (`labs`, `lessons`, `paths`, `admin/*`…); hai trang `problems` là ngoại lệ
- * duy nhất còn với tay vào `server/` để mượn kiểu. Đưa chúng về khuôn chung thì
- * component không thể đòi một hình dạng mà máy chủ không gửi.
+ * Bài ĐÚNG NHƯ NÓ TỚI QUA DÂY, suy từ router thay vì khai lại. Với
+ * `exactOptionalPropertyTypes` thì kiểu của `server/` và kiểu của dây không gán
+ * được cho nhau (`initialState` tuỳ chọn trên dây), và lời khai đúng là của dây.
  */
 type ProblemDetail = inferRouterOutputs<AppRouter>['problems']['byCode'];
 
 /**
- * Phần đầu trang bài: định danh, phân loại, hạn giờ, đề bài, và nút vào đấu
- * trường. Không state — mọi thứ đến từ props.
+ * Bảng thông tin bên phải trang đề: game, độ khó, chủ đề, hạn giờ, tỉ lệ giải,
+ * kết quả của bạn, và nút chính "Mở trong game". Không state, mọi thứ từ props.
  */
 export function ProblemOverview(props: {
   /**
-   * ⚠ Bản ĐÃ CHE của máy chủ, không phải `ProblemBase` của `packages/games`.
-   * Kiểu kia còn mang `check` + `args` của cách chấm và trang này chưa bao giờ
-   * đọc tới chúng. Xem `server/problems/solver.ts`.
+   * ⚠ Bản ĐÃ CHE của máy chủ: không mang `check`/`args` của cách chấm, và trang
+   * này chưa bao giờ đọc tới chúng. Xem `server/problems/solver.ts`.
    */
   readonly problem: ProblemDetail['problem'];
   readonly stats: ProblemStats;
   readonly viewerStatus: ProblemViewerStatus | null;
+  /** Lượt nộp mới nhất của người xem, `null` khi chưa có hoặc chưa tải xong. */
+  readonly latest: ProblemSubmission | null;
 }): ReactElement {
-  const { problem, stats, viewerStatus } = props;
+  const { problem, stats, viewerStatus, latest } = props;
+  const line = lineForTopic({ gameId: problem.gameId });
+  const percent = acceptancePercent(stats);
+  /*
+    `?problem=<mã>` là đường vào chế độ bài tập của game. Đường dẫn tra theo
+    `problem.gameId`, KHÔNG chốt cứng `/games/k8s`: từ migration 0015 kho chở bài
+    của game khác, và một bài Git mở sang đấu trường K8s chỉ ra một ván K8s mặc
+    định, không lỗi nào báo.
+  */
   const playHref = problemPreviewHref(problem.gameId, problem.code);
+  const topicLabels = problemTopicLabels(problem.gameId);
 
   return (
-    <section
-      className={
-        problem.gameId === 'git' ? 'git-oj-overview flex flex-col gap-5' : 'flex flex-col gap-5'
-      }
-    >
-      <div className="flex flex-col gap-3">
-        <p className="font-mono text-sm text-muted-foreground">{problem.code}</p>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">{problem.title}</h1>
-        <div className="flex flex-wrap items-center gap-2">
-          <DifficultyBadge value={problem.difficulty} />
-          <ViewerStatusBadge value={viewerStatus} />
-          {/*
-            Bảng nhãn tra theo `problem.gameId`, không phải bảng K8s cố định
-            (§18.D, 2026-09-15). Trước lượt này một bài Git mang chủ đề
-            `branching` tra hụt và vẽ ra `Badge` RỖNG — không lỗi, không log,
-            không test nào đỏ. `problemTopicLabels` nhập DỮ LIỆU LÁ chứ không
-            nhập plugin, nên nó không kéo engine vào route này; lý do đầy đủ ở
-            `packages/games/src/problem-topic-labels.ts`.
-          */}
-          {problem.topics.map((topic) => (
-            <Badge key={topic} variant="secondary" icon={null}>
-              {topicLabel(topic, problemTopicLabels(problem.gameId))}
-            </Badge>
-          ))}
-          {problem.tags.map((tag) => (
-            <Badge key={tag} variant="outline" icon={null}>
-              {tag}
-            </Badge>
-          ))}
-        </div>
-        {/*
-          Cả câu là MỘT khoá, không phải ba mảnh ghép trong JSX: mẫu số là thứ
-          nói cho người đọc biết tỉ lệ kia đáng tin tới đâu, nên nó không được
-          rơi ra khỏi câu khi ai đó sửa layout.
-        */}
-        <p className="text-sm text-muted-foreground">
-          {t('catalog.problem.stats', {
-            acceptance: renderCopy(formatAcceptance(stats)),
-            solvers: stats.solverCount,
-            attempts: stats.attemptCount,
-          })}
-        </p>
+    <section aria-labelledby="problem-facts" className="border-2 border-ink bg-card">
+      <div className={`flex items-center gap-4 px-5 py-4 ${lineFillClass(line)}`}>
+        <span className="font-mono text-2xl font-bold tracking-wider">
+          {line === 'ink' ? problem.gameId.toUpperCase() : LINE_CODE[line]}
+        </span>
+        <span className="min-w-0">
+          <span className="block type-label">{t('problem.oj.detail.fact-game')}</span>
+          <span className="block type-title">{gameName(problem.gameId)}</span>
+        </span>
       </div>
 
-      {/*
-        Hạn giờ nói TRƯỚC khi bấm, không phải sau. Người đọc đề rồi mới biết bài
-        chạy đồng hồ đã mất mất một phần thời gian của chính lượt đó.
-      */}
-      {problem.timeLimitSec !== null && (
-        /*
-          Câu này nằm trong `AlertDescription` chứ không phải `AlertTitle`, và
-          đó là ràng buộc a11y chứ không phải thẩm mỹ: `AlertTitle` render `<h5>`,
-          đặt ngay dưới `<h1>` của trang là một bậc tiêu đề nhảy cóc — axe báo
-          `heading-order`, và cổng a11y của repo chạy trên các trang này.
-        */
-        <Alert variant="warning">
-          <Timer aria-hidden className="size-4" />
-          <AlertDescription>
-            <strong className="font-medium">
-              {t('catalog.problem.time-limit-lead', {
-                limit: renderCopy(formatTimeLimit(problem.timeLimitSec)),
-              })}
-            </strong>{' '}
-            {t('catalog.problem.time-limit-note')}
-          </AlertDescription>
-        </Alert>
-      )}
+      <h2 id="problem-facts" className="sr-only">
+        {t('problem.oj.detail.facts')}
+      </h2>
 
-      <div className="rounded-lg border border-border bg-card p-5 shadow-elevation-1">
-        <h2 className="mb-3 text-sm font-medium text-muted-foreground">
-          {t('catalog.problem.statement')}
-        </h2>
-        {/*
-          `resolveAssetUrl` luôn trả `null`: hệ bài tập chưa có đường phục vụ tệp
-          đính kèm, nên một ảnh tương đối trong đề là thứ KHÔNG tải được. Trả
-          `null` để component vẽ chỗ trống có nhãn — bịa một URL sẽ cho một ảnh
-          vỡ mà không ai biết vì sao.
-        */}
-        <MarkdownView markdown={problem.statement} resolveAssetUrl={() => null} />
-      </div>
-
-      <div className="flex flex-wrap items-center gap-3">
-        {/*
-          `?problem=<mã>` là đường vào chế độ bài tập của đấu trường — lead chốt
-          2026-09-08.
-
-          ⛔ Đường dẫn tra theo `problem.gameId`, KHÔNG chốt cứng `/games/k8s`.
-          Bản cũ chốt cứng, và nó đúng cho tới migration 0015: từ đó kho lưu chở
-          được bài của game khác, nên một bài Git ở đây mở sang đấu trường K8s —
-          không 404, không lỗi, chỉ là một ván K8s mặc định. Người học kết luận
-          bài hỏng; người soạn kết luận mình lưu nhầm.
-
-          `null` ⇒ game chưa có đường vào nào, và nút KHÔNG hiện. Một nút dẫn tới
-          404 tệ hơn một nút vắng mặt, vì nó hứa một thứ không có.
-
-          `asChild` nên icon phải nằm TRONG `<Link>`: Radix Slot đòi đúng một
-          phần tử con, thêm node anh em là ném lỗi lúc chạy.
-        */}
-        {playHref !== null && (
-          <Button asChild size="lg">
-            <Link href={playHref}>
-              <Play aria-hidden className="size-4" />
-              {t('catalog.problem.start')}
-            </Link>
-          </Button>
+      <dl className="divide-y divide-border px-5">
+        <Fact label={t('problem.oj.detail.fact-difficulty')}>
+          <ProblemDifficultyMark value={problem.difficulty} className="text-sm" />
+        </Fact>
+        <Fact label={t('problem.oj.detail.fact-topics')}>
+          <span className="flex flex-wrap gap-1.5">
+            {/*
+              Bảng nhãn tra theo `problem.gameId`. `problemTopicLabels` là dữ liệu
+              lá, không kéo engine vào route này.
+            */}
+            {problem.topics.map((topic) => (
+              <span key={topic} className="inline-flex h-6 items-center bg-muted px-2 text-xs">
+                {topicLabel(topic, topicLabels)}
+              </span>
+            ))}
+          </span>
+        </Fact>
+        <Fact label={t('problem.oj.detail.fact-tags')}>
+          {problem.tags.length === 0 ? (
+            <span className="text-sm text-muted-foreground">{t('problem.oj.detail.no-tags')}</span>
+          ) : (
+            <span className="flex flex-wrap gap-x-2 gap-y-1 font-mono text-xs">
+              {problem.tags.map((tag) => (
+                <span key={tag}>#{tag}</span>
+              ))}
+            </span>
+          )}
+        </Fact>
+        <Fact label={t('problem.oj.detail.fact-time')}>
+          <span className="font-mono text-sm tabular-nums">
+            {renderCopy(formatTimeLimit(problem.timeLimitSec))}
+          </span>
+        </Fact>
+        {problem.parMoves !== null && (
+          <Fact label={t('problem.oj.detail.fact-par')}>
+            <span className="font-mono text-sm tabular-nums">
+              {t('problem.oj.detail.par-value', { n: problem.parMoves })}
+            </span>
+          </Fact>
         )}
-        <Button asChild variant="ghost" size="sm">
-          <Link href="/problems">{t('catalog.problem.back')}</Link>
-        </Button>
+        <Fact label={t('problem.oj.detail.fact-acceptance')}>
+          <span className="flex flex-col gap-2">
+            <span className="flex items-center gap-3">
+              <Num className="text-2xl">{renderCopy(formatAcceptance(stats))}</Num>
+              {percent !== null && (
+                <Meter
+                  value={percent}
+                  max={100}
+                  segments={10}
+                  tone="iac"
+                  label={t('problem.oj.acceptance-meter', { percent })}
+                  className="flex-1"
+                />
+              )}
+            </span>
+            {/*
+              Cả câu là MỘT khoá: mẫu số nói cho người đọc biết tỉ lệ kia đáng tin
+              tới đâu, nên nó không được rơi khỏi câu khi ai đó sửa layout.
+            */}
+            <span className="text-xs text-muted-foreground">
+              {t('problem.oj.detail.stats', {
+                solvers: stats.solverCount,
+                attempts: stats.attemptCount,
+              })}
+            </span>
+          </span>
+        </Fact>
+        {viewerStatus !== null && (
+          <Fact label={t('problem.oj.detail.fact-result')}>
+            <ViewerStatusMark value={viewerStatus} className="text-sm" />
+          </Fact>
+        )}
+        {latest !== null && (
+          <Fact label={t('problem.oj.detail.fact-last')}>
+            <VerdictChip submission={latest} />
+          </Fact>
+        )}
+      </dl>
+
+      <div className="flex flex-col gap-3 border-t-2 border-ink p-5">
+        {/*
+          `null` ⇒ game chưa có đường vào nào, và nút KHÔNG hiện. Một nút dẫn tới
+          404 tệ hơn một nút vắng mặt, vì nó hứa một thứ không có. Thay nút bằng
+          một câu nói ra lý do, để người học không nghĩ trang bị hỏng.
+
+          `asChild` nên icon phải nằm TRONG `<Link>`: Radix Slot đòi đúng một phần
+          tử con.
+        */}
+        {playHref !== null ? (
+          <>
+            <Button asChild size="lg" variant="primary" className="group w-full justify-between">
+              <Link href={playHref}>
+                {t('problem.oj.detail.play')}
+                <ArrowRight
+                  aria-hidden
+                  className="size-5 transition-transform duration-[var(--motion-base)] group-hover:translate-x-1"
+                />
+              </Link>
+            </Button>
+            <p className="text-xs text-muted-foreground">{t('problem.oj.detail.play-note')}</p>
+          </>
+        ) : (
+          <p className="text-sm text-muted-foreground">{t('problem.oj.detail.play-missing')}</p>
+        )}
       </div>
     </section>
+  );
+}
+
+function Fact({ label, children }: { readonly label: string; readonly children: ReactNode }): ReactElement {
+  return (
+    <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] items-start gap-3 py-3">
+      <dt className="pt-0.5 type-label text-muted-foreground">{label}</dt>
+      <dd className="min-w-0">{children}</dd>
+    </div>
   );
 }

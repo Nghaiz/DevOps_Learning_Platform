@@ -159,6 +159,24 @@ chủ ngày 2026-09-13 ghi **16 chunk JS, 679 373 B encoded body, 2 438 813 B de
 mục "với tới được ≠ tải ngay" ở trên, chỉ khác chiều: ở đây manifest **thiếu** chunk chứ không
 thừa.
 
+### Đo lại 2026-10-03 — landing 3D mới (GSAP + Lenis + R3F)
+
+Landing `/` dựng lại hoàn toàn (`plans/devops-learning-platform/landing-3d/plan.md`). Đo trên
+bản build của nhánh `feat/landing-3d`:
+
+| Phép đo | Giá trị |
+|---|---|
+| `/page` theo manifest (cổng `bundle:check`) | **1 075 240 B**, 10 chunk; trần 1 850 000 B |
+| Nền chung | **816 066 B**, 7 chunk; không đổi so với trước khi thêm landing |
+| Chunk 3D nạp lười (KHÔNG có trong manifest) | 916 745 + 137 122 + 80 536 + 45 701 + 28 609 = **1 208 713 B** thô |
+| Runtime thật lúc cảnh đã vẽ (Chrome, 1440×900) | **18 script, 867 582 B transfer**, 2 863 683 B decoded |
+
+So với landing 2026-09-13 (16 chunk, 684 173 B transfer) là **+183 409 B** qua mạng: GSAP
+(ScrollTrigger, ScrambleText, DrawSVG, MorphSVG, MotionPath, CustomEase), Lenis, và mười model
+3D dựng thủ tục. GSAP + Lenis nằm trong tập chunk của chính `/page` (được cổng đếm); three/R3F/
+postprocessing chỉ vào qua `next/dynamic`, nên `/login` và nền chung không chạm tới chúng. LCP
+đo cùng lượt: 0,45 đến 0,52 s, phần tử LCP là chữ tiêu đề, không phải canvas.
+
 ### Nền chung đi từ 998 512 B lên 1 050 883 B ở đâu
 
 Chênh **+52 371 B** so với mốc 2026-09-11 cũ, và **phần lớn không phải do lane 3D**. Ba lượt đo

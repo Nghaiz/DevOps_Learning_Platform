@@ -1,19 +1,19 @@
 /**
- * Điều hướng — hợp đồng **C6** (`plans/devops-learning-platform/phase-13-exec.md` §2).
+ * Điều hướng: bảng SECTION (mục cha trên header) → các trang con.
  *
- * Dữ liệu THUẦN: không JSX, không import React, không import gì từ `server/**`.
- * `@devops-platform/copy` KHÔNG phá điều kiện đó: gói này khai zero runtime
- * dependency như một hợp đồng (xem khối `//dependencies` trong package.json của
- * nó), và `t()` là một phép tra bảng thuần. Đó là điều kiện để CẢ HAI phía dùng chung một nguồn — `app/layout.tsx`
- * (Server Component, gọi `normalizeRole`) và `app-shell.tsx` (Client Component,
- * đọc bảng nav) — mà không kéo Better Auth/DB vào bundle trình duyệt.
+ * Bản dựng lại PTIT (2026-10-03, `plans/fe-ptit-rebuild/design-brief.md` §3) bỏ
+ * thanh bên trái và bỏ các trang trung gian `explore/[group]`. Hình dạng mới chỉ
+ * có HAI tầng: section trên header, trang con mở thẳng từ mega menu hoặc từ thanh
+ * chuyển trang (`SectionSwitcher`) nằm trong đầu trang.
  *
- * ⛔ **Điều kiện "không import React" là thứ quyết định hình dạng của `icon`.**
- * `app/layout.tsx` (Server Component) import `normalizeRole` từ chính file này.
- * Gắn thẳng một component của `lucide-react` vào mỗi mục sẽ kéo cả thư viện
- * icon vào đường đi của server chỉ để hỏi "vai trò này thấy mục nào". Nên
- * `icon` ở đây là một TÊN (`NavIconName`), còn `nav-icons.ts` — module chỉ
- * phía client đọc — ánh xạ tên đó sang component.
+ * Dữ liệu THUẦN: không JSX, không React, không `server/**`. `app/layout.tsx`
+ * (Server Component) import `normalizeRole` từ file này, nên `icon` là một TÊN
+ * (`NavIconName`) và `nav-icons.ts` ánh xạ tên sang component ở phía client.
+ *
+ * ⚠ Hiện/ẩn ở đây là TRANG TRÍ, không phải phân quyền. Cổng đăng nhập là
+ * `PROTECTED_PATHS` trong `proxy.ts`; cổng vai trò là `layout.tsx` phía server
+ * của từng nhánh. `proxy.test.ts` đọc `PRIMARY_NAV` để chắc mọi đường hiện trên
+ * header đều được gác (trừ ngoại lệ có lý do).
  */
 
 import { t } from '@devops-platform/copy';
@@ -27,249 +27,214 @@ export interface Viewer {
   readonly role: ViewerRole;
 }
 
-/**
- * Cặp (đường, nhãn) — hình dạng TỐI THIỂU mà mọi nơi hiện một liên kết đều cần.
- *
- * `userMenuItems()` trả đúng hình dạng này (`user-menu.tsx` đọc nó), còn điều
- * hướng chính trả `PrimaryNavItem` giàu hơn. Tách hai kiểu thay vì nhét mọi
- * field vào một: menu tài khoản không có nhóm và không có icon-theo-tên (nó tra
- * icon theo `href`, xem `nav-icons.ts`), nên một kiểu chung sẽ bắt nó khai hai
- * field vô nghĩa.
- */
+/** Cặp (đường, nhãn): hình dạng tối thiểu của một liên kết. */
 export interface NavItem {
   readonly href: string;
   readonly label: string;
 }
 
 /**
- * Thứ tự HIỂN THỊ của các nhóm, và cũng là nguồn khai sinh của `NavGroup`.
- *
- * Suy kiểu TỪ mảng thứ tự chứ không khai union rồi viết thêm một mảng thứ tự
- * bên cạnh: hai bản sẽ trôi khỏi nhau, và hỏng IM LẶNG — một nhóm thiếu trong
- * mảng thứ tự thì cả nhóm đó biến mất khỏi thanh điều hướng mà không lệnh nào
- * kêu. Ở dạng này, một nhóm không có thứ tự là điều không nói ra được.
+ * Thứ tự section trên header, cũng là nguồn khai sinh của `SectionId`. Suy kiểu
+ * từ mảng để một section không thể tồn tại mà không có vị trí.
  */
-const GROUP_ORDER = ['learn', 'library', 'studio', 'manage', 'account'] as const;
+export const SECTION_ORDER = ['learn', 'practice', 'judge', 'games', 'studio', 'admin'] as const;
 
-export type NavGroup = (typeof GROUP_ORDER)[number];
+export type SectionId = (typeof SECTION_ORDER)[number];
 
-/**
- * Tên icon. Là TÊN, không phải component — xem khối đầu file.
- *
- * `nav-icons.ts` khai `Record<NavIconName, LucideIcon>`, nên thiếu một icon là
- * lỗi BIÊN DỊCH chứ không còn là một ô test đỏ. Chiều còn lại (một tên ở đây
- * mà không mục nào dùng) thì trình biên dịch không thấy, và đó là việc của
- * `nav-icons.test.ts`.
- */
 export type NavIconName =
+  | 'paths'
   | 'lessons'
+  | 'quiz'
   | 'labs'
   | 'playgrounds'
-  | 'paths'
-  | 'quiz'
-  | 'games'
   | 'problems'
   | 'exams'
-  | 'me'
+  | 'games'
   | 'author'
   | 'author-problems'
   | 'level-builder'
-  | 'admin-exams'
+  | 'admin'
+  | 'admin-users'
   | 'admin-classes'
-  | 'admin';
+  | 'admin-exams'
+  | 'admin-sessions'
+  | 'admin-content'
+  | 'admin-audit';
 
-/**
- * Ai THẤY mục này.
- *
- * ⚠ **Đây là trang trí, KHÔNG phải phân quyền** — cùng một câu cảnh báo với
- * `userMenuItems` bên dưới, và cùng một lý do: giấu một liên kết chỉ làm nó
- * không hiện ra. Cổng thật là `PROTECTED_PATHS` ở `proxy.ts` (cổng đăng nhập)
- * cộng `layout.tsx` phía server của từng nhánh (cổng vai trò).
- *
- * · `'everyone'`  — hiện cả với khách chưa đăng nhập. Mục vẫn có thể được gác
- *   ở proxy; khách bấm vào thì bị đẩy sang `/login`, và đó là hành vi mong
- *   muốn (thấy được kho nội dung trước khi đăng nhập).
- * · `'signed-in'` — mọi vai trò đã đăng nhập.
- * · danh sách vai trò — đúng những vai trò đó.
- */
+/** Ai thấy mục. `'everyone'` gồm cả khách; `'signed-in'` là mọi vai trò đã đăng nhập. */
 export type NavAudience = 'everyone' | 'signed-in' | readonly ViewerRole[];
 
 export interface PrimaryNavItem extends NavItem {
-  readonly group: NavGroup;
+  readonly section: SectionId;
   readonly icon: NavIconName;
-  readonly roles: NavAudience;
+  /** Một câu mô tả, hiện trong mega menu và bảng lệnh. */
+  readonly description: string;
 }
 
 /**
- * Điều hướng chính — **nhãn của chín mục C6 khớp hợp đồng từng chữ**.
- *
- * ## Thứ tự ở đây là thứ tự C6, KHÔNG phải thứ tự trên màn hình
- *
- * Chín mục C6 giữ nguyên thứ tự hợp đồng (`/lessons` … `/me`). Thứ tự hiển thị
- * do `group` cộng `GROUP_ORDER` quyết định, và hai thứ đó độc lập nhau có chủ
- * ý: đổi cách xếp nhóm trên màn hình không được phép làm lệch hợp đồng, và
- * ngược lại. `nav.test.ts` ghim CẢ HAI.
- *
- * Sáu mục sau `/exams` là nhóm STUDIO và QUẢN LÝ, thêm 2026-09-16 khi vỏ ứng
- * dụng được nối lại về bảng này. Chúng KHÔNG thuộc C6 — hợp đồng C6 nói về chín
- * mục kia — nên ô test ghim C6 lọc chúng ra bằng chính danh sách chín `href`
- * viết thẳng, không bằng một phép loại trừ theo nhóm (một nhóm thứ sáu ra đời
- * sau sẽ lọt qua phép loại trừ đó mà không ai thấy).
- *
- * `/me` ở CUỐI mảng và ở nhóm cuối: sáu mục đầu là kho nội dung, mục cá nhân là
- * chỗ của riêng người dùng.
- *
- * ⚠ Nhãn đến từ `packages/copy` (`shell.nav.*`). Bảng này là SSOT của THỨ TỰ,
- * của cặp (href, khoá), của NHÓM, VAI TRÒ và ICON; chữ hiển thị là SSOT của bản
- * đồ copy. Ô `nav.test.ts` cố ý ghim chữ VIẾT THẲNG chứ không ghim
- * `t('shell.nav.lessons')`: so bản đồ với chính nó thì ô đó xanh với mọi giá
- * trị, kể cả chuỗi rỗng.
- *
- * ⚠ Thêm một mục ở đây là sửa BA file cùng lúc: `packages/copy/src/surfaces/
- * shell.ts` (khoá và chữ), `nav.ts` (`icon` là field bắt buộc nên thiếu icon là
- * lỗi biên dịch) và `nav.test.ts` (`toEqual` ghim từng chữ). Đó là thiết kế.
- *
- * ⛔ Thêm mục ở đây KHÔNG tự động gác đăng nhập cho đường đó. Cổng là
- * `PROTECTED_PATHS` trong `proxy.ts`, và `/games` cùng `/games/git` cố ý KHÔNG
- * có trong đó: game chạy hoàn toàn ở trình duyệt, tiến độ ở `localStorage`.
- * `proxy.test.ts` đọc THẲNG bảng này nên một mục mới quên gác sẽ đỏ ở đó.
- *
- * ⚠ `/games/git?mode=builder` mang QUERY. Nó là một CHẾ ĐỘ của một trang, không
- * phải một địa chỉ riêng, nên nó không bao giờ được đánh dấu "đang mở" (xem
- * `activeNavItem`), và `proxy.test.ts` cắt phần query trước khi hỏi cổng.
+ * Màu chữ ký của section. Là TÊN token, không phải class: `section-tone.ts`
+ * (phía client) đổi tên này thành class Tailwind viết thẳng.
  */
-export const PRIMARY_NAV: readonly PrimaryNavItem[] = [
-  {
-    href: '/lessons',
-    label: t('shell.nav.lessons'),
-    group: 'library',
-    icon: 'lessons',
-    roles: 'everyone',
-  },
-  { href: '/labs', label: t('shell.nav.labs'), group: 'library', icon: 'labs', roles: 'everyone' },
-  {
-    href: '/playgrounds',
-    label: t('shell.nav.playgrounds'),
-    group: 'library',
-    icon: 'playgrounds',
-    roles: 'everyone',
-  },
-  {
-    href: '/paths',
-    label: t('shell.nav.paths'),
-    group: 'library',
-    icon: 'paths',
-    roles: 'everyone',
-  },
-  { href: '/quiz', label: t('shell.nav.quiz'), group: 'library', icon: 'quiz', roles: 'everyone' },
-  { href: '/games', label: t('shell.nav.games'), group: 'learn', icon: 'games', roles: 'everyone' },
-  /*
-   * `/problems` và `/exams` thêm 2026-09-15 (§18.G), ĐÃ hỏi và được chủ dự án
-   * duyệt đúng như dòng cảnh báo ở trên yêu cầu.
-   *
-   * `/problems` không phải một mục mới của 18.G: đo bằng grep toàn repo ngày
-   * 2026-09-15, trang danh mục bài tập KHÔNG có link vào từ bất kỳ đâu và chỉ
-   * tới được bằng cách gõ URL. Nó là trụ của cả hệ OJ, nên "chưa ai tới được"
-   * là một lỗi đứng im từ P16 chứ không phải một lựa chọn.
-   *
-   * `/exams` phải có mặt vì một kỳ thi có GIỜ: một màn chỉ tới được bằng gõ URL
-   * là một màn sinh viên không tìm ra kịp.
-   */
-  {
-    href: '/problems',
-    label: t('shell.nav.problems'),
-    group: 'learn',
-    icon: 'problems',
-    roles: 'everyone',
-  },
-  { href: '/exams', label: t('shell.nav.exams'), group: 'learn', icon: 'exams', roles: 'everyone' },
+export type SectionTone = 'primary' | 'docker' | 'iac' | 'signal' | 'cicd' | 'ink';
 
-  /*
-   * ── STUDIO ───────────────────────────────────────────────────────────────
-   *
-   * Nhãn của `/author` dùng LẠI `shell.account.menu.author` thay vì một khoá
-   * mới mang đúng chữ đó. Cùng lý lẽ với `shell.theme.label` (xem `shell.ts`):
-   * hai khoá mang cùng một câu là hai chỗ để trôi khỏi nhau, và ở đây chúng trỏ
-   * đúng cùng một đích.
-   */
-  {
-    href: '/author',
-    label: t('shell.account.menu.author'),
-    group: 'studio',
-    icon: 'author',
-    roles: ['author', 'admin'],
-  },
-  {
-    href: '/author/problems',
-    label: t('shell.nav.author-problems'),
-    group: 'studio',
-    icon: 'author-problems',
-    roles: ['author', 'admin'],
-  },
-  {
-    href: '/games/git?mode=builder',
-    label: t('shell.nav.level-builder'),
-    group: 'studio',
-    icon: 'level-builder',
-    roles: ['author', 'admin'],
-  },
-
-  // ── QUẢN LÝ ──────────────────────────────────────────────────────────────
-  {
-    href: '/admin/exams',
-    label: t('shell.nav.admin-exams'),
-    group: 'manage',
-    icon: 'admin-exams',
-    roles: ['admin'],
-  },
-  {
-    href: '/admin/classes',
-    label: t('shell.nav.admin-classes'),
-    group: 'manage',
-    icon: 'admin-classes',
-    roles: ['admin'],
-  },
-  {
-    href: '/admin',
-    label: t('shell.account.menu.admin'),
-    group: 'manage',
-    icon: 'admin',
-    roles: ['admin'],
-  },
-
-  { href: '/me', label: t('shell.nav.me'), group: 'account', icon: 'me', roles: 'signed-in' },
-];
-
-/**
- * Nhãn tiêu đề của từng nhóm.
- *
- * `Record<NavGroup, string>` chứ không phải một bản đồ lỏng: thêm một nhóm vào
- * `GROUP_ORDER` mà quên nhãn là lỗi biên dịch, không phải một tiêu đề `undefined`
- * nằm trên thanh điều hướng.
- *
- * Nhóm `account` dùng LẠI `shell.account.group` ('Tài khoản') — khoá đó tồn tại
- * đúng để làm nhãn nhóm tài khoản, và đây là nhóm tài khoản.
- */
-const GROUP_LABEL: Readonly<Record<NavGroup, string>> = {
-  learn: t('shell.nav.group.learn'),
-  library: t('shell.nav.group.library'),
-  studio: t('shell.nav.group.studio'),
-  manage: t('shell.nav.group.manage'),
-  account: t('shell.account.group'),
-};
-
-export interface NavSection {
-  readonly group: NavGroup;
+export interface NavSectionDef {
+  readonly id: SectionId;
   readonly label: string;
+  readonly lead: string;
+  readonly tone: SectionTone;
+  readonly roles: NavAudience;
   readonly items: readonly PrimaryNavItem[];
 }
 
+function item(
+  section: SectionId,
+  href: string,
+  icon: NavIconName,
+  label: string,
+  description: string,
+): PrimaryNavItem {
+  return { section, href, icon, label, description };
+}
+
 /**
- * Phép kiểm tầm nhìn DUY NHẤT, dùng chung cho điều hướng chính và menu tài khoản.
+ * Bảng section. Nhãn và mô tả đến từ `packages/copy` (`shell.section.*`,
+ * `shell.nav.*`). `nav.test.ts` ghim chữ VIẾT THẲNG, không ghim `t(...)`.
  *
- * Một hàm chứ hai: hai bản sẽ trả lời khác nhau cho cùng một câu hỏi ngay lần
- * đầu ai đó thêm một vai trò, và chênh lệch đó không hiện ra ở đâu cả.
+ * ⚠ `/games/git?mode=builder` mang QUERY: nó là một CHẾ ĐỘ của một trang, không
+ * bao giờ được tô "đang mở" (`activeNavItem` bỏ qua mục có query), và
+ * `proxy.test.ts` cắt query trước khi hỏi cổng.
  */
+export const NAV_SECTIONS: readonly NavSectionDef[] = [
+  {
+    id: 'learn',
+    label: t('shell.section.learn'),
+    lead: t('shell.section.learn.lead'),
+    tone: 'primary',
+    roles: 'everyone',
+    items: [
+      item('learn', '/paths', 'paths', t('shell.nav.paths'), t('shell.nav.paths.desc')),
+      item('learn', '/lessons', 'lessons', t('shell.nav.lessons'), t('shell.nav.lessons.desc')),
+      item('learn', '/quiz', 'quiz', t('shell.nav.quiz'), t('shell.nav.quiz.desc')),
+    ],
+  },
+  {
+    id: 'practice',
+    label: t('shell.section.practice'),
+    lead: t('shell.section.practice.lead'),
+    tone: 'docker',
+    roles: 'everyone',
+    items: [
+      item('practice', '/labs', 'labs', t('shell.nav.labs'), t('shell.nav.labs.desc')),
+      item(
+        'practice',
+        '/playgrounds',
+        'playgrounds',
+        t('shell.nav.playgrounds'),
+        t('shell.nav.playgrounds.desc'),
+      ),
+    ],
+  },
+  {
+    id: 'judge',
+    label: t('shell.section.judge'),
+    lead: t('shell.section.judge.lead'),
+    tone: 'iac',
+    roles: 'everyone',
+    items: [
+      item('judge', '/problems', 'problems', t('shell.nav.problems'), t('shell.nav.problems.desc')),
+      item('judge', '/exams', 'exams', t('shell.nav.exams'), t('shell.nav.exams.desc')),
+    ],
+  },
+  {
+    id: 'games',
+    label: t('shell.section.games'),
+    lead: t('shell.section.games.lead'),
+    tone: 'signal',
+    roles: 'everyone',
+    items: [item('games', '/games', 'games', t('shell.nav.games'), t('shell.nav.games.desc'))],
+  },
+  {
+    id: 'studio',
+    label: t('shell.section.studio'),
+    lead: t('shell.section.studio.lead'),
+    tone: 'cicd',
+    roles: ['author', 'admin'],
+    items: [
+      item('studio', '/author', 'author', t('shell.nav.author'), t('shell.nav.author.desc')),
+      item(
+        'studio',
+        '/author/problems',
+        'author-problems',
+        t('shell.nav.author-problems'),
+        t('shell.nav.author-problems.desc'),
+      ),
+      item(
+        'studio',
+        '/games/git?mode=builder',
+        'level-builder',
+        t('shell.nav.level-builder'),
+        t('shell.nav.level-builder.desc'),
+      ),
+    ],
+  },
+  {
+    id: 'admin',
+    label: t('shell.section.admin'),
+    lead: t('shell.section.admin.lead'),
+    tone: 'ink',
+    roles: ['admin'],
+    items: [
+      item('admin', '/admin', 'admin', t('shell.nav.admin'), t('shell.nav.admin.desc')),
+      item(
+        'admin',
+        '/admin/users',
+        'admin-users',
+        t('shell.nav.admin-users'),
+        t('shell.nav.admin-users.desc'),
+      ),
+      item(
+        'admin',
+        '/admin/classes',
+        'admin-classes',
+        t('shell.nav.admin-classes'),
+        t('shell.nav.admin-classes.desc'),
+      ),
+      item(
+        'admin',
+        '/admin/exams',
+        'admin-exams',
+        t('shell.nav.admin-exams'),
+        t('shell.nav.admin-exams.desc'),
+      ),
+      item(
+        'admin',
+        '/admin/sessions',
+        'admin-sessions',
+        t('shell.nav.admin-sessions'),
+        t('shell.nav.admin-sessions.desc'),
+      ),
+      item(
+        'admin',
+        '/admin/content',
+        'admin-content',
+        t('shell.nav.admin-content'),
+        t('shell.nav.admin-content.desc'),
+      ),
+      item(
+        'admin',
+        '/admin/audit',
+        'admin-audit',
+        t('shell.nav.admin-audit'),
+        t('shell.nav.admin-audit.desc'),
+      ),
+    ],
+  },
+];
+
+/** Mọi trang con, phẳng, theo thứ tự header. `proxy.test.ts` đọc bảng này. */
+export const PRIMARY_NAV: readonly PrimaryNavItem[] = NAV_SECTIONS.flatMap((s) => s.items);
+
+/** Phép kiểm tầm nhìn duy nhất, dùng chung cho section và menu tài khoản. */
 function visibleTo(roles: NavAudience, role: ViewerRole | null): boolean {
   if (roles === 'everyone') {
     return true;
@@ -280,20 +245,18 @@ function visibleTo(roles: NavAudience, role: ViewerRole | null): boolean {
   return roles === 'signed-in' || roles.includes(role);
 }
 
-/**
- * Thanh điều hướng đã chia nhóm, cho đúng người xem này.
- *
- * Nhóm rỗng bị loại HẲN: một tiêu đề "STUDIO" đứng trên khoảng trống nói với
- * người học rằng có thứ gì đó họ không được phép thấy — thông tin không ai cần
- * và không ai hỏi.
- */
-export function navSectionsFor(viewer: Viewer | null): readonly NavSection[] {
+/** Section người xem này thấy được, theo thứ tự header. */
+export function sectionsFor(viewer: Viewer | null): readonly NavSectionDef[] {
   const role = viewer?.role ?? null;
-  return GROUP_ORDER.map((group) => ({
-    group,
-    label: GROUP_LABEL[group],
-    items: PRIMARY_NAV.filter((item) => item.group === group && visibleTo(item.roles, role)),
-  })).filter((section) => section.items.length > 0);
+  return NAV_SECTIONS.filter((section) => visibleTo(section.roles, role));
+}
+
+export function sectionById(id: SectionId): NavSectionDef {
+  const found = NAV_SECTIONS.find((section) => section.id === id);
+  if (found === undefined) {
+    throw new Error(`nav: unknown section "${id}"`);
+  }
+  return found;
 }
 
 interface RoleGatedItem extends NavItem {
@@ -301,22 +264,15 @@ interface RoleGatedItem extends NavItem {
 }
 
 const USER_MENU_NAV: readonly RoleGatedItem[] = [
+  { href: '/me', label: t('shell.account.menu.me'), roles: 'signed-in' },
   { href: '/settings', label: t('shell.account.menu.settings'), roles: 'signed-in' },
   { href: '/author', label: t('shell.account.menu.author'), roles: ['author', 'admin'] },
   { href: '/admin', label: t('shell.account.menu.admin'), roles: ['admin'] },
 ];
 
-/**
- * Mục menu người dùng thấy được với vai trò `role`.
- *
- * ⚠ **Đây là trang trí, KHÔNG phải phân quyền.** Giấu một liên kết chỉ làm nó
- * không hiện ra; gõ thẳng `/admin` vào thanh địa chỉ vẫn tới nơi. Cổng thật là
- * `layout.tsx` phía server của chính route đó (`getSession` + role →
- * `redirect('/me')`) — hợp đồng C6 ghi rõ, và `proxy.ts` cố ý KHÔNG gác vai trò
- * (nó chỉ kiểm sự tồn tại của cookie, không đụng DB, xem chú thích ở đó).
- */
+/** Mục menu tài khoản cho vai trò `role`. Trang trí, không phải phân quyền. */
 export function userMenuItems(role: ViewerRole): readonly NavItem[] {
-  return USER_MENU_NAV.filter((item) => visibleTo(item.roles, role)).map(({ href, label }) => ({
+  return USER_MENU_NAV.filter((entry) => visibleTo(entry.roles, role)).map(({ href, label }) => ({
     href,
     label,
   }));
@@ -325,67 +281,39 @@ export function userMenuItems(role: ViewerRole): readonly NavItem[] {
 const KNOWN_ROLES: readonly ViewerRole[] = ['user', 'author', 'admin'];
 
 /**
- * Vai trò lấy từ session server, fail-closed: giá trị lạ → `'user'`.
- *
- * ⚠ **Bản sao có chủ ý của `toRole` trong `apps/web/src/server/trpc/init.ts`** —
- * hàm đó không được export, và `server/**` thuộc lane BE1 nên lane này không sửa
- * được. Hai allowlist rời nhau là một chỗ để trôi: thêm vai trò thứ tư mà chỉ
- * sửa một bên thì menu và `adminProcedure` sẽ nói hai chuyện khác nhau. Đã ghi
- * vào report để lead cho export `toRole` rồi xoá bản này.
+ * Vai trò từ session server, fail-closed: giá trị lạ → `'user'`.
+ * Bản sao có chủ ý của `toRole` (không export) trong `server/trpc/init.ts`.
  */
 export function normalizeRole(raw: unknown): ViewerRole {
   return KNOWN_ROLES.find((known) => known === raw) ?? 'user';
 }
 
 /**
- * Mục nav nào đang "ở trong" đường hiện tại.
- *
- * Cùng luật khớp với `matchesProtected` của `proxy.ts` và vì cùng một lý do:
- * `startsWith(href)` trần sẽ nuốt `/mentor` cho mục `/me`, còn so bằng chính
- * xác thì `/lessons/<id>` không làm sáng mục "Bài học" — người học vào trang chi
- * tiết sẽ thấy thanh nav không mục nào được chọn.
+ * Cùng luật khớp với `matchesProtected` của `proxy.ts`: đúng đường hoặc đường con.
+ * `startsWith` trần sẽ nuốt `/mentor` cho `/me`.
  */
 export function isActiveNav(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
 /**
- * Trang chủ `/` render `GamesHub` (`app/page.tsx`), tức nó CHÍNH LÀ màn chọn
- * game — không phải một trang giới thiệu riêng.
- *
- * Không mục nav nào trỏ `/`, nên thiếu dòng này thì ở trang chủ KHÔNG mục nào
- * sáng và thanh breadcrumb không có gì để nói. Một dòng nói ra được, thay vì
- * một nhánh `pathname === '/'` nằm rải trong vỏ ứng dụng.
+ * Mục khớp đường hiện tại, khớp DÀI NHẤT thắng (`/author/problems` thắng `/author`,
+ * `/admin/exams` thắng `/admin`). Mục mang query bị bỏ qua.
  */
-const HOME_NAV_HREF = '/games';
-
-/**
- * Mục nav khớp đường hiện tại, khớp DÀI NHẤT thắng.
- *
- * "Dài nhất thắng" là thứ thay cho đống nhánh đặc cách. `/author` và
- * `/author/problems` cùng khớp `/author/problems`; so tiền tố trần sẽ làm sáng
- * CẢ HAI, còn ép `/author` phải khớp chính xác thì `/author/new` mất mục sáng.
- * Luật này đúng cho cả hai, và đúng luôn cho `/admin` với `/admin/exams`.
- *
- * ⚠ Mục mang QUERY (`?mode=builder`) bị BỎ QUA hoàn toàn. Nó là một chế độ của
- * một trang, không phải một địa chỉ; `usePathname()` không mang query nên không
- * có cách nào phân biệt được nó với trang gốc mà không kéo `useSearchParams()`
- * vào root layout (thứ buộc cả cây phải render động). Hệ quả nói thẳng: đang mở
- * trình dựng màn chơi thì mục sáng là "Games", không phải "Dựng màn chơi".
- */
-export function activeNavItem<T extends NavItem>(
-  pathname: string,
-  items: readonly T[],
-): T | null {
-  const path = pathname === '/' ? HOME_NAV_HREF : pathname;
+export function activeNavItem<T extends NavItem>(pathname: string, items: readonly T[]): T | null {
   let best: T | null = null;
-  for (const item of items) {
-    if (item.href.includes('?') || !isActiveNav(path, item.href)) {
+  for (const entry of items) {
+    if (entry.href.includes('?') || !isActiveNav(pathname, entry.href)) {
       continue;
     }
-    if (best === null || item.href.length > best.href.length) {
-      best = item;
+    if (best === null || entry.href.length > best.href.length) {
+      best = entry;
     }
   }
   return best;
+}
+
+/** Section chứa đường hiện tại, hoặc `null` (trang tài khoản, trang lỗi, `/`). */
+export function activeSection(pathname: string): SectionId | null {
+  return activeNavItem(pathname, PRIMARY_NAV)?.section ?? null;
 }

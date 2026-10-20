@@ -12,13 +12,23 @@ export const DialogClose = RadixDialog.Close;
 export function DialogContent({ className, children, ...props }: ComponentProps<typeof RadixDialog.Content>) {
   return (
     <RadixDialog.Portal>
-      <RadixDialog.Overlay className="fixed inset-0 z-50 bg-black/50" />
+      {/* Màn che bằng chính màu nền trang (giấy / đêm), không phải đen pha alpha:
+          `bg-black` là một màu ngoài hệ token, và ở nhánh tối nó gần như không
+          tách được hộp thoại khỏi trang phía sau. */}
+      <RadixDialog.Overlay data-slot="dialog-overlay" className="fixed inset-0 z-50 bg-background/80" />
       <RadixDialog.Content
         data-slot="dialog-content"
         className={cn(
-          'fixed top-1/2 left-1/2 z-50 grid w-full max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4',
-          'rounded-lg border border-border bg-background p-6 shadow-elevation-3',
-          'outline-none',
+          /*
+           * Căn giữa bằng `inset-0 m-auto h-fit`, KHÔNG bằng
+           * `-translate-x-1/2 -translate-y-1/2`: keyframe `animate-rise` animate
+           * chính thuộc tính `transform`, nên căn giữa bằng translate thì suốt
+           * lúc hộp thoại hiện ra nó bị kéo lệch về góc phải-dưới rồi mới nhảy
+           * về giữa.
+           */
+          'fixed inset-0 z-50 m-auto grid h-fit max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-lg gap-4 overflow-y-auto',
+          'rounded-surface border border-ink bg-card p-6 text-card-foreground shadow-float',
+          'animate-rise [animation-duration:var(--motion-base)] outline-none',
           className,
         )}
         {...props}
@@ -26,19 +36,13 @@ export function DialogContent({ className, children, ...props }: ComponentProps<
         {children}
         <RadixDialog.Close
           className={cn(
-            /*
-             * `rounded-sm` chứ không `rounded-xs`: bảng theme mặc định của
-             * Tailwind v4 khai `--radius-xs: 0.125rem` và `globals.css` KHÔNG
-             * ghi đè bậc đó (hợp đồng §5 chỉ định nghĩa sm/md/lg/xl/full), nên
-             * `rounded-xs` là một con số cứng 2px lọt lưới — đúng thứ mà "mọi
-             * bậc suy từ `--radius` bằng calc()" sinh ra để chặn.
-             */
-            'absolute top-4 right-4 rounded-sm opacity-70 outline-none hover:opacity-100',
-            'transition-opacity duration-[var(--motion-fast)] ease-out',
+            'absolute top-3 right-3 inline-flex size-8 items-center justify-center rounded-control outline-none',
+            'text-muted-foreground hover:bg-muted hover:text-foreground',
+            'transition-colors duration-[var(--motion-fast)] ease-out',
             'focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none',
           )}
         >
-          <X className="size-4" />
+          <X aria-hidden="true" className="size-4" />
           <span className="sr-only">Đóng</span>
         </RadixDialog.Close>
       </RadixDialog.Content>
@@ -64,7 +68,7 @@ export function DialogTitle({ className, ...props }: ComponentProps<typeof Radix
   return (
     <RadixDialog.Title
       data-slot="dialog-title"
-      className={cn('text-lg font-semibold text-foreground', className)}
+      className={cn('type-title pr-8 text-foreground', className)}
       {...props}
     />
   );

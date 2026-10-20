@@ -1,42 +1,43 @@
 # Quy tắc thiết kế hiện hành
 
-<!-- updated 260913 -->
+<!-- updated 261003 -->
 
 Cập nhật 2026-09-13. Nguồn giá trị màu là [globals.css](../apps/web/src/app/globals.css); nguồn đo tương phản là [token contract tests](../packages/ui/src/theme/tokens.contract.test.ts). [Hệ thiết kế](design-system.md) mô tả component và cơ chế theme.
 
 ## Landing
 
-<!-- updated 260913 -->
+<!-- updated 261003 -->
 
-Yêu cầu mới ngày 2026-09-13 thay thế quyết định bỏ toàn bộ 3D và bố cục ghim cảnh trước đó: landing kể hành trình DevOps bằng mô hình 3D nhiều màu xuyên suốt trang, chuyển cảnh theo vị trí cuộn và sự kiện do người dùng kích hoạt. Hợp đồng hiện hành nằm trong phần cập nhật đầu [kế hoạch landing 3D](../plans/reports/2026-09-13-landing-3d-scroll.md); kết quả nghiệm thu được ghi riêng tại báo cáo runtime.
+Cập nhật 2026-10-03, thay toàn bộ quyết định ngày 2026-09-13. Chủ dự án yêu cầu tường minh một landing 3D cuộn-điều-khiển dùng GSAP, Lenis và React Three Fiber, có ghim cảnh và motion graphics; các lệnh cấm cũ ("không GSAP/Lenis", "không ghim", "chỉ `frameloop=demand`") đã bị gỡ. Kế hoạch và hợp đồng: [landing-3d/plan.md](../plans/devops-learning-platform/landing-3d/plan.md). Mã: `apps/web/src/components/landing/**`.
 
-- Bốn chương nằm trong luồng DOM tự nhiên: máy trạm và lệnh, container, cụm máy chủ, phục hồi. Mô hình lớn đổi vị trí trái/phải theo từng chương và tiếp tục chuyển động qua năm điểm neo ở bàn thực hành, danh mục, lộ trình, cách học và CTA cuối trang. Không ghim nội dung bằng sticky/pinned, tráo chương ẩn trong một sân khấu cố định, dùng vòng trắng vô nghĩa hay bố cục lưới thẻ.
-- Một canvas trong suốt cố định theo viewport phục vụ toàn trang; camera dùng `viewOffset` để đưa hình tới vị trí điểm neo đang cuộn trong tài liệu. Canvas cố định là lớp render, không giữ nội dung tại chỗ. Hình khối, màu, tỷ lệ và chuyển động phải giải thích phần nội dung đang xuất hiện, không che chữ hay điều khiển.
-- Dùng cuộn tự nhiên của trình duyệt và React Three Fiber với `frameloop="demand"`; không thêm GSAP, Lenis hay Locomotive Scroll. Cuộn xuôi và ngược đều cập nhật mô hình theo vị trí tài liệu; cuộn gọi invalidation để cập nhật đích, camera và mô hình chỉ nội suy đến đích rồi ngừng render. Cảnh ngoài màn hình hoặc tab ẩn phải nghỉ. Không chiếm thao tác cuộn hay giữ vòng animation vô hạn.
-- Tương tác con trỏ có biên độ giới hạn, chỉ áp dụng với con trỏ chính xác; không cản thao tác vuốt. Nút gây lỗi và phục hồi điều khiển mô phỏng có nhãn rõ ràng, không ngụ ý đang tác động lên sandbox thật.
-- Bảng màu riêng `--journey-*` được khai bằng RGB tại `:root` trong [globals.css](../apps/web/src/app/globals.css), chỉ dùng cho cảnh và vùng kể chuyện. Material đọc các token này; không chép màu vào component hoặc truyền chuỗi OKLCH trực tiếp vào Three.js. Shell và các control chung tiếp tục dùng semantic tokens hiện hành.
-- Heading, mô tả từng bước, trạng thái và điều khiển phải có HTML ngữ nghĩa; canvas chỉ minh hoạ và không nhận Tab. Có điều hướng từng bước, focus rõ và đường bỏ qua đến lộ trình. Chỉ thông báo sự kiện rời rạc do người dùng kích hoạt, không đọc tiến độ ở mỗi khung hình.
-- Với `prefers-reduced-motion`, dùng minh hoạ HTML/CSS tĩnh, không mount canvas hay chạy GPU; bỏ parallax và cuộn mượt lập trình. Khi WebGL không hỗ trợ, mất context hoặc tải cảnh thất bại, cũng giữ minh hoạ tĩnh cùng nội dung, điều khiển và CTA; không để vùng đầu trang trống hoặc tải mãi.
-- Bàn thực hành là vùng ứng dụng có khung. Linux, Docker, Kubernetes là bộ chọn ví dụ có tương tác. Nội dung ghi rõ đây là minh hoạ; kết quả mẫu không được diễn đạt như sandbox đang kết nối.
-- Bàn thực hành có màu và tiến trình hình ảnh theo cuộn. Các hiệu ứng này không chạy lệnh, đổi công nghệ đang chọn hoặc tự tạo kết quả; chỉ thao tác Chạy ví dụ mới hiển thị đầu ra mô phỏng.
-- Chạy ví dụ hiển thị kết quả và giải thích; đặt lại hoặc đổi công nghệ xoá kết quả cũ. Dùng button thật, trạng thái aria-pressed, vùng kết quả aria-live và focus thấy rõ.
-- Các đường dẫn lộ trình phải khớp content/paths. Guest CTA mở đăng ký; người đã đăng nhập vào bài học. Ghi rõ cổng đăng nhập khi giới thiệu lộ trình.
-- Số lượng nội dung phải đọc từ nguồn đã xuất bản. Không tự tạo số người học, trạng thái hoạt động hay thành tích.
-- Bàn thực hành, danh mục thật, lộ trình và CTA tiếp tục nằm trong luồng nội dung tự nhiên, với điểm neo cho cảnh 3D xuyên suốt trang. OpenGraph đồng bộ với câu chuyện học và triển khai ứng dụng. Cảnh K8s Arena và primitive tiến độ dùng chung giữ phạm vi riêng; không đưa trạng thái gameplay vào landing.
+- Câu chuyện là một tuyến metro: tuyến đỏ PTIT chạy qua sáu ga (Linux, Git, Docker, Kubernetes, CI/CD, production), mỗi ga một model 3D dựng thủ tục và một sự kiện tua theo cuộn; cuộn ngược thì sự kiện chạy ngược. Sau đó là terminal tua theo cuộn, bốn cửa vào học, lộ trình thật từ DB, phòng game, vòng lặp ∞ ở phần kết.
+- Một vòng lặp duy nhất: `gsap.ticker`. Lenis chạy `autoRaf: false` và được ticker bơm; canvas R3F chạy `frameloop="never"` và được ticker gọi `advance()`. Canvas ngừng vẽ khi khu "đặc" (cách học, lộ trình, trò chơi) che nó hoặc tab bị ẩn.
+- Ghim bằng ScrollTrigger: hành trình 7 màn, terminal 3,2 màn, lộ trình cuộn ngang trên desktop. Nhịp của đoạn hành trình là một hàm thuần dùng chung cho DOM và 3D (`journey-timeline.ts`), để chữ và camera không lệch nhau.
+- Motion graphics là lớp 2D chạy cùng 3D: kinetic type (ký tự trồi lên lúc tải; trục `wdth` của Archivo đặt tĩnh theo từng khu, KHÔNG scrub theo cuộn vì mỗi giá trị wdth là một instance font mới: layout + tô lại cả tiêu đề mỗi khung), bảng lật Solari, ScrambleText, icon MorphSVG, tuyến DrawSVG + MotionPath, dải chữ theo vận tốc cuộn, số đếm kiểu đồng hồ cơ, nút từ tính.
+- Ngôn ngữ hình ảnh khớp app: góc vuông, đường kẻ 1px, đỏ PTIT cho CTA, mỗi chủ đề một màu tuyến (cùng giá trị với token `--line-*`). Khi màu tuyến làm CHỮ trên nền tối thì dùng bản pha sáng (`--line-ink`), vì docker và k8s gốc chỉ khoảng 3:1. Landing luôn tối, không theo theme.
+- Màu cảnh 3D đọc từ chính biến `--l-*` của landing lúc mount; không khai màu lần thứ hai trong mã cảnh. Bộ tối ưu CSS lúc build đổi `rgb()` thành hex, nên bộ đọc phải nhận cả hai. Nhãn chữ trong cảnh vẽ bằng CanvasTexture, suy từ chính chuỗi trong `packages/copy`.
+- CSP không nới: không troika (`<Text>` của drei), không HDR/Draco/KTX2 từ CDN, không blob worker, không WASM. Model dựng thủ tục, ánh sáng môi trường bằng Lightformer tại chỗ.
+- Hiệu năng: three/R3F/postprocessing chỉ vào trang qua `next/dynamic` (không lọt nền chung hay `/login`); ba tầng chất lượng, renderer phần mềm (SwiftShader, llvmpipe) xuống thẳng tầng thấp không hậu kỳ; `PerformanceMonitor` hạ tầng khi khung tụt.
+- Giảm chuyển động: không mount canvas, không Lenis, không ghim, không scramble; KHÔNG có vòng lặp nào chạy. Bản đồ tuyến SVG tĩnh thay cảnh 3D. Không WebGL, mất context, hoặc chunk cảnh lỗi cũng rơi về hình tĩnh với đủ nội dung.
+- HTML ngữ nghĩa cho mọi chữ; canvas `aria-hidden`. Chữ tách ký tự và chữ xáo có bản `sr-only` nguyên câu. Số liệu chỉ đọc từ nguồn đã xuất bản; đọc lỗi thì hiện "?" chứ không bao giờ hiện 0. Cảnh 3D và terminal ghi rõ là mô phỏng.
 
 ## Chữ, màu và bố cục
 
-Mỗi trang có tiêu đề h1 và các khối tiếp theo dùng h2/h3 theo quan hệ nội dung. CardTitle và AlertTitle nhận prop `as` để chọn thẻ h1..h6 mà không đổi hình thức; mặc định h3/h5 được giữ để tương thích. Không dùng cấp heading như một cách chọn cỡ chữ. Cổng axe bắt cả `heading-order` và `page-has-heading-one` dù axe xếp chúng mức moderate.
+Bản dựng lại PTIT (2026-10-03) theo [design brief](../plans/fe-ptit-rebuild/design-brief.md): ngôn ngữ "bảng tuyến", mỗi chủ đề là một tuyến tàu có màu riêng, header trên cùng thay cho thanh bên. Tên class và API component chốt ở [ui-kit](../plans/fe-ptit-rebuild/contracts/ui-kit.md).
 
-Control được làm mờ bằng opacity vẫn có thể nhận Tab. Vỏ SearchTabs đồng bộ `inert` và `aria-hidden` với trạng thái mở, đồng thời trả focus về nút mở khi đóng; không dùng màu focus để chữa một nút vốn đang ẩn. Thanh tab dài trên các trang tác giả được phép xuống dòng và giữ vùng bấm 44 px.
+Bốn luật chủ dự án chốt: không thẻ bo góc (bo góc bằng 0 ở mọi bề mặt), không thanh điều hướng bên trái, không dùng viền trái làm dấu "đang mở", không hàng ô số liệu ở trang tổng quan. Số liệu nằm trong câu (`Num`), trong bảng, hoặc trên thước đo (`Meter`).
 
-Giữ Be Vietnam Pro với bộ ký tự Vietnamese và Latin, cùng system monospace cho lệnh. Không thêm font chỉ để trang trí. Tất cả chữ giao diện, nhãn accessibility và ví dụ terminal đi qua packages/copy.
+Ba họ chữ, mỗi họ một vai: Archivo cho tiêu đề kiểu biển ga (kéo rộng bằng `font-stretch`), Be Vietnam Pro cho chữ đọc, JetBrains Mono cho lệnh và nhãn in hoa. Cả ba có bộ ký tự Vietnamese và tự host qua next/font. Dấu tiếng Việt chồng tầng nên line-height của tiêu đề không dưới 1.02. Tất cả chữ giao diện đi qua packages/copy.
 
-Màu giao diện dùng semantic tokens; không khai raw color trong component. Primary tối hiện là `oklch(0.68 0.19 26.7)`. Dùng primary-foreground cho chữ trên nút; trắng tinh không đủ tỷ lệ 4.5:1 trên primary tối. Primary và destructive cùng họ đỏ nên phân biệt bằng nền đặc/rỗng, viền và icon.
+Màu dùng semantic tokens, không khai màu cứng trong component. `primary` (đỏ PTIT) chỉ làm nền đặc: nút chính, khối section đang mở. Đỏ làm chữ là `brand`. `signal` (vàng sao PTIT) chỉ làm nền dưới chữ ink. Màu chủ đề lấy qua `lineForTopic` và token `line-*`. Độ khó không dùng màu sắc mà dùng thanh bốn vạch, để màu chỉ mang nghĩa "chủ đề".
 
-Thiết kế bắt đầu từ 320 px, kiểm tra tối thiểu 390 px, 768 px và desktop. Nội dung phải tự co và xuống dòng; code không làm tràn cả trang. Touch target tối thiểu 44×44 px. Heading dùng rem-aware clamp; body có line-height đủ đọc dấu tiếng Việt. Focus có offset trên bề mặt primary.
+Mỗi trang có đúng một h1 (PosterHeader hoặc ToolHeader render nó), các khối tiếp theo dùng h2/h3 theo quan hệ nội dung. Có đúng một `<main>`, ở app-shell. Focus luôn hiện vòng `ring` xanh. Cổng axe bắt cả `heading-order` và `page-has-heading-one`.
 
-Chuyển động cần có mục đích, gắn với cuộn hoặc thao tác và tuân thủ prefers-reduced-motion. Không nới CSP hoặc giới hạn bundle để chữa thư viện hay hiệu ứng. Độ mượt và chất lượng mô hình phải được kiểm tra trên cảnh WebGL thực tế; kết quả DOM không thay thế bằng chứng hình ảnh và phép đo khung hình.
+Kiểm tra ở 375, 768, 1024 và 1440 px, không cuộn ngang ở 375 px. Mọi danh sách có đủ trạng thái đang tải (khung chờ hình dòng thật), rỗng, lỗi và một trang.
+
+Chuyển động phục vụ thao tác: rê vào dòng thì màu tuyến quét từ trái sang, menu mở bằng clip-path, danh sách vào trang lần lượt. Tất cả tắt khi bật prefers-reduced-motion. Không nới CSP hoặc ngân sách bundle để đổi lấy hiệu ứng.
+
+Game K8s (`components/k8s-arena`) giữ nguyên hình theo yêu cầu của chủ dự án: khối `.arena-root.dark` cuối globals.css đóng băng token của nó.
 
 ## Bản đồ chữ
 

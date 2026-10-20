@@ -37,6 +37,12 @@ export interface SearchTabsProps {
 }
 
 /**
+ * ⚠ CHƯA VUÔNG. Stylesheet của gói ghim `border-radius: 999px` (5 chỗ) và `50%`
+ * thẳng vào bộ chọn của nó, không qua biến `--gst-*` nào, và hiệu ứng "gooey"
+ * là một bộ lọc SVG dựa trên chính các khối tròn đó. Làm vuông nghĩa là ghi đè
+ * bộ chọn nội bộ của gói từ một stylesheet ngoài, hoặc fork gói — cả hai đều
+ * ngoài phạm vi primitive. Màu thì đã theo token (bảng dưới).
+ *
  * Vỏ bọc `gooey-search-tabs@0.2.0` — 5 trang danh mục đi qua đây, không import
  * thẳng gói ngoài (`p16-tokens.md` không có token nào cho gói này, và
  * `phase-16.md` 16.A.5 đặt seam ở đúng chỗ này).
@@ -62,19 +68,21 @@ export interface SearchTabsProps {
  * Việt thì khác font còn kéo theo khác cách dựng dấu.
  */
 const TOKEN_VARS: Readonly<Record<string, string>> = {
-  // Mặt nổi của thanh tìm: cùng bậc với `Card` (§1.4 `--card`), viền lo bởi
-  // `--gst-shadow` bên dưới vì gói không có biến viền riêng.
+  // Mặt thanh tìm: `--card`, viền lo bởi `--gst-shadow` bên dưới vì gói không
+  // có biến viền riêng.
   '--gst-bg': 'var(--card)',
   '--gst-bridge-bg': 'var(--card)',
   '--gst-text': 'var(--muted-foreground)',
   '--gst-input-text': 'var(--foreground)',
   '--gst-placeholder': 'var(--muted-foreground)',
-  // §6 bậc 1 — thanh tìm là một mặt nổi LÚC NGHỈ, không phải popover.
-  '--gst-shadow': 'var(--elevation-1)',
-  '--gst-hover': 'var(--accent)',
+  // Bản dựng lại cấm bóng trong trang (chỉ lớp nổi mới có bóng), nên "bóng"
+  // của gói được dùng để vẽ một viền hairline 1px bằng `--border`.
+  '--gst-shadow': '0 0 0 1px var(--border)',
+  '--gst-hover': 'var(--muted)',
   '--gst-focus-ring': 'var(--ring)',
-  '--gst-tab-indicator-bg': 'var(--muted)',
-  '--gst-tab-active-text': 'var(--foreground)',
+  // Tab đang chọn = khối mực đảo màu, như `TabsTrigger`.
+  '--gst-tab-indicator-bg': 'var(--ink)',
+  '--gst-tab-active-text': 'var(--ink-foreground)',
   fontFamily: 'var(--font-sans)',
 };
 

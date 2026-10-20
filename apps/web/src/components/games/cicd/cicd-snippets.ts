@@ -1,3 +1,5 @@
+import { t } from '@devops-platform/copy';
+
 /**
  * Mẩu YAML chèn nhanh — 19.E.3.
  *
@@ -37,44 +39,44 @@ export function cicdSnippets(runnerClassIds: readonly string[]): readonly CicdSn
   return [
   {
     id: 'job',
-    label: 'Job mới',
-    explain: 'Một job là một đơn vị chạy trên một máy. Tên job là thứ job khác nhắc tới trong "needs".',
+    label: t('games.cicd.snippet.job'),
+    explain: t('games.cicd.snippet.job-hint'),
       yaml: [
         '  build:',
         `    runs-on: ${may}`,
         '    steps:',
-        '      - name: Biên dịch',
+        `      - name: ${t('games.cicd.snippet.job-step')}`,
         '        run: make build',
       ].join('\n'),
   },
   {
     id: 'needs',
-    label: 'Cạnh phụ thuộc',
-    explain: 'Job này chỉ bắt đầu sau khi mọi job trong "needs" đã xong. Bỏ bớt một cạnh thừa là cách rẻ nhất để rút ngắn đường găng.',
+    label: t('games.cicd.snippet.needs'),
+    explain: t('games.cicd.snippet.needs-hint'),
     yaml: ['    needs:', '      - clone'].join('\n'),
   },
   {
     id: 'runs-on',
-    label: 'Chọn hạng máy chạy',
-    explain: 'Hạng máy quyết định job xếp hàng ở kho nào. Đòi một hạng không có trong kho thì workflow không chạy được.',
+    label: t('games.cicd.snippet.runs-on'),
+    explain: t('games.cicd.snippet.runs-on-hint'),
     yaml: `    runs-on: ${may}`,
   },
   {
     id: 'step',
-    label: 'Bước mới trong job',
-    explain: 'Các bước trong một job chạy tuần tự trên cùng một máy — muốn chúng chạy song song thì phải tách thành job riêng.',
-    yaml: ['      - name: Kiểm thử đơn vị', '        run: make test'].join('\n'),
+    label: t('games.cicd.snippet.step'),
+    explain: t('games.cicd.snippet.step-hint'),
+    yaml: [`      - name: ${t('games.cicd.snippet.step-name')}`, '        run: make test'].join('\n'),
   },
   {
     id: 'continue-on-error',
-    label: 'Việc không chặn',
-    explain: 'Job hỏng mà không đánh trượt cả lượt. Dùng cho việc mang tin tức (lint, quét) chứ không dùng để giấu một lỗi thật.',
+    label: t('games.cicd.snippet.continue'),
+    explain: t('games.cicd.snippet.continue-hint'),
     yaml: '    continue-on-error: true',
   },
   {
     id: 'matrix',
-    label: 'Quạt ra theo ma trận',
-    explain: 'Một job nhân thành nhiều bản chạy song song, mỗi bản một tổ hợp giá trị. Nhanh hơn về thời gian, nhưng tốn runner-phút theo đúng số bản.',
+    label: t('games.cicd.snippet.matrix'),
+    explain: t('games.cicd.snippet.matrix-hint'),
       yaml: [
         '    strategy:',
         '      matrix:',

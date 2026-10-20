@@ -375,6 +375,13 @@ describe('18.G · cổng seed lúc NỘP, đi qua router thật', () => {
    * ngẫu nhiên mỗi phiên. Đó chính là phương án (a) mà chủ dự án đã bác.
    */
   it('cùng lượt nộp KHÔNG kèm examId thì cổng seed không chạm tới', async () => {
+    /*
+     * ⚠ Người nộp là MEMBER, và MEMBER đang có lượt MỞ ở `seedExamId` chứa đúng
+     * bài này — đó là cả điểm của ô. Đang có lượt thi mở KHÔNG kéo một lượt nộp
+     * không kèm `examId` vào luật thi: client không bao giờ nhận seed của lượt
+     * thi, nên một máy chủ tự suy ngữ cảnh sẽ từ chối mọi lượt nộp bài thi. Đổi
+     * người nộp sang ai đó KHÔNG có lượt mở là làm ô này xanh mà không đo gì.
+     */
     const error = await callerAs(MEMBER, 'user')
       .problems.submit(payloadWith(999, publishedCode, undefined) as never)
       .then(() => null)

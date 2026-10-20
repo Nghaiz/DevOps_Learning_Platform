@@ -51,6 +51,7 @@
  *     pnpm --filter @devops-platform/web e2e --grep @flow
  */
 
+import { t } from '@devops-platform/copy';
 import { CICD_PROBLEMS_SEED } from '@devops-platform/games';
 
 import { expect, requireRole, test } from './flow-kit';
@@ -119,12 +120,12 @@ test.describe('luồng soạn bài CI/CD', { tag: '@flow' }, () => {
      * cũng là đường người soạn thật dùng để mang đề giữa hai môi trường.
      */
     await openScreen(page, '/author/problems/new', 'author');
-    await page.getByRole('tab', { name: 'JSON' }).click();
-    await page.getByLabel('JSON bài tập cần nhập').fill(deJson);
-    await page.getByRole('button', { name: 'Nhập vào biểu mẫu' }).click();
+    await page.getByRole('tab', { name: t('author.problem.tab.json'), exact: true }).click();
+    await page.getByLabel(t('author.problem.json.textarea-label'), { exact: true }).fill(deJson);
+    await page.getByRole('button', { name: t('author.problem.json.import'), exact: true }).click();
 
     // ── 2. Lưu bản nháp ─────────────────────────────────────────────────────
-    await page.getByRole('button', { name: 'Lưu bản nháp' }).click();
+    await page.getByRole('button', { name: t('author.studio.action.save-draft'), exact: true }).click();
     await page.waitForURL(/\/author\/problems\/CICD-\d{4}$/u, { timeout: 60_000 });
 
     const url = new URL(page.url());
@@ -137,22 +138,35 @@ test.describe('luồng soạn bài CI/CD', { tag: '@flow' }, () => {
     expect(code, 'mã bài phải thuộc dãy CICD').toMatch(/^CICD-\d{4}$/u);
 
     // ── 3. Xuất bản ─────────────────────────────────────────────────────────
-    await page.getByRole('tab', { name: 'Xuất bản' }).click();
+    await page.getByRole('tab', { name: t('author.problem.tab.publish'), exact: true }).click();
     /*
      * Cổng xuất bản (`publishIssues`) đòi đề ≤150 từ, ≥1 mục tiêu, id duy nhất.
      * Đề lấy từ bộ seed nên nó phải qua — và nếu KHÔNG qua thì đó là tin thật:
      * bộ seed đang chở một đề không xuất bản nổi.
      */
-    await expect(page.getByText('Bài đã đủ điều kiện xuất bản')).toBeVisible({ timeout: 30_000 });
-    await page.getByRole('button', { name: 'Xuất bản', exact: true }).click();
-    await expect(page.getByText('Đã xuất bản')).toBeVisible({ timeout: 60_000 });
+    await expect(
+      page.getByRole('heading', { name: t('author.problem.publish.ok-title'), exact: true }),
+    ).toBeVisible({ timeout: 30_000 });
+    // `exact`: dải bên có nút mở chế độ Xuất bản, và tab cùng tên là `tab`.
+    await page.getByRole('button', { name: t('author.studio.action.publish'), exact: true }).click();
+    /*
+     * Neo vào câu của CHẾ ĐỘ XUẤT BẢN, không vào "Đã xuất bản": chữ đó có mặt ở
+     * ba chỗ cùng lúc (ô trạng thái trên đầu trang, thông báo nổi, và bản phát
+     * lại của thông báo), nên `getByText` chế độ strict đỏ vì trùng chứ không vì
+     * bài chưa xuất bản. Câu dưới chỉ hiện khi `forEdit` tải lại và trả
+     * `state: 'published'`, tức nó đo trạng thái MÁY CHỦ, không đo lượt bấm
+     * (`publish-check.tsx`, nhánh `live`). Là tiêu đề alert nên neo heading.
+     */
+    await expect(
+      page.getByRole('heading', { name: t('author.problem.publish.live-title'), exact: true }),
+    ).toBeVisible({ timeout: 60_000 });
 
     // ── 4. Làm chính bài vừa xuất bản ───────────────────────────────────────
     await openScreen(page, `/games/cicd?problem=${code}`, 'user');
 
     const intro = page.getByTestId('cicd-axis-intro');
     if (await intro.isVisible().catch(() => false)) {
-      await intro.getByRole('button', { name: 'Bỏ qua' }).click();
+      await intro.getByRole('button', { name: t('games.cicd.intro.skip'), exact: true }).click();
     }
 
     await expect(page.getByTestId('cicd-oj-bar')).toBeVisible({ timeout: 30_000 });
@@ -165,13 +179,18 @@ test.describe('luồng soạn bài CI/CD', { tag: '@flow' }, () => {
      * seed nạp sẵn mà từ một dòng vừa được SOẠN qua giao diện — nên nó đo cả
      * đường ghi lẫn đường chấm trên cùng một dữ liệu.
      */
-    await page.getByTestId('cicd-cd-panel').getByRole('radio', { name: /rollback/u }).check();
+    await page
+      .getByTestId('cicd-cd-panel')
+      .getByRole('radio', { name: t('games.cicd.cd.on-bad-rollback'), exact: true })
+      .check();
     await page.getByTestId('cicd-oj-submit').click();
 
     await expect
       .poll(async () => (await page.getByTestId('cicd-oj-result').textContent()) ?? '', {
         timeout: 60_000,
       })
+      // Vế sau là tiền tố của khoá ĐỘNG `games.cicd.oj.submit-error`: nộp lỗi
+      // cũng là một kết thúc, để nó đỏ ở dòng dưới với nguyên văn thay vì chờ hết giờ.
       .toMatch(/^(AC|WA|CE)\b|Chưa nộp được/u);
 
     const ketQua = (await page.getByTestId('cicd-oj-result').textContent()) ?? '';

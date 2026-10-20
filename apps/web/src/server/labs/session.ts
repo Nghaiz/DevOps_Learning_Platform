@@ -175,7 +175,9 @@ export async function reapUnusableSession(
       ),
     );
   } catch (cause) {
-    console.error('[labs:startAttempt] reap phiên sau setup hỏng thất bại', {
+    // Nhãn chung: lab setup hỏng VÀ lesson/playground ghi nguồn hỏng
+    // (`sessions/origins.ts`) cùng đi qua đây.
+    console.error('[sessions:reap-unusable] reap phiên không dùng được thất bại', {
       sessionId,
       error: cause instanceof Error ? cause.message : String(cause),
     });

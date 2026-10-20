@@ -5,7 +5,6 @@ import {
   describeEndSessionError,
   describeMySessionStatus,
   describeSessionExpiry,
-  shortSessionId,
 } from './session-summary';
 
 describe('describeMySessionStatus', () => {
@@ -67,13 +66,6 @@ describe('describeSessionExpiry', () => {
   it('thiếu hạn hoặc chuỗi hỏng: nói không rõ, không hiện Invalid Date', () => {
     expect(describeSessionExpiry(null, now)).toBe('không rõ hạn');
     expect(describeSessionExpiry('không-phải-ngày', now)).toBe('không rõ hạn');
-  });
-});
-
-describe('shortSessionId', () => {
-  it('giữ nguyên id ngắn, rút gọn id dài', () => {
-    expect(shortSessionId('abc')).toBe('abc');
-    expect(shortSessionId('0123456789abcdef')).toBe('0123456789ab…');
   });
 });
 

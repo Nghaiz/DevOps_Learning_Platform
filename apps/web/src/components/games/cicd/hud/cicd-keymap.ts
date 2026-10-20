@@ -1,3 +1,4 @@
+import { t } from '@devops-platform/copy';
 /**
  * Bảng phím tắt của sân chơi CI/CD (19.D.4.8).
  *
@@ -48,28 +49,28 @@ export const CICD_HOTKEYS: readonly CicdHotkey[] = [
     key: 'Enter',
     ctrl: true,
     label: 'Ctrl/Cmd + Enter',
-    describe: 'Chạy thử workflow đang soạn',
+    describe: t('games.cicd.keys.run'),
     action: { kind: 'run' },
     whileTyping: true,
   },
   {
     key: 'Escape',
     label: 'Esc',
-    describe: 'Bỏ chọn job đang chọn',
+    describe: t('games.cicd.keys.deselect'),
     action: { kind: 'deselect' },
     whileTyping: true,
   },
-  { key: 'e', label: 'E', describe: 'Ô soạn workflow', action: { kind: 'panel', panel: 'editor' } },
-  { key: 'd', label: 'D', describe: 'Đề bài và mục tiêu', action: { kind: 'panel', panel: 'mission' } },
-  { key: 'i', label: 'I', describe: 'Thông số job đang chọn', action: { kind: 'panel', panel: 'inspector' } },
-  { key: 'k', label: 'K', describe: 'Kết quả lượt chạy', action: { kind: 'panel', panel: 'result' } },
-  { key: 'b', label: 'B', describe: 'Bảng núm', action: { kind: 'panel', panel: 'tools' } },
-  { key: 'l', label: 'L', describe: 'Bài học và cẩm nang', action: { kind: 'panel', panel: 'learn' } },
-  { key: 'm', label: 'M', describe: 'Bản đồ thu nhỏ', action: { kind: 'panel', panel: 'minimap' } },
-  { key: '0', label: '0', describe: 'Thu hết lớp phủ — sân trống hoàn toàn', action: { kind: 'close-all' } },
-  { key: '2', label: '2', describe: 'Chuyển sang cảnh 2D', action: { kind: 'mode', mode: '2d' } },
-  { key: '3', label: '3', describe: 'Chuyển sang cảnh 3D', action: { kind: 'mode', mode: '3d' } },
-  { key: '?', label: '?', describe: 'Mở màn trợ giúp này', action: { kind: 'help' } },
+  { key: 'e', label: 'E', describe: t('games.cicd.keys.editor'), action: { kind: 'panel', panel: 'editor' } },
+  { key: 'd', label: 'D', describe: t('games.cicd.keys.mission'), action: { kind: 'panel', panel: 'mission' } },
+  { key: 'i', label: 'I', describe: t('games.cicd.keys.inspector'), action: { kind: 'panel', panel: 'inspector' } },
+  { key: 'k', label: 'K', describe: t('games.cicd.keys.result'), action: { kind: 'panel', panel: 'result' } },
+  { key: 'b', label: 'B', describe: t('games.cicd.keys.tools'), action: { kind: 'panel', panel: 'tools' } },
+  { key: 'l', label: 'L', describe: t('games.cicd.keys.learn'), action: { kind: 'panel', panel: 'learn' } },
+  { key: 'm', label: 'M', describe: t('games.cicd.keys.minimap'), action: { kind: 'panel', panel: 'minimap' } },
+  { key: '0', label: '0', describe: t('games.cicd.keys.close-all'), action: { kind: 'close-all' } },
+  { key: '2', label: '2', describe: t('games.cicd.keys.mode-2d'), action: { kind: 'mode', mode: '2d' } },
+  { key: '3', label: '3', describe: t('games.cicd.keys.mode-3d'), action: { kind: 'mode', mode: '3d' } },
+  { key: '?', label: '?', describe: t('games.cicd.keys.help'), action: { kind: 'help' } },
 ];
 
 export interface KeyEventLike {

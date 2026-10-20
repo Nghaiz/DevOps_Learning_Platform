@@ -101,18 +101,41 @@ function openSpecTab(label: string): void {
   expect(trigger.getAttribute('aria-selected')).toBe('true');
 }
 
+/**
+ * Phần props KHÔNG thuộc phép đo của file này: khung Xưởng soạn đòi tiêu đề, ô
+ * trạng thái lưu và hai khe của cột kiểm, nhưng ô chọn game không đọc cái nào.
+ */
+function editorProps(): Omit<Parameters<typeof ProblemEditor>[0], 'form' | 'onChange' | 'nextKey'> {
+  return {
+    code: null,
+    state: 'draft',
+    title: t('author.problem.new.title'),
+    issues: [],
+    saveStatus: 'new',
+    toolbar: () => null,
+    readiness: () => null,
+  };
+}
+
+/**
+ * Tab cho tới khi focus vào nhóm chọn game, rồi trả phần tử đang focus.
+ *
+ * Từ khi trình soạn dựng trên khung Xưởng soạn, nhóm radio KHÔNG còn là điểm
+ * dừng Tab đầu tiên: đường dẫn, hàng tab chế độ đứng trước nó. Bất biến cần đo
+ * vẫn y nguyên: điểm VÀO nhóm là lựa chọn đang bật, không phải phần tử đầu nhóm.
+ * Trần lượt Tab để một nhóm biến khỏi thứ tự Tab đỏ thay vì treo.
+ */
+async function tabInto(user: ReturnType<typeof userEvent.setup>, group: HTMLElement): Promise<Element | null> {
+  for (let step = 0; step < 40; step += 1) {
+    await user.tab();
+    if (group.contains(document.activeElement)) return document.activeElement;
+  }
+  return null;
+}
+
 function renderEditor(form: ProblemFormState): void {
   render(
-    <ProblemEditor
-      form={form}
-      onChange={vi.fn()}
-      issues={[]}
-      code={null}
-      state="draft"
-      nextKey={() => 'k-render'}
-      hasUnsavedChanges={false}
-      actions={null}
-    />,
+    <ProblemEditor {...editorProps()} form={form} onChange={vi.fn()} nextKey={() => 'k-render'} />,
   );
 }
 
@@ -129,16 +152,7 @@ function renderEditor(form: ProblemFormState): void {
 function EditorHarness(props: { readonly start: ProblemFormState }): ReactElement {
   const [form, setForm] = useState(props.start);
   return (
-    <ProblemEditor
-      form={form}
-      onChange={setForm}
-      issues={[]}
-      code={null}
-      state="draft"
-      nextKey={() => 'k-harness'}
-      hasUnsavedChanges={false}
-      actions={null}
-    />
+    <ProblemEditor {...editorProps()} form={form} onChange={setForm} nextKey={() => 'k-harness'} />
   );
 }
 
@@ -229,9 +243,8 @@ describe('chon game doi bieu mau soan bai', () => {
     // `user-event` thì có: nó cài đúng thuật toán thứ tự Tab và xử lý mũi tên
     // của trình duyệt, nên ba vế dưới là phép đo hành vi thật chứ không phải
     // phép đo thuộc tính.
-    await user.tab();
     // Điểm vào Tab là lựa chọn ĐANG BẬT (Git), không phải phần tử đầu nhóm.
-    expect(document.activeElement).toBe(radioFor(group, 'git'));
+    expect(await tabInto(user, group)).toBe(radioFor(group, 'git'));
 
     // Và Tab kế tiếp RỜI HẲN khỏi nhóm: chỉ MỘT radio nằm trong thứ tự Tab.
     await user.tab();
@@ -418,8 +431,7 @@ describe('bai da luu: nhom chon game khoa nhung khong bien mat', () => {
       expect((radio as HTMLInputElement).disabled).toBe(false);
     }
 
-    await user.tab();
-    expect(group.contains(document.activeElement)).toBe(true);
+    expect(await tabInto(user, group)).not.toBeNull();
 
     // Câu KHOÁ, không phải câu gợi ý: hai câu nói hai chuyện khác nhau và chỉ
     // một trong hai đúng ở trạng thái này.
