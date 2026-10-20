@@ -60,7 +60,7 @@ export async function createProblem(
   }
   throw new TRPCError({
     code: 'CONFLICT',
-    message: 'Không cấp được mã bài sau nhiều lần thử — hãy thử lại',
+    message: 'Không cấp được mã bài sau nhiều lần thử. Hãy thử lại',
   });
 }
 
@@ -150,7 +150,7 @@ export async function deleteProblem(
   if (total > 0) {
     throw new TRPCError({
       code: 'CONFLICT',
-      message: `Bài đã có ${String(total)} lượt nộp — dùng "lưu trữ" thay vì xoá để không mất lịch sử của người học`,
+      message: `Bài đã có ${String(total)} lượt nộp nên không xoá được. Hãy lưu trữ bài để giữ lịch sử làm bài của người học`,
     });
   }
   await db.delete(problems).where(eq(problems.code, code));

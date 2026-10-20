@@ -172,7 +172,7 @@ async function sessionExpiry(
   if (expiresAt === undefined) {
     throw new TRPCError({
       code: 'CONFLICT',
-      message: 'Phiên sandbox chưa sẵn sàng — đợi provisioning xong rồi thử lại',
+      message: 'Phiên sandbox chưa sẵn sàng. Đợi máy dựng xong rồi thử lại',
     });
   }
   return Number(expiresAt.seconds);

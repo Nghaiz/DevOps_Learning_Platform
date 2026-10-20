@@ -511,7 +511,7 @@ export const authoringRouter = createTRPCRouter({
 
     const now = new Date();
     if (record.state === 'publishing' && !isPublishTrialStale(record.publishStartedAt, now)) {
-      throw new TRPCError({ code: 'CONFLICT', message: 'Bài đang chạy thử — đợi kết quả' });
+      throw new TRPCError({ code: 'CONFLICT', message: 'Bài đang chạy thử. Đợi có kết quả rồi làm tiếp' });
     }
 
     const body = await loadBodyForWrite(ctx.db, input.id);
@@ -537,7 +537,7 @@ export const authoringRouter = createTRPCRouter({
       .where(and(eq(contentItems.id, input.id), ne(contentItems.state, 'publishing')))
       .returning({ id: contentItems.id });
     if (claimed.length === 0) {
-      throw new TRPCError({ code: 'CONFLICT', message: 'Bài đang chạy thử — đợi kết quả' });
+      throw new TRPCError({ code: 'CONFLICT', message: 'Bài đang chạy thử. Đợi có kết quả rồi làm tiếp' });
     }
 
     const db = ctx.db;

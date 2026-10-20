@@ -201,7 +201,7 @@ async function fetchSource(name: HealthSource['name'], url: string | null): Prom
       name,
       reached: true,
       ok: false,
-      error: 'HTTP 200 nhưng không có series dlp_* nào — sai URL hoặc dịch vụ không phát metric',
+      error: 'HTTP 200 nhưng không có series dlp_* nào. Sai URL, hoặc dịch vụ không phát metric',
       series: [],
     };
   }

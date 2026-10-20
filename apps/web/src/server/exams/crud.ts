@@ -242,7 +242,7 @@ export async function updateExam(
     throw new TRPCError({
       code: 'CONFLICT',
       message:
-        'Kỳ thi đã có người vào làm, không đổi được cách sinh đề — nửa lớp sẽ làm một loại đề khác nửa còn lại',
+        'Kỳ thi đã có người vào làm nên không đổi được cách sinh đề: nửa lớp sẽ làm một loại đề khác nửa còn lại',
     });
   }
   await db

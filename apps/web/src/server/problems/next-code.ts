@@ -110,7 +110,7 @@ export async function nextProblemCode(db: DbOrTx, gameId: GameId): Promise<strin
     // NÀO cạn — trần là của từng tiền tố, không phải của cả bảng.
     throw new TRPCError({
       code: 'CONFLICT',
-      message: `Đã dùng hết ${String(MAX_SERIAL)} mã bài của dãy ${prefix} — cần mở rộng khuôn mã trước khi tạo thêm`,
+      message: `Dãy ${prefix} đã dùng hết ${String(MAX_SERIAL)} mã bài. Cần mở rộng khuôn mã trước khi tạo thêm`,
     });
   }
   return formatProblemCode(prefix, next);
