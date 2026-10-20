@@ -32,7 +32,7 @@ import { isFirstPhase, phaseRefSchema, resolvePhase } from '../../lessons/phase'
 import { buildToolsEnableScript } from '../../lessons/tools-enable';
 import { setupScriptPlan } from '../../lessons/setup-plan';
 import { runScriptInSession } from '../../lessons/validate';
-import { recordSessionOrigin } from '../../sessions/origins';
+import { recordSessionOriginOrReap } from '../../sessions/origins';
 import { applySessionPreferences } from '../../sessions/preferences';
 import { createTRPCRouter, listInputSchema, protectedProcedure } from '../init';
 
@@ -484,9 +484,8 @@ export const lessonsRouter = createTRPCRouter({
     // `response.session` có mặt; kiểm lại chỉ để thu hẹp kiểu. Ghi để
     // `me.activeSessions` dẫn "Làm tiếp" về đúng bài — xem `sessions/origins.ts`.
     if (response.session !== undefined) {
-      await recordSessionOrigin(ctx.db, {
+      await recordSessionOriginOrReap(ctx, {
         sessionId: response.session.id,
-        userId: ctx.user.id,
         kind: 'lesson',
         contentId: scenario.id,
       });

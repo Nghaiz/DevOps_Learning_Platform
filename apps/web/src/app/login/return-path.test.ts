@@ -15,6 +15,15 @@ describe('safeReturnPath', () => {
     expect(safeReturnPath('%2Flabs%2Fx')).toBe('/labs/x');
   });
 
+  // Next đã giải mã `next` một lần; giải thêm lần nữa làm hỏng bộ lọc trong query.
+  it.each([
+    ['/problems?query=a%26b', '/problems?query=a%26b'],
+    ['/problems?query=%23x', '/problems?query=%23x'],
+    ['/problems?query=c%2B%2B', '/problems?query=c%2B%2B'],
+  ])('giữ nguyên query đã mã hoá: %j', (raw, expected) => {
+    expect(safeReturnPath(raw)).toBe(expected);
+  });
+
   it.each([
     ['//evil.com'],
     ['/\\evil'],

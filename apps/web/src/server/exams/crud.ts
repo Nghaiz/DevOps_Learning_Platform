@@ -253,6 +253,12 @@ export async function updateExam(
       problemCodes: [...body.problemCodes],
       durationMinutes: body.durationMinutes,
       seedStrategy: body.seedStrategy,
+      // Cùng luật với `createExam`: `fixed` thì phải có seed. Giữ seed đang có (đề
+      // không đổi dưới chân ai), chỉ sinh khi chuyển từ `per-student` sang. Thiếu
+      // dòng này thì đổi sang "cùng đề cho cả lớp" lúc sửa để `fixed_seed` null, và
+      // `startAttempt` lặng lẽ sinh seed riêng cho từng người trong khi trang báo
+      // "cùng đề" — lớp làm nhiều phiên bản đề mà không ai hay.
+      fixedSeed: body.seedStrategy === 'fixed' ? sql`coalesce(${exams.fixedSeed}, ${randomSeed()})` : null,
       opensAt: body.opensAt,
       closesAt: body.closesAt,
     })

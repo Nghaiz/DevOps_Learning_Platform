@@ -3,6 +3,7 @@ import { and, eq, inArray } from 'drizzle-orm';
 import { contentSourceFor } from '../content/source';
 import type { Database } from '../db/client';
 import { labAttempts, sessionOrigins } from '../db/schema';
+import { reapUnusableSession } from '../labs/session';
 
 /**
  * Phiên sandbox ↔ nội dung đã mở nó — cho `me.activeSessions` ("Làm tiếp").
@@ -35,10 +36,9 @@ export interface SessionContent {
  * `onConflictDoNothing`: mở lại với cùng `idempotencyKey` trả về CÙNG phiên, và
  * lượt ghi thứ hai phải là một no-op chứ không phải một lỗi khoá chính.
  *
- * ⚠ KHÔNG nuốt lỗi. Lỗi ghi ở đây ném lên và lượt mở phiên báo lỗi; người dùng bấm
- * lại thì cùng `idempotencyKey` trả lại đúng phiên đó (không tạo pod thứ hai) và
- * lượt ghi chạy lại. Nuốt lỗi thì phiên chạy bình thường mà "Làm tiếp" mãi mãi
- * không dẫn được về đâu, và không ai biết vì sao.
+ * ⚠ KHÔNG nuốt lỗi: nuốt thì phiên chạy bình thường mà "Làm tiếp" mãi mãi không dẫn
+ * được về đâu, và không ai biết vì sao. Router gọi qua `recordSessionOriginOrReap`,
+ * không gọi thẳng hàm này.
  */
 export async function recordSessionOrigin(
   db: Database,
@@ -52,6 +52,32 @@ export async function recordSessionOrigin(
   await db.insert(sessionOrigins).values(origin).onConflictDoNothing({
     target: sessionOrigins.sessionId,
   });
+}
+
+/**
+ * `recordSessionOrigin` cho router mở phiên: ghi hỏng thì reap phiên vừa mở RỒI mới
+ * ném lại lỗi gốc.
+ *
+ * Pod đã được cấp trước lượt ghi này, và bấm lại KHÔNG trả về phiên cũ: client sinh
+ * `idempotencyKey` mới mỗi lần bấm (`use-lesson-session.ts`,
+ * `use-playground-session.ts`). Không reap thì mỗi lượt hỏng (DB chập chờn, pool hết
+ * hạn) giữ một khe quota của cả cụm tới hết TTL. Cùng khuôn lab setup hỏng
+ * (`reapUnusableSession`, P15/15.A).
+ */
+export async function recordSessionOriginOrReap(
+  ctx: { readonly db: Database; readonly user: { readonly id: string; readonly role: string } },
+  origin: {
+    readonly sessionId: string;
+    readonly kind: 'lesson' | 'playground';
+    readonly contentId: string;
+  },
+): Promise<void> {
+  try {
+    await recordSessionOrigin(ctx.db, { ...origin, userId: ctx.user.id });
+  } catch (cause) {
+    await reapUnusableSession(ctx, origin.sessionId);
+    throw cause;
+  }
 }
 
 /**

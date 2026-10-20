@@ -73,6 +73,17 @@ export function safeReturnPath(raw: string | null | undefined): string | null {
     return null;
   }
 
+  // Mọi phép chặn ở trên chạy trên bản ĐÃ giải mã. Nhưng đích trả về thì lấy từ `raw`
+  // khi nó đã là một đường: Next giải mã `searchParams` một lần rồi, nên giải thêm lần
+  // nữa làm hỏng query (`?q=a%26b` thành `?q=a&b`, `%23` thành hash, `%2B` thành dấu
+  // cách). Chỉ dạng mã hoá CẢ đường (`%2Flabs%2Fx`) mới cần bản đã giải mã.
+  if (raw.startsWith('/')) {
+    const kept = new URL(raw, PARSE_ORIGIN);
+    if (kept.origin !== PARSE_ORIGIN || kept.pathname.startsWith('//') || isBlocked(kept.pathname)) {
+      return null;
+    }
+    return `${kept.pathname}${kept.search}${kept.hash}`;
+  }
   return `${url.pathname}${url.search}${url.hash}`;
 }
 

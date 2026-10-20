@@ -9,7 +9,7 @@ import {
 import { profileForCapabilities, unsupportedCapabilities } from '../../lessons/catalog';
 import { playgroundSource, requirePlayground } from '../../labs/catalog';
 import { createSandboxSession } from '../../labs/session';
-import { recordSessionOrigin } from '../../sessions/origins';
+import { recordSessionOriginOrReap } from '../../sessions/origins';
 import { applySessionPreferences } from '../../sessions/preferences';
 import { createTRPCRouter, listInputSchema, protectedProcedure } from '../init';
 
@@ -137,9 +137,8 @@ export const playgroundsRouter = createTRPCRouter({
     });
     // Ghi TRƯỚC khi áp tuỳ chọn: lượt ghi này là thứ `me.activeSessions` cần để
     // dẫn "Làm tiếp" về đây — xem `sessions/origins.ts`.
-    await recordSessionOrigin(ctx.db, {
+    await recordSessionOriginOrReap(ctx, {
       sessionId: session.id,
-      userId: ctx.user.id,
       kind: 'playground',
       contentId: playground.id,
     });
