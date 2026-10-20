@@ -100,6 +100,7 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
   const checkSeq = useRef(0);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [restartConfirmOpen, setRestartConfirmOpen] = useState(false);
   const [popupBlocked, setPopupBlocked] = useState(false);
 
   const attemptQuery = api.labs.getAttempt.useQuery(
@@ -225,7 +226,7 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
   const setupPending = attemptId !== null && setupData?.state !== 'ready';
   const setupNotice = setupData !== null && setupData.state !== 'ready' ? setupData : null;
 
-  const phaseReason = checkBlockedReason({ phase, hasSession: sessionId !== null });
+  const phaseReason = checkBlockedReason({ phase, hasSession: sessionId !== null, handoff: handoff.state });
   const checkReason =
     attemptId === null
       ? t('session.lab.blocked-no-session')
@@ -415,6 +416,26 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
     </div>
   );
 
+  /*
+    Nút "Mở phiên mới" của lớp phủ terminal, ở lab, là một LẦN THỬ mới: điểm về
+    0% và lần thử đang dở không nộp được từ trang nữa. Nên nó mang nhãn "Làm lại"
+    như nút Bắt đầu trên thanh, và hỏi lại khi còn một lần thử chưa nộp. Đã nộp
+    thì không mất gì, bấm là làm lại luôn.
+  */
+  const restartAttempt =
+    attemptId === null
+      ? undefined
+      : {
+          label: t('session.controls.restart'),
+          onSelect: () => {
+            if (submitted) {
+              session.start();
+            } else {
+              setRestartConfirmOpen(true);
+            }
+          },
+        };
+
   const content = (
     <div className="h-full overflow-y-auto bg-card text-card-foreground">
       {lab.leaderboard ? (
@@ -479,7 +500,14 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
           side={
             <WorkspacePanel
               {...(showIde ? { editor: <IdePane sessionId={sessionId} phase={phase} /> } : {})}
-              terminal={<TerminalPane session={session} theme={terminalTheme} handoff={handoff} />}
+              terminal={
+                <TerminalPane
+                  session={session}
+                  theme={terminalTheme}
+                  handoff={handoff}
+                  {...(restartAttempt === undefined ? {} : { newSession: restartAttempt })}
+                />
+              }
               activeTab={tabs.activeTab}
               onActivate={tabs.onActivate}
               onPopOut={sessionId === null ? null : onPopOut}
@@ -489,6 +517,25 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
           }
         />
       </div>
+      <Dialog open={restartConfirmOpen} onOpenChange={setRestartConfirmOpen}>
+        <DialogContent>
+          <DialogTitle>{t('session.lab.restart-confirm-title')}</DialogTitle>
+          <DialogDescription>{t('session.lab.restart-confirm-body', { percent: summary.score.percent })}</DialogDescription>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="outline">{t('session.lab.restart-cancel')}</Button>
+            </DialogClose>
+            <Button
+              onClick={() => {
+                setRestartConfirmOpen(false);
+                session.start();
+              }}
+            >
+              {t('session.controls.restart')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

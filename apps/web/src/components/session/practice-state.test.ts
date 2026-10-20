@@ -17,26 +17,57 @@ const ALL_PHASES: readonly SessionPhase[] = [
 ];
 
 describe('M6: nút Kiểm tra chỉ mở ở pha ready, và luôn kèm lý do khi khoá', () => {
+  const here = { hasSession: true, handoff: 'here' as const };
+
   it('ready + có phiên ⇒ mở (null)', () => {
-    expect(checkBlockedReason({ phase: 'ready', hasSession: true })).toBeNull();
+    expect(checkBlockedReason({ ...here, phase: 'ready' })).toBeNull();
   });
 
   it('MỌI pha khác ⇒ khoá, và lý do là một câu không rỗng', () => {
     for (const phase of ALL_PHASES.filter((p) => p !== 'ready')) {
-      const reason = checkBlockedReason({ phase, hasSession: true });
+      const reason = checkBlockedReason({ ...here, phase });
       expect(reason, phase).not.toBeNull();
       expect((reason ?? '').length, phase).toBeGreaterThan(0);
     }
   });
 
   it('chưa có phiên ⇒ khoá, kể cả khi pha lỡ là ready', () => {
-    expect(checkBlockedReason({ phase: 'ready', hasSession: false })).not.toBeNull();
+    expect(checkBlockedReason({ ...here, phase: 'ready', hasSession: false })).not.toBeNull();
   });
 
   it('hết hạn và đang chờ nói HAI câu khác nhau', () => {
-    expect(checkBlockedReason({ phase: 'expired', hasSession: true })).not.toBe(
-      checkBlockedReason({ phase: 'connecting', hasSession: true }),
+    expect(checkBlockedReason({ ...here, phase: 'expired' })).not.toBe(
+      checkBlockedReason({ ...here, phase: 'connecting' }),
     );
+  });
+});
+
+describe('nút Kiểm tra khi terminal đã giao sang cửa sổ riêng', () => {
+  /*
+    Trang thả kết nối lúc giao, nên `phase` của trang đứng yên ở pha lúc giao.
+    Bấm giao lúc còn `connecting` là trang không bao giờ tới `ready`: bản trước
+    khoá nút Kiểm tra mãi với "chờ terminal nối" trong khi cửa sổ kia chạy được.
+  */
+  it('giao đi lúc còn connecting / reconnecting ⇒ mở', () => {
+    for (const handoff of ['elsewhere', 'reclaiming'] as const) {
+      expect(checkBlockedReason({ phase: 'connecting', hasSession: true, handoff }), handoff).toBeNull();
+      expect(checkBlockedReason({ phase: 'reconnecting', hasSession: true, handoff }), handoff).toBeNull();
+      expect(checkBlockedReason({ phase: 'ready', hasSession: true, handoff }), handoff).toBeNull();
+    }
+  });
+
+  it('ĐỐI CHỨNG: cùng pha connecting mà terminal còn ở trang ⇒ vẫn khoá', () => {
+    expect(checkBlockedReason({ phase: 'connecting', hasSession: true, handoff: 'here' })).not.toBeNull();
+  });
+
+  it('expired vẫn khoá dù đã giao đi: máy chủ đã nói pod không còn', () => {
+    expect(checkBlockedReason({ phase: 'expired', hasSession: true, handoff: 'elsewhere' })).toBe(
+      checkBlockedReason({ phase: 'expired', hasSession: true, handoff: 'here' }),
+    );
+  });
+
+  it('chưa có phiên vẫn khoá dù đã giao đi', () => {
+    expect(checkBlockedReason({ phase: 'connecting', hasSession: false, handoff: 'elsewhere' })).not.toBeNull();
   });
 });
 
@@ -69,6 +100,13 @@ describe('H2: lớp phủ theo pha, đúng MỘT việc làm được', () => {
     expect(resolveTerminalOverlay({ ...base, phase: 'exited' })?.action).toBe('reconnect');
     expect(resolveTerminalOverlay({ ...base, phase: 'error' })?.action).toBe('reconnect');
     expect(resolveTerminalOverlay({ ...base, phase: 'expired' })?.action).toBe('new-session');
+  });
+
+  it('không có pod để nối (lỗi tạo phiên) ⇒ Mở phiên mới, KHÔNG phải một nút Nối lại chết', () => {
+    const noPod = { ...base, canReconnect: false };
+    expect(resolveTerminalOverlay({ ...noPod, phase: 'error' })?.action).toBe('new-session');
+    expect(resolveTerminalOverlay({ ...noPod, phase: 'exited' })?.action).toBe('new-session');
+    expect(resolveTerminalOverlay({ ...noPod, phase: 'reconnecting' })?.action).toBeNull();
   });
 
   it('đang tạo / đang nối ⇒ phủ chờ, không có nút', () => {

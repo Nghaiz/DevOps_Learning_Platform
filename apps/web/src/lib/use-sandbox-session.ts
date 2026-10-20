@@ -98,6 +98,19 @@ const RECONNECTABLE: Record<SessionPhase, boolean> = {
   error: true,
 };
 
+/**
+ * `reconnect()` có việc để làm không: có pod để nối VÀ pha cho phép.
+ *
+ * Xuất ra để nơi VẼ nút "Nối lại" hỏi đúng điều kiện mà `reconnect()` dùng. Bản
+ * trước lớp phủ terminal nhận `canReconnect: true` cố định, trong khi
+ * `applyCreated` dựng được pha `error` có `sessionId` mà `podName` vẫn `null`
+ * (orchestrator trả pod rỗng hoặc trạng thái không nối được): lớp phủ khi đó chỉ
+ * mời đúng một nút bấm vào không xảy ra gì.
+ */
+export function canReconnect(state: Pick<SessionState, 'sessionId' | 'podName' | 'phase'>): boolean {
+  return state.sessionId !== null && state.podName !== null && RECONNECTABLE[state.phase];
+}
+
 export function useSandboxSession(actions: SandboxSessionActions): SandboxSession {
   const [state, dispatch] = useReducer(reduce, initialState);
   const [connectionKey, setConnectionKey] = useState(0);
@@ -168,7 +181,7 @@ export function useSandboxSession(actions: SandboxSessionActions): SandboxSessio
   }, [state.sessionId, actions]);
 
   const reconnect = useCallback(() => {
-    if (state.sessionId === null || state.podName === null || !RECONNECTABLE[state.phase]) {
+    if (!canReconnect({ sessionId: state.sessionId, podName: state.podName, phase: state.phase })) {
       return;
     }
     // Cùng cặp với lịch backoff bên dưới: `RETRY_NOW` đưa pha về `connecting`

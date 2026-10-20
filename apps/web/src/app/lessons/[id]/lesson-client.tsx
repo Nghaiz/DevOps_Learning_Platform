@@ -28,6 +28,7 @@ import { useWorkspaceTabs } from '../../../components/session/use-workspace-tabs
 import { lineForTopic } from '../../../lib/topic-line';
 import { api } from '../../../lib/trpc-react';
 import { describeTrpcError } from '../../../lib/trpc';
+import { canReconnect } from '../../../lib/use-sandbox-session';
 import { buildPhases, canCheck, phaseKeyForStepIndex } from './phases';
 import { summarizeProgress } from './progress';
 import { useLessonSession } from './use-lesson-session';
@@ -99,9 +100,19 @@ export function LessonClient({ scenarioId }: { readonly scenarioId: string }): R
   const showIde = shouldShowIdePane(scenario?.interfaceLayout ?? null);
   const tabs = useWorkspaceTabs({ terminal, hasEditor: showIde, sessionId });
 
-  // ── Setup: đúng MỘT lần cho mỗi phase của mỗi phiên, chỉ khi terminal đã nối ──
+  /*
+    Terminal đã giao sang cửa sổ riêng thì trang thả kết nối, nên `terminal` ở
+    đây là `null` cho tới khi người học lấy về, có khi không bao giờ. Chờ nó như
+    ca thường là setup của phase đầu không bao giờ chạy. `background` chạy ở máy
+    chủ nên không cần terminal của trang; chỉ cần phiên còn pod.
+  */
+  const setupWithoutTerminal = handoff.state !== 'here' && canReconnect(session.state);
+
+  // ── Setup: đúng MỘT lần cho mỗi phase của mỗi phiên, khi terminal đã nối (hoặc đã giao đi) ──
   useEffect(() => {
-    if (active === null || sessionId === null || terminal === null || phases.length === 0) {
+    // ⛔ Ca thường vẫn CHỜ terminal: chạy setup trước khi chunk xterm kịp gắn là
+    // `foreground` của intro rơi mất, vì lúc lượt gọi về thì chưa có gì để gõ vào.
+    if (active === null || sessionId === null || (terminal === null && !setupWithoutTerminal) || phases.length === 0) {
       return;
     }
     // ⛔ Phải chuẩn bị phase ĐẦU TIÊN, không chỉ phase đang mở: asset chỉ được
@@ -127,7 +138,9 @@ export function LessonClient({ scenarioId }: { readonly scenarioId: string }): R
           onSuccess: (result) => {
             setSetupError(null);
             // `foreground` của phase ĐANG MỞ mới gõ vào terminal người học đang nhìn.
-            if (result.foreground !== null && target.key === active.key) {
+            // Terminal ở cửa sổ riêng ⇒ trang không có gì để gõ vào, và lệnh này bị bỏ chứ
+            // không dồn lại: gõ nó lúc người học lấy terminal về là gõ một lệnh cũ vào giữa việc đang làm.
+            if (result.foreground !== null && target.key === active.key && terminal !== null) {
               terminal.sendInput(`${result.foreground}\r`);
             }
           },
@@ -140,7 +153,7 @@ export function LessonClient({ scenarioId }: { readonly scenarioId: string }): R
       );
     }
     // `runSetup` ngoài deps có chủ ý: danh tính mutation đổi mỗi lượt render.
-  }, [active, phases, sessionId, terminal, scenarioId, setupAttempt]);
+  }, [active, phases, sessionId, terminal, setupWithoutTerminal, scenarioId, setupAttempt]);
 
   const onSelect = useCallback(
     (key: string) => {
@@ -229,7 +242,7 @@ export function LessonClient({ scenarioId }: { readonly scenarioId: string }): R
     completed,
   });
 
-  const checkReason = checkBlockedReason({ phase, hasSession: sessionId !== null });
+  const checkReason = checkBlockedReason({ phase, hasSession: sessionId !== null, handoff: handoff.state });
   const execReason = execBlockedReason({
     phase,
     hasSession: sessionId !== null,

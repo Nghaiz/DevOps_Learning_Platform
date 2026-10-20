@@ -17,16 +17,28 @@ import type { HandoffState } from './terminal-handoff';
 export interface CheckGateInput {
   readonly phase: SessionPhase;
   readonly hasSession: boolean;
+  readonly handoff: HandoffState;
 }
 
 /**
  * Lượt chấm chạy ở máy chủ (exec vào pod), không đi qua WebSocket của
  * terminal. Nhưng nó cần pod còn sống và đã được gateway xác nhận, và `ready`
  * là pha DUY NHẤT nói được cả hai điều đó.
+ *
+ * Ngoại lệ: terminal đã giao sang cửa sổ riêng. Trang khi đó tự ngắt kết nối
+ * (gateway chỉ cho một WebSocket), nên `phase` của trang ĐỨNG YÊN ở pha lúc
+ * giao. Bấm giao lúc còn `connecting` là trang không bao giờ thấy `ready`, và
+ * nút Kiểm tra khoá mãi với câu "chờ terminal nối" trong khi terminal ở cửa sổ
+ * kia chạy bình thường. Ở đó chỉ `expired` còn là phán quyết đáng tin (máy chủ
+ * đã nói pod không còn); pha khác chỉ là pha cũ, và lượt chấm hỏng thì tự báo
+ * lỗi hệ thống chứ không đọc thành bài sai.
  */
 export function checkBlockedReason(input: CheckGateInput): string | null {
   if (!input.hasSession) {
     return t('session.check.blocked-no-session');
+  }
+  if (input.handoff !== 'here' && input.phase !== 'expired') {
+    return null;
   }
   switch (input.phase) {
     case 'ready':
@@ -47,7 +59,6 @@ export function checkBlockedReason(input: CheckGateInput): string | null {
 export interface ExecGateInput extends CheckGateInput {
   /** Trang đang cầm một `TerminalHandle` (kết nối của CHÍNH trang này đang mở). */
   readonly terminalAttached: boolean;
-  readonly handoff: HandoffState;
 }
 
 /**

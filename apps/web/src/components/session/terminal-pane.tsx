@@ -6,7 +6,7 @@ import { ExternalLink, Hourglass, LoaderCircle, Terminal, Unplug } from 'lucide-
 import { t } from '@devops-platform/copy';
 import type { ThemeName } from '@devops-platform/terminal/themes';
 import { Button, Kbd, cn } from '@devops-platform/ui';
-import type { SandboxSession } from '../../lib/use-sandbox-session';
+import { canReconnect, type SandboxSession } from '../../lib/use-sandbox-session';
 import type { TerminalHandoff } from './terminal-handoff';
 import {
   overlayActionLabel,
@@ -52,6 +52,14 @@ export interface TerminalPaneProps {
   readonly placeholder?: ReactNode;
   /** Bàn giao với cửa sổ terminal riêng. Vắng ⇒ terminal luôn ở trang này. */
   readonly handoff?: TerminalHandoff;
+  /**
+   * Thay nút "Mở phiên mới" của lớp phủ. Vắng ⇒ nhãn chung + `session.start()`.
+   *
+   * Lab cần nó: phiên mới ở đó là một LẦN THỬ mới (`labs.startAttempt` với key
+   * mới), điểm về 0% và lần thử đang dở không nộp được từ trang nữa. Nhãn chung
+   * "Mở phiên mới" giấu đúng hệ quả đó.
+   */
+  readonly newSession?: { readonly label: string; readonly onSelect: () => void };
 }
 
 const TONE_ICON = {
@@ -63,10 +71,12 @@ const TONE_ICON = {
 function OverlayCard({
   overlay,
   busy,
+  newSessionLabel,
   onAction,
 }: {
   readonly overlay: TerminalOverlay;
   readonly busy: boolean;
+  readonly newSessionLabel: string | undefined;
   readonly onAction: (action: OverlayAction) => void;
 }): ReactElement {
   const Icon = overlay.tone === 'down' && overlay.action === 'new-session' ? Hourglass : TONE_ICON[overlay.tone];
@@ -96,7 +106,9 @@ function OverlayCard({
               if (overlay.action !== null) onAction(overlay.action);
             }}
           >
-            {overlayActionLabel(overlay.action)}
+            {overlay.action === 'new-session' && newSessionLabel !== undefined
+              ? newSessionLabel
+              : overlayActionLabel(overlay.action)}
           </Button>
         )}
       </div>
@@ -119,7 +131,7 @@ function OverlayCard({
  * - Terminal ở cửa sổ riêng ⇒ trang thả kết nối (`connectionKey = null`), vì
  *   gateway chỉ cho một WebSocket mỗi phiên.
  */
-export function TerminalPane({ session, theme, placeholder, handoff }: TerminalPaneProps): ReactElement {
+export function TerminalPane({ session, theme, placeholder, handoff, newSession }: TerminalPaneProps): ReactElement {
   const followedTheme = useResolvedTerminalTheme(undefined);
   const resolvedTheme = theme ?? followedTheme;
 
@@ -154,7 +166,8 @@ export function TerminalPane({ session, theme, placeholder, handoff }: TerminalP
     phase,
     message: session.state.message,
     handoff: handoffState,
-    canReconnect: true,
+    // CÙNG điều kiện `reconnect()` dùng: lỗi tạo phiên không có pod thì "Nối lại" là nút chết.
+    canReconnect: canReconnect(session.state),
     closeCode,
   });
 
@@ -180,7 +193,11 @@ export function TerminalPane({ session, theme, placeholder, handoff }: TerminalP
         session.reconnect();
         return;
       case 'new-session':
-        session.start();
+        if (newSession === undefined) {
+          session.start();
+        } else {
+          newSession.onSelect();
+        }
         return;
     }
   };
@@ -202,7 +219,14 @@ export function TerminalPane({ session, theme, placeholder, handoff }: TerminalP
              đưa focus vào terminal lúc đó là đúng ý người học, không phải giật focus lúc tải trang. */
           autoFocus
         />
-        {overlay !== null && <OverlayCard overlay={overlay} busy={session.starting} onAction={onAction} />}
+        {overlay !== null && (
+          <OverlayCard
+            overlay={overlay}
+            busy={session.starting}
+            newSessionLabel={newSession?.label}
+            onAction={onAction}
+          />
+        )}
       </div>
       <p
         className={cn(

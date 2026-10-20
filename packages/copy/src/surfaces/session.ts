@@ -162,6 +162,10 @@ export const session = {
   'session.lab.submit-confirm-unchecked': (p: { count: number }) =>
     `Còn ${p.count} nhiệm vụ chưa chấm lần nào, chúng sẽ tính là chưa đạt.`,
   'session.lab.submit-cancel': 'Làm tiếp',
+  'session.lab.restart-confirm-title': 'Làm lại lab từ đầu?',
+  'session.lab.restart-confirm-body': (p: { percent: number }) =>
+    `Lần thử này đang ở ${p.percent}% và chưa nộp. Làm lại mở một lần thử mới tính điểm từ 0%, lần thử này sẽ không nộp được nữa. Muốn giữ điểm thì nộp bài trước.`,
+  'session.lab.restart-cancel': 'Giữ lần thử này',
   'session.lab.duration': (p: { minutes: number; seconds: number }) =>
     `${p.minutes} phút ${p.seconds} giây`,
   'session.lab.duration-line': (p: { duration: string }) => `Thời gian làm bài: ${p.duration}.`,
