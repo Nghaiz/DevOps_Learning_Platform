@@ -192,7 +192,7 @@ thoát ra và kéo trang dài thêm (đã gặp: tài liệu cao 6977px cho nộ
 
 | Lệnh | Gác |
 |---|---|
-| `pnpm design:check` | Kit cũ (`@devops-platform/ui`), bộ icon đại trà, loader quay vòng, viền trái dày, vùng cuộn thiếu `relative` (nhãn sr-only thoát ra kéo dài trang), lớp và biến của legacy.css ngoài vùng giữ nguyên; `.ds-island` phủ đủ tên bị khai đè. Tên lớp cũ đọc từ chính legacy.css. Danh sách vùng giữ nguyên (`LEGACY_ZONES`) đỏ cả khi một dòng không còn che vi phạm nào. |
+| `pnpm design:check` | Kit cũ (`@devops-platform/ui`), bộ icon đại trà, loader quay vòng, viền trái dày, vùng cuộn thiếu `relative` (nhãn sr-only thoát ra kéo dài trang), `outline-none` đi cùng vòng focus bằng outline mà thiếu `focus-visible:outline-solid` (Tailwind v4 đặt `--tw-outline-style: none`, vòng focus không hiện), lớp và biến của legacy.css ngoài vùng giữ nguyên; `.ds-island` phủ đủ tên bị khai đè. Tên lớp cũ đọc từ chính legacy.css. Danh sách vùng giữ nguyên (`LEGACY_ZONES`) đỏ cả khi một dòng không còn che vi phạm nào. |
 | `pnpm tokens:check` | Màu cứng trong JSX |
 | `pnpm bundle:check` (sau build) | xterm chỉ vào route có terminal; trần byte của nền chung |
 | `packages/ds` `palette.test.ts` | Khối @palette khớp bảng sinh; mọi cặp tương phản đạt |

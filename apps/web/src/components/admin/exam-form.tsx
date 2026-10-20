@@ -507,7 +507,7 @@ function StepBar(props: {
                 disabled={!canPick}
                 onClick={() => props.onPick(index)}
                 className={cn(
-                  'inline-flex h-9 items-center gap-2 rounded-full border px-3.5 text-sm font-medium outline-none transition-colors duration-150',
+                  'inline-flex h-9 items-center gap-2 rounded-full border px-3.5 text-sm font-medium outline-none focus-visible:outline-solid transition-colors duration-150',
                   'focus-visible:outline-2 focus-visible:outline-focus',
                   isCurrent
                     ? 'border-acc-solid bg-acc-solid text-on-solid'

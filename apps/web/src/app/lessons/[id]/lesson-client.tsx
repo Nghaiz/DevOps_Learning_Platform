@@ -324,7 +324,7 @@ export function LessonClient({ scenarioId }: { readonly scenarioId: string }): R
       <div className="shrink-0 border-b border-rule px-3 py-2">
         <StepStrip steps={steps} activeKey={active.key} onSelect={onSelect} label={t('session.steps.list')} />
       </div>
-      <div className="relative min-h-0 flex-1 overflow-y-auto">
+      <div className="relative min-h-0 flex-1 overflow-y-auto focus-visible:-outline-offset-2">
         <article className="mx-auto max-w-[70ch] px-5 py-6 md:px-8">
           <h2 className="mb-4 font-display text-2xl font-semibold tracking-[-0.01em] text-ink">{active.label}</h2>
           <ContentView

@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useEffect, useRef } from 'react';
 import { cn } from '@devops-platform/ds';
 import { t } from '@devops-platform/copy';
 import { activeNavItem, isActiveNav, type NavSectionDef } from './nav';
@@ -10,6 +11,10 @@ import { activeNavItem, isActiveNav, type NavSectionDef } from './nav';
  * trang tổng quan của mục, sau đó là từng trang con. Trang đang mở có vạch dưới.
  * Chỉ chữ, không icon: tên trang đã đủ nghĩa. Trên điện thoại thanh cuộn ngang, hai mép
  * mờ dần để báo còn mục bị che, và trang đang mở được cuộn vào giữa.
+ *
+ * ⛔ Cuộn bằng `scrollLeft` của chính thanh, KHÔNG `scrollIntoView`: Chromium dời điểm xuất phát
+ * của phím Tab tới phần tử được cuộn vào tầm nhìn, nên phím Tab đầu tiên của trang rơi vào mục
+ * ngay sau mục đang mở và bỏ qua liên kết "Bỏ qua điều hướng" (keyboard.spec, 2026-10-20).
  */
 export function SectionBar({ section, pathname, search }: { readonly section: NavSectionDef; readonly pathname: string; readonly search: string }) {
   const child = activeNavItem(pathname, section.items, search);
@@ -18,9 +23,19 @@ export function SectionBar({ section, pathname, search }: { readonly section: Na
     { href: section.hub, label: t('shell.section.overview'), active: onHub },
     ...section.items.map((entry) => ({ href: entry.href, label: entry.label, active: child?.href === entry.href })),
   ];
+  const barRef = useRef<HTMLElement>(null);
+  const activeHref = links.find((entry) => entry.active)?.href ?? null;
+  useEffect(() => {
+    const bar = barRef.current;
+    if (bar === null || activeHref === null || bar.scrollWidth <= bar.clientWidth) return;
+    const current = bar.querySelector<HTMLElement>('[aria-current="page"]');
+    if (current === null) return;
+    bar.scrollLeft = current.offsetLeft - (bar.clientWidth - current.offsetWidth) / 2;
+  }, [activeHref]);
   return (
     <div className="border-b border-rule bg-acc-wash">
       <nav
+        ref={barRef}
         aria-label={t('shell.subnav.aria', { section: section.label })}
         className="relative mx-auto flex h-11 max-w-[1440px] items-stretch overflow-x-auto px-4 [scrollbar-width:none] max-lg:[mask-image:linear-gradient(to_right,transparent,var(--ink)_16px,var(--ink)_calc(100%_-_16px),transparent)] lg:px-6"
       >
@@ -30,9 +45,6 @@ export function SectionBar({ section, pathname, search }: { readonly section: Na
               <Link
                 href={entry.href}
                 aria-current={entry.active ? 'page' : undefined}
-                ref={(node) => {
-                  if (entry.active && node !== null) node.scrollIntoView({ block: 'nearest', inline: 'center' });
-                }}
                 className={cn(
                   'group relative flex shrink-0 items-center gap-2 whitespace-nowrap px-3 text-sm transition-colors duration-150',
                   entry.active ? 'font-medium text-ink' : 'text-ink-2 hover:text-ink',

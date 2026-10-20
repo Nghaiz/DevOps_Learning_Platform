@@ -161,7 +161,7 @@ export const session = {
 
   // ── Khoang IDE ───────────────────────────────────────────────────────────
   'session.ide.iframe-title': 'Trình soạn thảo trong sandbox',
-  'session.ide.no-session': 'Trình soạn thảo mở cùng máy. Bấm Bắt đầu để dựng máy.',
+  'session.ide.no-session': 'Trình soạn thảo mở cùng máy. Sang tab Terminal và bấm Bắt đầu để dựng máy.',
   'session.ide.booting-title': 'Đang dựng trình soạn thảo',
   // 20 giây là số ĐO ĐƯỢC ở P6 (khởi động nguội Theia).
   'session.ide.booting-detail':

@@ -113,10 +113,13 @@ test.describe('luồng 5 — soạn bài', { tag: '@flow' }, () => {
     await page.getByRole('tab', { name: t('author.edit.tab.publish'), exact: true }).click();
     await page.getByRole('button', { name: t('author.publish-panel-kiem-tra'), exact: true }).click();
 
-    // Tiêu đề alert của `CheckReport`; dải bên còn một dòng "Kiểm tra định dạng:
-    // sạch", nên neo heading chứ không neo chuỗi trần.
+    // Tiêu đề khối `Notice` của `CheckReport`. Từ bản dựng lại 2026-10 tiêu đề Notice là đoạn
+    // chữ chứ không phải heading, nên neo trong tabpanel Xuất bản: dải bên còn một dòng "Kiểm tra
+    // định dạng: sạch" và không được để nó khớp thay.
     await expect(
-      page.getByRole('heading', { name: t('author.publish-panel-dinh-dang-hop-le'), exact: true }),
+      page
+        .getByRole('tabpanel', { name: t('author.edit.tab.publish') })
+        .getByText(t('author.publish-panel-dinh-dang-hop-le'), { exact: true }),
       'Lượt kiểm tra báo bản nháp chưa qua schema. Nút "Xuất bản" sẽ bị khoá, nên ' +
         'luồng không đi tiếp được — đọc danh sách lỗi trên trang để biết ô nào.',
     ).toBeVisible({ timeout: 60_000 });
@@ -191,7 +194,7 @@ test.describe('luồng 5 — soạn bài', { tag: '@flow' }, () => {
     // DOM và không nói nút nào là nút nào.
     const archiveLabel = t('author.studio.action.archive');
     await page.getByRole('button', { name: archiveLabel, exact: true }).click();
-    const archiveDialog = page.getByRole('dialog', { name: t('author.publish-panel-luu-tru-bai-nay') });
+    const archiveDialog = page.getByRole('alertdialog', { name: t('author.publish-panel-luu-tru-bai-nay') });
     await archiveDialog.getByRole('button', { name: archiveLabel, exact: true }).click();
 
     // ⚠ Neo vào TOAST, không phải chuỗi trần — cùng họ bẫy với "Đã xuất bản" ở

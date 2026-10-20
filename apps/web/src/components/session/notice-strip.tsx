@@ -72,7 +72,7 @@ export function NoticeStrip({ notices }: { readonly notices: readonly PracticeNo
           type="button"
           aria-expanded={expanded}
           onClick={() => setExpanded((value) => !value)}
-          className="flex h-7 w-full items-center gap-1.5 border-t border-rule px-4 text-xs text-ink-3 outline-none hover:text-ink focus-visible:outline-2 focus-visible:outline-focus"
+          className="flex h-7 w-full items-center gap-1.5 border-t border-rule px-4 text-xs text-ink-3 outline-none focus-visible:outline-solid hover:text-ink focus-visible:outline-2 focus-visible:outline-focus"
         >
           <Icon name={expanded ? 'chevron-up' : 'chevron-down'} size={14} />
           {expanded ? t('session.notice.less') : t('session.notice.more', { count: hiddenCount })}

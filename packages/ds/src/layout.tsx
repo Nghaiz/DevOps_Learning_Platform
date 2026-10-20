@@ -22,6 +22,11 @@ export function Page({ className, children, width = 'wide' }: { className?: stri
 
 export interface PageHeaderProps {
   readonly title: ReactNode;
+  /**
+   * Thẻ nhỏ đứng cạnh tiêu đề (số mục, trạng thái). Nằm NGOÀI h1: đặt trong h1 thì tên trợ năng
+   * của tiêu đề thành "Bài học 12 bài học đã xuất bản" và trình đọc màn hình đọc cả số đếm.
+   */
+  readonly badge?: ReactNode;
   readonly lead?: ReactNode;
   readonly actions?: ReactNode;
   /** Dòng nhỏ trên tiêu đề cho trang chi tiết: đường dẫn ngược về danh sách. */
@@ -32,20 +37,30 @@ export interface PageHeaderProps {
 }
 
 /** Đầu trang: một h1 duy nhất. Không nhãn in hoa phía trên, không số thứ tự. */
-export function PageHeader({ title, lead, actions, back, children, className, size = 'md' }: PageHeaderProps) {
+export function PageHeader({ title, badge, lead, actions, back, children, className, size = 'md' }: PageHeaderProps) {
+  const heading = (
+    <h1
+      className={cn(
+        'font-display font-semibold tracking-[-0.015em] text-ink',
+        size === 'lg' ? 'text-3xl sm:text-4xl' : 'text-2xl sm:text-3xl',
+      )}
+    >
+      {title}
+    </h1>
+  );
   return (
     <header className={cn('flex flex-col gap-4 pb-6 pt-8 sm:pt-10', className)}>
       {back === undefined ? null : <div className="-mb-1">{back}</div>}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="flex min-w-0 flex-col gap-2">
-          <h1
-            className={cn(
-              'font-display font-semibold tracking-[-0.015em] text-ink',
-              size === 'lg' ? 'text-3xl sm:text-4xl' : 'text-2xl sm:text-3xl',
-            )}
-          >
-            {title}
-          </h1>
+          {badge === undefined ? (
+            heading
+          ) : (
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+              {heading}
+              {badge}
+            </div>
+          )}
           {lead === undefined ? null : <p className="max-w-[64ch] text-md text-ink-2">{lead}</p>}
         </div>
         {actions === undefined ? null : <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
@@ -184,7 +199,7 @@ export function Row({ title, description, below, leading, meta, trailing, topic,
           {current ? <span aria-hidden className="size-2 shrink-0 -translate-y-px self-center bg-acc-solid" /> : null}
           <div
             className={cn(
-              'line-clamp-2 min-w-0 font-medium text-ink transition-colors group-hover:text-acc-ink group-data-[current]:text-acc-ink',
+              'line-clamp-2 min-w-0 font-medium text-ink transition-colors group-hover:text-acc-ink group-data-[current]:text-acc-ink has-[a:focus-visible]:text-acc-ink',
               '[&_a]:outline-none [&_a]:after:absolute [&_a]:after:inset-0 [&_a:focus-visible]:after:outline-2 [&_a:focus-visible]:after:outline-focus',
               dense ? 'text-sm' : 'text-base',
             )}

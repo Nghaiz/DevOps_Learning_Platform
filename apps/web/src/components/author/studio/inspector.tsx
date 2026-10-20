@@ -92,7 +92,7 @@ export function IssueList(props: {
                 onClick={() => {
                   props.onJump(issue.path);
                 }}
-                className="group flex w-full items-start gap-2 rounded-sm py-2.5 text-left outline-none transition-colors duration-150 hover:bg-well focus-visible:outline-2 focus-visible:outline-focus"
+                className="group flex w-full items-start gap-2 rounded-sm py-2.5 text-left outline-none focus-visible:outline-solid transition-colors duration-150 hover:bg-well focus-visible:outline-2 focus-visible:outline-focus"
               >
                 <IssueText issue={issue} />
                 <Icon

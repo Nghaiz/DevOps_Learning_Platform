@@ -5,7 +5,7 @@ import type { ErrorEntry } from '@devops-platform/copy/types';
 
 /** Lớp chung của liên kết chữ trên bốn màn xác thực: màu nhấn, gạch chân khi rê, vòng focus. */
 export const AUTH_LINK =
-  'font-medium text-acc-ink underline-offset-4 outline-none hover:underline focus-visible:rounded-xs focus-visible:outline-2 focus-visible:outline-focus';
+  'font-medium text-acc-ink underline-offset-4 outline-none focus-visible:outline-solid hover:underline focus-visible:rounded-xs focus-visible:outline-2 focus-visible:outline-focus';
 
 /**
  * Better Auth trả 429 khi vượt 3 lượt mỗi phút theo IP. Lỗi đó KHÁC sai thông tin:

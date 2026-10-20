@@ -142,7 +142,7 @@ export function IdePane({ sessionId, phase, sessionGone }: IdePaneProps): ReactE
           href={ideSessionUrl(sessionId)}
           target="_blank"
           rel="noreferrer"
-          className="inline-flex h-7 items-center gap-1.5 rounded-sm px-2 text-sm text-ink-2 outline-none hover:bg-well hover:text-ink focus-visible:outline-2 focus-visible:outline-focus"
+          className="inline-flex h-7 items-center gap-1.5 rounded-sm px-2 text-sm text-ink-2 outline-none focus-visible:outline-solid hover:bg-well hover:text-ink focus-visible:outline-2 focus-visible:outline-focus"
         >
           <Icon name="external-link" size={15} />
           {t('session.ide.open-new-tab')}

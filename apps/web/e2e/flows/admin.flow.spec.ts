@@ -73,7 +73,8 @@ test.describe('luồng 6 — quản trị', { tag: '@flow' }, () => {
 
     // Mở hộp thoại xác nhận rồi HUỶ — xem khối chú thích đầu file.
     await page.getByRole('button', { name: t('admin.users.change-role'), exact: true }).first().click();
-    const roleDialog = page.getByRole('dialog');
+    // `ConfirmDialog` của ds là Radix AlertDialog: role `alertdialog`, không phải `dialog`.
+    const roleDialog = page.getByRole('alertdialog');
     await expect(roleDialog).toBeVisible();
     await expect(
       // Đoạn giữa của `admin.role-change.body` — khoá ĐỘNG (email, từ, thành),

@@ -128,7 +128,7 @@ export function Markdown({ markdown, labels, resolveAssetUrl, linksInNewTab = fa
         tabIndex={0}
         role="group"
         aria-label={labels.tableRegion}
-        className="relative my-3 overflow-x-auto outline-none focus-visible:outline-2 focus-visible:outline-focus"
+        className="relative my-3 overflow-x-auto outline-none focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-focus"
       >
         <table className="w-full border-collapse text-sm">{children}</table>
       </div>
@@ -144,7 +144,7 @@ export function Markdown({ markdown, labels, resolveAssetUrl, linksInNewTab = fa
         tabIndex={0}
         role="group"
         aria-label={labels.codeRegion('text')}
-        className="relative my-4 overflow-x-auto rounded-md bg-[var(--code-bg)] px-4 py-3 text-[13px] leading-relaxed text-[var(--code-ink)] outline-none focus-visible:outline-2 focus-visible:outline-focus"
+        className="relative my-4 overflow-x-auto rounded-md bg-[var(--code-bg)] px-4 py-3 text-[13px] leading-relaxed text-[var(--code-ink)] outline-none focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-focus"
       >
         {children}
       </pre>

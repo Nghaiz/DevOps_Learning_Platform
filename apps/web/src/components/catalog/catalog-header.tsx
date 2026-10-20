@@ -17,15 +17,13 @@ export function CatalogHeader(props: {
 }): ReactElement {
   return (
     <PageHeader
-      title={
-        <span className="inline-flex flex-wrap items-center gap-3">
-          {catalogTitle(props.kind)}
-          {props.count === null ? null : (
-            <Pill tone="acc" className="translate-y-0.5 font-sans text-sm font-medium tracking-normal">
-              {t('catalog.count.published', { n: props.count, noun: catalogNoun(props.kind) })}
-            </Pill>
-          )}
-        </span>
+      title={catalogTitle(props.kind)}
+      badge={
+        props.count === null ? undefined : (
+          <Pill tone="acc" className="translate-y-0.5">
+            {t('catalog.count.published', { n: props.count, noun: catalogNoun(props.kind) })}
+          </Pill>
+        )
       }
       lead={catalogLead(props.kind)}
       actions={props.actions}

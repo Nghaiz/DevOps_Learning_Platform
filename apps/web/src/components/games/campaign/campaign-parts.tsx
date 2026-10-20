@@ -133,7 +133,7 @@ export function ChapterStrip({ chapters }: { readonly chapters: readonly Chapter
               <li key={chapter.anchor} className="shrink-0">
                 <a
                   href={`#${chapter.anchor}`}
-                  className="inline-flex h-9 items-center gap-2 rounded-full px-3 text-sm text-ink-2 outline-none transition-colors hover:bg-tp-wash hover:text-ink focus-visible:outline-2 focus-visible:outline-focus"
+                  className="inline-flex h-9 items-center gap-2 rounded-full px-3 text-sm text-ink-2 outline-none focus-visible:outline-solid transition-colors hover:bg-tp-wash hover:text-ink focus-visible:outline-2 focus-visible:outline-focus"
                 >
                   {complete ? <Icon name="success" size={16} className="text-ok-ink" /> : null}
                   {chapter.label}

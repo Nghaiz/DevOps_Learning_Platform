@@ -62,6 +62,22 @@ describe('§Y3 — exec khi terminal đang bị ẩn ở tab Editor', () => {
     expect(result.current.activeTab).toBe('editor');
   });
 
+  /**
+   * Nút "Bắt đầu" chỉ nằm trong khoang terminal. Bài IDE mà chưa có phiên vẫn mở ở
+   * Editor thì người học thấy câu "Bấm Bắt đầu…" mà không có nút nào để bấm.
+   */
+  it('bài IDE CHƯA có phiên mở ở tab Terminal, có phiên rồi mới về Editor', () => {
+    const term = fakeTerminal();
+    const { result, rerender } = renderHook(
+      ({ sessionId }: { sessionId: string | null }) =>
+        useWorkspaceTabs({ ...optionsFor(term.handle, true), sessionId }),
+      { initialProps: { sessionId: null as string | null } },
+    );
+    expect(result.current.activeTab, 'chưa có phiên: phải thấy khung khởi động').toBe('terminal');
+    rerender({ sessionId: 'sess-1' });
+    expect(result.current.activeTab).toBe('editor');
+  });
+
   /** ⛔ Ô gác chính. Không có nó, lệnh chạy trong một terminal vô hình. */
   it('exec CHUYỂN sang tab Terminal, và chỉ focus SAU khi tab đã đổi', () => {
     const term = fakeTerminal();

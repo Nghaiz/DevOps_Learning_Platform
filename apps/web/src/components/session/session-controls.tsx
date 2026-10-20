@@ -66,7 +66,12 @@ export function SessionControls({
         {state.message === null ? null : (
           <span
             title={state.message}
-            className={cn('hidden max-w-72 truncate text-xs xl:inline', failed ? 'text-bad-ink' : 'text-ink-3')}
+            className={cn(
+              // `sr-only` chứ không `hidden` dưới xl: `hidden` gỡ câu khỏi cây trợ năng, nên vùng
+              // aria-live không đọc được lý do ở màn dưới 1280px. Người nhìn thấy lý do ở khoang terminal.
+              'sr-only max-w-72 truncate text-xs xl:not-sr-only xl:inline-block',
+              failed ? 'text-bad-ink' : 'text-ink-3',
+            )}
           >
             {state.message}
           </span>
@@ -105,7 +110,7 @@ export function SessionControls({
             bắt buộc: nút disabled không nhận focus nên tooltip gắn thẳng lên nó không mở.
           */
           <Tip content={t('session.controls.hard-cap')}>
-            <span tabIndex={0} className="inline-flex rounded-sm outline-none focus-visible:outline-2 focus-visible:outline-focus">
+            <span tabIndex={0} className="inline-flex rounded-sm outline-none focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-focus">
               <Button size="sm" variant="secondary" icon="history" disabled>
                 <span className="hidden lg:inline">{t('session.controls.extend')}</span>
                 <span className="sr-only lg:hidden">{t('session.controls.extend')}</span>

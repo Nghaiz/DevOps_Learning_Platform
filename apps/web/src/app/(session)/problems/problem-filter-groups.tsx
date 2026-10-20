@@ -78,7 +78,7 @@ export function GameSwitch(props: {
             data-topic={look?.topic}
             onClick={() => props.onChange(choice)}
             className={cn(
-              'group/game inline-flex h-11 items-center gap-2.5 rounded-md border px-4 text-sm font-medium outline-none',
+              'group/game inline-flex h-11 items-center gap-2.5 rounded-md border px-4 text-sm font-medium outline-none focus-visible:outline-solid',
               'transition-[background-color,border-color,color] duration-150 focus-visible:outline-2 focus-visible:outline-focus',
               look === null
                 ? active
@@ -146,7 +146,7 @@ export function TagFilter(props: {
           type="button"
           aria-label={t('problem.oj.filter.tag-remove', { tag })}
           onClick={() => props.onRemove(tag)}
-          className="inline-flex h-8 items-center gap-1 rounded-full bg-acc-tint pl-3 pr-2 font-mono text-xs text-acc-ink outline-none transition-colors hover:bg-acc-soft focus-visible:outline-2 focus-visible:outline-focus animate-fade"
+          className="inline-flex h-8 items-center gap-1 rounded-full bg-acc-tint pl-3 pr-2 font-mono text-xs text-acc-ink outline-none focus-visible:outline-solid transition-colors hover:bg-acc-soft focus-visible:outline-2 focus-visible:outline-focus animate-fade"
         >
           #{tag}
           <Icon name="close" size={14} />

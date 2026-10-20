@@ -27,7 +27,7 @@ export function WorkspaceBar({ backHref, backLabel, title, badge, progress, cont
     <header className="flex h-[52px] shrink-0 items-center gap-2 overflow-hidden border-b border-rule bg-paper pl-1.5 pr-2 sm:gap-3 sm:pr-3">
       <Link
         href={backHref}
-        className="group flex h-9 shrink-0 items-center gap-1.5 rounded-sm px-2 text-sm text-ink-2 outline-none transition-colors duration-150 hover:bg-well hover:text-ink focus-visible:outline-2 focus-visible:outline-focus"
+        className="group flex h-9 shrink-0 items-center gap-1.5 rounded-sm px-2 text-sm text-ink-2 outline-none focus-visible:outline-solid transition-colors duration-150 hover:bg-well hover:text-ink focus-visible:outline-2 focus-visible:outline-focus"
       >
         <Icon name="arrow-left" size={18} className="transition-transform duration-150 group-hover:-translate-x-0.5" />
         <span className="hidden md:inline">{backLabel}</span>

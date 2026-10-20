@@ -187,14 +187,14 @@ test.describe('luồng 1 — bài học', { tag: '@flow' }, () => {
     const firstStep = stepList.getByRole('button', { name: firstStepTitle ?? '' });
     await firstStep.click();
     await expect(firstStep).toHaveAttribute('aria-current', 'step');
-    const firstStepItem = stepList
-      .getByRole('listitem')
-      .filter({ has: page.getByRole('button', { name: firstStepTitle ?? '' }) });
+    // Từ bản dựng lại 2026-10, dải bước chỉ còn nút chọn bước; nút Kiểm tra, lý do khoá và kết
+    // quả chấm nằm cuối khoang đọc (`<article>` của bước đang xem).
+    const lessonPane = page.getByRole('article');
 
-    const check = firstStepItem.getByRole('button', { name: t('session.lesson.check'), exact: true });
+    const check = lessonPane.getByRole('button', { name: t('session.lesson.check'), exact: true });
     await expect(check, 'Bước 1 có script chấm nhưng không có nút "Kiểm tra".').toBeVisible();
     await expect(check).toBeDisabled();
-    await expect(firstStepItem.getByText(t('session.check.blocked-no-session'))).toBeVisible();
+    await expect(lessonPane.getByText(t('session.check.blocked-no-session'))).toBeVisible();
 
     await expect(
       terminalSurface(page),
@@ -209,7 +209,7 @@ test.describe('luồng 1 — bài học', { tag: '@flow' }, () => {
     // ── 5. Mở phiên, terminal chạy lệnh ─────────────────────────────────────
     const { sessionId } = await startSandbox(page, 'lessons.startSession', rateLimited);
 
-    // Bài IDE mở ở tab Editor; hàng terminal mang `hidden` cho tới khi đổi tab.
+    // Có phiên thì bài IDE về tab Editor; hàng terminal mang `hidden` cho tới khi đổi tab.
     await workspaceTab(page, 'terminal').click();
     await expectTerminalLive(page, traffic);
     await typeInTerminal(page, SHELL_MARKER_CMD);
@@ -249,7 +249,7 @@ test.describe('luồng 1 — bài học', { tag: '@flow' }, () => {
     // Nút Kiểm tra chỉ mở ở pha ready (M6): chờ theo mốc pha phiên.
     await expect(check).toBeEnabled({ timeout: SESSION_READY_TIMEOUT_MS });
     expect(
-      await runCheck(page, check, firstStepItem, 'lessons.checkStep'),
+      await runCheck(page, check, lessonPane, 'lessons.checkStep'),
       'Chấm TRƯỚC khi sửa mà đã "Đạt": phép chấm không phân biệt đúng sai, nên lượt "Đạt" ' +
         'sau khi sửa sẽ không chứng minh được gì.',
     ).toBe('failed');
@@ -263,7 +263,7 @@ test.describe('luồng 1 — bài học', { tag: '@flow' }, () => {
       `Đã gõ \`${FIX_PORT}\` nhưng terminal không đọc ra PORT_IS_8080: lệnh sửa không tới shell.`,
     );
     expect(
-      await runCheck(page, check, firstStepItem, 'lessons.checkStep'),
+      await runCheck(page, check, lessonPane, 'lessons.checkStep'),
       'File đã có port=8080 (terminal vừa đọc ra) mà phép chấm bước 1 vẫn trượt.',
     ).toBe('passed');
 
@@ -279,7 +279,7 @@ test.describe('luồng 1 — bài học', { tag: '@flow' }, () => {
 
     // ── 10. Sang bước kế bằng nút "Tiếp" ────────────────────────────────────
     if (nextStepTitle !== null) {
-      await firstStepItem.getByRole('button', { name: t('session.steps.next'), exact: true }).click();
+      await page.getByRole('button', { name: t('session.steps.next'), exact: true }).click();
       await expect(stepList.getByRole('button', { name: nextStepTitle })).toHaveAttribute('aria-current', 'step');
     }
 

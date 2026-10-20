@@ -450,7 +450,7 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
   const restartAttempt = attemptId === null ? undefined : { label: t('session.controls.restart'), onSelect: requestRestart };
 
   const content = (
-    <div className="relative h-full overflow-y-auto bg-paper">
+    <div className="relative h-full overflow-y-auto bg-paper focus-visible:-outline-offset-2">
       {lab.leaderboard ? (
         <Tabs defaultValue="tasks" className="flex flex-col">
           <div className="sticky top-0 z-10 border-b border-rule bg-paper px-4 md:px-6">

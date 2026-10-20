@@ -130,6 +130,17 @@ const STATIC_RULES = [
     // tách nhiều dòng trong cn(...) thì đặt `relative` cùng dòng với overflow là xong.
     src: String.raw`^(?!.*(?<![\w-])(?:[a-z0-9-]+:)*(?:relative|absolute|fixed|sticky)(?![\w-])).*?(?<![\w-])(?:[a-z0-9-]+:)*overflow-(?:x-|y-)?(?:auto|scroll)(?![\w-])`,
   },
+  {
+    id: 'vòng-focus-mất',
+    why:
+      'Tailwind v4: `outline-none`/`outline-hidden` đặt `--tw-outline-style: none`, nên `focus-visible:outline-2` ' +
+      'cùng phần tử ra `outline-style: none`: không có vòng focus (đo 2026-10-20 trên "Quên mật khẩu?", tab của ds). ' +
+      'Thêm `focus-visible:outline-solid` cùng dòng',
+    // Theo DÒNG: có outline-none/hidden TRẦN (không tiền tố biến thể) và một tiện ích outline dưới
+    // `focus-visible:`, mà cùng dòng không có `focus-visible:outline-solid`. Lớp tách nhiều dòng trong
+    // cn(...) thì đặt `focus-visible:outline-solid` cùng dòng với `outline-none`.
+    src: String.raw`^(?!.*(?<![\w-])focus-visible:outline-solid(?![\w-]))(?=.*(?<![\w:-])outline-(?:none|hidden)(?![\w-])).*?(?<![\w-])(?:[a-z0-9-]+:)*focus-visible:outline-(?!none(?![\w-])|hidden(?![\w-])|solid(?![\w-]))[\w-]+`,
+  },
 ];
 
 // ─────────────────────────────────────────── luật sinh từ legacy.css
@@ -331,6 +342,9 @@ const DIRTY = [
   ['biến-cũ-tw4', '<div className="bg-(--card)">'],
   ['cuộn-thiếu-relative', '<div className="h-full overflow-y-auto bg-paper">'],
   ['cuộn-thiếu-relative-biến-thể', "className={cn('md:overflow-x-auto', open && 'p-2')}"],
+  ['vòng-focus-mất', "'font-medium text-acc-ink outline-none hover:underline focus-visible:outline-2 focus-visible:outline-focus'"],
+  ['vòng-focus-mất-hidden', '<h3 tabIndex={0} className="text-lg outline-hidden focus-visible:outline-2">'],
+  ['vòng-focus-mất-chỉ-màu', "'inline-flex h-7 outline-none hover:bg-well focus-visible:outline-focus'"],
 ];
 
 const CLEAN = [
@@ -353,6 +367,10 @@ const CLEAN = [
   '<div className="relative h-full overflow-y-auto bg-paper">',
   '<aside className="lg:sticky lg:top-32 lg:overflow-y-auto">',
   '  overflow-y: auto;',
+  "'font-medium text-acc-ink outline-none focus-visible:outline-solid hover:underline focus-visible:outline-2 focus-visible:outline-focus'",
+  "'h-10 w-full rounded-sm border px-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus'",
+  "'relative flex items-center gap-2 rounded-sm px-2.5 text-sm outline-none data-[highlighted]:bg-well'",
+  '<main id="noi-dung" tabIndex={-1} className="flex flex-1 flex-col outline-none">',
 ];
 
 function selfTest(rules) {
@@ -446,7 +464,7 @@ if (deadZones.length > 0) {
 if (hits.length === 0) {
   const c = generated.counts;
   console.log(
-    `✓ không có kit cũ, icon đại trà, loader vòng, viền trái, vùng cuộn thiếu relative hay lớp/biến cũ ngoài vùng giữ nguyên — ` +
+    `✓ không có kit cũ, icon đại trà, loader vòng, viền trái, vùng cuộn thiếu relative, vòng focus bị tắt hay lớp/biến cũ ngoài vùng giữ nguyên — ` +
       `đã quét ${files} file trong ${ROOTS.length} vùng; luật sinh từ legacy.css: ${c.colors} màu, ` +
       `${c.shadows} bóng, ${c.radii} bo góc, ${c.utilities} tiện ích, ${c.vars} biến; ` +
       `${LEGACY_ZONES.length} vùng giữ nguyên; .ds-island phủ đủ ${island.required} tên legacy.css khai đè.`,

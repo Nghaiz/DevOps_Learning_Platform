@@ -76,7 +76,16 @@ export function StepStrip({ steps, activeKey, onSelect, label, className }: Step
               aria-current={active ? 'step' : undefined}
               onClick={() => onSelect(step.key)}
               ref={(node) => {
-                if (active && node !== null) node.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+                // Giữ bước đang xem trong tầm bằng `scrollLeft` của chính dải, KHÔNG
+                // `scrollIntoView`: cái sau dời điểm xuất phát của phím Tab tới nút này, nên
+                // Tab đầu tiên của trang bỏ qua cả thanh điều hướng lẫn liên kết bỏ qua nó.
+                if (!active || node === null) return;
+                const strip = node.closest('ol');
+                if (strip === null || strip.scrollWidth <= strip.clientWidth) return;
+                if (node.offsetLeft < strip.scrollLeft) strip.scrollLeft = node.offsetLeft;
+                else if (node.offsetLeft + node.offsetWidth > strip.scrollLeft + strip.clientWidth) {
+                  strip.scrollLeft = node.offsetLeft + node.offsetWidth - strip.clientWidth;
+                }
               }}
               className={cn(
                 'group inline-flex h-8 max-w-[14rem] items-center gap-2 rounded-full border px-2.5 text-sm transition-colors duration-150',

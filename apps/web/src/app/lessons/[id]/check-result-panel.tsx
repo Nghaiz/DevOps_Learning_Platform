@@ -90,7 +90,7 @@ export function CheckResultPanel({ outcome, caption }: CheckResultPanelProps): R
         <pre
           tabIndex={0}
           aria-label={t('session.task.result-title')}
-          className="relative max-h-48 overflow-auto rounded-sm bg-[var(--code-bg)] px-3 py-2 font-mono text-xs text-[var(--code-ink)] outline-none focus-visible:outline-2 focus-visible:outline-focus"
+          className="relative max-h-48 overflow-auto rounded-sm bg-[var(--code-bg)] px-3 py-2 font-mono text-xs text-[var(--code-ink)] outline-none focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-focus"
         >
           {notes}
         </pre>

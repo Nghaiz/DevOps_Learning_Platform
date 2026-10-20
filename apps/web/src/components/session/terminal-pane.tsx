@@ -163,7 +163,7 @@ export function TerminalPane({ session, theme, placeholder, handoff, newSession 
         </div>
       );
     }
-    return <div className="relative h-full w-full overflow-y-auto bg-canvas">{placeholder ?? null}</div>;
+    return <div className="relative h-full w-full overflow-y-auto bg-canvas focus-visible:-outline-offset-2">{placeholder ?? null}</div>;
   }
 
   const overlay = resolveTerminalOverlay({

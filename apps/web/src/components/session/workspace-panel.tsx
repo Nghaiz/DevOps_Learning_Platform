@@ -95,7 +95,7 @@ function readArrangement(storageKey: string | undefined, hasEditor: boolean): Ar
 }
 
 const BAR_BUTTON = cn(
-  'grid size-7 place-items-center rounded-sm text-ink-3 outline-none',
+  'grid size-7 place-items-center rounded-sm text-ink-3 outline-none focus-visible:outline-solid',
   'transition-colors duration-150 hover:bg-well hover:text-ink',
   'focus-visible:outline-2 focus-visible:outline-focus',
   'aria-pressed:bg-acc-tint aria-pressed:text-acc-ink',

@@ -76,7 +76,7 @@ export function PreviewPanel(props: {
                   setActiveKey(phase.key);
                 }}
                 className={cn(
-                  'flex min-h-9 min-w-0 items-center gap-2 rounded-full border px-3.5 py-1.5 text-left text-sm outline-none transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-focus',
+                  'flex min-h-9 min-w-0 items-center gap-2 rounded-full border px-3.5 py-1.5 text-left text-sm outline-none focus-visible:outline-solid transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-focus',
                   isActive ? 'border-acc-mid bg-acc-tint text-acc-ink' : 'border-rule-2 bg-paper text-ink-2 hover:border-control hover:text-ink',
                 )}
               >

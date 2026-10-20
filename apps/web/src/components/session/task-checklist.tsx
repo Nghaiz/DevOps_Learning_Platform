@@ -88,7 +88,7 @@ function TaskChecklistRow({
       aria-current={selected ? 'true' : undefined}
       aria-expanded={selected}
       className={cn(
-        'flex min-h-12 w-full items-start gap-3 py-3 text-left outline-none',
+        'flex min-h-12 w-full items-start gap-3 py-3 text-left outline-none focus-visible:outline-solid',
         'transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-focus',
         'hover:[&_[data-task-title]]:text-acc-ink',
       )}
