@@ -27,7 +27,8 @@ import {
  * với một hằng số thứ hai chép sang. Nếu file đó chưa tồn tại (lane L0 đang
  * viết lại nó) thì ca này SKIP có tên — chứ không im lặng xanh.
  */
-const GLOBALS_CSS_URL = new URL('../../../apps/web/src/app/globals.css', import.meta.url);
+// Thời lượng chuyển động của giao diện cũ (landing, game K8s) khai ở legacy.css.
+const GLOBALS_CSS_URL = new URL('../../../apps/web/src/app/legacy.css', import.meta.url);
 
 function readGlobalsCss(): string | null {
   try {

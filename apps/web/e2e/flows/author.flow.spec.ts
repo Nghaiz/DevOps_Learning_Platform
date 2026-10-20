@@ -137,26 +137,24 @@ test.describe('luồng 5 — soạn bài', { tag: '@flow' }, () => {
     // mất dấu (`lost`, bài quay về Nháp mà máy chủ không ghi lý do). Bỏ sót vế
     // thứ ba thì một lượt `lost` đỏ sau ~10 phút với câu "chưa tới trạng thái
     // kết thúc nào", nói sai nguyên nhân.
-    // ⚠ Neo vào TIÊU ĐỀ ALERT, không phải chuỗi trần. "Đã xuất bản" có ở HAI
-    // chỗ trên trang này: ô trạng thái ở đầu trang (`StateChip`, một `<span>`)
-    // và tiêu đề của alert kết quả (`<h5 data-slot="alert-title">`). Bản trước
-    // dùng `getByText` nên đỏ với `strict mode violation … resolved to 2 elements`
-    // — đo 2026-09-07, và chỉ lộ ra SAU khi bản vá polling làm trang thật sự tới
-    // được trạng thái kết thúc (trước đó nó kẹt ở "Đang chạy thử" nên không bao
-    // giờ có hai phần tử cùng lúc).
+    // ⚠ Neo vào KHOANG XUẤT BẢN, không phải chuỗi trần trên cả trang. "Đã xuất bản"
+    // có ở HAI chỗ: ô trạng thái ở đầu trang (`StateChip`) và tiêu đề của thông báo
+    // kết quả trong chế độ Xuất bản. Bản trước dùng `getByText` trên cả trang nên đỏ
+    // với `strict mode violation … resolved to 2 elements` (đo 2026-09-07).
     //
-    // Alert là thứ ta đang đo (kết quả của lượt chạy thử); badge chỉ nói trạng
-    // thái hàng. Lấy nhầm badge sẽ xanh cả khi lượt chạy thử chưa báo gì.
-    const published = page.getByRole('heading', { name: t('author.publish.passed'), exact: true });
+    // Thông báo kết quả là thứ ta đang đo (kết quả của lượt chạy thử); ô trạng thái chỉ
+    // nói trạng thái hàng. Lấy nhầm ô đó sẽ xanh cả khi lượt chạy thử chưa báo gì. Từ bản
+    // dựng lại 2026-10 tiêu đề thông báo là chữ thường (không phải heading), nên phạm vi
+    // là tabpanel "Xuất bản": ô trạng thái nằm ở đầu trang, ngoài tabpanel đó.
+    const publishPanel = page.getByRole('tabpanel', { name: t('author.edit.tab.publish') });
+    const published = publishPanel.getByText(t('author.publish.passed'), { exact: true });
     // Đọc qua `t()` chứ không gõ lại: bản gõ tay trước đây còn mang gạch ngang
     // dài trong khi bản đồ chữ đã bỏ nó, nên `failed` không bao giờ khớp và ô
     // "không trượt" dưới đây xanh trong mọi trường hợp.
-    const failed = page.getByRole('heading', {
-      name: t('author.publish-panel-luot-chay-thu-truot-bai-quay-ve-nhap'),
+    const failed = publishPanel.getByText(t('author.publish-panel-luot-chay-thu-truot-bai-quay-ve-nhap'), {
       exact: true,
     });
-    const lost = page.getByRole('heading', {
-      name: t('author.publish-panel-khong-con-dau-vet-cua-luot-chay-thu'),
+    const lost = publishPanel.getByText(t('author.publish-panel-khong-con-dau-vet-cua-luot-chay-thu'), {
       exact: true,
     });
 
@@ -205,15 +203,15 @@ test.describe('luồng 5 — soạn bài', { tag: '@flow' }, () => {
     //
     // Phần tử thứ hai là vùng PHÁT LẠI của Radix Toast. Nay `packages/ui/src/toast.tsx`
     // chạy trên `sonner` và không còn vùng phát lại, nhưng neo theo chuỗi trần vẫn
-    // là đặt cược rằng chữ đó chỉ có một chỗ trên trang. `data-slot="toast"` là hook
-    // `ToastCard` cố ý phát ra, nên phép kiểm nói thẳng nó muốn CÁI TOAST.
+    // là đặt cược rằng chữ đó chỉ có một chỗ trên trang. `data-sonner-toast` là thuộc
+    // tính sonner gắn lên mỗi toast, nên phép kiểm nói thẳng nó muốn CÁI TOAST.
     // Dùng `.first()` thì cũng hết đỏ, nhưng nó GIẤU sự mơ hồ: lượt sau khớp
     // nhầm phần tử nào cũng vẫn xanh.
     //
     // Sản phẩm lúc đó KHÔNG sai — đối chứng bằng DB cho thấy mục đã `archived`.
     // Một phép kiểm đỏ trên một thao tác đã thành công là phép kiểm nói dối.
     await expect(
-      page.locator('[data-slot="toast"]').filter({ hasText: t('author.edit.archived.title') }),
+      page.locator('[data-sonner-toast]').filter({ hasText: t('author.edit.archived.title') }),
     ).toBeVisible({ timeout: 60_000 });
   });
 });

@@ -28,8 +28,6 @@ export const common = {
   'common.action.retry': 'Thử lại',
   'common.action.back': 'Quay lại',
   'common.action.prev': 'Trước',
-  'common.action.next': 'Sau',
-  'common.action.first': 'Về đầu',
   'common.action.copy': 'Sao chép',
   'common.action.copied': 'Đã sao chép',
   'common.action.confirm': 'Xác nhận',
@@ -39,7 +37,6 @@ export const common = {
   'common.action.more': 'Xem thêm',
   'common.action.actions': 'Thao tác khác',
   'common.action.dismiss': 'Bỏ qua',
-  'common.action.view-all': 'Xem tất cả',
   // Nhãn phân trang khớp từng chữ với câu hướng dẫn ở `me.history.empty-page-go-*`.
   'common.pager.first': 'Về trang đầu',
   'common.pager.prev': 'Trang trước',
@@ -54,7 +51,6 @@ export const common = {
   'common.difficulty.beginner': 'Cơ bản',
   'common.difficulty.intermediate': 'Trung cấp',
   'common.difficulty.advanced': 'Nâng cao',
-  'common.unknown-count': 'chưa đếm được',
 
   'unit.minute': (p: { n: number }) => `${p.n} phút`,
   'unit.second': (p: { n: number }) => `${p.n} giây`,

@@ -95,10 +95,6 @@ async function loadKnownLesson(api: APIRequestContext): Promise<LessonDetail> {
   }
 }
 
-function escapeRegExp(text: string): string {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
 test.afterEach(async ({ page }) => {
   if (await releaseSandboxQuietly(page)) {
     test.info().annotations.push({
@@ -148,26 +144,18 @@ test.describe('luồng 1 — bài học', { tag: '@flow' }, () => {
     // ── 2. Vào danh mục bằng mega menu của header ──────────────────────────
     /*
       Đi bằng điều hướng của vỏ, không `goto('/lessons')`: một link nav hỏng là
-      lỗi thật mà `goto` đi vòng qua. Từ bản dựng lại, "Bài học" không còn là link
-      trên thanh: section "Học" trỏ thẳng tới trang con ĐẦU (`/paths`), còn các
-      trang con nằm trong mega menu mở bằng nút mũi tên cạnh nó
-      (`components/shell/site-header.tsx`). Panel nằm NGOÀI `<nav>`, nên tìm nó
-      qua `aria-controls` của chính nút mở, không qua cây của nav.
+      lỗi thật mà `goto` đi vòng qua. Từ bản dựng lại 2026-10, mục "Học" trên thanh
+      trên cùng trỏ tới trang tổng quan `/learn`, và các trang con nằm trên thanh mục
+      con ngay dưới (`components/shell/section-bar.tsx`).
     */
     const mainNav = page.getByRole('navigation', { name: t('shell.nav.aria'), exact: true });
-    const learnToggle = mainNav.getByRole('button', {
-      name: t('shell.menu.section-open', { section: t('shell.section.learn') }),
+    await mainNav.getByRole('link', { name: t('shell.section.learn'), exact: true }).click();
+    await page.waitForURL('**/learn');
+    const learnBar = page.getByRole('navigation', {
+      name: t('shell.subnav.aria', { section: t('shell.section.learn') }),
       exact: true,
     });
-    await learnToggle.click();
-    await expect(learnToggle).toHaveAttribute('aria-expanded', 'true');
-    const panelId = (await learnToggle.getAttribute('aria-controls')) ?? '';
-    expect(panelId, 'Nút mở mega menu không trỏ `aria-controls` vào panel nào.').not.toBe('');
-    // Tên link = nhãn + câu mô tả (link không có aria-label), nên neo vào ĐẦU tên.
-    await page
-      .locator(`[id="${panelId}"]`)
-      .getByRole('link', { name: new RegExp(`^${escapeRegExp(t('shell.nav.lessons'))}`) })
-      .click();
+    await learnBar.getByRole('link', { name: t('shell.nav.lessons'), exact: true }).click();
     await page.waitForURL('**/lessons');
     await expect(
       page.getByRole('heading', { level: 1, name: t('catalog.title.lessons'), exact: true }),

@@ -80,7 +80,7 @@ export const me = {
   // ── `/me`: đang học dở ────────────────────────────────────────────────────
   'me.continue.title': 'Đang học dở',
   'me.continue.loading': 'Đang tải bài học dở',
-  'me.continue.empty-title': 'Chưa có bài nào dở dang',
+  'me.continue.empty-title': 'Chưa có bài nào đang làm dở',
   'me.continue.empty-body': 'Bài học và lộ trình bạn đã bắt đầu sẽ hiện ở đây để quay lại cho nhanh.',
   'me.continue.empty-action': 'Chọn bài học',
   'me.continue.path': 'Lộ trình',

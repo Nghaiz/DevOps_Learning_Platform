@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { NextRequest } from 'next/server';
 import { matchesProtected, proxy } from './proxy';
-import { PRIMARY_NAV, userMenuItems } from './components/shell/nav';
+import { PRIMARY_NAV, SECTION_HUBS, userMenuItems } from './components/shell/nav';
 
 /**
  * Cổng đăng nhập ở `proxy.ts` (13.B / C6).
@@ -39,10 +39,12 @@ function requestFor(pathname: string, cookie?: string): NextRequest {
  * gác cũng lọt luôn.
  */
 const PUBLIC_NAV_REASON: Readonly<Record<string, string>> = {
-  // Chơi hoàn toàn trong trình duyệt; tiến độ ở `localStorage`; 0 lời gọi
-  // backend. Không có tài nguyên phía server nào để một cổng đăng nhập gác —
-  // nó sẽ chỉ chặn người lạ khỏi một thứ chạy trên chính máy họ. P14 §4.2.
-  '/games': 'chơi trong trình duyệt, tiến độ ở localStorage — không có gì phía server để gác',
+  // Ba trang chọn màn (bản dựng lại 2026-10: mục Trò chơi có trang tổng quan `/games`
+  // và ba trang con). Chơi hoàn toàn trong trình duyệt; tiến độ ở `localStorage`; 0
+  // lời gọi backend. Không có tài nguyên phía server nào để một cổng đăng nhập gác: nó
+  // sẽ chỉ chặn người lạ khỏi một thứ chạy trên chính máy họ. P14 §4.2.
+  '/games/k8s': 'chơi trong trình duyệt, tiến độ ở localStorage, không có gì phía server để gác',
+  '/games/cicd': 'chơi trong trình duyệt, tiến độ ở localStorage, không có gì phía server để gác',
   // Trình dựng màn chơi của game Git (`/games/git?mode=builder`), thêm vào
   // thanh điều hướng 2026-09-16. Cùng hợp đồng với `/games`: nó là một CHẾ ĐỘ
   // của một trang chạy trong trình duyệt, và `e2e/games-builder-network.spec.ts`
@@ -99,8 +101,19 @@ describe('PROTECTED_PATHS phủ hết điều hướng C6', () => {
     const guarded = PRIMARY_NAV.map((nav) => pathnameOf(nav.href)).filter(
       (path) => !PUBLIC_NAV_PATHS.has(path),
     );
-    for (const path of ['/author', '/author/problems', '/admin', '/admin/exams', '/admin/classes']) {
+    for (const path of ['/author', '/author/problems', '/admin/users', '/admin/exams', '/admin/classes']) {
       expect(guarded, `${path} không còn trong điều hướng chính`).toContain(path);
+    }
+  });
+
+  /**
+   * Trang tổng quan của từng mục (`/learn`, `/admin`, …) không nằm trong `PRIMARY_NAV`
+   * (bảng đó là các trang con), nên vòng lặp ở trên không hỏi tới chúng. Ô này hỏi: mọi
+   * trang tổng quan đều được gác, TRỪ `/games`, trang duy nhất khách vào được.
+   */
+  it('mọi trang tổng quan đều được gác, trừ trang tổng quan Trò chơi', () => {
+    for (const hub of SECTION_HUBS) {
+      expect(matchesProtected(hub.href), `trang tổng quan ${hub.href}`).toBe(hub.href !== '/games');
     }
   });
 

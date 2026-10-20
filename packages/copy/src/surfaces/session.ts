@@ -151,9 +151,6 @@ export const session = {
   'session.steps.list': 'Các bước của bài',
   'session.steps.prev': 'Trước',
   'session.steps.next': 'Tiếp',
-  'session.steps.done': 'Đã đạt',
-  'session.steps.current': 'Đang làm',
-  'session.steps.todo': 'Chưa làm',
 
   // ── Dải thông báo ────────────────────────────────────────────────────────
   'session.notice.region': 'Thông báo của phiên',
@@ -330,6 +327,8 @@ export const session = {
 
 /** Nhóm đúng ba khoá anh em, khai tường minh kèm ngày và lý do. Rỗng: không nhóm nào đúng ba. */
 export const sessionIntentionalThree = {
+  'session.steps':
+    '2026-10-20: dải bước của trình học có đúng ba chữ: tên của danh sách bước, nút lùi và nút tiến. Ba vai trò của một điều khiển điều hướng, không phải một danh sách ba ý.',
   'session.launch.body':
     '2026-10-20: đúng ba loại nội dung có máy ảo riêng (bài học, lab, sân chơi), khớp LaunchKind ở components/session/practice-launch.tsx và ba trình học có terminal.',
   'session.mobile.view':

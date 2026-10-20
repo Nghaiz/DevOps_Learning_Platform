@@ -109,7 +109,8 @@ test(`${String(DESKTOP_TARGET_MIN_PX)}px — bài học immersive, hai khoang c�
   await expect(desktopNav(page), 'Route immersive không có header ứng dụng.').toBeHidden();
   await expect(deadEndNotice(page)).toHaveCount(0);
   await expect(splitShape(page)).toHaveAttribute('data-split-shape', 'side-by-side');
-  await expect(page.getByText(/để dựng sandbox và mở terminal/)).toBeVisible();
+  // Khoang làm việc chưa mở máy nói đúng một câu và đặt nút Bắt đầu ngay dưới.
+  await expect(page.getByRole('heading', { name: 'Máy của bạn chưa chạy', exact: true })).toBeVisible();
   // Chưa bấm Bắt đầu thì chưa có terminal nào: mọi khẳng định "terminal nối được" sau này mới có nghĩa.
   await expect(terminalSurface(page)).toHaveCount(0);
 });

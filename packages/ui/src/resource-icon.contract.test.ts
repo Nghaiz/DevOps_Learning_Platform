@@ -239,7 +239,8 @@ describe('16.A.9 — khoá → token `--kind-*` khớp, và tám nhóm khớp gl
     const groups = new Set(Object.values(RESOURCE_KIND_ACCENT));
     expect(groups.size).toBe(8);
 
-    const css = readFileSync(resolvePath(ROOT, 'apps/web/src/app/globals.css'), 'utf8');
+    // Token `--kind-*` thuộc giao diện cũ (game K8s), khai ở legacy.css.
+    const css = readFileSync(resolvePath(ROOT, 'apps/web/src/app/legacy.css'), 'utf8');
     const declared = new Set(
       [...css.matchAll(/^\s*(--kind-[a-z]+)\s*:/gm)].map((m) => (m[1] as string).slice(2)),
     );

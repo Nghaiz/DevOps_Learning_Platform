@@ -26,7 +26,7 @@ export type AlertVariant = 'default' | 'warning' | 'destructive' | 'success';
  *
  * Viền `/30` cố ý ở lại mức trang trí: ý nghĩa của alert do `role="alert"` và
  * tiêu đề mang, không do viền — nên nó thuộc ngoại lệ "pure decoration" của
- * SC 1.4.11, cùng lập luận đã ghi cho `--border` ở `docs/design-system.md` §1a.
+ * SC 1.4.11, cùng lập luận đã ghi cho `--border` ở `docs/design-system-legacy.md` §1a.
  */
 const alertVariants = cva(
   // Khối phẳng trong trang: không bo, không bóng, không vạch màu một bên.

@@ -12,14 +12,14 @@ describe('describeLessonPath', () => {
   it('maps a client step issue to its canonical path and a human name', () => {
     const target = describeLessonPath('lesson', 'steps[0].weight');
     expect(target.path).toBe('steps[0].weight');
-    expect(target.field).toMatch(/^Bước 1 · /);
+    expect(target.field).toMatch(/^Bước 1, /);
     expect(target.field).not.toContain('steps');
   });
 
   it('maps the server dotted path of a lab task onto the client task path', () => {
     const target = describeLessonPath('lab', 'steps.1.verifyScript');
     expect(target.path).toBe('task[1].verifyScript');
-    expect(target.field).toMatch(/^Task 2 · /);
+    expect(target.field).toMatch(/^Task 2, /);
   });
 
   it('folds the server setup.foreground spelling into the step form field', () => {

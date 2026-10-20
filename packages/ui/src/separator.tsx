@@ -9,7 +9,7 @@ import { cn } from './cn.ts';
  * và `Kbd` (phím tắt hiển thị, ví dụ "Esc Esc để rời terminal" — D10) sống
  * chung một file: cả hai là primitive TRÌNH BÀY thuần không có trạng thái
  * loading/empty/error/disabled (checklist ghi "n/a" cho cả hai trong
- * `docs/design-system.md`), và gộp một file test cho cả hai đúng ngưỡng
+ * `docs/design-system-legacy.md`), và gộp một file test cho cả hai đúng ngưỡng
  * rule-of-two của `code-conventions.md` § No Duplicated Logic — tách hai file
  * cho hai component vài dòng mỗi cái không hiển gì thêm.
  */

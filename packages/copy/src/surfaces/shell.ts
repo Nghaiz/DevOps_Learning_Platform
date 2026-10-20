@@ -148,6 +148,8 @@ export const shell = {
 
 /** Nhóm đúng ba có chủ ý. */
 export const shellIntentionalThree = {
+  'shell.account':
+    '2026-10-20: nút tài khoản có đúng ba chữ đứng riêng: tên truy cập của nút mở, tên thay thế khi tài khoản chưa đặt tên, và nút đăng xuất. Ba vai trò của một điều khiển, không phải một danh sách ba ý.',
   'shell.theme.choice':
     '2026-09-10: đúng ba giá trị của union ThemeChoice (light, dark, system); bảng chọn trong theme-toggle.tsx là danh sách đóng trên union đó.',
   'shell.footer':

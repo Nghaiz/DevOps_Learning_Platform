@@ -145,7 +145,9 @@ test.describe('luồng soạn bài CI/CD', { tag: '@flow' }, () => {
      * bộ seed đang chở một đề không xuất bản nổi.
      */
     await expect(
-      page.getByRole('heading', { name: t('author.problem.publish.ok-title'), exact: true }),
+      page
+        .getByRole('tabpanel', { name: t('author.problem.tab.publish') })
+        .getByText(t('author.problem.publish.ok-title'), { exact: true }),
     ).toBeVisible({ timeout: 30_000 });
     // `exact`: dải bên có nút mở chế độ Xuất bản, và tab cùng tên là `tab`.
     await page.getByRole('button', { name: t('author.studio.action.publish'), exact: true }).click();
@@ -155,10 +157,13 @@ test.describe('luồng soạn bài CI/CD', { tag: '@flow' }, () => {
      * lại của thông báo), nên `getByText` chế độ strict đỏ vì trùng chứ không vì
      * bài chưa xuất bản. Câu dưới chỉ hiện khi `forEdit` tải lại và trả
      * `state: 'published'`, tức nó đo trạng thái MÁY CHỦ, không đo lượt bấm
-     * (`publish-check.tsx`, nhánh `live`). Là tiêu đề alert nên neo heading.
+     * (`publish-check.tsx`, nhánh `live`). Tiêu đề thông báo là chữ thường từ bản
+     * dựng lại 2026-10, nên neo chữ trong tabpanel Xuất bản.
      */
     await expect(
-      page.getByRole('heading', { name: t('author.problem.publish.live-title'), exact: true }),
+      page
+        .getByRole('tabpanel', { name: t('author.problem.tab.publish') })
+        .getByText(t('author.problem.publish.live-title'), { exact: true }),
     ).toBeVisible({ timeout: 60_000 });
 
     // ── 4. Làm chính bài vừa xuất bản ───────────────────────────────────────

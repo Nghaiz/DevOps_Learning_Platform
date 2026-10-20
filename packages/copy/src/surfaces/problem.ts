@@ -495,7 +495,6 @@ export const problem = {
     `Trang ${p.page} có ${p.shown} bài. Bộ lọc chạy trên cả kho, còn trang sau.`,
   'problem.oj.scope-last': (p: { shown: number; page: number }) =>
     `Trang ${p.page} có ${p.shown} bài. Đã hết danh sách.`,
-  'problem.oj.solvers': (p: { n: number }) => `${p.n} người giải`,
   'problem.oj.acceptance-none': 'Chưa ai thử',
   'problem.oj.acceptance-percent': (p: { percent: number }) => `${p.percent}%`,
   'problem.oj.acceptance-meter': (p: { percent: number }) => `Tỉ lệ giải ${p.percent}%`,
@@ -628,8 +627,6 @@ export const problem = {
 } as const satisfies Surface<'problem'>;
 
 export const problemIntentionalThree = {
-  'problem.oj.game':
-    '2026-10-03: đúng ba game có từ vựng chủ đề để bộ chọn đổi qua lại (k8s, git, cicd). GameId có sáu thành viên; ba game còn lại chưa có plugin bài. Game thứ tư có plugin làm nhóm này thành bốn, lúc đó xoá dòng miễn trừ này.',
   'problem.oj.viewer':
     '2026-10-03: ProblemViewerStatus là union đóng ba thành viên (solved, attempted, untouched) trong packages/games, và Record ở problem-labels.ts giữ hai bên khớp. Thành viên thứ tư phải sửa union trước.',
   'problem.oj.duration':

@@ -47,8 +47,11 @@ function workspaceRoot(): string {
 }
 
 const ROOT = workspaceRoot();
-const css = readFileSync(resolvePath(ROOT, 'apps/web/src/app/globals.css'), 'utf8');
+// Thang chữ của giao diện cũ nằm ở legacy.css (có phạm vi), không ở globals.css.
+const css = readFileSync(resolvePath(ROOT, 'apps/web/src/app/legacy.css'), 'utf8');
 const layout = readFileSync(resolvePath(ROOT, 'apps/web/src/app/layout.tsx'), 'utf8');
+// Font của giao diện cũ nạp riêng ở legacy-fonts.ts, chỉ cho landing và các vùng giữ nguyên.
+const legacyFonts = readFileSync(resolvePath(ROOT, 'apps/web/src/app/legacy-fonts.ts'), 'utf8');
 
 /** Cắt khối top-level theo độ sâu ngoặc — `@theme` chứa `clamp(...)` lồng nhau. */
 function blockBody(source: string, selector: string): string {
@@ -69,7 +72,7 @@ function blockBody(source: string, selector: string): string {
     if (depth <= 0) break;
     buffer.push(line);
   }
-  if (!found) throw new Error(`Không tìm thấy khối \`${selector}\` trong globals.css`);
+  if (!found) throw new Error(`Không tìm thấy khối \`${selector}\` trong legacy.css`);
   return buffer.join('\n');
 }
 
@@ -82,8 +85,10 @@ function declarations(body: string): Record<string, string> {
   return out;
 }
 
-const theme = declarations(blockBody(css, '@theme'));
-const root = declarations(blockBody(css, ':root'));
+// Thang chữ cũ không còn ở `@theme` (khối đó không đặt phạm vi được): legacy.css khai nó cùng
+// các token khác trong khối có phạm vi mở bằng dòng `.arena-root {`.
+const theme = declarations(blockBody(css, '.arena-root'));
+const root = theme;
 
 // ─── Bộ tính giá trị CSS chiều dài ───────────────────────────────────────────
 
@@ -310,23 +315,25 @@ describe('AC-6 §4 — nhịp dọc một chặng', () => {
 // ─── §3.1 — font ─────────────────────────────────────────────────────────────
 
 describe('AC-6 §3.1 — stack font', () => {
-  const themeInline = declarations(blockBody(css, '@theme inline'));
+  // Font cũ không còn ở `@theme inline` (khối đó phát ra `:root`, nơi hệ `ds` khai
+  // cùng tên `--font-sans`): legacy.css khai nó trong khối có phạm vi `.arena-root`.
+  const scoped = root;
 
   it('`--font-sans` mở đầu bằng `var(--font-be-vietnam-pro)`', () => {
-    expect((themeInline['--font-sans'] as string).trim()).toMatch(/^var\(--font-be-vietnam-pro\)/);
+    expect((scoped['--font-sans'] as string).trim()).toMatch(/^var\(--font-be-vietnam-pro\)/);
   });
 
   it('`--font-sans` có fallback THẬT, không chỉ mỗi biến font', () => {
     // Nếu `next/font` hỏng lúc build thì biến rỗng; thiếu stack thật thì trình
     // duyệt rơi về serif mặc định thay vì một sans đọc được.
-    const sans = themeInline['--font-sans'] as string;
+    const sans = scoped['--font-sans'] as string;
     expect(sans).toContain('system-ui');
     expect(sans).toContain('sans-serif');
     expect(sans.toLowerCase()).not.toContain('poppins');
   });
 
   it('`--font-mono` là JetBrains Mono tự host, rơi về `ui-monospace` khi font chưa tải', () => {
-    expect((themeInline['--font-mono'] as string).trim()).toMatch(/^var\(--font-jetbrains-mono\), ui-monospace/);
+    expect((scoped['--font-mono'] as string).trim()).toMatch(/^var\(--font-jetbrains-mono\), ui-monospace/);
   });
 
   /**
@@ -336,20 +343,41 @@ describe('AC-6 §3.1 — stack font', () => {
    * đó là ngoại lệ §3.1 nói rõ). Quét cả file sẽ bắt nhầm đúng ngoại lệ ấy.
    */
   it('`--font-mono` chứa 0 lần `url(` và 0 lần `@font-face`', () => {
-    const mono = themeInline['--font-mono'] as string;
+    const mono = scoped['--font-mono'] as string;
     expect(mono).not.toContain('url(');
     expect(mono).not.toContain('@font-face');
   });
 
-  it('lời gọi `next/font/google` ở layout.tsx còn nguyên subset `vietnamese`', () => {
-    expect(layout).toContain("from 'next/font/google'");
-    expect(layout).toMatch(/Be_Vietnam_Pro\(/);
+  it('lời gọi `next/font/google` ở legacy-fonts.ts còn nguyên subset `vietnamese`', () => {
+    expect(legacyFonts).toContain("from 'next/font/google'");
+    expect(legacyFonts).toMatch(/Be_Vietnam_Pro\(/);
     expect(
-      layout,
+      legacyFonts,
       'mất subset `vietnamese` ⇒ chữ có dấu rơi về font fallback, và dấu dựng bằng ' +
         'glyph ghép trông lệch hẳn so với phần còn lại của câu',
     ).toMatch(/subsets:\s*\[[^\]]*'vietnamese'/);
-    expect(layout).toMatch(/variable:\s*'--font-be-vietnam-pro'/);
+    expect(legacyFonts).toMatch(/variable:\s*'--font-be-vietnam-pro'/);
+  });
+
+  /**
+   * Cùng bảo đảm ấy cho bộ font của hệ `ds` ở layout.tsx. Đọc tên font từ chính dòng
+   * import thay vì liệt kê sẵn: thêm một font mới mà quên `vietnamese` là đỏ ngay.
+   */
+  it('MỌI font nạp từ `next/font/google` (layout.tsx lẫn legacy-fonts.ts) đều có subset `vietnamese`', () => {
+    for (const [file, source] of [
+      ['layout.tsx', layout],
+      ['legacy-fonts.ts', legacyFonts],
+    ] as const) {
+      const imported = /import\s*\{([^}]*)\}\s*from\s*'next\/font\/google'/.exec(source)?.[1];
+      expect(imported, `${file} không nạp font nào từ next/font/google`).toBeDefined();
+      const names = (imported ?? '').split(',').map((name) => name.trim()).filter(Boolean);
+      expect(names.length).toBeGreaterThan(0);
+      for (const name of names) {
+        const call = new RegExp(`${name}\\(\\{([\\s\\S]*?)\\}\\);`).exec(source)?.[1];
+        expect(call, `${file}: ${name} được import mà không gọi`).toBeDefined();
+        expect(call, `${file}: ${name} thiếu subset vietnamese`).toMatch(/subsets:\s*\[[^\]]*'vietnamese'/);
+      }
+    }
   });
 });
 

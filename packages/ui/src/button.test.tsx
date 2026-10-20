@@ -72,7 +72,7 @@ describe('Button — variant ánh xạ đúng class token', () => {
   });
 
   /**
-   * Quy tắc §5.1 của `docs/design-system.md` ("không bao giờ `#hex` hay
+   * Quy tắc §5.1 của `docs/design-system-legacy.md` ("không bao giờ `#hex` hay
    * `slate-*`/`gray-*`/…") được gác bằng một lệnh grep ở Đợt 3. Grep đó đọc
    * MÃ NGUỒN; test này đọc class THỰC SỰ ĐI RA DOM sau khi qua `cva` +
    * `tailwind-merge`, nên nó còn bắt được màu lọt vào qua `className` của nơi

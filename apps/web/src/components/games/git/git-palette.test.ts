@@ -41,7 +41,9 @@ const UI_CONTRACT = path.resolve(
   'tokens.contract.test.ts',
 );
 
-const GLOBALS_CSS = path.resolve(import.meta.dirname, '..', '..', '..', 'app', 'globals.css');
+// Màn chơi Git giữ giao diện cũ (bọc trong `.legacy-skin`), nên token của nó khai ở
+// `app/legacy.css`, không ở `globals.css` (nơi chỉ còn hệ `ds`).
+const GLOBALS_CSS = path.resolve(import.meta.dirname, '..', '..', '..', 'app', 'legacy.css');
 
 function pairsIn(source: string, constName: string): ReadonlySet<string> {
   const start = source.indexOf(`const ${constName}`);
@@ -83,7 +85,7 @@ describe('T0 · phép đọc nhìn thấy một tập THẬT', () => {
     expect(NON_TEXT_PAIRS.has('--input on --background')).toBe(true);
   });
 
-  it('đọc được globals.css', () => {
+  it('đọc được legacy.css', () => {
     expect(cssSource).toContain('--background:');
     expect(cssSource).toContain('.dark');
   });
@@ -270,9 +272,9 @@ describe('mọi giá trị màu là TÊN TOKEN, và token đó có thật', () =
     }
   });
 
-  it('mọi token được khai trong globals.css', () => {
+  it('mọi token được khai trong legacy.css', () => {
     for (const token of new Set(tokens)) {
-      expect(cssSource.includes(`${token}:`), `${token} không có trong globals.css`).toBe(true);
+      expect(cssSource.includes(`${token}:`), `${token} không có trong legacy.css`).toBe(true);
     }
   });
 

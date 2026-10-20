@@ -6,12 +6,12 @@ import * as UI from './index.ts';
 import { Badge, type BadgeVariant } from './index.ts';
 
 /**
- * Cổng cho **chính `docs/design-system.md`**.
+ * Cổng cho **chính `docs/design-system-legacy.md`**.
  *
  * ## Lỗ hổng nó bịt
  *
  * Ô nghiệm thu 13 nói: "mọi component mới có đủ 4 trạng thái
- * loading/empty/error/disabled (**checklist trong `docs/design-system.md`**)".
+ * loading/empty/error/disabled (**checklist trong `docs/design-system-legacy.md`**)".
  * Trước file này, KHÔNG test nào đọc tài liệu đó. Nên đường đi để ô AC xanh mà
  * điều nó khẳng định lại sai là hoàn toàn thông: thêm một component, khai nó ở
  * `index.ts`, cập nhật `exports.contract.test.ts` — và quên bảng §4a. Cả
@@ -63,7 +63,7 @@ function workspaceRoot(): string {
   }
 }
 
-const DOC_PATH = resolvePath(workspaceRoot(), 'docs/design-system.md');
+const DOC_PATH = resolvePath(workspaceRoot(), 'docs/design-system-legacy.md');
 const DOC = readFileSync(DOC_PATH, 'utf8');
 
 // ─── Đọc bảng markdown ───────────────────────────────────────────────────────
@@ -253,7 +253,7 @@ describe('§4a — checklist 4 trạng thái mô tả đúng bề mặt export',
   it('mọi component export ĐỀU có dòng trong bảng', () => {
     expect(
       audit.missingFromDoc,
-      'Component được export nhưng vắng mặt ở §4a của docs/design-system.md. ' +
+      'Component được export nhưng vắng mặt ở §4a của docs/design-system-legacy.md. ' +
         'Thêm một dòng khai đủ 4 trạng thái (dùng `n/a` + lý do ngắn cho trạng thái không áp dụng). ' +
         'Nếu đây KHÔNG phải component (hằng/tiện ích/hook) ⇒ khai vào NOT_IN_CHECKLIST kèm lý do.',
     ).toEqual([]);

@@ -199,8 +199,8 @@ test.describe('luồng 7 — sân chơi', { tag: '@flow' }, () => {
     // Neo vào `t()`: bản regex trước đỏ vì chữ HOA đầu câu, trong khi thông điệp lại
     // nói về "hai con số TTL khác nhau". `ttlMinutes` đi thẳng vào tham số của câu.
     await expect(
-      page.getByText(t('session.playground.empty', { minutes: ttlMinutes })),
-      'Khoang terminal chưa có phiên phải nói cùng con số TTL đó.',
+      page.getByText(t('session.launch.fact.ttl', { minutes: ttlMinutes }), { exact: true }),
+      'Khoang làm việc chưa mở máy phải nói cùng con số TTL đó.',
     ).toBeVisible();
 
     // Đối chứng của mốc 1: chưa bắt đầu thì KHÔNG có khoang terminal nào.

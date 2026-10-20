@@ -472,7 +472,8 @@ describe('biên React', () => {
 // điều này — chỉ có thể ĐO. Ca dưới đọc thẳng `globals.css` (file do L0 sở hữu)
 // và bắt lệch tên ngay lần sau.
 
-const GLOBALS_CSS_URL = new URL('../../../apps/web/src/app/globals.css', import.meta.url);
+// Khung hình của cung quay thuộc giao diện cũ (game K8s), khai ở legacy.css.
+const GLOBALS_CSS_URL = new URL('../../../apps/web/src/app/legacy.css', import.meta.url);
 
 function readGlobalsCss(): string | null {
   try {

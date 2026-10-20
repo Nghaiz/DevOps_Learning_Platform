@@ -351,7 +351,6 @@ export const catalog = {
    * trả kết quả.
    */
   'catalog.quiz.back': 'Trắc nghiệm',
-  'catalog.quiz.loading-title': 'Đang tải',
   'catalog.quiz.loading-sr': 'Đang tải bộ câu hỏi',
   'catalog.quiz.error-title': 'Không mở được bộ câu hỏi này',
 

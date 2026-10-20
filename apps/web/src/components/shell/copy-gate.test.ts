@@ -48,7 +48,6 @@ const SRC_ROOT = path.resolve(import.meta.dirname, '..', '..');
  */
 const LANE_DIRS: readonly string[] = [
   path.join('components', 'shell'),
-  path.join('components', 'kit'),
   path.join('app', 'login'),
   path.join('app', 'register'),
   path.join('app', 'forgot-password'),

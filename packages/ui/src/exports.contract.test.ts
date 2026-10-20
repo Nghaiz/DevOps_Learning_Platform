@@ -336,7 +336,7 @@ const C2_EXPORTS = [
   'ProgressBar',
   // ── P16 / 16.A.5 + 16.A.9 ────────────────────────────────────────────────
   // Hai component MỚI của đợt P16. Chúng vào C2 (chứ không vào NON_C2) vì
-  // chúng render và có trạng thái để khai — nên `docs/design-system.md` §4a
+  // chúng render và có trạng thái để khai — nên `docs/design-system-legacy.md` §4a
   // phải mô tả chúng, và cổng ở `design-system.contract.test.tsx` giữ điều đó.
   'SearchTabs',
   'ResourceIcon',
@@ -407,7 +407,7 @@ describe('C2 — bề mặt export của packages/ui', () => {
     expect(
       surprises,
       'Export mới chưa nằm trong C2. Nếu là component thật ⇒ bổ sung vào bảng C2 của ' +
-        'phase-13-exec.md + bảng 4 trạng thái ở docs/design-system.md; nếu là tiện ích ⇒ thêm vào NON_C2_EXPORTS.',
+        'phase-13-exec.md + bảng 4 trạng thái ở docs/design-system-legacy.md; nếu là tiện ích ⇒ thêm vào NON_C2_EXPORTS.',
     ).toEqual([]);
   });
 

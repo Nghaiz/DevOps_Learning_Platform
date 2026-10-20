@@ -16,8 +16,6 @@ export const hub = {
   'hub.unit.labs': 'lab',
   'hub.unit.playgrounds': 'loại máy',
   'hub.unit.problems': 'đề',
-  'hub.unit.games': 'game',
-  'hub.unit.drafts': 'bản nháp',
 
   // ── Học ─────────────────────────────────────────────────────────────────
   'hub.learn.start': 'Chọn một bài học',

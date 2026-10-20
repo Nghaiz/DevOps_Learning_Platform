@@ -2,7 +2,7 @@
 
 <!-- updated 261003 -->
 
-Cập nhật 2026-09-13. Nguồn giá trị màu là [globals.css](../apps/web/src/app/globals.css); nguồn đo tương phản là [token contract tests](../packages/ui/src/theme/tokens.contract.test.ts). [Hệ thiết kế](design-system.md) mô tả component và cơ chế theme.
+Cập nhật 2026-10-20. Nguồn giá trị màu là [theme.css của ds](../packages/ds/src/styles/theme.css), sinh từ `packages/ds/scripts/palette.mjs`; nguồn đo tương phản là [palette.test.ts](../packages/ds/src/styles/palette.test.ts). [Hệ thiết kế](design-system.md) mô tả token, component và cổng. Giao diện cũ của các vùng giữ nguyên có tài liệu riêng ở [design-system-legacy.md](design-system-legacy.md).
 
 ## Landing
 
@@ -14,7 +14,7 @@ Cập nhật 2026-10-03, thay toàn bộ quyết định ngày 2026-09-13. Chủ
 - Một vòng lặp duy nhất: `gsap.ticker`. Lenis chạy `autoRaf: false` và được ticker bơm; canvas R3F chạy `frameloop="never"` và được ticker gọi `advance()`. Canvas ngừng vẽ khi khu "đặc" (cách học, lộ trình, trò chơi) che nó hoặc tab bị ẩn.
 - Ghim bằng ScrollTrigger: hành trình 7 màn, terminal 3,2 màn, lộ trình cuộn ngang trên desktop. Nhịp của đoạn hành trình là một hàm thuần dùng chung cho DOM và 3D (`journey-timeline.ts`), để chữ và camera không lệch nhau.
 - Motion graphics là lớp 2D chạy cùng 3D: kinetic type (ký tự trồi lên lúc tải; trục `wdth` của Archivo đặt tĩnh theo từng khu, KHÔNG scrub theo cuộn vì mỗi giá trị wdth là một instance font mới: layout + tô lại cả tiêu đề mỗi khung), bảng lật Solari, ScrambleText, icon MorphSVG, tuyến DrawSVG + MotionPath, dải chữ theo vận tốc cuộn, số đếm kiểu đồng hồ cơ, nút từ tính.
-- Ngôn ngữ hình ảnh khớp app: góc vuông, đường kẻ 1px, đỏ PTIT cho CTA, mỗi chủ đề một màu tuyến (cùng giá trị với token `--line-*`). Khi màu tuyến làm CHỮ trên nền tối thì dùng bản pha sáng (`--line-ink`), vì docker và k8s gốc chỉ khoảng 3:1. Landing luôn tối, không theo theme.
+- Ngôn ngữ hình ảnh của landing (giữ nguyên theo yêu cầu, không theo hệ `ds` của app): góc vuông, đường kẻ 1px, đỏ PTIT cho CTA, mỗi chủ đề một màu tuyến (cùng giá trị với token `--line-*`). Khi màu tuyến làm CHỮ trên nền tối thì dùng bản pha sáng (`--line-ink`), vì docker và k8s gốc chỉ khoảng 3:1. Landing luôn tối, không theo theme.
 - Màu cảnh 3D đọc từ chính biến `--l-*` của landing lúc mount; không khai màu lần thứ hai trong mã cảnh. Bộ tối ưu CSS lúc build đổi `rgb()` thành hex, nên bộ đọc phải nhận cả hai. Nhãn chữ trong cảnh vẽ bằng CanvasTexture, suy từ chính chuỗi trong `packages/copy`.
 - CSP không nới: không troika (`<Text>` của drei), không HDR/Draco/KTX2 từ CDN, không blob worker, không WASM. Model dựng thủ tục, ánh sáng môi trường bằng Lightformer tại chỗ.
 - Hiệu năng: three/R3F/postprocessing chỉ vào trang qua `next/dynamic` (không lọt nền chung hay `/login`); ba tầng chất lượng, renderer phần mềm (SwiftShader, llvmpipe) xuống thẳng tầng thấp không hậu kỳ; `PerformanceMonitor` hạ tầng khi khung tụt.
@@ -23,21 +23,18 @@ Cập nhật 2026-10-03, thay toàn bộ quyết định ngày 2026-09-13. Chủ
 
 ## Chữ, màu và bố cục
 
-Bản dựng lại PTIT (2026-10-03) theo [design brief](../plans/fe-ptit-rebuild/design-brief.md): ngôn ngữ "bảng tuyến", mỗi chủ đề là một tuyến tàu có màu riêng, header trên cùng thay cho thanh bên. Tên class và API component chốt ở [ui-kit](../plans/fe-ptit-rebuild/contracts/ui-kit.md).
+<!-- updated 261020 -->
 
-Bốn luật chủ dự án chốt: không thẻ bo góc (bo góc bằng 0 ở mọi bề mặt), không thanh điều hướng bên trái, không dùng viền trái làm dấu "đang mở", không hàng ô số liệu ở trang tổng quan. Số liệu nằm trong câu (`Num`), trong bảng, hoặc trên thước đo (`Meter`).
+Bản dựng lại 2026-10 thay toàn bộ ngôn ngữ "bảng tuyến" của bản PTIT trước đó. Hệ hiện hành là `ds`; token, component và cổng ở [design-system.md](design-system.md).
 
-Ba họ chữ, mỗi họ một vai: Archivo cho tiêu đề kiểu biển ga (kéo rộng bằng `font-stretch`), Be Vietnam Pro cho chữ đọc, JetBrains Mono cho lệnh và nhãn in hoa. Cả ba có bộ ký tự Vietnamese và tự host qua next/font. Dấu tiếng Việt chồng tầng nên line-height của tiêu đề không dưới 1.02. Tất cả chữ giao diện đi qua packages/copy.
-
-Màu dùng semantic tokens, không khai màu cứng trong component. `primary` (đỏ PTIT) chỉ làm nền đặc: nút chính, khối section đang mở. Đỏ làm chữ là `brand`. `signal` (vàng sao PTIT) chỉ làm nền dưới chữ ink. Màu chủ đề lấy qua `lineForTopic` và token `line-*`. Độ khó không dùng màu sắc mà dùng thanh bốn vạch, để màu chỉ mang nghĩa "chủ đề".
-
-Mỗi trang có đúng một h1 (PosterHeader hoặc ToolHeader render nó), các khối tiếp theo dùng h2/h3 theo quan hệ nội dung. Có đúng một `<main>`, ở app-shell. Focus luôn hiện vòng `ring` xanh. Cổng axe bắt cả `heading-order` và `page-has-heading-one`.
-
-Kiểm tra ở 375, 768, 1024 và 1440 px, không cuộn ngang ở 375 px. Mọi danh sách có đủ trạng thái đang tải (khung chờ hình dòng thật), rỗng, lỗi và một trang.
-
-Chuyển động phục vụ thao tác: rê vào dòng thì màu tuyến quét từ trái sang, menu mở bằng clip-path, danh sách vào trang lần lượt. Tất cả tắt khi bật prefers-reduced-motion. Không nới CSP hoặc ngân sách bundle để đổi lấy hiệu ứng.
-
-Game K8s (`components/k8s-arena`) giữ nguyên hình theo yêu cầu của chủ dự án: khối `.arena-root.dark` cuối globals.css đóng băng token của nó.
+- Điều hướng là thanh trên cùng với sáu mục cha (Học, Thực hành, Luyện đề, Trò chơi, Soạn bài, Quản trị) và thanh mục con ngay dưới. Không có thanh bên trái, kể cả ở trang quản trị và trang soạn.
+- Không thẻ bo góc xếp lưới, không hàng ô số liệu, không viền trái làm dấu đang chọn, không loader quay vòng, không bộ icon đại trà. Số liệu nằm trong câu, trong bảng hoặc trên `ProgressLine`. `pnpm design:check` gác các lệnh cấm có hình dạng xác định trong mã.
+- Màu theo hai trục: màu mục (`data-section`) cho vỏ và điểm nhấn, màu chủ đề (`data-topic`) cho nội dung. Trạng thái dùng ok, warn, bad, info và luôn kèm chữ hoặc biểu tượng. Độ khó dùng `LevelBars`, không dùng màu.
+- Ba họ chữ: Bricolage Grotesque cho tiêu đề, Hanken Grotesk cho chữ giao diện và chữ đọc, Intel One Mono cho lệnh và mã. Tự host qua next/font, có subset Vietnamese. Mọi chữ giao diện đi qua packages/copy.
+- Mỗi trang có đúng một h1 (`PageHeader`) và một `<main>` ở app-shell. Focus luôn hiện vòng `focus`. Cổng axe bắt cả `heading-order` và `page-has-heading-one`.
+- Kiểm ở 390, 768, 1024 và 1440 px, không cuộn ngang ở 390 px. Mọi danh sách có đủ trạng thái đang tải (khung chờ đúng hình dòng), rỗng, lỗi và phân trang.
+- Chuyển động phục vụ thao tác: khối vào trang lần lượt, popover nở từ chỗ bấm, vạch quét khi đang tải. Tất cả tắt khi bật prefers-reduced-motion. Không nới CSP hoặc ngân sách bundle để đổi lấy hiệu ứng.
+- Canvas game K8s, màn chơi Git và CI/CD giữ giao diện cũ theo yêu cầu của chủ dự án (`legacy.css`, `LegacySkin`); trang chọn màn của các game là giao diện mới. Bảng bên của sandbox Git, nơi có Level Builder, là một khối giao diện mới bên trong màn chơi cũ (`.ds-island`, xem design-system.md mục 9).
 
 ## Bản đồ chữ
 

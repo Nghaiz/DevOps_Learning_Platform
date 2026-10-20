@@ -14,6 +14,7 @@ WORKDIR /repo
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
 COPY apps/web/package.json apps/web/package.json
 COPY packages/ui/package.json packages/ui/package.json
+COPY packages/ds/package.json packages/ds/package.json
 COPY packages/shared-types/package.json packages/shared-types/package.json
 COPY packages/terminal/package.json packages/terminal/package.json
 COPY packages/scenario/package.json packages/scenario/package.json
@@ -42,6 +43,7 @@ WORKDIR /repo
 COPY tsconfig.base.json eslint.config.mjs ./
 COPY apps/web apps/web
 COPY packages/ui packages/ui
+COPY packages/ds packages/ds
 COPY packages/shared-types packages/shared-types
 COPY packages/terminal packages/terminal
 COPY packages/scenario packages/scenario

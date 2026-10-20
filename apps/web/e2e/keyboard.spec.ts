@@ -575,7 +575,7 @@ test.describe('D10 — thoát terminal bằng Esc Esc', () => {
   test.afterEach(async ({ page }) => {
     // Only end the session this test opened. Leaving it alive consumes a real
     // sandbox slot and makes a later test depend on this test's cleanup.
-    const end = page.getByRole('button', { name: 'Kết thúc phiên', exact: true });
+    const end = page.getByRole('button', { name: 'Tắt máy', exact: true });
     if (await end.isVisible()) {
       await end.press('Enter');
       await expect(end).toBeHidden({ timeout: 60_000 });
@@ -691,7 +691,7 @@ test.describe('D10 — thoát terminal bằng Esc Esc', () => {
     // The READY control frame is the observable proof of the real gateway
     // handshake; the slow Esc case must not pass on a disconnected terminal.
     await expect(
-      page.locator('[aria-live="polite"]').getByText('Sandbox sẵn sàng', { exact: true }),
+      page.getByTestId('dlp-session-controls').getByText('Máy đang chạy', { exact: true }),
     ).toBeVisible({ timeout: 30_000 });
     return 'ok';
   }

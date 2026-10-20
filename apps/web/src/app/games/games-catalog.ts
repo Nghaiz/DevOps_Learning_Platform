@@ -42,8 +42,8 @@ export interface GameEntry {
   readonly id: string;
   /**
    * Tên game ở `@devops-platform/games`. Hai trục chỉ TRÙNG MỘT PHẦN: `maze` và
-   * `forge` ứng với `netpol` và `dockerfile`. Màu tuyến của game đọc qua trường
-   * này (`lineForTopic({ gameId })`), không đoán từ chủ đề: `maze` mang cả
+   * `forge` ứng với `netpol` và `dockerfile`. Màu và biểu tượng của game đọc qua
+   * trường này (`topicLook({ gameId })`), không đoán từ chủ đề: `maze` mang cả
    * `kubernetes` lẫn `network`, và đoán theo chủ đề đầu tiên sẽ tô nó màu K8s.
    */
   readonly gameId: GameId;

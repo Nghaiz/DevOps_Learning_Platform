@@ -28,13 +28,11 @@ test.describe('luồng 6 — quản trị', { tag: '@flow' }, () => {
     requireRole(account, 'admin');
     test.setTimeout(3 * 60_000);
 
-    // Thanh chuyển trang con của section Quản trị: `SectionSwitcher`
-    // (`components/kit/section-switcher.tsx`) do `PosterHeader` vẽ ở mép dưới
-    // poster của mọi màn dùng `AdminPage`. Thay cho thanh nav riêng "Điều hướng
-    // quản trị" trước bản dựng lại PTIT. Nó KHÔNG nằm trong nav của header
-    // (`shell.nav.aria`), nên phạm vi này không khớp nhầm mega menu.
+    // Thanh mục con của section Quản trị (`components/shell/section-bar.tsx`), nằm ngay
+    // dưới thanh điều hướng trên cùng ở mọi trang thuộc mục. Nó KHÔNG phải nav của
+    // header (`shell.nav.aria`), nên phạm vi này không khớp nhầm thanh trên cùng.
     const adminNav = page.getByRole('navigation', {
-      name: t('shell.switcher.aria', { section: t('shell.section.admin') }),
+      name: t('shell.subnav.aria', { section: t('shell.section.admin') }),
       exact: true,
     });
     const switchTo = (label: string) => adminNav.getByRole('link', { name: label, exact: true });
@@ -45,7 +43,7 @@ test.describe('luồng 6 — quản trị', { tag: '@flow' }, () => {
       page.getByRole('heading', { name: t('admin.overview.title'), level: 1 }),
     ).toBeVisible();
     await expect(adminNav).toBeVisible();
-    // Sức chứa nay là một mục `Split` có `h2` riêng; neo vào heading thay vì
+    // Sức chứa là một mục `Section` có `h2` riêng; neo vào heading thay vì
     // `getByText(...).first()`, vì chữ đó còn nằm trong nhãn thước đo.
     await expect(
       page.getByRole('heading', { name: t('admin.capacity.title'), level: 2, exact: true }),
@@ -84,7 +82,7 @@ test.describe('luồng 6 — quản trị', { tag: '@flow' }, () => {
       'Hộp thoại đổi vai trò không nói rằng hành động sẽ được ghi audit. AC 13.G ' +
         'mục 24 đòi mọi hành động quản trị có dấu vết, và người bấm phải biết trước.',
     ).toBeVisible();
-    await roleDialog.getByRole('button', { name: t('common.confirm.cancel'), exact: true }).click();
+    await roleDialog.getByRole('button', { name: t('common.action.cancel'), exact: true }).click();
     await expect(roleDialog).toBeHidden();
 
     // ── 3. Phiên đang chạy ──────────────────────────────────────────────────
@@ -94,7 +92,7 @@ test.describe('luồng 6 — quản trị', { tag: '@flow' }, () => {
       page.getByRole('heading', { name: t('admin.sessions.title'), level: 1 }),
     ).toBeVisible();
     await expect(
-      page.getByRole('heading', { name: t('admin.sessions.alert-title'), level: 2 }),
+      page.getByText(t('admin.sessions.alert-title'), { exact: true }),
     ).toBeVisible();
 
     // Danh sách có thể RỖNG hợp lệ (không ai đang học). Nên phép kiểm là: hoặc
@@ -133,7 +131,7 @@ test.describe('luồng 6 — quản trị', { tag: '@flow' }, () => {
     await page.waitForURL('**/admin/content');
     await expect(page.getByRole('heading', { name: t('admin.content.title'), level: 1 })).toBeVisible();
     await expect(
-      page.getByRole('heading', { name: t('admin.content.alert-title'), level: 2 }),
+      page.getByText(t('admin.content.alert-title'), { exact: true }),
       'Trang nội dung không nói rằng nút Lưu trữ đi qua đường người soạn và KHÔNG ' +
         'ghi admin_audit. Giấu chuyện đó làm người vận hành tin nhật ký đầy đủ hơn ' +
         'thực tế.',
@@ -144,15 +142,15 @@ test.describe('luồng 6 — quản trị', { tag: '@flow' }, () => {
     await page.waitForURL('**/admin/audit');
     await expect(page.getByRole('heading', { name: t('admin.audit.title'), level: 1 })).toBeVisible();
     await expect(
-      page.getByRole('heading', { name: t('admin.audit.alert-title'), level: 2 }),
+      page.getByText(t('admin.audit.alert-title'), { exact: true }),
     ).toBeVisible();
 
     // Cột phải có mặt kể cả khi chưa hành động nào được ghi — bảng rỗng là
     // trạng thái hợp lệ của một cụm sạch, bảng KHÔNG TỒN TẠI thì không.
     //
     // ⚠ Nhánh thứ hai là `[data-slot="empty-state"]`, KHÔNG phải `role="status"`.
-    // Bản đầu tìm `role="status"` và đỏ trên cụm 2026-09-07 — nhưng `EmptyState`
-    // (`packages/ui/src/empty-state.tsx`) chưa từng khai vai trò đó, nên phép
+    // Bản đầu tìm `role="status"` và đỏ trên cụm 2026-09-07 — nhưng khối rỗng
+    // (nay là `Empty` của `packages/ds`) chưa từng khai vai trò đó, nên phép
     // kiểm đang khẳng định một điều không đúng về sản phẩm chứ không phát hiện
     // ra lỗi nào. `role="status"` là một live region: gắn nó vào MỌI trạng thái
     // rỗng nghĩa là trình đọc màn hình xướng lên ở mỗi trang danh mục trống, một

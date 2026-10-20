@@ -832,6 +832,8 @@ export const games = {
 } as const;
 
 export const gamesIntentionalThree: IntentionalThree = {
+  'games.band':
+    '2026-10-20: dải giới thiệu một game có đúng ba chữ đứng riêng ngoài nhóm tiến độ và nút: nhãn ô số màn, câu số màn và chương, nhãn độ khó. Đây là ba ô của một dải, không phải một danh sách ba ý.',
   'games.soon':
     '2026-10-20: khối game đang dựng có đúng ba vai trò chữ (tiêu đề khối, câu ghi chú, nhãn trên từng dòng). Đây là ba phần của một khối giao diện, không phải một danh sách ba ý.',
   'games.cicd.mission.state':
