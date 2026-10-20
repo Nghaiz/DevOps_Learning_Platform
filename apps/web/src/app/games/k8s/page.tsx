@@ -42,8 +42,9 @@ export default async function K8sArenaPage({
   const problemCode = typeof raw === 'string' && raw.length > 0 ? raw : null;
 
   if (problemCode !== null) {
+    // z-[45]: trên thanh đầu trang, dưới portal Radix. Xem `k8s-campaign.tsx`.
     return (
-      <div className="fixed inset-0 z-[60] bg-ink">
+      <div className="fixed inset-0 z-[45] bg-ink">
         <ArenaEntry problemCode={problemCode} />
       </div>
     );

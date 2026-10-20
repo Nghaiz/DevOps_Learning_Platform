@@ -19,8 +19,13 @@
  * ## Khi đang chơi, game che kín vỏ trang
  *
  * `/games/k8s` có thanh đầu trang của site (trang chọn màn là một trang thường).
- * Lúc chơi, `ArenaRoot` nằm trong một lớp `fixed inset-0 z-[60]` phủ lên thanh
+ * Lúc chơi, `ArenaRoot` nằm trong một lớp `fixed inset-0 z-[45]` phủ lên thanh
  * đó, và cuộn của trang bị khoá để con lăn chuột chỉ điều khiển camera.
+ *
+ * ⛔ `z-[45]`, không cao hơn: trên thanh đầu trang (`z-40`) nhưng DƯỚI các portal
+ * Radix của `packages/ui` (Dialog, Tooltip, Popover, Select đều `z-50`, gắn vào
+ * `body`). Bản đầu dùng `z-[60]` nên hộp đặt tên của bảng tài nguyên mở ra NẰM DƯỚI
+ * lớp chơi: vô hình mà vẫn giữ focus và chặn chuột, tức không tạo được tài nguyên nào.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
@@ -155,7 +160,7 @@ function PlayingLayer({ level, onExit }: { readonly level: Level; readonly onExi
     };
   }, []);
   return (
-    <div className="fixed inset-0 z-[60] bg-ink" data-testid="k8s-playing-layer">
+    <div className="fixed inset-0 z-[45] bg-ink" data-testid="k8s-playing-layer">
       <ArenaRoot key={level.id} level={level} mode={LEVEL_MODE} onExit={onExit} />
     </div>
   );
@@ -196,6 +201,10 @@ export function K8sCampaign(): ReactElement {
 
   return (
     <>
+      {/* Danh sách màn vẫn mount dưới lớp chơi. Không `inert` thì Tab đi xuyên xuống các
+          nút màn vô hình, và Enter trên một nút đó gọi `play()` khác: màn đang chơi bị
+          remount, mất trạng thái. */}
+      <div inert={playing}>
       <PosterHeader
         section="games"
         kicker={t('games.k8s.campaign.kicker', { levels: total, chapters: chapters.length })}
@@ -324,6 +333,7 @@ export function K8sCampaign(): ReactElement {
           );
         })}
       </PageContainer>
+      </div>
 
       {level === null ? null : <PlayingLayer level={level} onExit={leave} />}
     </>

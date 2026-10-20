@@ -45,8 +45,11 @@ import { SCREENS, type Screen } from './routes';
  * NGHỈ HƯU 2026-10-03 (lane L2, bản dựng lại PTIT): /lessons/:id không còn vẽ
  * cung ProgressBar. Thanh trên 48px dùng thước phân đoạn `Meter` (design brief
  * §4.7, "Gauge"), nên spec này không còn bề mặt nào để đo trên trang bài học.
- * Nơi duy nhất còn dùng cung là `components/me/learning-now.tsx`; nếu bề mặt
- * đó giữ cung thì chuyển spec sang đó thay vì xoá.
+ *
+ * Kiểm lại 2026-10-20: KHÔNG file nào trong `apps/web/src` còn vẽ `ProgressBar`
+ * (câu cũ ở đây chỉ `components/me/learning-now.tsx` là sai). Spec vì thế đã rút
+ * khỏi `e2e:ci`, xem chú thích `//e2e:ci` trong `package.json`. Màn nào vẽ lại cung
+ * có `--p` thì trỏ `LESSON` sang màn đó, gỡ dòng skip, rồi mới đưa lại vào cổng.
  */
 test.skip(true, 'Cung ProgressBar đã rời /lessons/:id; xem chú thích nghỉ hưu ở đầu file.');
 

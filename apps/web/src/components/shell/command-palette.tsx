@@ -45,7 +45,11 @@ export function buildEntries(viewer: Viewer | null): readonly Entry[] {
         icon: null,
       }))
     : [];
-  return [...pages, ...account];
+  // Menu tài khoản lặp lại vài trang của mục "Xưởng soạn" / "Quản trị" (`/author`,
+  // `/admin`). Giữ bản ở nhóm trang: hai dòng cùng đích vừa thừa vừa trùng `key` React,
+  // làm danh sách nhân đôi hay rơi dòng lúc gõ lọc.
+  const seen = new Set(pages.map((entry) => entry.href));
+  return [...pages, ...account.filter((entry) => !seen.has(entry.href))];
 }
 
 export function filterEntries(entries: readonly Entry[], query: string): readonly Entry[] {

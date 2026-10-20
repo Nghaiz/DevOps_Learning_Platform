@@ -159,7 +159,12 @@ function Driver({ enabled, onFirstFrame }: { readonly enabled: boolean; readonly
     const tick = () => {
       if (drawn.current && (!canvasWanted() || document.visibilityState !== 'visible')) return;
       gl.info.reset();
-      advance(performance.now());
+      /* GIÂY, không phải mili-giây. Với `frameloop="never"`, R3F lấy thẳng đơn vị của số
+         này làm `delta` và `clock.elapsedTime` cho mọi `useFrame`, và cả cảnh đều tính
+         theo giây (camera snap khi `delta > 0.2`, damping `exp(-delta * 9)`, nháy con trỏ
+         `time * 2.2`). Truyền `performance.now()` thô thì delta ~16,7 mỗi khung: camera
+         snap ở MỌI khung và mọi thứ quay nhanh gấp ~1000 lần. */
+      advance(performance.now() / 1000);
       frame += 1;
       /* Số draw call của cả khung cho e2e đo, ghi thưa để không tự làm chậm chính phép đo. */
       if (frame % 30 === 0) {
