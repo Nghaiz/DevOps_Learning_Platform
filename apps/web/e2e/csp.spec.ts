@@ -274,7 +274,11 @@ test.describe('nonce', () => {
     // hiding, chống rò rỉ qua CSS selector). Một spec kiểm bằng getAttribute sẽ
     // luôn thấy '' và hoặc đỏ oan, hoặc — tệ hơn — được nới thành "có thuộc
     // tính nonce là đủ", lúc đó nonce rỗng cũng qua.
-    const inlineScripts = [...html.matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/g)]
+    //
+    // `i` + `<\/script\b[^>]*>`: HTML nhận `<SCRIPT>` và `</script >` như thẻ
+    // thật. Bản cũ chỉ khớp chữ thường và `</script>` liền, nên một script viết
+    // khác đi sẽ lọt khỏi phép kiểm nonce mà spec vẫn xanh (CodeQL js/bad-tag-filter).
+    const inlineScripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script\b[^>]*>/gi)]
       .map((m) => ({ attrs: m[1] ?? '', body: m[2] ?? '' }))
       .filter((s) => !/\bsrc=/.test(s.attrs) && s.body.trim() !== '');
     expect(inlineScripts.length, 'không có script inline nào trong HTML').toBeGreaterThan(0);

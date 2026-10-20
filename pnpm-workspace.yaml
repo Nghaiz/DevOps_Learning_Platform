@@ -39,7 +39,7 @@ overrides:
   # < 3.3.18; Dependabot báo mức HIGH, phạm vi runtime.
   #
   # Không có đường nâng trực tiếp: nanoid vào GIÁN TIẾP qua postcss, mà postcss
-  # đến từ next@16.3.4, @tailwindcss/postcss và vite — ba chủ sở hữu khác nhau,
+  # đến từ next, @tailwindcss/postcss và vite — ba chủ sở hữu khác nhau,
   # không ai trong số đó ghim nanoid. Chờ cả ba tự lên là chờ vô hạn định.
   #
   # 3.3.17 -> 3.3.18 là patch bump trong cùng major/minor nên không có bề mặt

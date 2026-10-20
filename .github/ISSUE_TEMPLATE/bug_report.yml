@@ -67,7 +67,7 @@ body:
         đặt hay không.
       placeholder: |
         OS: Windows 11 / Debian 13 trên VM lab
-        Node: v24.13.0, pnpm 11.10.0, Go: (go version)
+        Node: v24.13.0, pnpm 11.11.0, Go: (go version)
         Chạy ở đâu: máy dev local / cluster kubeadm 1-node / CI
     validations:
       required: true

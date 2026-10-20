@@ -113,8 +113,8 @@ COPY apps/web/src/server/db apps/web/src/server/db
 # Bản đầu của stage này quên bước đó, nên Trivy đếm 1 CVE CRITICAL + 6 HIGH
 # (`tar` 7.5.16, `brace-expansion` 5.0.6) đến từ /usr/local/lib/node_modules/npm
 # do base image đóng sẵn — ĐỦ để làm đỏ job `Build & push: migrator` ở d5da78b.
-# Cả hai gói đó KHÔNG có trong pnpm-lock.yaml của repo (lock đang giữ
-# brace-expansion 5.0.9 đã vá); chúng đến từ npm bundled trong `node:24-alpine`.
+# Cả hai gói đó KHÔNG có trong pnpm-lock.yaml của repo (lock khi đó giữ
+# brace-expansion 5.0.9, bản đã vá lúc ấy); chúng đến từ npm bundled trong `node:24-alpine`.
 # Đó là lý do "nâng dependency" không sửa được, phải gỡ npm ra khỏi image.
 #
 # An toàn vì CMD gọi `node` trực tiếp: mọi thứ cần cài đã cài xong ở stage `deps`,
@@ -122,6 +122,18 @@ COPY apps/web/src/server/db apps/web/src/server/db
 # `builder` dùng chung `deps` và vẫn cần pnpm để `turbo run build`.
 RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
            /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
+
+# Gỡ nốt hai thứ `deps` để lại mà chỉ lúc BUILD mới cần, cùng lý do với bước trên:
+#  · /root/.cache: bản pnpm corepack đã tải về (kèm `tar` riêng của pnpm, dính
+#    GHSA-r292-9mhp-454m ở 7.5.19) và cache metadata của pnpm. Binary corepack đã
+#    gỡ ở trên nên bản pnpm này không còn đường nào gọi tới; nó chỉ còn là thứ Trivy đếm.
+#  · `@typescript/typescript-linux-*`: binary `tsc` của TS7, một binary Go mang CVE
+#    stdlib của bản Go dựng ra nó (xem memory/README § Toolchain về alias TS6/TS7).
+#    drizzle-kit nạp `drizzle.config.ts` bằng esbuild của chính nó, không gọi TS7.
+# Đo 2026-10-18, cùng một lượt DB Trivy: HIGH 16 → 0 (CRITICAL 0 → 0); image sau bản
+# này chạy `migrate` trên Postgres sạch hai lượt, cả hai "migrations applied
+# successfully", ra đủ 18/18 migration và 30 bảng.
+RUN rm -rf /root/.cache /repo/node_modules/.pnpm/@typescript+typescript-linux-*
 
 # Vá libssl3 + libcrypto3 (CVE-2026-14456) — migrator cũng là image CHẠY trong
 # cụm (Helm migrate Job) và nối Postgres qua TLS, nên cùng bề mặt như `runner`.
