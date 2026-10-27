@@ -89,6 +89,28 @@ Bump `0.36.3 → 0.37.0` vào `main` ở PR #127 (squash `64cb6f3`), deploy lên
 chừng (watch reconnect), các resource version hiếm, hay hành vi lỗi ở biên. Khoảng lệch 3 minor
 vẫn là một khoản rủi ro đang mở, không phải một câu hỏi đã đóng.
 
+## 4b. Lượt đo cho `v0.37.1` — ĐẠT (2026-10-27), chạy TRƯỚC khi gộp
+
+PR #175 (`k8s.io/api`, `apimachinery`, `client-go`, `streaming` 0.37.0 → 0.37.1, kèm `x/sync`
+0.24.0, `x/term` 0.47.0, `x/sys` 0.49.0). Image orchestrator + gateway build tại chỗ từ head của
+PR (Go 1.27.3), side-load, `helm upgrade --reset-then-reuse-values` chỉ đổi
+`orchestrator.image.tag` + `gateway.image.tag` (rev 119). Host vừa vá kernel 6.12.113 và reboot.
+
+| Phép đo | Kết quả |
+|---|---|
+| Smoke `infra/host/13-smoke.sh` | **7/7 PASS** (pool 3/3, `/api/health` qua biên 200, create → claim → reap) |
+| `infra/k8s/reaper-verify.sh --case all` | **18/18 PASS**: expiry, session-ma, restart orchestrator, claim gặp pod chết |
+| Hết hạn end-to-end | 2/2 pod bị xoá **2 s** sau mốc hết hạn; session chưa hết hạn còn nguyên; 4 dòng `sessions_audit.event='expired'` (hai lượt ca expiry) |
+| `dlp_reaper_keyspace_events_total` | **3** (tầng 1 còn bắn; đọc sau lượt expiry thứ hai, vì ca `restart` reset counter) |
+| `dlp_reaper_sweep_failures_total` | **0**; `claimed_orphan`, `ghost_sessions`, `orphan_pods` cùng 0 |
+| Claim | `warm` count=4, sum `0.0533s` ⇒ **~13,3 ms/lượt**; `cold_path_total` 0 |
+| `dlp_claim_dead_pod_total` | **1**, đúng bằng ca `deadpod` cố ý giết một pod; claim kế tiếp nhận pod sống |
+| Bù pool | `free_size` về **3** = `POOL_TARGET`; `replenish_failures_total` **0**, `quota_blocked` **0** |
+| Log | orchestrator 10 dòng / 30 phút, lỗi duy nhất là của ca `deadpod`; gateway 0 dòng lỗi |
+
+**Không phủ** (giống §4): apiserver restart giữa chừng (watch reconnect) và chạy dài; lượt này kéo
+~10 phút chứ không ~2 giờ. 0.37.1 là bản patch trong cùng minor với 0.37.0, bản đã chạy trên cụm từ 18/09.
+
 ## 5. Bẫy đã trả giá: gate nằm ở PR bị Dependabot THAY THẾ
 
 Cổng §3 ban đầu được ghi làm **comment trên PR #105**. Dependabot **đóng #105** ("updatable in
