@@ -83,6 +83,7 @@ import {
   type SceneRepo,
 } from '../shared/scene-props.ts';
 import { ACCENT_STYLE, EDGE_STYLE, REF_STYLE, REPO_LABEL, cssVar } from './git-palette.ts';
+import { FaceText, nameWithVisibleLabel } from '../shared/label-in-name.tsx';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Lưới — px. Đây là nơi DUY NHẤT ô lưới của `core/layout/` thành pixel.
@@ -270,6 +271,71 @@ export function commitAriaLabel(placed: ScenePlacedNode, refNames: readonly stri
     REPO_LABEL[node.repo],
   ];
   return `${parts.join('. ')}.`;
+}
+
+/** Số badge ref vẽ được trên một commit; phần dư gộp thành chữ `+N refs`. */
+const MAX_BADGES = 2;
+
+/** Một badge ref như nó được VẼ. */
+interface BadgeFace {
+  readonly ref: SceneRefBadge;
+  /** Tên ref đã cắt — thứ đo bề rộng badge. */
+  readonly name: string;
+  /** Chuỗi vẽ ra: tên, thêm `* ` phía trước nếu là nhánh hiện tại. */
+  readonly shown: string;
+}
+
+/**
+ * Chữ VẼ RA trên một commit — nguồn DUY NHẤT cho cả các `<text>` lẫn phần đầu
+ * `aria-label` (WCAG 2.5.3 Label in Name, xem `shared/label-in-name.tsx`).
+ *
+ * Thứ tự trường = thứ tự DOM: oid → message đã cắt → sigil → badge ref → `+N
+ * refs`. Badge nằm TRONG nút (bấm vào badge là chọn commit) nên chữ của nó là
+ * chữ của nút, dù `<g>` của badge mang `aria-hidden` — axe đo "nhìn thấy" bằng
+ * mắt, không bằng cây trợ năng.
+ */
+interface CommitFace {
+  readonly oid: string;
+  readonly message: string;
+  /** Glyph của accent (`@`, `+`, `!`…); `''` khi accent không có sigil. */
+  readonly sigil: string;
+  readonly badges: readonly BadgeFace[];
+  readonly moreRefs: string | null;
+}
+
+function badgeFace(ref: SceneRefBadge): BadgeFace {
+  const name = truncate(ref.shortName, 17);
+  return { ref, name, shown: ref.isCurrent ? `* ${name}` : name };
+}
+
+function commitFace(spot: ScenePlacedNode, refs: readonly SceneRefBadge[]): CommitFace {
+  return {
+    oid: spot.node.shortOid,
+    message: truncate(spot.node.message, 18),
+    sigil: ACCENT_STYLE[spot.node.accent].sigil,
+    badges: refs.slice(0, MAX_BADGES).map(badgeFace),
+    moreRefs:
+      refs.length > MAX_BADGES
+        ? t('games.git.scene.more-refs', { n: refs.length - MAX_BADGES })
+        : null,
+  };
+}
+
+/**
+ * Tên khả truy cập của một commit: chữ nhìn thấy trước, rồi `commitAriaLabel`.
+ *
+ * Badge góp TÊN ref chứ không góp chuỗi `* main`: dấu `*` là glyph như sigil —
+ * axe coi nó là khoảng trắng, còn trình đọc màn hình sẽ đọc thành "sao".
+ */
+function commitAccessibleName(
+  face: CommitFace,
+  spot: ScenePlacedNode,
+  refNames: readonly string[],
+): string {
+  return nameWithVisibleLabel(
+    [face.oid, face.message, face.sigil, ...face.badges.map((b) => b.name), face.moreRefs],
+    commitAriaLabel(spot, refNames),
+  );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -668,6 +734,7 @@ function CommitNode({
   ][spot.lane % 4];
   const rx = style.shape === 'sharp' ? 1 : 8;
   const dashed = style.shape === 'dashed';
+  const face = commitFace(spot, refs);
 
   return (
     <motion.g
@@ -698,7 +765,8 @@ function CommitNode({
          */
         data-node-y={laneY(top, spot.lane)}
         data-node-h={NODE_H}
-        aria-label={commitAriaLabel(
+        aria-label={commitAccessibleName(
+          face,
           spot,
           refs.map((r) => `${REF_STYLE[r.kind].label} ${r.shortName}`),
         )}
@@ -788,20 +856,24 @@ function CommitNode({
 
         <rect x={x + 10} y={y + 44} width={25} height={3} rx={1.5} fill={laneColor} />
         <circle cx={NODE_W - 14} cy={NODE_H - 14} r={3} fill={laneColor} />
-        <text
+        {/*
+          Mọi chuỗi dưới đây đến từ `face` — cùng nguồn với đầu `aria-label`,
+          nên chữ vẽ ra và tên khả truy cập không lệch nhau được (WCAG 2.5.3).
+        */}
+        <FaceText
           x={x + 10}
           y={y + 18}
           fill={cssVar(style.text)}
           fontSize={12}
           fontFamily="var(--font-mono, monospace)"
         >
-          {spot.node.shortOid}
-        </text>
-        <text x={x + 10} y={y + 34} fill={cssVar(style.text)} fontSize={11}>
-          {truncate(spot.node.message, 18)}
-        </text>
-        {style.sigil === '' ? null : (
-          <text
+          {face.oid}
+        </FaceText>
+        <FaceText x={x + 10} y={y + 34} fill={cssVar(style.text)} fontSize={11}>
+          {face.message}
+        </FaceText>
+        {face.sigil === '' ? null : (
+          <FaceText
             x={x + NODE_W - 9}
             y={y + 16}
             textAnchor="end"
@@ -809,27 +881,27 @@ function CommitNode({
             fontSize={13}
             fontWeight={700}
           >
-            {style.sigil}
-          </text>
+            {face.sigil}
+          </FaceText>
         )}
 
-        {refs.slice(0, 2).map((ref, index) => (
+        {face.badges.map((badge, index) => (
           <RefBadge
-            key={ref.name}
-            badge={ref}
+            key={badge.ref.name}
+            face={badge}
             x={x}
             y={y - BADGE_H - BADGE_GAP - index * (BADGE_H + BADGE_GAP)}
           />
         ))}
-        {refs.length > 2 && (
-          <text
+        {face.moreRefs !== null && (
+          <FaceText
             x={NODE_W + 6}
             y={-10}
             fontSize={10}
             fill="var(--git-muted, var(--muted-foreground))"
           >
-            {t('games.git.scene.more-refs', { n: refs.length - 2 })}
-          </text>
+            {face.moreRefs}
+          </FaceText>
         )}
       </g>
     </motion.g>
@@ -839,17 +911,17 @@ function CommitNode({
 // ═══════════════════════════════════════════════════════════════════════════
 
 function RefBadge({
-  badge,
+  face,
   x,
   y,
 }: {
-  readonly badge: SceneRefBadge;
+  readonly face: BadgeFace;
   readonly x: number;
   readonly y: number;
 }): ReactElement {
+  const badge = face.ref;
   const style = REF_STYLE[badge.kind];
-  const text = truncate(badge.shortName, 17);
-  const width = 14 + text.length * 6.6 + (badge.isCurrent ? 12 : 0);
+  const width = 14 + face.name.length * 6.6 + (badge.isCurrent ? 12 : 0);
   const notch = style.shape === 'notched' ? 7 : 0;
 
   return (
@@ -882,15 +954,15 @@ function RefBadge({
           fill={cssVar(style.fill)}
         />
       )}
-      <text
+      <FaceText
         x={x + notch + 6}
         y={y + 14}
         fill={cssVar(style.text)}
         fontSize={11}
         fontWeight={badge.isCurrent ? 700 : 500}
       >
-        {badge.isCurrent ? `* ${text}` : text}
-      </text>
+        {face.shown}
+      </FaceText>
     </g>
   );
 }
