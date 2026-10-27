@@ -60,9 +60,16 @@ ssh -o ConnectTimeout=8 "$VM_SSH" true 2>/dev/null || loi "không ssh được t
 # luôn có. `--delete` của rsync được thay bằng `rm -rf` thư mục đích trước khi
 # giải nén — cùng hiệu quả "đích khớp nguồn, không sót file cũ".
 REMOTE_DIR="/tmp/dlp-chart-fresh"
+# ⛔ Thư mục này sẽ chứa `live-all.json` / `live-values.json`, tức BÍ MẬT của release
+# (mật khẩu PG/Redis, betterAuthSecret). Đo 2026-10-28: bản trước chỉ xoá nó ở ĐẦU
+# lượt deploy KẾ TIẾP, nên giữa hai lần deploy hai file đó nằm ở /tmp với quyền
+# -rw-rw-r-- (ai trên host cũng đọc được). Nay: thư mục 700 ngay từ lúc tạo, và
+# trap EXIT xoá nó khi script kết thúc, kể cả khi dừng giữa chừng vì lỗi.
+cleanup_remote() { ssh "$VM_SSH" "rm -rf -- '${REMOTE_DIR}'" >/dev/null 2>&1 || true; }
+trap cleanup_remote EXIT
 echo "── ship chart tươi → ${VM_SSH}:${REMOTE_DIR}/platform"
 tar -C "$(dirname "$CHART_SRC")" -cf - "$(basename "$CHART_SRC")" \
-  | ssh "$VM_SSH" "rm -rf '${REMOTE_DIR}' && mkdir -p '${REMOTE_DIR}' && tar -C '${REMOTE_DIR}' -xf -"
+  | ssh "$VM_SSH" "rm -rf -- '${REMOTE_DIR}' && mkdir -p -m 700 '${REMOTE_DIR}' && tar -C '${REMOTE_DIR}' -xf -"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Overlay VM-only, LỌC THEO DANH SÁCH CHO PHÉP. Đọc và giữ NGUYÊN trên VM.

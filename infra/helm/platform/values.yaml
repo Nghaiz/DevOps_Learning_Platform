@@ -1247,7 +1247,15 @@ registryMirror:
   enabled: false
   namespace: dlp-registry
   # Image công khai trên Docker Hub — node kéo được (không phải image dlp-* private).
-  image: registry:2
+  #
+  # registry:2 (distribution 2.8.3) → registry:3.1.2, 2026-10-28. Nhánh 2.x đã EOL
+  # và không có bản vá: GHSA-685w-q87j-wqw3 (client `manifests.Get()` không đối
+  # chiếu nội dung trả về — đúng đường proxy kéo từ upstream, vá ở 3.1.2) và
+  # GHSA-3p65-76g6-3w7r (lộ credential qua pull-through; mirror này không cấu hình
+  # credential upstream nên không dính, nhưng 2.x không có đường vá). Cấu hình qua
+  # env và bố cục lưu trữ /var/lib/registry không đổi giữa v2 và v3. Ghim patch
+  # chính xác, không ghim major trôi: tag trôi là cách `registry:2` nằm yên ở 2.8.3.
+  image: registry:3.1.2
   imagePullPolicy: IfNotPresent
   # Upstream DUY NHẤT. Một instance registry:2 proxy đúng một upstream.
   remoteUrl: https://registry-1.docker.io
