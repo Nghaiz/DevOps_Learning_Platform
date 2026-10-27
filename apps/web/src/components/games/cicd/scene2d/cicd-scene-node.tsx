@@ -23,6 +23,10 @@
  * nguyên: nhãn lấy từ `StageNodeView.ariaLabel` mà hợp đồng đã dựng sẵn bằng
  * tiếng Việt. Đã ghi vào báo cáo lane như một sai lệch có chủ ý.
  *
+ * Từ axe 4.14 nhãn đó đứng SAU chữ vẽ trên mặt node (`nodeFace()`), vì WCAG
+ * 2.5.3 đòi tên chứa đúng chữ nhìn thấy, đúng thứ tự — xem
+ * `shared/label-in-name.tsx`.
+ *
  * ═══════════════════════════════════════════════════════════════════════════
  * BỐN KÊNH, KHÔNG PHẢI MỘT
  * ═══════════════════════════════════════════════════════════════════════════
@@ -37,6 +41,7 @@
 
 import { useId, type KeyboardEvent, type ReactElement } from 'react';
 import { t } from '@devops-platform/copy';
+import type { StageNodeView } from '@devops-platform/games';
 import { motion } from '@devops-platform/motion/react';
 import {
   CICD_NODE_ATTR,
@@ -44,6 +49,7 @@ import {
   type CicdPlacedNode,
   type SceneAxes,
 } from '../scene-props';
+import { FaceText, nameWithVisibleLabel } from '../../shared/label-in-name';
 import {
   CRITICAL_TOKEN,
   FOREGROUND_TOKEN,
@@ -89,6 +95,47 @@ export function clip(text: string, max: number): string {
   return text.length <= max ? text : `${text.slice(0, max - 1)}…`;
 }
 
+/**
+ * Chữ VẼ RA trên mặt một node — nguồn DUY NHẤT cho cả các `<text>` lẫn phần đầu
+ * `aria-label` (WCAG 2.5.3 Label in Name, xem `shared/label-in-name.tsx`).
+ *
+ * Thứ tự trường = thứ tự DOM: glyph ở badge góc → tên → stage → glyph + trạng
+ * thái → badge chờ-máy. Tên và stage là bản ĐÃ CẮT, vì đó là chữ người dùng
+ * nhìn thấy và nói ra; bản đầy đủ nằm trong câu mô tả phía sau của tên.
+ */
+interface CicdNodeFace {
+  /** Glyph trạng thái, vẽ ở badge góc VÀ ở đầu dòng trạng thái. Không mang từ nào. */
+  readonly icon: string;
+  readonly name: string;
+  readonly stage: string;
+  /** Nhãn trạng thái, kèm `· lần N` khi đang ở lượt thử lại. */
+  readonly state: string;
+  /** Chữ của badge chờ-máy; `null` khi badge không được vẽ. */
+  readonly wait: string | null;
+}
+
+/** `waitShown` = số tick ĐANG HIỆN trên badge, `null` khi không vẽ badge. */
+function nodeFace(node: StageNodeView, waitShown: number | null): CicdNodeFace {
+  const paint = paintOf(node.state);
+  const attempt =
+    node.attempt > 0 ? ` · ${t('games.cicd.scene.attempt', { n: node.attempt + 1 })}` : '';
+  return {
+    icon: paint.icon,
+    name: clip(node.name, 16),
+    stage: clip(node.stageId, 20),
+    state: `${paint.stateLabel}${attempt}`,
+    wait: waitShown === null ? null : t('games.cicd.scene.wait', { n: waitShown }),
+  };
+}
+
+/** Chữ nhìn thấy trước, rồi câu mô tả đầy đủ của hợp đồng (`nodeAriaLabel`). */
+function nodeAccessibleName(face: CicdNodeFace, node: StageNodeView): string {
+  return nameWithVisibleLabel(
+    [face.icon, face.name, face.stage, face.icon, face.state, face.wait],
+    nodeAriaLabel(node),
+  );
+}
+
 export interface CicdSceneNodeProps {
   readonly placed: CicdPlacedNode;
   readonly axes: SceneAxes;
@@ -120,6 +167,8 @@ export function CicdSceneNode(props: CicdSceneNodeProps): ReactElement {
   const y = cy - NODE_H / 2;
   const sink = geo.sunk ? SINK : 0;
   const wait = waitTicks(placed);
+  const waitShown = axes.folded === 'y' && wait !== null && wait > 0 ? wait : null;
+  const face = nodeFace(node, waitShown);
 
   const fill = cssVar(paint.fill);
   const text = cssVar(paint.text);
@@ -152,7 +201,7 @@ export function CicdSceneNode(props: CicdSceneNodeProps): ReactElement {
         role="button"
         tabIndex={0}
         aria-pressed={selected}
-        aria-label={nodeAriaLabel(node)}
+        aria-label={nodeAccessibleName(face, node)}
         {...{ [CICD_NODE_ATTR]: placed.id, [CICD_NODE_STATE_ATTR]: node.state }}
         data-cicd-motion={motionKind}
         data-cicd-node-critical={critical ? 'true' : undefined}
@@ -343,7 +392,7 @@ export function CicdSceneNode(props: CicdSceneNodeProps): ReactElement {
               stroke={bodyFill}
               strokeWidth={1.5}
             />
-            <text
+            <FaceText
               x={NODE_W - 20}
               y={20}
               textAnchor="middle"
@@ -351,20 +400,23 @@ export function CicdSceneNode(props: CicdSceneNodeProps): ReactElement {
               fontSize={14}
               fill={bodyFill}
             >
-              {paint.icon}
-            </text>
+              {face.icon}
+            </FaceText>
 
-            {/* Nhãn đặt THẲNG TRÊN HÌNH (D.2.2). */}
-            <text x={14} y={28} fontSize={15} fontWeight={600} fill={bodyText}>
-              {clip(node.name, 16)}
-            </text>
-            <text x={14} y={48} fontSize={11.5} fill={bodyText} opacity={0.85}>
-              {clip(node.stageId, 20)}
-            </text>
-            <text x={14} y={69} fontSize={11.5} fontWeight={600} fill={bodyText}>
-              {paint.icon} {paint.stateLabel}
-              {node.attempt > 0 ? ` · ${t('games.cicd.scene.attempt', { n: node.attempt + 1 })}` : ''}
-            </text>
+            {/*
+             * Nhãn đặt THẲNG TRÊN HÌNH (D.2.2). Mọi chuỗi ở đây đến từ `face` —
+             * cùng nguồn với đầu `aria-label`, nên chữ vẽ ra và tên khả truy cập
+             * không lệch nhau được (WCAG 2.5.3).
+             */}
+            <FaceText x={14} y={28} fontSize={15} fontWeight={600} fill={bodyText}>
+              {face.name}
+            </FaceText>
+            <FaceText x={14} y={48} fontSize={11.5} fill={bodyText} opacity={0.85}>
+              {face.stage}
+            </FaceText>
+            <FaceText x={14} y={69} fontSize={11.5} fontWeight={600} fill={bodyText}>
+              {face.icon} {face.state}
+            </FaceText>
           </g>
         </motion.g>
 
@@ -375,8 +427,8 @@ export function CicdSceneNode(props: CicdSceneNodeProps): ReactElement {
          * Nó là thứ bài "thêm máy chạy" dạy, nên nó phải đọc được — ở đây là một
          * badge số tick treo dưới hộp, chỉ hiện khi CÓ chờ.
          */}
-        {axes.folded === 'y' && wait !== null && wait > 0 && (
-          <g data-cicd-wait={wait}>
+        {waitShown !== null && (
+          <g data-cicd-wait={waitShown}>
             <rect
               x={0}
               y={NODE_H + sink + DEPTH + 4}
@@ -384,15 +436,15 @@ export function CicdSceneNode(props: CicdSceneNodeProps): ReactElement {
               height={22}
               fill={cssVar('--warning')}
             />
-            <text
+            <FaceText
               x={10}
               y={NODE_H + sink + DEPTH + 19}
               fontSize={11.5}
               fontWeight={600}
               fill={cssVar('--warning-foreground')}
             >
-              {t('games.cicd.scene.wait', { n: wait })}
-            </text>
+              {face.wait}
+            </FaceText>
           </g>
         )}
 

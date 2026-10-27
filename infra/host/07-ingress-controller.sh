@@ -28,8 +28,16 @@ cd "$(dirname "$0")"
 #
 # digest lấy từ chính index của repo:
 #   curl -s https://traefik.github.io/charts/index.yaml | grep -B12 'traefik-<ver>.tgz'
-TRAEFIK_CHART_VERSION="${TRAEFIK_CHART_VERSION:-41.2.0}"   # appVersion v3.7.10
-TRAEFIK_CHART_SHA256="${TRAEFIK_CHART_SHA256:-b1c5e2194b8e2c63b3db39676924b46e63bec207174673e38d4ad54d66743e68}"
+#
+# 41.2.0 (v3.7.10) → 41.7.1 (v3.7.14), 2026-10-27: v3.7.10 dính CVE-2026-88004
+# (GHSA-v67p-phpq-fc8x, High — tên header bị chặn ở entrypoint lọt qua dưới dạng
+# trailer HTTP, vá ở 3.7.13) cùng loạt advisory 07/10 vá ở 3.7.14. Render bằng
+# đúng các `--set` dưới đây, 41.2.0 và 41.7.1 chỉ khác đúng dòng image.
+# Advisory chỉ vá ở 3.7.15/3.7.16 (chart 42.x, major mới) nằm ở provider
+# ingress-nginx, ForwardAuth và FastProxy thử nghiệm; cụm này không bật thứ nào
+# trong ba thứ đó. Bật một trong số đó thì phải lên chart 42.x trước.
+TRAEFIK_CHART_VERSION="${TRAEFIK_CHART_VERSION:-41.7.1}"   # appVersion v3.7.14
+TRAEFIK_CHART_SHA256="${TRAEFIK_CHART_SHA256:-f9edd5ca699ff0f5eab14df6e4feefa15f7597a9b56f0b1c01f6089b1eecbaf1}"
 TRAEFIK_NAMESPACE="${TRAEFIK_NAMESPACE:-traefik}"
 # Ghim cổng — xem lý lẽ ở khối `helm upgrade` bên dưới. Dải NodePort mặc định
 # của kubeadm là 30000–32767, nên KHÔNG đặt được 80/443 ở đây mà không sửa

@@ -9,6 +9,7 @@ import type {
   SceneView,
 } from '../shared/scene-props.ts';
 import { GitSvgScene, commitAriaLabel, navigateFrom } from './git-svg-scene.tsx';
+import { explainMismatch, isLabelInName, visibleText } from '../shared/label-in-name-check.ts';
 import { ModeToggle } from './mode-toggle.tsx';
 import { sceneNodes } from '../shared/scene-props.ts';
 
@@ -548,6 +549,87 @@ describe('commitAriaLabel — một câu DÙNG CHUNG với renderer 3D', () => {
     const b = commitAriaLabel(spot, ['nhánh main']);
     expect(a).toBe(b);
     expect(a.endsWith('.')).toBe(true);
+  });
+});
+
+describe('WCAG 2.5.3 · chữ vẽ trên commit nằm TRONG tên khả truy cập', () => {
+  /*
+   * c3 là ca nặng nhất: message dài hơn hộp và bị cắt GIỮA một từ, accent
+   * `head` có sigil, BA ref trỏ vào (nhánh hiện tại có dấu `*`, một nhánh tên
+   * dài bị cắt, một tag) — tức hai badge vẽ ra cộng chữ `+1 refs`. Mọi `<text>`
+   * mà một commit có thể mang đều có mặt cùng lúc.
+   */
+  const LONG_MESSAGE = 'Refactor authentication module';
+  const CROWDED: SceneView = {
+    ...VIEW,
+    nodes: VIEW.nodes.map((n) =>
+      n.oid === 'c3' && n.repo === 'local' ? { ...n, message: LONG_MESSAGE } : n,
+    ),
+    refs: [
+      ...VIEW.refs,
+      {
+        name: 'refs/heads/hotfix-dang-nhap-khan-cap',
+        shortName: 'hotfix-dang-nhap-khan-cap',
+        oid: 'c3',
+        kind: 'branch',
+        repo: 'local',
+        isCurrent: false,
+      },
+      {
+        name: 'refs/tags/v2',
+        shortName: 'v2',
+        oid: 'c3',
+        kind: 'tag',
+        repo: 'local',
+        isCurrent: false,
+      },
+    ],
+  };
+
+  function crowded(container: HTMLElement): Element {
+    const node = [...container.querySelectorAll('[role="button"][data-node-y]')].find((el) =>
+      (el.getAttribute('aria-label') ?? '').includes(LONG_MESSAGE),
+    );
+    if (node === undefined) throw new Error('không tìm thấy commit c3 có message dài');
+    return node;
+  }
+
+  it('MỌI commit: dãy từ nhìn thấy là dãy con liền mạch, đúng thứ tự của tên', () => {
+    const { container } = render(<GitSvgScene {...props({ view: CROWDED })} />);
+    const buttons = [...container.querySelectorAll('[role="button"][data-node-y]')];
+    expect(buttons.length).toBe(7);
+    for (const button of buttons) {
+      const seen = visibleText(button);
+      const name = button.getAttribute('aria-label') ?? '';
+      expect(isLabelInName(seen, name), explainMismatch(seen, name)).toBe(true);
+    }
+  });
+
+  it('c3 vẽ đủ mọi loại chữ, và tên bắt đầu bằng đúng chữ ĐÃ CẮT', () => {
+    const { container } = render(<GitSvgScene {...props({ view: CROWDED })} />);
+    const node = crowded(container);
+    const texts = [...node.querySelectorAll('text')].map((el) => el.textContent ?? '');
+    // Tiền đề của ô: thiếu một loại chữ thì ô trên xanh mà chưa thử ca khó.
+    expect(texts).toContain('Refactor authenti…');
+    expect(texts).toContain('+1 refs');
+    expect(texts.some((x) => x.startsWith('* '))).toBe(true);
+    expect(texts.some((x) => x.endsWith('…') && x.startsWith('hotfix'))).toBe(true);
+    expect(texts.length).toBe(6);
+
+    const name = node.getAttribute('aria-label') ?? '';
+    expect(name.startsWith('c3, Refactor authenti…, ')).toBe(true);
+    expect(name).toContain(', +1 refs. Commit c3: Refactor authentication module.');
+    // Glyph không mang từ (sigil, dấu `*`) không bị đọc thành "a còng", "sao".
+    expect(name).not.toContain('* ');
+  });
+
+  it('ĐỐI CHỨNG ÂM · nhãn cũ (chỉ commitAriaLabel) phải RỚT trên chính c3', () => {
+    const { container } = render(<GitSvgScene {...props({ view: CROWDED })} />);
+    const node = crowded(container);
+    const spot = sceneNodes(props({ view: CROWDED })).find((n) => n.id === 'local:c3');
+    if (spot === undefined) throw new Error('không có local:c3');
+    const old = commitAriaLabel(spot, ['nhánh main', 'nhánh hotfix-dang-nhap-khan-cap', 'tag v2']);
+    expect(isLabelInName(visibleText(node), old)).toBe(false);
   });
 });
 
