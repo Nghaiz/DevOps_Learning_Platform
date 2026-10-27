@@ -42,6 +42,8 @@
 # cuối file mới nội suy được. ARG khai sau một FROM chỉ sống trong stage đó.
 ARG INCLUDE_IDE=0
 ARG THEIA_IMAGE=ghcr.io/eclipse-theia/theia-ide/theia-ide@sha256:595d34047d91223b5d55fd5b611bb10981154c4b28de9271b2578f996f323751
+# Nguồn của binary `node` chạy Theia — xem stage `node-src` ở cuối file.
+ARG NODE_IMAGE=node:24.22.1-bookworm-slim@sha256:55fb5f5a527ea2c5c4a95f963e48ef90aa38c7b346054fdc8ee9957a2b55d205
 
 FROM --platform=linux/amd64 ubuntu:24.04 AS base
 
@@ -635,6 +637,7 @@ LABEL org.opencontainers.image.title="dlp-sandbox-base" \
 # ngày cần tuỳ biến bản dựng (bố cục shell/branding là Theia extension biên dịch
 # vào bản dựng — không thả được vào /opt/theia lúc chạy).
 FROM --platform=linux/amd64 ${THEIA_IMAGE} AS theia-src
+FROM --platform=linux/amd64 ${NODE_IMAGE} AS node-src
 
 FROM base AS ide-0
 
@@ -649,7 +652,16 @@ COPY --from=theia-src /home/theia /opt/theia
 #
 # Binary link với glibc 2.36 (bookworm) chạy trên Ubuntu 24.04 (glibc 2.39): glibc
 # tương thích NGƯỢC theo chiều này. Chiều ngược lại thì không, nên đừng đảo hai base.
-COPY --from=theia-src /usr/local/bin/node /opt/theia/node/bin/node
+#
+# `node` lấy từ `NODE_IMAGE`, KHÔNG lấy từ image Theia (2026-10-27). Digest Theia
+# ghim ở đầu file mang Node 24.19.0 — dính CVE-2026-111497 "Node2Shell" và loạt
+# CVE Node ra ngày 21/10, vá ở 24.22.1. Nâng digest Theia thì kéo theo cả bản dựng
+# IDE + plugin; thay riêng binary thì không. An toàn vì cùng ABI Node 24
+# (`process.versions.modules` = 137 ở mọi bản 24.x), nên addon native của Theia
+# vẫn nạp được, và cùng nền bookworm nên thư viện liên kết giống hệt. Khi nâng
+# digest Theia sang bản đã mang Node ≥ 24.22.1, dòng này vẫn đúng: nó chỉ cần
+# `NODE_IMAGE` cùng major với Node mà Theia được build.
+COPY --from=node-src /usr/local/bin/node /opt/theia/node/bin/node
 # ⛔ KHÔNG đặt `DLP_IDE=1` ở đây — bản trước đặt, và từ khi CI dựng image này
 # với `INCLUDE_IDE=1` (labs rebuild 2026-10-03, D6) thì dòng đó nghĩa là MỌI pod,
 # kể cả pod warm-pool của bài Linux thường, khởi động Theia và gánh thêm
