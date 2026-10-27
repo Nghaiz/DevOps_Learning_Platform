@@ -15,7 +15,8 @@ import {
   type CicdSceneProps,
 } from '../scene-props';
 import { CicdSvgScene } from './cicd-svg-scene';
-import { cdView, ciView } from './scene-fixtures';
+import { cdView, ciView, edge, stage } from './scene-fixtures';
+import { explainMismatch, isLabelInName, visibleText } from '../../shared/label-in-name-check';
 
 /**
  * Cảnh 2D — DOM thật. Ô nghiệm thu D.2.1/D.2.4/D.2.9 + AC-D1 + AC-D10.
@@ -257,7 +258,10 @@ describe('D.2.9 · a11y và bàn phím', () => {
       expect(node.getAttribute('aria-label') ?? '').not.toBe('');
     }
     const windows = container.querySelector(`[${CICD_NODE_ATTR}="test[os=windows]"]`);
-    expect(windows?.getAttribute('aria-label')).toBe('test trên windows, đang chạy');
+    // Chữ vẽ trên hộp đứng đầu (WCAG 2.5.3), câu của hợp đồng giữ nguyên phía sau.
+    expect(windows?.getAttribute('aria-label')).toBe(
+      'test, test, đang chạy, chờ máy 6 tick. test trên windows, đang chạy',
+    );
 
     // Trạng thái cũng được VIẾT RA trong hộp — kênh chữ là kênh duy nhất sống
     // sót qua cả reduced-motion lẫn bản in đen trắng.
@@ -329,5 +333,65 @@ describe('D.2.9 · a11y và bàn phím', () => {
     const { container } = render(<CicdSvgScene {...props(cdView())} />);
     const result = await axe.run(container);
     expect(result.violations.map((v) => v.id)).toEqual([]);
+  });
+});
+
+describe('WCAG 2.5.3 · chữ vẽ trên node nằm TRONG tên khả truy cập', () => {
+  /*
+   * Ca khó nhất mà một level thật sinh ra được: tên dài hơn hộp (bị cắt), stage
+   * id cũng bị cắt, đang ở lượt thử lại (thêm `· lần 2`), và có badge chờ-máy
+   * treo dưới hộp — tức đủ năm `<text>` cùng lúc, cộng hai glyph trạng thái.
+   */
+  const LONG = 'deploy-production-eu-west';
+  const LONG_ID = 'deploy[env=production]';
+  const LONG_DESC = `${LONG} (env=production) — đang thử lại, lần thứ 2`;
+
+  function longView(): CicdGraphView {
+    const base = ciView();
+    return {
+      ...base,
+      nodes: [
+        ...base.nodes,
+        stage(LONG_ID, LONG, {
+          state: 'retrying',
+          statusToken: 'status-progress',
+          attempt: 1,
+          readyTick: 9,
+          startedTick: 12,
+          ariaLabel: LONG_DESC,
+        }),
+      ],
+      edges: [...base.edges, edge('package', LONG_ID)],
+    };
+  }
+
+  it('MỌI node: dãy từ nhìn thấy là dãy con liền mạch, đúng thứ tự của tên', () => {
+    const { container } = render(<CicdSvgScene {...props(longView())} />);
+    const nodes = [...container.querySelectorAll(`[${CICD_NODE_ATTR}]`)];
+    expect(nodes.length).toBe(6);
+    for (const node of nodes) {
+      const seen = visibleText(node);
+      const name = node.getAttribute('aria-label') ?? '';
+      expect(isLabelInName(seen, name), explainMismatch(seen, name)).toBe(true);
+    }
+  });
+
+  it('tên bắt đầu bằng đúng chữ ĐÃ CẮT, rồi mới tới câu đầy đủ', () => {
+    const { container } = render(<CicdSvgScene {...props(longView())} />);
+    const node = container.querySelector(`[${CICD_NODE_ATTR}="${LONG_ID}"]`);
+    if (node === null) throw new Error('node tên dài không được vẽ');
+    expect(node.getAttribute('aria-label')).toBe(
+      `deploy-producti…, deploy-production-e…, đang thử lại · lần 2, chờ máy 3 tick. ${LONG_DESC}`,
+    );
+    // Tooltip vẫn là câu đầy đủ — nó là thứ duy nhất cho người dùng chuột đọc tên chưa cắt.
+    expect(node.querySelector('title')?.textContent).toBe(LONG_DESC);
+  });
+
+  it('ĐỐI CHỨNG ÂM · nhãn cũ (chỉ câu mô tả) phải RỚT trên chính node đó', () => {
+    const { container } = render(<CicdSvgScene {...props(longView())} />);
+    const node = container.querySelector(`[${CICD_NODE_ATTR}="${LONG_ID}"]`);
+    if (node === null) throw new Error('node tên dài không được vẽ');
+    // Không có ô này thì một bản sao luật luôn trả `true` cũng làm ô trên xanh.
+    expect(isLabelInName(visibleText(node), LONG_DESC)).toBe(false);
   });
 });
