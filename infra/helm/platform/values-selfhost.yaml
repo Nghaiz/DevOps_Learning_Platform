@@ -36,7 +36,8 @@ global:
 image:
   # Tag chung chỉ là mặc định cho thành phần thiếu tag riêng (hiện không có thành phần nào thiếu),
   # nhưng 11-sideload-images.sh đòi nó khác rỗng. Giữ bằng tag web như rev 114.
-  tag: sha-71ed281
+  # 2026-10-28: `sha-3f91b30` (CI, merge #175) — đợt vá bảo mật #189/#190/#195/#175.
+  tag: sha-3f91b30
 
 # ⛔ TAG THEO TỪNG THÀNH PHẦN — SỬA Ở P12/12.A (2026-09-04) SAU MỘT SỰ CỐ THẬT.
 #
@@ -80,7 +81,9 @@ migrate:
     # Bản duy nhất có trên node. Migrator chạy như pre-upgrade hook nên tag sai
     # ở đây làm HỎNG CẢ LƯỢT UPGRADE, không chỉ hỏng một pod.
     # 2026-10-20: `sha-8164a85` là bản cụm đang chạy (rev 114); không migration nào đổi từ đó.
-    tag: sha-8164a85
+    # 2026-10-28: `sha-3f91b30` — vẫn không file nào trong apps/web/drizzle đổi kể từ
+    # 8164a85 (migrate no-op); nâng vì image này dựng trên cùng base Node của web.
+    tag: sha-3f91b30
 
 # Ingress + TLS KHÔNG đặt ở đây, có chủ ý: `ingress.host`, `corsAllowedOrigins`
 # và `betterAuthUrl` đều chứa IP của node, mà IP đó khác nhau ở mỗi máy lab —
@@ -158,7 +161,9 @@ web:
     # 2026-10-20, bản dựng lại giao diện (#183 và #184): image CI publish của commit merge `71ed281`.
     # Trước đó cụm chạy `sha-90d1090`, image xây tay ở máy dev từ commit `90d10902` của nhánh
     # (mã của #183 trước khi có #184, chưa từng lên ghcr); tag đó còn trên node làm đường lùi.
-    tag: sha-71ed281
+    # 2026-10-28: `sha-3f91b30` — next 16.4.3 (2 RCE critical), Node 24.22.1 (Node2Shell),
+    # better-auth 1.7.13. `sha-71ed281` còn trên node làm đường lùi.
+    tag: sha-3f91b30
   replicaCount: 1
   # ⛔ `rateLimitTrustProxy` CỐ Ý KHÔNG nằm ở đây — xem web-deployment.yaml.
   # Bản đầu của chặng 3.A đặt nó `'1'` ngay trong hồ sơ này, và đó là một lỗ
@@ -210,8 +215,9 @@ orchestrator:
   # phải CI publish; nói ra vì `p12fix` tự nó không phân biệt được hai đường ấy.
   #
   # 2026-10-20: `sha-f4bec2e` (CI, merge labs rebuild #161) là bản cụm chạy từ rev 114.
+  # 2026-10-28: `sha-3f91b30` — Go 1.27.3 (GO-2026-6809) + client-go 0.37.1 (đo §3 ĐẠT).
   image:
-    tag: sha-f4bec2e
+    tag: sha-3f91b30
   replicaCount: 1
   env:
     # Image pod lab: mặc định của template là `image.registry`+`image.tag`, tức
@@ -234,7 +240,10 @@ orchestrator:
     # không có Theia và `/ide` vẫn 503 (`kubectl logs` của pod có dòng
     # "Theia: image có IDE nhưng DLP_IDE=… — KHÔNG khởi động").
     # Đổi tag do lượt deploy điều phối, không đổi lẻ ở đây.
-    sandboxImage: ghcr.io/nghaiz/dlp-sandbox-base:sha-f4bec2e
+    #
+    # 2026-10-28: `sha-3f91b30` — `node` của Theia lấy từ node:24.22.1-bookworm-slim
+    # (#190) thay vì Node 24.19.0 đi kèm digest Theia (Node2Shell CVE-2026-111497).
+    sandboxImage: ghcr.io/nghaiz/dlp-sandbox-base:sha-3f91b30
     # 3 pod ấm, không 1 — đóng nợ của 3.I mắt 3–5 và 2026-08-16-concurrent-build-load.
     #
     # Số đo làm cơ sở (18 người vào cùng lúc, POOL_TARGET=1): 17/18 đi cold path,
@@ -301,7 +310,8 @@ gateway:
   # phát hiện được: `rollout status` xanh, pod `Running 1/1`, trang gốc 200.
   #
   # 2026-10-20: `sha-f4bec2e` (CI, merge labs rebuild #161) là bản cụm chạy từ rev 114.
-    tag: sha-f4bec2e
+  # 2026-10-28: `sha-3f91b30` — Go 1.27.3 (GO-2026-6809) + client-go 0.37.1 (đo §3 ĐẠT).
+    tag: sha-3f91b30
   # 2 replica từ chặng 3.H. Gateway stateless đã được KIỂM CHỨNG chứ không chỉ
   # được khẳng định: không map/registry session→conn nào ở package-level hay
   # struct field; đích exec đọc từ Redis mỗi lần connect, và trần WS đồng thời
