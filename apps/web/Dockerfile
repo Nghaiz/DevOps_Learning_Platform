@@ -4,7 +4,14 @@
 # packages/shared-types, cả hai nằm ngoài thư mục này (cùng pattern với
 # services/orchestrator/Dockerfile — copy manifest trước để cache layer).
 
-FROM node:24-alpine AS base
+# Node ghim PATCH chính xác, không dùng tag trôi `node:24-alpine` (2026-10-27).
+# Image web chạy trên cụm lúc đó build ngày 20/10 và mang Node 24.22.0 — dính
+# CVE-2026-111497 "Node2Shell" (ghi ngoài vùng nhớ trong bộ giải nén Brotli,
+# vá ở 24.22.1, đợt phát hành 21/10). Tag trôi chỉ an toàn nếu được build lại
+# đúng lúc, và không gì bảo đảm điều đó; ghim patch thì bản vá nằm trong git và
+# Dependabot (mục docker `/apps/web`) mở PR cho mỗi patch mới. Hai dòng
+# `FROM node:` ở file này phải cùng một tag.
+FROM node:24.22.1-alpine AS base
 # corepack đi kèm Node 24; pin đúng pnpm 11 mà root package.json khai báo
 # (packageManager) thay vì để corepack tự chọn bản mới nhất.
 RUN corepack enable
@@ -147,9 +154,9 @@ WORKDIR /repo/apps/web
 # này an toàn khi Helm retry hoặc khi upgrade lại cùng một version.
 CMD ["node", "./node_modules/drizzle-kit/bin.cjs", "migrate"]
 
-# `node:24-alpine` TRỰC TIẾP, không phải `FROM base`: stage `base` bật corepack,
+# `node:24.22.1-alpine` TRỰC TIẾP, không phải `FROM base`: stage `base` bật corepack,
 # thứ image runtime không cần — nó chỉ chạy `node apps/web/server.js`.
-FROM node:24-alpine AS runner
+FROM node:24.22.1-alpine AS runner
 WORKDIR /repo
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -182,8 +189,9 @@ RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack 
 # cố ý chặn ở CRITICAL chứ không HIGH — nhưng khác nhóm HIGH do `next` ghim
 # (không tự vá được), cái này ĐÃ CÓ bản vá `3.5.8-r0` trong repo alpine 3.24,
 # nên vá được thì vá. `--no-cache` để không để lại chỉ mục apk (cùng kỷ luật
-# cắt-bề-mặt với hai RUN quanh nó). Base là tag DI ĐỘNG nên một ngày nào đó nó
-# tự lên 3.5.8; dòng này chỉ bảo đảm không phụ thuộc thời điểm đó.
+# cắt-bề-mặt với hai RUN quanh nó). Base nay ghim patch Node (đầu file), nhưng
+# thư viện hệ thống của alpine vẫn có bản vá riêng giữa hai lần ghim; dòng này
+# giữ libssl/libcrypto ở bản mới nhất của repo alpine lúc build.
 RUN apk upgrade --no-cache libssl3 libcrypto3
 
 # `shellcheck` — NĂNG LỰC, không phải tiện nghi. Ngoại lệ CÓ CHỦ Ý với chính
