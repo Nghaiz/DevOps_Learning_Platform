@@ -79,6 +79,26 @@ test:
 # Không cần nhiều bản gateway trên 1 node.
 gateway:
   replicas: 1
+  # nginx-unprivileged: mặc định của chart 7.3.0 là tag trôi `1.29-alpine`, mà nhánh
+  # 1.29 không còn được build (đứng ở 1.29.8). Theo nginx.org/en/security_advisories,
+  # 1.29.8 dính 17/20 advisory gần nhất (có CVE-2026-42533 mức major); 1.30.6 không
+  # dính cái nào. Ghim patch, đổi lên khi có 1.30.x mới. (2026-10-28)
+  image:
+    tag: 1.30.6-alpine
+  # Chart ép podAntiAffinity BẮT BUỘC theo hostname cho gateway. Trên cụm MỘT node,
+  # pod mới không lập lịch được khi pod cũ còn sống, nên mọi rolling update treo
+  # Pending vĩnh viễn mà `helm upgrade` vẫn báo deployed (đo 2026-10-28, lượt đổi
+  # image ở trên — lần rollout đầu tiên của gateway kể từ khi cài).
+  # ⚠ Phải là `null` cho đúng key: helm TRỘN SÂU map, nên `affinity: {}` không xoá
+  # được mặc định của chart — đã thử, render vẫn ra podAntiAffinity.
+  affinity:
+    podAntiAffinity: null
+  # Recreate thay RollingUpdate: anti-affinity BẮT BUỘC được áp HAI CHIỀU, nên pod
+  # cũ (còn mang ràng buộc) chặn pod mới dù pod mới đã bỏ nó; RollingUpdate với 1
+  # replica (maxUnavailable làm tròn về 0) không chịu tắt pod cũ trước ⇒ kẹt. Cái
+  # giá là vài giây gateway vắng mặt mỗi lần rollout; promtail tự thử lại.
+  deploymentStrategy:
+    type: Recreate
   resources:
     requests:
       cpu: 10m

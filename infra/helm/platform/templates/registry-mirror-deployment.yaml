@@ -68,6 +68,14 @@ spec:
             # trên storage), không cần verb DELETE qua mạng — nên tắt.
             - name: REGISTRY_HTTP_ADDR
               value: {{ printf ":%v" .Values.registryMirror.service.port | quote }}
+            # registry:3 log ở mức debug và in span OpenTelemetry của MỌI request ra
+            # stdout, kể cả probe 5s/lần: đo 2026-10-28 được 81 dòng / 2 phút, một nửa
+            # là span, tức ~58k dòng/ngày vào Loki mà không mang thông tin gì. registry:2
+            # không làm vậy. Đưa về info và tắt exporter trace (không ai thu trace ở đây).
+            - name: REGISTRY_LOG_LEVEL
+              value: info
+            - name: OTEL_TRACES_EXPORTER
+              value: none
           ports:
             - name: registry
               containerPort: {{ .Values.registryMirror.service.port }}

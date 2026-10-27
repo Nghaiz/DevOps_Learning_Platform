@@ -7,14 +7,16 @@ PR Dependabot — và comment đó biến mất khi Dependabot đóng PR để t
 ## 1. Chuỗi ràng buộc
 
 ```
-Sysbox 0.7.0  ──đỡ──▶  k8s 1.32 / 1.33 / 1.34   ──▶  cụm ghim ở v1.34.10
+Sysbox 0.7.0  ──đỡ──▶  k8s 1.32 / 1.33 / 1.34   ──▶  cụm ghim ở v1.34.12
                                                        │
                                         client-go bump ▼ nới rộng khoảng lệch
 ```
 
 - **Sysbox là nền của trụ sandbox** (RuntimeClass `sysbox-runc`) và của cổng P0.F. Tài liệu
   `install-k8s.md` của Sysbox khai hỗ trợ **v1.32.\* / v1.33.\* / v1.34.\***.
-- Cụm đang ở **v1.34.10 — đúng mức trần**. Nâng k8s lên 1.35+ là đẩy cụm ra ngoài vùng Sysbox đỡ.
+- Cụm đang ở **v1.34.12 — đúng mức trần** (nâng patch từ 1.34.10 ngày 2026-10-28, vá CVE-2026-2270;
+  `kubeadm upgrade apply`, etcd giữ 3.6.5-0; smoke 7/7 sau nâng). Nâng k8s lên 1.35+ là đẩy cụm ra
+  ngoài vùng Sysbox đỡ. Bản vá trong cùng minor 1.34 thì vẫn trong vùng đỡ.
 - Sysbox 0.7.1 (bản vá lỗi `mount through procfd` với containerd 2.x) **chưa có đường nâng trên
   k8s**: manifest ở cả tag `v0.7.1` lẫn `master` vẫn ghim `sysbox-deploy-k8s:v0.7.0-0`.
   Kiểm lại rẻ, một lệnh:
@@ -35,7 +37,8 @@ thành phần ở tầng dưới, và sẽ còn khoá cho tới khi Nestybox ph�
 | client-go | nhắm k8s | cụm | lệch |
 |---|---|---|---|
 | `v0.36.3` | 1.36 | 1.34.10 | 2 minor |
-| `v0.37.0` (hiện tại) | 1.37 | 1.34.10 | **3 minor** |
+| `v0.37.0` | 1.37 | 1.34.10 | **3 minor** |
+| `v0.37.1` (hiện tại, #175) | 1.37 | 1.34.12 | **3 minor** |
 
 Vì cụm **không nâng được**, mỗi lượt bump client-go nới khoảng lệch thêm một nấc và không bao giờ
 thu lại. Đây là lý do **cấu trúc** để bảo thủ với riêng nhóm `k8s.io/*`, khác hẳn các dependency

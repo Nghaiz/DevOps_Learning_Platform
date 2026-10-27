@@ -89,6 +89,13 @@ grafana:
   # 10-observability.sh truyền qua --set từ biến môi trường.
   defaultDashboardsEnabled: true
 
+  # Ghim Grafana thay vì theo mặc định của chart 88.3.0 (13.1.3), 2026-10-28.
+  # Mỗi bản 13.1.4 → 13.1.9 đều có mục Security trong release notes (vd 13.1.8 vá
+  # CVE-2026-15577/33374/93294/95502, 13.1.9 vá CVE-2026-100105/88858/88967).
+  # Bỏ dòng này khi nâng chart sang bản có appVersion Grafana >= 13.1.9.
+  image:
+    tag: 13.1.9
+
   resources:
     requests:
       cpu: 50m
