@@ -622,7 +622,11 @@ describe('AC-3 — cùng (workflow, workload, seed) ⇒ cùng bản ghi', () => 
     expect(buocs.some((one) => one.includes('|passed|'))).toBe(true);
   });
 
-  it('1000 lượt chạy lại cho ra ĐÚNG một kết quả', () => {
+  // Ô này đo TÍNH TẤT ĐỊNH, không đo tốc độ, nên nó không được mang ngưỡng 5s mặc
+  // định của vitest. Đo trên runner CI (turbo chạy song song mọi gói): cả file mất
+  // 2,3–5,8s; hai lượt liên tiếp của PR #175 (2026-10-27) đỏ "timed out in 5000ms"
+  // dù không một dòng TS nào đổi. Đỏ vì runner bận là đỏ không nói gì về tất định.
+  it('1000 lượt chạy lại cho ra ĐÚNG một kết quả', { timeout: 30_000 }, () => {
     const chuan = JSON.stringify(evaluate(DU_THU, DU_THU_WORKLOAD, spec));
     for (let i = 0; i < 1000; i += 1) {
       expect(JSON.stringify(evaluate(DU_THU, DU_THU_WORKLOAD, spec))).toBe(chuan);
